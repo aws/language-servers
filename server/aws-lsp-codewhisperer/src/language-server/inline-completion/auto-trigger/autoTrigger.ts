@@ -202,6 +202,10 @@ export const autoTrigger = (
     classifierResult: number
     classifierThreshold: number
 } => {
+    logging.debug(
+        `[INLINE_COMPLETION] Auto-trigger eval - type: ${triggerType}, char: '${char}', prev: ${previousDecision}`
+    )
+
     const leftContextLines = fileContext.leftFileContent.split(/\r?\n/)
     const leftContextAtCurrentLine = leftContextLines[leftContextLines.length - 1]
     const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
@@ -217,7 +221,9 @@ export const autoTrigger = (
         rightContextAtCurrentLine.trim() !== ')' &&
         ['VSCODE', 'JETBRAINS'].includes(ide)
     ) {
-        logging.debug(`Skip auto trigger: immediate right context`)
+        logging.debug(
+            `[INLINE_COMPLETION] Auto-trigger blocked - immediate right context: '${rightContextAtCurrentLine.trim()}'`
+        )
         return {
             shouldTrigger: false,
             classifierResult: 0,
@@ -292,6 +298,10 @@ export const autoTrigger = (
 
     const r = sigmoid(classifierResult)
     const shouldTrigger = r > TRIGGER_THRESHOLD
+
+    logging.debug(
+        `[INLINE_COMPLETION] Auto-trigger result - score: ${classifierResult.toFixed(3)}, sigmoid: ${sigmoid(classifierResult).toFixed(3)}, trigger: ${shouldTrigger}`
+    )
 
     return {
         shouldTrigger,

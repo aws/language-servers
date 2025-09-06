@@ -648,7 +648,8 @@ describe('CodeWhisperer Server', () => {
 
         it('handles partialResultToken in request', async () => {
             const manager = SessionManager.getInstance()
-            manager.createSession(SAMPLE_SESSION_DATA)
+            const session = manager.createSession(SAMPLE_SESSION_DATA)
+            manager.activateSession(session)
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -2394,6 +2395,38 @@ describe('CodeWhisperer Server', () => {
             TestAmazonQServiceManager.resetInstance()
         })
     })
+
+    describe('IAM Error Handling', () => {
+        it('should handle IAM access denied errors', async () => {
+            const service = sinon.createStubInstance(
+                CodeWhispererServiceToken
+            ) as StubbedInstance<CodeWhispererServiceToken>
+            service.generateSuggestions.rejects(new Error('not authorized'))
+
+            const features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            TestAmazonQServiceManager.resetInstance()
+            const server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await startServer(features, server)
+            features.openDocument(SOME_FILE)
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EMPTY_RESULT)
+            TestAmazonQServiceManager.resetInstance()
+        })
+    })
+
     describe('getLanguageIdFromUri', () => {
         it('should return python for notebook cell URIs', () => {
             const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'

@@ -27,6 +27,7 @@ import {
     getClientName,
     sanitizeInput,
     sanitizeRequestInput,
+    isUsingIAMAuth,
 } from './utils'
 import { promises as fsPromises } from 'fs'
 
@@ -182,6 +183,82 @@ describe('getOriginFromClientInfo', () => {
     it('returns IDE for client names that do not match SMUS patterns', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-Other-IDE')
         assert.strictEqual(result, 'IDE')
+    })
+})
+
+describe('isUsingIAMAuth', () => {
+    let originalEnv: string | undefined
+
+    beforeEach(() => {
+        originalEnv = process.env.USE_IAM_AUTH
+        delete process.env.USE_IAM_AUTH
+    })
+
+    afterEach(() => {
+        if (originalEnv !== undefined) {
+            process.env.USE_IAM_AUTH = originalEnv
+        } else {
+            delete process.env.USE_IAM_AUTH
+        }
+    })
+
+    it('should return true when USE_IAM_AUTH environment variable is "true"', () => {
+        process.env.USE_IAM_AUTH = 'true'
+        assert.strictEqual(isUsingIAMAuth(), true)
+    })
+
+    it('should return false when USE_IAM_AUTH environment variable is not set', () => {
+        assert.strictEqual(isUsingIAMAuth(), false)
+    })
+
+    it('should return true when only IAM credentials are available', () => {
+        const mockProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon
+                .stub()
+                .withArgs('iam')
+                .returns({ accessKeyId: 'AKIA...', secretAccessKey: 'secret' })
+                .withArgs('bearer')
+                .returns(null),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.strictEqual(isUsingIAMAuth(mockProvider), true)
+    })
+
+    it('should return false when bearer credentials are available', () => {
+        const mockProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon
+                .stub()
+                .withArgs('iam')
+                .returns({ accessKeyId: 'AKIA...', secretAccessKey: 'secret' })
+                .withArgs('bearer')
+                .returns({ token: 'bearer-token' }),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.strictEqual(isUsingIAMAuth(mockProvider), false)
+    })
+
+    it('should return false when credential access fails', () => {
+        const mockProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon.stub().throws(new Error('Access failed')),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.strictEqual(isUsingIAMAuth(mockProvider), false)
+    })
+
+    it('should return false when credentialsProvider is undefined', () => {
+        assert.strictEqual(isUsingIAMAuth(undefined), false)
     })
 })
 

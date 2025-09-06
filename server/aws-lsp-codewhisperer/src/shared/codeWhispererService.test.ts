@@ -23,6 +23,8 @@ import {
     CodeWhispererServiceIAM,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    isIAMRequest,
+    isTokenRequest,
 } from './codeWhispererService'
 import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
 import { CodeWhispererSupplementalContext } from './models/model'
@@ -303,6 +305,38 @@ describe('CodeWhispererService', function () {
                 const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
                 assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
             })
+
+            it('should include serviceType in response', async function () {
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
+
+                const result = await service.generateSuggestions(mockRequest)
+                assert.strictEqual(result.responseContext.serviceType, 'iam')
+            })
+        })
+
+        describe('Request Type Guards', function () {
+            it('should identify IAM vs Token requests', function () {
+                const iamRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: '',
+                        rightFileContent: '',
+                    },
+                }
+                const tokenRequest = { ...iamRequest, editorState: {} }
+
+                assert.strictEqual(isIAMRequest(iamRequest), true)
+                assert.strictEqual(isTokenRequest(tokenRequest), true)
+            })
         })
     })
 
@@ -404,6 +438,7 @@ describe('CodeWhispererService', function () {
             it('should process profile ARN with withProfileArn method', async function () {
                 const mockRequest: GenerateSuggestionsRequest = {
                     fileContext: {
+                        fileUri: 'file:///test.js',
                         filename: 'test.js',
                         programmingLanguage: { languageName: 'javascript' },
                         leftFileContent: 'const x = ',
