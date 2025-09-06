@@ -158,6 +158,37 @@ export class CodeReviewUtils {
     }
 
     /**
+     * Get git diff for a file or folder
+     * @param artifactPath Path to the file or folder
+     * @param logging Logging interface
+     * @returns Git diff output as string or null if not in a git repository
+     */
+    public static async getGitDiffNames(artifactPath: string, logging: Features['logging']): Promise<Set<string>> {
+        logging.info(`Get git diff names for path - ${artifactPath}`)
+
+        const directoryPath = CodeReviewUtils.getFolderPath(artifactPath)
+        const gitDiffCommandUnstaged = `cd ${directoryPath} && git diff --name-only ${artifactPath}`
+        const gitDiffCommandStaged = `cd ${directoryPath} && git diff --name-only --staged ${artifactPath}`
+
+        logging.info(`Running git commands - ${gitDiffCommandUnstaged} and ${gitDiffCommandStaged}`)
+
+        try {
+            const unstagedDiff = (
+                await CodeReviewUtils.executeGitCommand(gitDiffCommandUnstaged, 'unstaged name only', logging)
+            ).split('\n')
+            const stagedDiff = (
+                await CodeReviewUtils.executeGitCommand(gitDiffCommandStaged, 'staged name only', logging)
+            ).split('\n')
+            unstagedDiff.push(...stagedDiff)
+
+            return new Set(unstagedDiff.filter(item => item !== ''))
+        } catch (error) {
+            logging.error(`Error getting git diff: ${error}`)
+            return new Set()
+        }
+    }
+
+    /**
      * Log zip structure
      * @param zip JSZip instance
      * @param zipName Name of the zip for logging
