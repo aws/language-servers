@@ -156,30 +156,21 @@ export async function registerBearerTokenProviderSupport(
  */
 function createSelectProfileCommand(languageClient: LanguageClient, encrypted: boolean = true) {
     return async () => {
-        try {
-            if (!languageClient) {
-                console.error('Language client is undefined')
-                return
-            }
+        const profileName = await window.showInputBox({
+            prompt: 'Which credentials profile should the language server use?',
+        })
 
-            const profileName = await window.showInputBox({
-                prompt: 'Which credentials profile should the language server use?',
-            })
-            // PROOF OF CONCEPT
-            // We will resolve the default profile from the local system.
-            // In a product, the host extension would know which profile it is configured to provide to the language server.
-            const awsCredentials = await fromIni({
-                profile: profileName,
-            })()
+        // PROOF OF CONCEPT
+        // We will resolve the default profile from the local system.
+        // In a product, the host extension would know which profile it is configured to provide to the language server.
+        const awsCredentials = await fromIni({
+            profile: profileName,
+        })()
 
-            const request = await createUpdateIamCredentialsRequest(awsCredentials, encrypted)
-            await sendIamCredentialsUpdate(request, languageClient)
+        const request = await createUpdateIamCredentialsRequest(awsCredentials, encrypted)
+        await sendIamCredentialsUpdate(request, languageClient)
 
-            languageClient.info(`Client: The language server is now using credentials from environment variables`)
-        } catch (error) {
-            console.error('Error in selectProfile command:', error)
-            throw error
-        }
+        languageClient.info(`Client: The language server is now using credentials from environment variables`)
     }
 }
 
@@ -190,11 +181,6 @@ async function createUpdateIamCredentialsRequest(
     awsCredentials: AwsCredentialIdentity,
     encrypted: boolean = true
 ): Promise<UpdateCredentialsRequest> {
-    if (!awsCredentials || !awsCredentials.accessKeyId || !awsCredentials.secretAccessKey) {
-        console.error('Invalid AWS credentials:', awsCredentials)
-        throw new Error('Invalid AWS credentials')
-    }
-
     const requestData: UpdateIamCredentialsRequestData = {
         accessKeyId: awsCredentials.accessKeyId,
         secretAccessKey: awsCredentials.secretAccessKey,
@@ -228,17 +214,7 @@ async function sendIamCredentialsUpdate(
     request: UpdateCredentialsRequest,
     languageClient: LanguageClient
 ): Promise<void> {
-    try {
-        if (!languageClient) {
-            throw new Error('Language client is undefined')
-        }
-
-        console.log('Sending IAM credentials update with accessKeyId:', request.data ? 'present' : 'missing')
-        await languageClient.sendRequest(notificationTypes.updateIamCredentials, request)
-    } catch (error) {
-        console.error('Error sending IAM credentials update:', error)
-        throw error
-    }
+    await languageClient.sendRequest(notificationTypes.updateIamCredentials, request)
 }
 
 async function sendBearerTokenUpdate(request: UpdateCredentialsRequest, languageClient: LanguageClient): Promise<void> {

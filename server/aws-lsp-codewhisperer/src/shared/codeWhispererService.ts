@@ -41,6 +41,7 @@ import {
     FILE_URI_CHARS_LIMIT,
     FILENAME_CHARS_LIMIT,
 } from '../language-server/inline-completion/constants'
+import { log } from 'console'
 
 // Type guards for request classification
 export function isTokenRequest(request: BaseGenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
@@ -287,7 +288,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
         // Warn about unsupported features for IAM auth
         if ('editorState' in request || 'predictionTypes' in request || 'supplementalContexts' in request) {
-            console.warn('[IAM AUTH] Advanced features not supported - using basic completion')
+            console.warn('Advanced features not supported - using basic completion')
         }
 
         const response = await this.client.generateRecommendations(iamRequest).promise()

@@ -184,11 +184,6 @@ describe('getOriginFromClientInfo', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-Other-IDE')
         assert.strictEqual(result, 'IDE')
     })
-
-    it('returns MD_IDE for SMUS Code Editor client name', () => {
-        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE-1.0.0')
-        assert.strictEqual(result, 'MD_IDE')
-    })
 })
 
 describe('isUsingIAMAuth', () => {

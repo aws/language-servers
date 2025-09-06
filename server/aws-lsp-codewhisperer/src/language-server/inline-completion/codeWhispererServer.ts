@@ -63,7 +63,6 @@ import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
 import { isUsingIAMAuth } from '../../shared/utils'
-const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
@@ -328,97 +327,9 @@ export const CodewhispererServerFactory =
                         params.openTabFilepaths,
                         { includeRecentEdits: false }
                     )
-                    // TODO: logging
-                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
-                        const tokenRequestContext = requestContext as GenerateTokenSuggestionsRequest
-                        const supplementalContextItems = supplementalContext?.items || []
-                        tokenRequestContext.supplementalContexts = [
-                            ...supplementalContextItems.map(v => ({
-                                content: v.content,
-                                filePath: v.filePath,
-                            })),
-                        ]
 
-                        if (editsEnabled) {
-                            const predictionTypes: string[][] = []
-
-                            /**
-                             * Manual trigger - should always have 'Completions'
-                             * Auto trigger
-                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
-                             *  - Others - should always have 'Completions'
-                             */
-                            if (
-                                !isAutomaticLspTriggerKind ||
-                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
-                                (isAutomaticLspTriggerKind &&
-                                    codewhispererAutoTriggerType === 'Classifier' &&
-                                    autoTriggerResult?.shouldTrigger)
-                            ) {
-                                predictionTypes.push(['COMPLETIONS'])
-                            }
-
-                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                fileContext: fileContext,
-                                lineNum: params.position.line,
-                                char: triggerCharacters,
-                                previousDecision: previousDecisionForClassifier,
-                                cursorHistory: cursorTracker,
-                                recentEdits: recentEditTracker,
-                            })
-
-                            if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                predictionTypes.push(['EDITS'])
-                            }
-
-                            if (predictionTypes.length === 0) {
-                                return EMPTY_RESULT
-                            }
-
-                            // Step 0: Determine if we have "Recent Edit context"
-                            if (recentEditTracker) {
-                                supplementalContextFromEdits =
-                                    await recentEditTracker.generateEditBasedContext(textDocument)
-                            }
-
-                            // Step 1: Recent Edits context
-                            const supplementalContextItemsForEdits =
-                                supplementalContextFromEdits?.supplementalContextItems || []
-
-                            tokenRequestContext.supplementalContexts.push(
-                                ...supplementalContextItemsForEdits.map(v => ({
-                                    content: v.content,
-                                    filePath: v.filePath,
-                                    type: 'PreviousEditorState',
-                                    metadata: {
-                                        previousEditorStateMetadata: {
-                                            timeOffset: 1000,
-                                        },
-                                    },
-                                }))
-                            )
-
-                            // Step 2: Prediction type COMPLETION, Edits or both
-                            tokenRequestContext.predictionTypes = predictionTypes.flat()
-
-                            // Step 3: Current Editor/Cursor state
-                            tokenRequestContext.editorState = {
-                                document: {
-                                    relativeFilePath: textDocument.uri,
-                                    programmingLanguage: {
-                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
-                                    },
-                                    text: textDocument.getText(),
-                                },
-                                cursorState: {
-                                    position: {
-                                        line: params.position.line,
-                                        character: params.position.character,
-                                    },
-                                },
-                            }
-                        }
-                        requestContext = tokenRequestContext
+                    if (supplementalContext?.items) {
+                        requestContext.supplementalContexts = supplementalContext.items
                     }
 
                     // Close ACTIVE session and record Discard trigger decision immediately
@@ -662,7 +573,6 @@ export const CodewhispererServerFactory =
             session: CodeWhispererSession
         ): InlineCompletionListWithReferences => {
             logging.log('Recommendation failure: ' + error)
-            logging.debug(`[INLINE_SUGGESTION] handleSuggestionsErrors call`)
 
             // Add specific handling for IAM-related errors
             if (isUsingIAMAuth(credentialsProvider)) {
@@ -864,134 +774,71 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            try {
-                logging.log('[DEBUG] Starting Amazon Q service initialization...')
-                const usingIAM = isUsingIAMAuth(credentialsProvider)
-                logging.log(`[DEBUG] Authentication type: ${usingIAM ? 'IAM' : 'Bearer Token'}`)
-                logging.log(`[DEBUG] Using IAM auth: ${usingIAM}`)
+            amazonQServiceManager = serviceManager()
 
-                // Log authentication details
-                try {
-                    const iamCreds = credentialsProvider.getCredentials('iam')
-                    logging.log(`[DEBUG] IAM credentials available: ${!!iamCreds}`)
-                    if (iamCreds) {
-                        // Safely log credential info without exposing secrets
-                        logging.log(`[DEBUG] IAM credentials type: ${typeof iamCreds}`)
-                        logging.log(`[DEBUG] IAM credentials has accessKeyId`)
-                        logging.log(`[DEBUG] IAM credentials expiration: `)
-                    }
-                } catch (credError) {
-                    logging.error(`[DEBUG] Error accessing IAM credentials: ${credError}`)
-                }
+            const clientParams = safeGet(
+                lsp.getClientInitializeParams(),
+                new AmazonQServiceInitializationError(
+                    'TelemetryService initialized before LSP connection was initialized.'
+                )
+            )
 
-                try {
-                    const bearerCreds = credentialsProvider.getCredentials('bearer')
-                    logging.log(`[DEBUG] Bearer credentials available: ${!!bearerCreds}`)
-                    if (bearerCreds) {
-                        logging.log(`[DEBUG] Bearer token exists`)
-                    }
-                } catch (credError) {
-                    logging.error(`[DEBUG] Error accessing bearer credentials: ${credError}`)
-                }
+            logging.log(`Client initialization params: ${JSON.stringify(clientParams)}`)
+            editsEnabled =
+                clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
+                    ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
 
-                // Create service manager
-                logging.log('[DEBUG] Creating service manager...')
-                amazonQServiceManager = serviceManager()
-                logging.log('[DEBUG] Service manager created successfully')
+            telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
+            telemetryService.updateUserContext(
+                makeUserContextObject(clientParams, runtime.platform, 'INLINE', amazonQServiceManager.serverInfo)
+            )
 
-                // Log service manager details
-                logging.log(`[DEBUG] Service manager type: ${amazonQServiceManager.constructor.name}`)
-
-                // Get CodeWhisperer service
-                try {
-                    const codeWhispererService = amazonQServiceManager.getCodewhispererService()
-                    logging.log(`[DEBUG] CodeWhisperer service created: ${!!codeWhispererService}`)
-                    logging.log(`[DEBUG] CodeWhisperer service type: ${codeWhispererService.constructor.name}`)
-                    logging.log(
-                        `[DEBUG] CodeWhisperer service credentials type: ${codeWhispererService.getCredentialsType()}`
+            codePercentageTracker = new CodePercentageTracker(telemetryService)
+            codeDiffTracker = new CodeDiffTracker(
+                workspace,
+                logging,
+                async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
+                    await telemetryService.emitUserModificationEvent(
+                        {
+                            sessionId: entry.sessionId,
+                            requestId: entry.requestId,
+                            languageId: entry.languageId,
+                            customizationArn: entry.customizationArn,
+                            timestamp: new Date(),
+                            acceptedCharacterCount: entry.originalString.length,
+                            modificationPercentage: percentage,
+                            unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                        },
+                        {
+                            completionType: entry.completionType || 'LINE',
+                            triggerType: entry.triggerType || 'OnDemand',
+                            credentialStartUrl: entry.credentialStartUrl,
+                        }
                     )
-                } catch (serviceError) {
-                    logging.error(`[DEBUG] Error getting CodeWhisperer service: ${serviceError}`)
                 }
+            )
 
-                const clientParams = safeGet(
-                    lsp.getClientInitializeParams(),
-                    new AmazonQServiceInitializationError(
-                        'TelemetryService initialized before LSP connection was initialized.'
-                    )
-                )
+            const periodicLoggingEnabled = process.env.LOG_EDIT_TRACKING === 'true'
+            logging.log(
+                `[SERVER] Initialized telemetry-dependent components: CodePercentageTracker, CodeDiffTracker, periodicLogging=${periodicLoggingEnabled}`
+            )
 
-                logging.log(`[DEBUG] Client initialization params: ${JSON.stringify(clientParams)}`)
-                editsEnabled =
-                    clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
-                        ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
-                logging.log(`[DEBUG] Edits enabled: ${editsEnabled}`)
+            await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
 
-                logging.log('[DEBUG] Creating telemetry service...')
-                telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
-                telemetryService.updateUserContext(
-                    makeUserContextObject(clientParams, runtime.platform, 'INLINE', amazonQServiceManager.serverInfo)
-                )
-                logging.log('[DEBUG] Telemetry service created successfully')
-
-                logging.log('[DEBUG] Creating code percentage tracker...')
-                codePercentageTracker = new CodePercentageTracker(telemetryService)
-                logging.log('[DEBUG] Creating code diff tracker...')
-                codeDiffTracker = new CodeDiffTracker(
-                    workspace,
-                    logging,
-                    async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                        await telemetryService.emitUserModificationEvent(
-                            {
-                                sessionId: entry.sessionId,
-                                requestId: entry.requestId,
-                                languageId: entry.languageId,
-                                customizationArn: entry.customizationArn,
-                                timestamp: new Date(),
-                                acceptedCharacterCount: entry.originalString.length,
-                                modificationPercentage: percentage,
-                                unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                            },
-                            {
-                                completionType: entry.completionType || 'LINE',
-                                triggerType: entry.triggerType || 'OnDemand',
-                                credentialStartUrl: entry.credentialStartUrl,
-                            }
-                        )
-                    }
-                )
-
-                const periodicLoggingEnabled = process.env.LOG_EDIT_TRACKING === 'true'
-                logging.log(
-                    `[SERVER] Initialized telemetry-dependent components: CodePercentageTracker, CodeDiffTracker, periodicLogging=${periodicLoggingEnabled}`
-                )
-
-                logging.log('[DEBUG] Adding configuration change listener...')
-                await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
-
-                editCompletionHandler = new EditCompletionHandler(
-                    logging,
-                    clientParams,
-                    workspace,
-                    amazonQServiceManager,
-                    editSessionManager,
-                    cursorTracker,
-                    recentEditTracker,
-                    rejectedEditTracker,
-                    documentChangedListener,
-                    telemetry,
-                    telemetryService,
-                    credentialsProvider
-                )
-
-                logging.log('[DEBUG] Amazon Q service initialization completed successfully')
-            } catch (error) {
-                logging.error(`[DEBUG] CRITICAL ERROR initializing Amazon Q service: ${error}`)
-                if (error instanceof Error) {
-                    logging.error(`[DEBUG] Error stack: ${error.stack}`)
-                }
-                throw error
-            }
+            editCompletionHandler = new EditCompletionHandler(
+                logging,
+                clientParams,
+                workspace,
+                amazonQServiceManager,
+                editSessionManager,
+                cursorTracker,
+                recentEditTracker,
+                rejectedEditTracker,
+                documentChangedListener,
+                telemetry,
+                telemetryService,
+                credentialsProvider
+            )
         }
 
         const onEditCompletion = async (
