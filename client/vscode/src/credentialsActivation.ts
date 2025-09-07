@@ -170,7 +170,7 @@ function createSelectProfileCommand(languageClient: LanguageClient, encrypted: b
         const request = await createUpdateIamCredentialsRequest(awsCredentials, encrypted)
         await sendIamCredentialsUpdate(request, languageClient)
 
-        languageClient.info(`Client: The language server is now using credentials from environment variables`)
+        languageClient.info(`Client: The language server is now using credentials profile: ${profileName}`)
     }
 }
 

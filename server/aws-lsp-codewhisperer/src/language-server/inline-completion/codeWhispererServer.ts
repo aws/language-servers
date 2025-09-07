@@ -199,6 +199,7 @@ export const CodewhispererServerFactory =
                 } else {
                     // request for new session
                     if (!textDocument) {
+                        logging.log(`textDocument [${params.textDocument.uri}] not found`)
                         return EMPTY_RESULT
                     }
 
@@ -299,18 +300,10 @@ export const CodewhispererServerFactory =
                             logging
                         )
 
-                        if (
-                            codewhispererAutoTriggerType === 'Classifier' &&
-                            !autoTriggerResult.shouldTrigger &&
-                            !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken)
-                        ) {
-                            // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
+                        if (codewhispererAutoTriggerType === 'Classifier' && !autoTriggerResult.shouldTrigger) {
                             return EMPTY_RESULT
                         }
                     }
-
-                    // Get supplemental context from recent edits if available.
-                    let supplementalContextFromEdits = undefined
 
                     let requestContext: GenerateSuggestionsRequest = {
                         fileContext,
@@ -355,8 +348,6 @@ export const CodewhispererServerFactory =
                         }
                     }
 
-                    // Get supplemental context for metadata
-
                     const supplementalMetadata = supplementalContext?.supContextData
 
                     const newSession = completionSessionManager.createSession({
@@ -381,17 +372,6 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    // Prepare the request with normalized file content
-                    const normalizedFileContext = {
-                        ...requestContext.fileContext,
-                        leftFileContent: requestContext.fileContext.leftFileContent
-                            .slice(-CONTEXT_CHARACTERS_LIMIT)
-                            .replaceAll('\r\n', '\n'),
-                        rightFileContent: requestContext.fileContext.rightFileContent
-                            .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                            .replaceAll('\r\n', '\n'),
-                    }
-
                     // Create the appropriate request based on service type
                     let generateCompletionReq: BaseGenerateSuggestionsRequest
 
@@ -399,14 +379,12 @@ export const CodewhispererServerFactory =
                         const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
                         generateCompletionReq = {
                             ...tokenRequest,
-                            fileContext: normalizedFileContext,
                             ...(workspaceId ? { workspaceId } : {}),
                         }
                     } else {
                         const iamRequest = requestContext as GenerateIAMSuggestionsRequest
                         generateCompletionReq = {
                             ...iamRequest,
-                            fileContext: normalizedFileContext,
                         }
                     }
 
@@ -432,9 +410,6 @@ export const CodewhispererServerFactory =
             textDocument?: TextDocument
         ): Promise<InlineCompletionListWithReferences> => {
             codePercentageTracker.countInvocation(session.language)
-            logging.debug(
-                `[INLINE_COMPLETION] Processing response - suggestions: ${suggestionResponse.suggestions.length}, new: ${isNewSession}`
-            )
 
             userWrittenCodeTracker?.recordUsageCount(session.language)
             session.includeImportsWithSuggestions =

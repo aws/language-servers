@@ -438,7 +438,6 @@ describe('CodeWhispererService', function () {
             it('should process profile ARN with withProfileArn method', async function () {
                 const mockRequest: GenerateSuggestionsRequest = {
                     fileContext: {
-                        fileUri: 'file:///test.js',
                         filename: 'test.js',
                         programmingLanguage: { languageName: 'javascript' },
                         leftFileContent: 'const x = ',

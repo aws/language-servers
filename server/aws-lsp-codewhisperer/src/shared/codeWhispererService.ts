@@ -41,7 +41,6 @@ import {
     FILE_URI_CHARS_LIMIT,
     FILENAME_CHARS_LIMIT,
 } from '../language-server/inline-completion/constants'
-import { log } from 'console'
 
 // Type guards for request classification
 export function isTokenRequest(request: BaseGenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
@@ -64,15 +63,10 @@ export interface BaseGenerateSuggestionsRequest {
 }
 
 // IAM-specific request interface that directly extends the SigV4 client request
-export interface GenerateIAMSuggestionsRequest extends CodeWhispererSigv4Client.GenerateRecommendationsRequest {
-    // All fields are inherited from the client: fileContext, maxResults, nextToken, referenceTrackerConfiguration, supplementalContexts
-}
+export interface GenerateIAMSuggestionsRequest extends CodeWhispererSigv4Client.GenerateRecommendationsRequest {}
 
 // Token-specific request interface that directly extends the Token client request
-export interface GenerateTokenSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {
-    // All fields are inherited from the client: fileContext, editorState, maxResults, predictionTypes, nextToken,
-    // referenceTrackerConfiguration, supplementalContexts, customizationArn, optOutPreference, userContext, profileArn, workspaceId, modelId
-}
+export interface GenerateTokenSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {}
 
 // Union type for backward compatibility
 export type GenerateSuggestionsRequest = GenerateIAMSuggestionsRequest | GenerateTokenSuggestionsRequest
