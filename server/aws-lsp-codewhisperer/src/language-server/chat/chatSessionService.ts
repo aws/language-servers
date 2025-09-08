@@ -1,12 +1,4 @@
-import {
-    CodeWhispererStreamingClientConfig,
-    CodeWhispererStreamingServiceException,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-    Origin,
-    SendMessageCommand,
-    ToolUse,
-} from '@amzn/codewhisperer-streaming'
+import { CodeWhispererStreamingClientConfig, Origin, ToolUse } from '@amzn/codewhisperer-streaming'
 import {
     StreamingClientServiceToken,
     SendMessageCommandInput,
@@ -16,20 +8,14 @@ import {
     ChatCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
-import {
-    AgenticChatError,
-    isInputTooLongError,
-    isRequestAbortedError,
-    isThrottlingRelated,
-    wrapErrorWithCode,
-} from '../agenticChat/errors'
+import { AgenticChatError } from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { getOriginFromClientInfo, getClientName, getRequestID, isUsageLimitError } from '../../shared/utils'
+import { getOriginFromClientInfo, getClientName } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
 import { AwsRetryStrategy, DelayNotification } from '../agenticChat/retry/awsRetryStrategy'
+import { DEFAULT_RETRY_ATTEMPTS } from './constants'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -151,7 +137,7 @@ export class ChatSessionService {
 
         // Initialize retry strategy
         this.#retryStrategy = new AwsRetryStrategy(
-            3,
+            DEFAULT_RETRY_ATTEMPTS,
             logging,
             this.#onDelayNotification.bind(this),
             this.isModelSelectionEnabled()
@@ -265,7 +251,12 @@ export class ChatSessionService {
      * @param callback Function to call when delay notifications occur
      */
     public setDelayNotificationCallback(callback: (notification: DelayNotification) => void): void {
-        this.#retryStrategy = new AwsRetryStrategy(3, this.#logging, callback, this.isModelSelectionEnabled())
+        this.#retryStrategy = new AwsRetryStrategy(
+            DEFAULT_RETRY_ATTEMPTS,
+            this.#logging,
+            callback,
+            this.isModelSelectionEnabled()
+        )
     }
 
     #onDelayNotification(notification: DelayNotification): void {
