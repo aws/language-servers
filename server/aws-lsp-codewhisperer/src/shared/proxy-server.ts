@@ -8,10 +8,13 @@ import { getOrThrowBaseTokenServiceManager } from './amazonQServiceManager/Amazo
 import { getOrThrowBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
 import { LocalProjectContextServer } from '../language-server/localProjectContext/localProjectContextServer'
 import { WorkspaceContextServer } from '../language-server/workspaceContext/workspaceContextServer'
+import { isUsingIAMAuth } from './utils'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
 
 export const CodeWhispererServerIAMProxy = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
+
+export const CodeWhispererServerProxy = isUsingIAMAuth() ? CodeWhispererServerIAMProxy : CodeWhispererServerTokenProxy
 
 export const CodeWhispererSecurityScanServerTokenProxy = SecurityScanServerToken()
 
