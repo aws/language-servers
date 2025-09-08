@@ -21,6 +21,7 @@ export type ValidateInputAndSetupResult = {
     programmingLanguage: string
     scanName: string
     ruleArtifacts: RuleArtifacts
+    modelId?: string
 }
 
 export type PrepareAndUploadArtifactsResult = {
