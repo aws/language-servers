@@ -632,15 +632,6 @@ export class AgenticChatController implements ChatHandlers {
             let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
             let workspaceRulesDirectory = path.join(workspaceFolders[0], '.amazonq', 'rules')
             if (workspaceFolders.length > 0) {
-                // Handle Memory Bank creation - now handled through normal agent flow
-                if (params.promptName === 'memory-bank') {
-                    // Memory bank creation is now handled through the normal chat flow
-                    // The user will need to use the chat interface to create memory banks
-                    this.#features.logging.info('Memory bank creation should be done through chat interface')
-                    return
-                }
-
-                // Handle regular rule creation
                 const newFilePath = getNewRuleFilePath(params.promptName, workspaceRulesDirectory)
                 const newFileContent = ''
                 try {
@@ -852,77 +843,121 @@ export class AgenticChatController implements ChatHandlers {
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
-        // Memory Bank Creation Flow - Delegate everything to MemoryBankController
+        // Memory Bank Creation Flow - Delegate to MemoryBankController
         if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
-            this.#features.logging.info(`[Memory Bank] Detected memory bank request for tabId: ${params.tabId}`)
+            this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
 
-            // Delegate the entire workflow to MemoryBankController
-            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
-            const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
-            params.prompt.prompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
-                workspaceUri,
-                async (message: string) => {
+            // Store original prompt to prevent data loss on failure
+            const originalPrompt = params.prompt.prompt
+
+            try {
+                const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+                const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
+
+                if (!workspaceUri) {
+                    throw new Error('No workspace folder found for Memory Bank creation')
+                }
+
+                // Check if memory bank already exists to provide appropriate user feedback
+                const memoryBankExists = await this.#memoryBankController.memoryBankExists(workspaceUri)
+                const actionType = memoryBankExists ? 'Regenerating' : 'Generating'
+                this.#features.logging.info(`${actionType} Memory Bank for workspace: ${workspaceUri}`)
+
+                // Send initial status message
+                try {
                     await this.#features.chat.sendChatUpdate({
                         tabId: params.tabId,
                         data: {
                             messages: [
                                 {
-                                    messageId: `memory-bank-status-${Date.now()}`,
-                                    body: message,
+                                    messageId: `memory-bank-init-${Date.now()}`,
+                                    body: `**${actionType} Memory Bank**\n\n${memoryBankExists ? 'Updating existing' : 'Generating new'} Memory Bank for your workspace.`,
                                 },
                             ],
                         },
                     })
-                },
-                async (prompt: string) => {
-                    // Direct LLM call for ranking - no agentic loop, just a simple API call
-                    this.#features.logging.info(`[Memory Bank] Making direct LLM call for file ranking`)
+                } catch (updateError) {
+                    this.#features.logging.warn(`Failed to send initial status update: ${updateError}`)
+                }
 
-                    try {
-                        if (!this.#serviceManager) {
-                            throw new Error('amazonQServiceManager is not initialized')
+                const comprehensivePrompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
+                    workspaceUri,
+                    async (message: string) => {
+                        try {
+                            await this.#features.chat.sendChatUpdate({
+                                tabId: params.tabId,
+                                data: {
+                                    messages: [
+                                        {
+                                            messageId: `memory-bank-status-${Date.now()}`,
+                                            body: message,
+                                        },
+                                    ],
+                                },
+                            })
+                        } catch (updateError) {
+                            this.#features.logging.warn(`Failed to send status update: ${updateError}`)
                         }
+                    },
+                    async (prompt: string) => {
+                        // Direct LLM call for ranking - no agentic loop, just a simple API call
+                        try {
+                            if (!this.#serviceManager) {
+                                throw new Error('amazonQServiceManager is not initialized')
+                            }
 
-                        const client = this.#serviceManager.getStreamingClient()
-
-                        // Create a simple message request for ranking
-                        const requestInput: SendMessageCommandInput = {
-                            conversationState: {
-                                chatTriggerType: ChatTriggerType.MANUAL,
-                                currentMessage: {
-                                    userInputMessage: {
-                                        content: prompt,
+                            const client = this.#serviceManager.getStreamingClient()
+                            const requestInput: SendMessageCommandInput = {
+                                conversationState: {
+                                    chatTriggerType: ChatTriggerType.MANUAL,
+                                    currentMessage: {
+                                        userInputMessage: {
+                                            content: prompt,
+                                        },
                                     },
                                 },
-                            },
-                        }
+                            }
 
-                        this.#features.logging.info(`[Memory Bank] Sending ranking request to LLM`)
-                        const response = await client.sendMessage(requestInput)
+                            const response = await client.sendMessage(requestInput)
 
-                        // Extract the response content from the streaming response
-                        let responseContent = ''
-                        if (response.sendMessageResponse) {
-                            for await (const chatEvent of response.sendMessageResponse) {
-                                if (chatEvent.assistantResponseEvent?.content) {
-                                    responseContent += chatEvent.assistantResponseEvent.content
+                            // Extract response with size limit to prevent memory issues
+                            let responseContent = ''
+                            const maxResponseSize = 50000 // 50KB limit
+
+                            if (response.sendMessageResponse) {
+                                for await (const chatEvent of response.sendMessageResponse) {
+                                    if (chatEvent.assistantResponseEvent?.content) {
+                                        responseContent += chatEvent.assistantResponseEvent.content
+
+                                        // Prevent unbounded memory growth
+                                        if (responseContent.length > maxResponseSize) {
+                                            this.#features.logging.warn('LLM response exceeded size limit, truncating')
+                                            break
+                                        }
+                                    }
                                 }
                             }
+
+                            return responseContent.trim()
+                        } catch (error) {
+                            this.#features.logging.error(`Memory Bank LLM ranking failed: ${error}`)
+                            return '' // Empty string triggers TF-IDF fallback
                         }
-
-                        this.#features.logging.info(
-                            `[Memory Bank] LLM ranking response received: ${responseContent.length} characters`
-                        )
-                        return responseContent.trim()
-                    } catch (error) {
-                        this.#features.logging.error(`[Memory Bank] LLM ranking failed: ${error}`)
-                        this.#features.logging.info(`[Memory Bank] Falling back to TF-IDF ranking`)
-                        return '' // Empty string triggers TF-IDF fallback
                     }
-                }
-            )
+                )
 
-            this.#features.logging.info(`[Memory Bank] Starting comprehensive memory bank creation`)
+                // Only update prompt if we got a valid comprehensive prompt
+                if (comprehensivePrompt && comprehensivePrompt.trim().length > 0) {
+                    params.prompt.prompt = comprehensivePrompt
+                } else {
+                    this.#features.logging.warn('Empty comprehensive prompt received, using original prompt')
+                    params.prompt.prompt = originalPrompt
+                }
+            } catch (error) {
+                this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
+                // Restore original prompt to ensure no data loss
+                params.prompt.prompt = originalPrompt
+            }
         }
 
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
@@ -4451,8 +4486,6 @@ export class AgenticChatController implements ChatHandlers {
             // update the UI with response
             if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
-
-                // Memory Bank completion detection - removed from here to avoid timing issues
             }
 
             if (chatEvent.toolUseEvent) {
@@ -4479,8 +4512,6 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
         await streamWriter.close()
-
-        // No special completion detection needed - single agentic loop completes naturally
 
         metric.mergeWith({
             cwsprChatFullResponseLatency: metric.getTimeElapsed(),
@@ -4870,8 +4901,4 @@ export class AgenticChatController implements ChatHandlers {
         }
         return value
     }
-
-    // Memory Bank logic moved to MemoryBankController
-
-    // All Memory Bank methods moved to MemoryBankController and MemoryBankPrompts
 }
