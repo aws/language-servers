@@ -26,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
@@ -63,8 +63,6 @@ import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
 import { isUsingIAMAuth } from '../../shared/utils'
-
-export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,

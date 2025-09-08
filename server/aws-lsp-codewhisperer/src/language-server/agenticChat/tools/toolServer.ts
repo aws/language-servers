@@ -126,9 +126,7 @@ export const QCodeAnalysisServer: Server = ({
             return
         }
 
-        // Create the CodeWhisperer client
-        // Note: Verify if IAM Client will work with code review tool usage below, whether Sigv4Client has capability to analyzeCode
-        // If not, revert the change to only token client
+        // Create the CodeWhisperer client for review tool based on iam auth check
         const codeWhispererClient = isUsingIAMAuth()
             ? new CodeWhispererServiceIAM(
                   credentialsProvider,
