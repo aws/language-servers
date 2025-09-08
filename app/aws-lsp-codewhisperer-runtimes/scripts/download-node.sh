@@ -5,7 +5,7 @@
 # by src/scripts/copy-node-assets.ts, to produce the final bundle.
 
 set -e
-NODE_VERSION="18"
+NODE_VERSION="24"
 BASE_URL="https://nodejs.org/download/release/latest-v${NODE_VERSION}.x"
 SHASUMS_FILE="SHASUMS256.txt"
 ASSETS_DIR="build/node-assets"
