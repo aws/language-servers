@@ -22,16 +22,19 @@ const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
 const thirdPartyPackageFolderName = 'thirdpartypackages'
+const customTransformationFolderName = 'customTransformation'
 
 export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
     private workspacePath: string
+    private solutionRootPath: string
 
-    constructor(workspace: Workspace, logging: Logging, workspacePath: string) {
+    constructor(workspace: Workspace, logging: Logging, workspacePath: string, solutionRootPath: string) {
         this.workspace = workspace
         this.logging = logging
         this.workspacePath = workspacePath
+        this.solutionRootPath = solutionRootPath
     }
 
     async createZip(request: StartTransformRequest): Promise<string> {
@@ -282,6 +285,23 @@ export class ArtifactManager {
             this.logging.log('Cannot find artifacts folder')
             return ''
         }
+
+        const customTransformationPath = path.join(this.solutionRootPath, customTransformationFolderName)
+        try {
+            await fs.promises.access(customTransformationPath)
+            try {
+                this.logging.log(`Adding custom transformation folder to artifact: ${customTransformationPath}`)
+                const artifactCustomTransformationPath = path.join(folderPath, customTransformationFolderName)
+                await fs.promises.cp(customTransformationPath, artifactCustomTransformationPath, { recursive: true })
+            } catch (error) {
+                this.logging.warn(`Failed to copy custom transformation folder: ${error}`)
+            }
+        } catch {
+            this.logging.log(
+                `Custom transformation folder not accessible (not found or no permissions): ${customTransformationPath}`
+            )
+        }
+
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)

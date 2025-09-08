@@ -58,7 +58,8 @@ export class TransformHandler {
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
-            this.getWorkspacePath(userInputrequest.SolutionRootPath)
+            this.getWorkspacePath(userInputrequest.SolutionRootPath),
+            userInputrequest.SolutionRootPath
         )
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
