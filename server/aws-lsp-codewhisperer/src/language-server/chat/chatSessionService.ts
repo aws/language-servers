@@ -29,18 +29,7 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
 import { getOriginFromClientInfo, getClientName, getRequestID, isUsageLimitError } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
-import {
-    QRetryClassifier,
-    RetryAction,
-    DelayTracker,
-    DelayNotification,
-    AdaptiveRetryConfig,
-    RetryConfig,
-    ClientSideRateLimiter,
-    TokenCost,
-    RetryErrorHandler,
-    RetryTelemetryController,
-} from '../agenticChat/retry'
+import { AwsRetryStrategy, DelayNotification } from '../agenticChat/retry/awsRetryStrategy'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -70,12 +59,7 @@ export class ChatSessionService {
     #serviceManager?: AmazonQBaseServiceManager
     #logging?: Logging
     #origin?: Origin
-    #retryClassifier: QRetryClassifier
-    #delayTracker: DelayTracker
-    #rateLimiter: ClientSideRateLimiter
-    #retryConfig: RetryConfig
-    #errorHandler: RetryErrorHandler
-    #telemetryController: RetryTelemetryController
+    #retryStrategy: AwsRetryStrategy
 
     public getConversationType(): string {
         return this.#conversationType
@@ -165,13 +149,13 @@ export class ChatSessionService {
         this.#logging = logging
         this.#origin = getOriginFromClientInfo(getClientName(this.#lsp?.getClientInitializeParams()))
 
-        // Initialize retry components
-        this.#retryClassifier = new QRetryClassifier(logging)
-        this.#retryConfig = AdaptiveRetryConfig.getRetryConfig()
-        this.#rateLimiter = new ClientSideRateLimiter(AdaptiveRetryConfig.getRateLimiterConfig(), logging)
-        this.#delayTracker = new DelayTracker(logging, this.#onDelayNotification.bind(this))
-        this.#errorHandler = new RetryErrorHandler(this.isModelSelectionEnabled())
-        this.#telemetryController = new RetryTelemetryController()
+        // Initialize retry strategy
+        this.#retryStrategy = new AwsRetryStrategy(
+            3,
+            logging,
+            this.#onDelayNotification.bind(this),
+            this.isModelSelectionEnabled()
+        )
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -188,10 +172,10 @@ export class ChatSessionService {
         const client = this.#serviceManager.getStreamingClient()
 
         // Execute with retry logic
-        return await this.#executeWithRetry(
+        return await this.#retryStrategy.executeWithRetry(
             () => client.sendMessage(request, this.#abortController),
             'sendMessage',
-            TokenCost.InitialRequest
+            this.#abortController?.signal
         )
     }
 
@@ -213,10 +197,10 @@ export class ChatSessionService {
         const client = this.#serviceManager.getStreamingClient()
 
         // Execute with retry logic
-        return await this.#executeWithRetry(
+        return await this.#retryStrategy.executeWithRetry(
             () => this.#performChatRequest(client, request),
             'getChatResponse',
-            TokenCost.InitialRequest
+            this.#abortController?.signal
         )
     }
 
@@ -281,7 +265,7 @@ export class ChatSessionService {
      * @param callback Function to call when delay notifications occur
      */
     public setDelayNotificationCallback(callback: (notification: DelayNotification) => void): void {
-        this.#delayTracker = new DelayTracker(this.#logging, callback)
+        this.#retryStrategy = new AwsRetryStrategy(3, this.#logging, callback, this.isModelSelectionEnabled())
     }
 
     #onDelayNotification(notification: DelayNotification): void {
@@ -292,153 +276,5 @@ export class ChatSessionService {
         // TODO: Integrate with chat result stream to show delay notifications to users
         // This would require passing the chat result stream to the session service
         // Example: this.#chatResultStream?.updateProgressMessage(notification.message)
-    }
-
-    async #executeWithRetry<T>(
-        operation: () => Promise<T>,
-        operationName: string,
-        tokenCost: TokenCost = TokenCost.InitialRequest
-    ): Promise<T> {
-        if (AdaptiveRetryConfig.isRetryDisabled()) {
-            return await operation()
-        }
-
-        let attempt = 1
-        let lastError: any
-        let previousDelayMs: number | undefined
-        const startTime = Date.now()
-
-        while (attempt <= this.#retryConfig.maxAttempts) {
-            // Check if request was aborted before each attempt
-            if (this.#abortController?.signal.aborted) {
-                const abortError = new Error('Request aborted')
-                abortError.name = 'AbortError'
-                throw abortError
-            }
-
-            try {
-                // Check rate limiter and apply delay if needed
-                const rateLimitDelayMs = this.#rateLimiter.checkAndCalculateDelay(tokenCost)
-                if (rateLimitDelayMs > 0) {
-                    if (attempt === 1) {
-                        this.#delayTracker.trackInitialDelay(rateLimitDelayMs)
-                    }
-                    // Check abort before applying delay
-                    if (this.#abortController?.signal.aborted) {
-                        const abortError = new Error('Request aborted')
-                        abortError.name = 'AbortError'
-                        throw abortError
-                    }
-                    await this.#rateLimiter.applyDelayAndConsumeTokens(rateLimitDelayMs, tokenCost)
-                } else if (this.#rateLimiter.isEnabled()) {
-                    // Consume tokens even if no delay
-                    await this.#rateLimiter.applyDelayAndConsumeTokens(0, tokenCost)
-                }
-
-                // TEST: Throw throttling exception on first attempt
-                if (attempt === 1) {
-                    const throttlingError = new Error(
-                        'Encountered unexpectedly high load when processing the request, please try again.'
-                    )
-                    ;(throttlingError as any).cause = {
-                        $metadata: {
-                            httpStatusCode: 500,
-                        },
-                    }
-                    throw throttlingError
-                }
-
-                const response = await operation()
-
-                // Track success for rate limiter recovery
-                this.#rateLimiter.onSuccessfulRequest()
-
-                // Track delay summary if there were significant delays
-                const totalDelayMs = Date.now() - startTime
-                this.#delayTracker.summarizeDelayImpact(totalDelayMs, attempt, previousDelayMs)
-
-                return response
-            } catch (error) {
-                lastError = error
-                const retryAction = this.#retryClassifier.classifyRetry(error)
-
-                this.#logging?.debug(
-                    `${operationName} attempt ${attempt} failed with retry action: ${retryAction}. Error: ${error instanceof Error ? error.message : String(error)}`
-                )
-
-                // Check if we should stop retrying
-                if (retryAction === RetryAction.RetryForbidden || attempt >= this.#retryConfig.maxAttempts) {
-                    break
-                }
-
-                // Check abort before continuing with retry logic
-                if (this.#abortController?.signal.aborted) {
-                    const abortError = new Error('Request aborted')
-                    abortError.name = 'AbortError'
-                    throw abortError
-                }
-
-                // Activate rate limiter for throttling errors
-                if (retryAction === RetryAction.ThrottlingError) {
-                    const wasEnabled = this.#rateLimiter.isEnabled()
-                    this.#rateLimiter.activate()
-
-                    // Emit telemetry for rate limiter activation
-                    if (!wasEnabled) {
-                        const state = this.#rateLimiter.getState()
-                        this.#telemetryController.emitRateLimiterStateChanged({
-                            conversationId: this.#conversationId || 'unknown',
-                            enabled: state.enabled,
-                            capacity: state.capacity,
-                            fillRate: state.fillRate,
-                            triggerErrorType: retryAction,
-                        })
-                    }
-
-                    tokenCost = TokenCost.ThrottlingRetry // Higher cost for throttling retries
-                } else if (retryAction === RetryAction.TransientError) {
-                    tokenCost = TokenCost.Retry // Standard retry cost
-                }
-
-                // Calculate backoff delay
-                const jitterBase = AdaptiveRetryConfig.generateJitterBase(this.#retryConfig.useStaticExponentialBase)
-                const backoffDelayMs = AdaptiveRetryConfig.calculateExponentialBackoff(
-                    jitterBase,
-                    this.#retryConfig.initialBackoffMs / 1000, // Convert to seconds
-                    attempt - 1, // 0-based for calculation
-                    this.#retryConfig.maxBackoffMs
-                )
-
-                // Check rate limiter delay for retry
-                const rateLimitDelayMs = this.#rateLimiter.checkAndCalculateDelay(tokenCost)
-                const totalDelayMs = Math.max(backoffDelayMs, rateLimitDelayMs)
-
-                // Track retry delay
-                this.#delayTracker.trackRetryDelay(totalDelayMs, attempt + 1, previousDelayMs)
-                previousDelayMs = totalDelayMs
-
-                // Apply the delay with abort checking
-                if (totalDelayMs > 0) {
-                    // Check abort before delay
-                    if (this.#abortController?.signal.aborted) {
-                        const abortError = new Error('Request aborted')
-                        abortError.name = 'AbortError'
-                        throw abortError
-                    }
-                    await new Promise(resolve => setTimeout(resolve, totalDelayMs))
-                }
-
-                // Consume tokens after delay
-                if (this.#rateLimiter.isEnabled()) {
-                    await this.#rateLimiter.applyDelayAndConsumeTokens(0, tokenCost)
-                }
-
-                attempt++
-            }
-        }
-
-        // All retries exhausted, transform and throw the final error
-        const finalRetryAction = this.#retryClassifier.classifyRetry(lastError)
-        throw this.#errorHandler.transformFinalError(lastError, attempt - 1, finalRetryAction)
     }
 }
