@@ -80,6 +80,24 @@ The summary should have following main sections:
 </example_output>
 `
 
+// Retry Strategy Constants
+export const RETRY_BASE_DELAY_MS = 1000
+export const RETRY_MAX_DELAY_MS = 10000
+export const RETRY_JITTER_MIN = 0.5
+export const RETRY_JITTER_MAX = 1.0
+export const RETRY_DELAY_NOTIFICATION_THRESHOLD_MS = 2000
+export const RETRY_BACKOFF_MULTIPLIER = 2
+
+// HTTP Status Codes
+export const HTTP_STATUS_TOO_MANY_REQUESTS = 429
+export const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500
+
+// Error Messages
+export const MONTHLY_LIMIT_ERROR_MARKER = 'MONTHLY_REQUEST_COUNT'
+export const HIGH_LOAD_ERROR_MESSAGE = 'Encountered unexpectedly high load when processing the request, please try again.'
+export const SERVICE_UNAVAILABLE_EXCEPTION = 'ServiceUnavailableException'
+export const INSUFFICIENT_MODEL_CAPACITY = 'INSUFFICIENT_MODEL_CAPACITY'
+
 // shortcut constant
 export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8679; &#8984; &#8629;'
 export const DEFAULT_WINDOW_RUN_SHORTCUT = 'Ctrl + &#8679; + &#8629;'
