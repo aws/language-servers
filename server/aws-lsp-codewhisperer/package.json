@@ -67,13 +67,15 @@
         "vscode-uri": "^3.1.0",
         "ws": "^8.18.0",
         "xml2js": "^0.6.2",
-        "xmlbuilder2": "^3.1.1"
+        "xmlbuilder2": "^3.1.1",
+        "unescape-html": "^1.1.0"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
         "@types/diff": "^7.0.2",
         "@types/encoding-japanese": "^2.2.1",
+        "@types/escape-html": "^1.0.4",
         "@types/ignore-walk": "^4.0.3",
         "@types/local-indexing": "file:./types/types-local-indexing-1.1.0.tgz",
         "@types/lokijs": "^1.5.14",

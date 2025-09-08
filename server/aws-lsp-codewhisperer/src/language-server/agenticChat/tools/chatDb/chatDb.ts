@@ -35,6 +35,7 @@ import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
 import { existsSync, renameSync } from 'fs'
+import escapeHTML = require('escape-html')
 
 export class ToolResultValidationError extends Error {
     constructor(message?: string) {
@@ -693,6 +694,7 @@ export class ChatDatabase {
             }
             return {
                 ...message,
+                body: escapeHTML(message.body),
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
