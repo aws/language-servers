@@ -6,7 +6,6 @@ import {
     InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-    Position,
     Range,
     Server,
     TextDocument,
@@ -16,6 +15,10 @@ import {
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     FileContext,
+    BaseGenerateSuggestionsRequest,
+    CodeWhispererServiceToken,
+    GenerateIAMSuggestionsRequest,
+    GenerateTokenSuggestionsRequest,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
@@ -59,6 +62,9 @@ import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
+import { isUsingIAMAuth } from '../../shared/utils'
+
+export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -167,6 +173,10 @@ export const CodewhispererServerFactory =
                 const textDocument = await getTextDocument(params.textDocument.uri, workspace, logging)
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+                const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
+                logging.debug(
+                    `[INLINE_COMPLETION] Service ready - auth: ${authType}, partial token: ${!!params.partialResultToken}`
+                )
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
                     try {
@@ -362,11 +372,25 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    const generateCompletionReq = {
-                        ...requestContext,
-                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                    // Create the appropriate request based on service type
+                    let generateCompletionReq: BaseGenerateSuggestionsRequest
+
+                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                        const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
+                        generateCompletionReq = {
+                            ...tokenRequest,
+                            ...(workspaceId ? { workspaceId } : {}),
+                        }
+                    } else {
+                        const iamRequest = requestContext as GenerateIAMSuggestionsRequest
+                        generateCompletionReq = {
+                            ...iamRequest,
+                        }
                     }
+
                     try {
+                        const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
+                        logging.debug(`[INLINE_COMPLETION] API call - generateSuggestions (new session, ${authType})`)
                         const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
                         return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
                     } catch (error) {
@@ -524,6 +548,25 @@ export const CodewhispererServerFactory =
             session: CodeWhispererSession
         ): InlineCompletionListWithReferences => {
             logging.log('Recommendation failure: ' + error)
+
+            // Add specific handling for IAM-related errors
+            if (isUsingIAMAuth(credentialsProvider)) {
+                if (error.message?.includes('not authorized') || error.message?.includes('AccessDenied')) {
+                    logging.error(
+                        `[IAM AUTH ERROR] IAM authentication error: User not authorized. Check IAM permissions for CodeWhisperer.`
+                    )
+                } else if (error.message?.includes('invalid parameter')) {
+                    logging.error(
+                        `[IAM AUTH ERROR] IAM authentication error: Invalid request parameters for IAM client`
+                    )
+                } else if (error.message?.includes('credentials')) {
+                    logging.error(`[IAM AUTH ERROR] IAM authentication error: Invalid or missing credentials`)
+                }
+
+                // Log detailed information about the request context
+                logging.error(`[IAM AUTH ERROR] Request context: ${JSON.stringify(session.requestContext)}`)
+            }
+
             emitServiceInvocationFailure(telemetry, session, error)
 
             // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions

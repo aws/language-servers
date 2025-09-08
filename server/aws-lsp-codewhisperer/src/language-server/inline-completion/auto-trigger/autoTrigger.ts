@@ -217,7 +217,6 @@ export const autoTrigger = (
         rightContextAtCurrentLine.trim() !== ')' &&
         ['VSCODE', 'JETBRAINS'].includes(ide)
     ) {
-        logging.debug(`Skip auto trigger: immediate right context`)
         return {
             shouldTrigger: false,
             classifierResult: 0,
