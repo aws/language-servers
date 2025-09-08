@@ -66,6 +66,7 @@ export class CodeReview {
     private cancellationToken?: CancellationToken
     private writableStream?: WritableStream
     private toolStartTime: number = 0
+    private overrideDiffScan = false
 
     constructor(
         features: Pick<Features, 'credentialsProvider' | 'logging' | 'telemetry' | 'workspace'> & Partial<Features>
@@ -112,6 +113,10 @@ export class CodeReview {
 
             const nonRuleFiles = uploadResult.numberOfFilesInCustomerCodeZip - setup.ruleArtifacts.length
             const diffFiles = uploadResult.codeDiffFiles.size
+            if (diffFiles == 0 && !setup.isFullReviewRequest) {
+                setup.isFullReviewRequest = true
+                this.overrideDiffScan = true
+            }
             const reviewMessage = setup.isFullReviewRequest
                 ? `Reviewing the entire code in ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
                 : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
@@ -474,9 +479,13 @@ export class CodeReview {
             )
         })
 
+        let scopeMessage = this.overrideDiffScan
+            ? `Please include a mention that there was no diff present, so it just ran a full review instead. Be very explicit about this so that the user could not be confused.`
+            : `Please include a mention that the scan was on the ${setup.isFullReviewRequest ? `entire` : `uncommitted`} code.`
+
         return {
             codeReviewId: jobId,
-            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. Please include a mention that the scan was on the ${setup.isFullReviewRequest ? `entire` : `uncommitted`} code. ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
         }
     }
