@@ -3,12 +3,12 @@ import {
     AmazonQServiceServerIAM,
     AmazonQServiceServerToken,
     CodeWhispererSecurityScanServerTokenProxy,
+    CodeWhispererServerTokenProxy,
     QAgenticChatServerProxy,
     QConfigurationServerTokenProxy,
     QLocalProjectContextServerProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
-    CodeWhispererServerProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 import {
@@ -25,7 +25,7 @@ const version = versionJson.agenticChat
 const props = {
     version: version,
     servers: [
-        CodeWhispererServerProxy,
+        CodeWhispererServerTokenProxy,
         CodeWhispererSecurityScanServerTokenProxy,
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,

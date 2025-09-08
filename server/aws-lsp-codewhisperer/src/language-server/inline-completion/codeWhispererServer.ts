@@ -747,7 +747,9 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = serviceManager()
+            amazonQServiceManager = isUsingIAMAuth()
+                ? getOrThrowBaseIAMServiceManager()
+                : getOrThrowBaseTokenServiceManager()
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
