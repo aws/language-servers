@@ -212,7 +212,6 @@ export const McpToolsServer: Server = ({
     agent,
     telemetry,
     runtime,
-    sdkInitializator,
     chat,
 }) => {
     const registered: Record<string, string[]> = {}
@@ -369,60 +368,51 @@ export const McpToolsServer: Server = ({
                 return
             }
 
-            if (sdkInitializator) {
-                profileStatusMonitor = new ProfileStatusMonitor(
-                    credentialsProvider,
-                    workspace,
-                    logging,
-                    sdkInitializator,
-                    removeAllMcpTools,
-                    async () => {
-                        logging.info('MCP enabled by profile status monitor')
-                        await initializeMcp()
-                    }
-                )
+            profileStatusMonitor = new ProfileStatusMonitor(logging, removeAllMcpTools, async () => {
+                logging.info('MCP enabled by profile status monitor')
+                await initializeMcp()
+            })
 
-                // Wait for profile ARN to be available before checking MCP state
-                const checkAndInitialize = async () => {
-                    await profileStatusMonitor!.checkInitialState()
-                    // Always initialize McpManager to handle UI requests
-                    await initializeMcp()
+            // Wait for profile ARN to be available before checking MCP state
+            const checkAndInitialize = async () => {
+                await profileStatusMonitor!.checkInitialState()
+                // Always initialize McpManager to handle UI requests
+                await initializeMcp()
 
-                    // Remove tools if MCP is disabled
-                    if (!ProfileStatusMonitor.getMcpState()) {
-                        removeAllMcpTools()
-                    }
-
-                    profileStatusMonitor!.start()
+                // Remove tools if MCP is disabled
+                if (!ProfileStatusMonitor.getMcpState()) {
+                    removeAllMcpTools()
                 }
 
-                // Check if service manager is ready
-                try {
-                    const serviceManager = AmazonQTokenServiceManager.getInstance()
-                    if (serviceManager.getState() === 'INITIALIZED') {
-                        await checkAndInitialize()
-                    } else {
-                        // Poll for service manager to be ready with 10s timeout
-                        const startTime = Date.now()
-                        const pollForReady = async () => {
-                            if (serviceManager.getState() === 'INITIALIZED') {
-                                await checkAndInitialize()
-                            } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
-                                setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
-                            } else {
-                                logging.warn('Service manager not ready after 10s, initializing MCP manager')
-                                await initializeMcp()
-                                profileStatusMonitor!.start()
-                            }
+                profileStatusMonitor!.start()
+            }
+
+            // Check if service manager is ready
+            try {
+                const serviceManager = AmazonQTokenServiceManager.getInstance()
+                if (serviceManager.getState() === 'INITIALIZED') {
+                    await checkAndInitialize()
+                } else {
+                    // Poll for service manager to be ready with 10s timeout
+                    const startTime = Date.now()
+                    const pollForReady = async () => {
+                        if (serviceManager.getState() === 'INITIALIZED') {
+                            await checkAndInitialize()
+                        } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
+                            setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
+                        } else {
+                            logging.warn('Service manager not ready after 10s, initializing MCP manager')
+                            await initializeMcp()
+                            profileStatusMonitor!.start()
                         }
-                        setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                     }
-                } catch (error) {
-                    // Service manager not initialized yet, always initialize McpManager
-                    logging.info('Service manager not ready, initializing MCP manager')
-                    await initializeMcp()
-                    profileStatusMonitor!.start()
+                    setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                 }
+            } catch (error) {
+                // Service manager not initialized yet, always initialize McpManager
+                logging.info('Service manager not ready, initializing MCP manager')
+                await initializeMcp()
+                profileStatusMonitor!.start()
             }
         } catch (error) {
             console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', error)
