@@ -179,6 +179,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
