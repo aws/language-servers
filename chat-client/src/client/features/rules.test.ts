@@ -22,8 +22,6 @@ describe('rules', () => {
 
         messager = {
             onRuleClick: sinon.stub(),
-            onCreatePrompt: sinon.stub(),
-            onTabAdd: sinon.stub(),
             onChatPrompt: sinon.stub(),
         } as unknown as Messager
 
@@ -153,13 +151,12 @@ describe('rules', () => {
 
             onItemClick(createMemoryBankItem)
 
-            // Should create a new tab and send a chat prompt
-            sinon.assert.calledOnce(messager.onTabAdd as sinon.SinonStub)
+            // Should send a chat prompt
             sinon.assert.calledOnce(messager.onChatPrompt as sinon.SinonStub)
 
             const chatPromptArgs = (messager.onChatPrompt as sinon.SinonStub).getCall(0).args[0]
-            assert.equal(chatPromptArgs.prompt.prompt, 'Create a Memory Bank for this project')
-            assert.equal(chatPromptArgs.prompt.escapedPrompt, 'Create a Memory Bank for this project')
+            assert.equal(chatPromptArgs.prompt.prompt, 'Generate a Memory Bank for this project')
+            assert.equal(chatPromptArgs.prompt.escapedPrompt, 'Generate a Memory Bank for this project')
         })
 
         it('calls messager when regular rule is clicked', () => {

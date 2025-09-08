@@ -1,6 +1,6 @@
-/**
- * Copied from chat/contexts/triggerContext.ts for the purpose of developing a divergent implementation.
- * Will be deleted or merged.
+/*!
+ * Copyright Amazon.com, Inc. or its affiliates.
+ * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
 import * as assert from 'assert'
@@ -180,7 +180,6 @@ describe('MemoryBankController', () => {
         })
 
         it('should provide TF-IDF analysis methods', () => {
-            // Test that the science document methods are available
             assert.ok(typeof controller.discoverAllSourceFiles === 'function')
             assert.ok(typeof controller.calculateFileLineCount === 'function')
             assert.ok(typeof controller.calculateLexicalDissimilarity === 'function')

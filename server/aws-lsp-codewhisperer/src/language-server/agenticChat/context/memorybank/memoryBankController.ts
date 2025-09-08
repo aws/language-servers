@@ -1,12 +1,11 @@
-/**
- * Copied from chat/contexts/triggerContext.ts for the purpose of developing a divergent implementation.
- * Will be deleted or merged.
+/*!
+ * Copyright Amazon.com, Inc. or its affiliates.
+ * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { MemoryBankPrompts } from './memoryBankPrompts'
 
-// Memory Bank constants
 const MEMORY_BANK_DIRECTORY = '.amazonq/rules/memory-bank'
 const MEMORY_BANK_FILES = {
     PRODUCT: 'product.md',
@@ -69,33 +68,21 @@ export class MemoryBankController {
 
             // Step 2: Send status update
             await statusUpdateFunction(
-                '🔍 **Analyzing codebase structure...**\n\nScanning files and calculating similarity metrics.'
+                '**Analyzing codebase structure...**\n\nScanning files and calculating similarity metrics.'
             )
 
             // Step 3: Execute deterministic analysis (TF-IDF)
-            this.features.logging.info(`[Memory Bank] Running deterministic analysis for: ${workspaceFolderUri}`)
+            this.features.logging.info(`Memory Bank: running analysis for workspace: ${workspaceFolderUri}`)
             const analysisResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
 
             // Step 4: Send ranking status update
             await statusUpdateFunction(
-                '📊 **Ranking important files...**\n\nUsing AI to identify the most representative files.'
+                '**Ranking important files...**\n\nUsing AI to identify the most representative files.'
             )
 
-            // Step 5: Make LLM call for file ranking (PROMPT 1)
-            this.features.logging.info(`[Memory Bank] Making LLM call for file ranking`)
+            // Step 5: Make LLM call for file ranking
             const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(analysisResults.formattedFilesString, 20)
-
-            // Log the ranking prompt for debugging
-            this.features.logging.info(`[Memory Bank] Ranking prompt created (${rankingPrompt.length} chars)`)
-            this.features.logging.info(`[Memory Bank] Ranking prompt preview: ${rankingPrompt.substring(0, 300)}...`)
-
             const rankedFilesResponse = await llmCallFunction(rankingPrompt)
-
-            // Log the raw LLM response
-            this.features.logging.info(
-                `[Memory Bank] LLM ranking response received (${rankedFilesResponse.length} chars)`
-            )
-            this.features.logging.info(`[Memory Bank] Raw LLM response: ${rankedFilesResponse.substring(0, 500)}...`)
 
             // Step 6: Parse ranked files
             let rankedFilesList: string[] = []
@@ -112,7 +99,6 @@ export class MemoryBankController {
                     if (cleanResponse.includes('",') && cleanResponse.includes('"')) {
                         // Add brackets to make it a valid JSON array
                         cleanResponse = `[${cleanResponse}]`
-                        this.features.logging.info(`[Memory Bank] Added brackets to LLM response for JSON parsing`)
                     }
                 }
 
@@ -128,49 +114,41 @@ export class MemoryBankController {
                     throw new Error('No valid file paths in ranking response')
                 }
 
-                this.features.logging.info(`[Memory Bank] Successfully parsed ${rankedFilesList.length} ranked files`)
-                this.features.logging.info(`[Memory Bank] LLM ranked files: ${rankedFilesList.join(', ')}`)
-            } catch (error) {
-                this.features.logging.warn(`[Memory Bank] Failed to parse ranking response: ${error}`)
-                this.features.logging.warn(`[Memory Bank] Raw response (full): ${rankedFilesResponse}`)
                 this.features.logging.info(
-                    `[Memory Bank] Using fallback ranking with top ${Math.min(20, analysisResults.rankedFilesList.length)} files`
+                    `Memory Bank: parsed ${rankedFilesList.length} ranked files from LLM response`
+                )
+            } catch (error) {
+                this.features.logging.warn(
+                    `Memory Bank: failed to parse LLM ranking response, using TF-IDF fallback: ${error}`
                 )
                 rankedFilesList = analysisResults.rankedFilesList.slice(0, 20)
-                this.features.logging.info(`[Memory Bank] Fallback ranked files: ${rankedFilesList.join(', ')}`)
             }
 
             this.features.logging.info(
-                `[Memory Bank] Final ranked file list contains ${rankedFilesList.length} files for analysis`
+                `Memory Bank: using ${rankedFilesList.length} files for documentation generation`
             )
 
             // Step 7: Send final status update
             const totalChunks = Math.ceil(rankedFilesList.length / 4)
             await statusUpdateFunction(
-                `📝 **Generating comprehensive documentation...**\n\nCreating all 4 Memory Bank files with iterative analysis.\n\n**Agent Processing:** Processes ${rankedFilesList.length} files in chunks of 4\n${Array.from({ length: totalChunks }, (_, i) => `- Iteration ${i + 1}: Files ${i * 4 + 1}-${Math.min((i + 1) * 4, rankedFilesList.length)}   (${Math.min(4, rankedFilesList.length - i * 4)} files)`).join('\n')}\n↓`
+                `**Generating comprehensive documentation...**\n\nGenerating all 4 Memory Bank files with iterative analysis.\n\n**Agent Processing:** Processes ${rankedFilesList.length} files in chunks of 4\n${Array.from({ length: totalChunks }, (_, i) => `- Iteration ${i + 1}: Files ${i * 4 + 1}-${Math.min((i + 1) * 4, rankedFilesList.length)}   (${Math.min(4, rankedFilesList.length - i * 4)} files)`).join('\n')}\n↓`
             )
 
-            // Step 8: Create the comprehensive prompt with ranked files (PROMPT 2)
-            // Agent will read file contents iteratively using tools
+            // Step 8: Create the comprehensive prompt with ranked files
             const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList)
-            this.features.logging.info(`[Memory Bank] Final comprehensive prompt created (${finalPrompt.length} chars)`)
-            this.features.logging.info(`[Memory Bank] Final prompt preview: ${finalPrompt.substring(0, 300)}...`)
-
             return finalPrompt
         } catch (error) {
-            this.features.logging.error(`[Memory Bank] Error in preparation: ${error}`)
+            this.features.logging.error(`Memory Bank preparation failed: ${error}`)
             throw error
         }
     }
 
     /**
-     * Clean memory bank directory programmatically
+     * Clean memory bank directory
      */
     async cleanMemoryBankDirectory(workspaceFolderUri: string): Promise<void> {
         try {
             const memoryBankPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}`
-
-            this.features.logging.info(`[Memory Bank] Ensuring clean directory: ${memoryBankPath}`)
 
             // Remove all existing memory bank files to ensure clean recreation
             const filesToRemove = ['product.md', 'structure.md', 'tech.md', 'guidelines.md']
@@ -181,98 +159,50 @@ export class MemoryBankController {
                     const exists = await this.features.workspace.fs.exists(filePath)
                     if (exists) {
                         await this.features.workspace.fs.rm(filePath)
-                        this.features.logging.info(`[Memory Bank] Removed existing file: ${fileName}`)
                         removedCount++
-                    } else {
-                        this.features.logging.info(`[Memory Bank] File ${fileName} does not exist, skipping removal`)
                     }
                 } catch (error) {
                     // Ignore errors when removing files that don't exist
-                    this.features.logging.debug(`[Memory Bank] Could not remove ${fileName}: ${error}`)
+                    this.features.logging.debug(`Could not remove ${fileName}: ${error}`)
                 }
             }
 
-            this.features.logging.info(`[Memory Bank] Removed ${removedCount} existing files, directory is clean`)
+            if (removedCount > 0) {
+                this.features.logging.info(`Memory Bank: cleaned ${removedCount} existing files`)
+            }
 
             // Create the directory structure using mkdir with recursive option
             await this.features.workspace.fs.mkdir(memoryBankPath, { recursive: true })
-
-            this.features.logging.info(`[Memory Bank] Directory ready: ${memoryBankPath}`)
         } catch (error) {
-            this.features.logging.error(`[Memory Bank] Failed to create directory: ${error}`)
+            this.features.logging.error(`Memory Bank directory creation failed: ${error}`)
             throw error
         }
     }
 
-    // All unused methods removed - only the above 3 methods are needed for the current flow
-
     /**
-     * Execute deterministic analysis and provide status updates to chat
-     */
-    async executePipelineWithChatUpdates(
-        workspaceFolder: string,
-        chatResultStream: any,
-        tabId: string
-    ): Promise<{
-        formattedFilesString: string
-        rankedFilesList: string[]
-    }> {
-        // Send status update to chat
-        await this.sendChatUpdate(
-            chatResultStream,
-            tabId,
-            '🔍 **Analyzing project structure...**\nDiscovering source files and calculating statistics.'
-        )
-
-        const pipelineResults = await this.executeGuidelinesGenerationPipeline(workspaceFolder)
-
-        // Send completion update to chat
-        await this.sendChatUpdate(
-            chatResultStream,
-            tabId,
-            `✅ **Analysis complete!**\nFound ${pipelineResults.filesWithDissimilarity.length} source files. Ready to generate Memory Bank files.`
-        )
-
-        return {
-            formattedFilesString: pipelineResults.formattedFilesString,
-            rankedFilesList: pipelineResults.rankedFilesList,
-        }
-    }
-
-    /**
-     * Send status update to chat stream
-     */
-    private async sendChatUpdate(chatResultStream: any, tabId: string, message: string): Promise<void> {
-        try {
-            await chatResultStream.writeResultBlock({
-                tabId,
-                messageId: `memory-bank-status-${Date.now()}`,
-                messageType: 'assistant-message',
-                body: message,
-            })
-        } catch (error) {
-            this.features.logging.warn(`Failed to send chat update: ${error}`)
-        }
-    }
-
-    /**
-     * SCIENCE DOCUMENT METHOD 1: discoverAllSourceFiles() - Programmatic file discovery
-     * Equivalent to: files = get_all_files(project_location, ".java")
+     * SCIENCE DOCUMENT METHOD 1: file discovery (OPTIMIZED)
      */
     async discoverAllSourceFiles(
         workspaceFolderUri: string,
         extensions: string[]
     ): Promise<Array<{ path: string; size: number }>> {
-        const files: Array<{ path: string; size: number }> = []
-
         try {
             // Recursively discover all source files
             const sourceFiles = await this.discoverSourceFiles(workspaceFolderUri, extensions)
 
-            // Get file size for each file
-            for (const filePath of sourceFiles) {
-                const size = await this.calculateFileLineCount(filePath)
-                files.push({ path: filePath, size })
+            // OPTIMIZATION: Parallel file size calculation with batching
+            const batchSize = 10 // Process 10 files at a time
+            const files: Array<{ path: string; size: number }> = []
+
+            for (let i = 0; i < sourceFiles.length; i += batchSize) {
+                const batch = sourceFiles.slice(i, i + batchSize)
+                const batchResults = await Promise.all(
+                    batch.map(async filePath => ({
+                        path: filePath,
+                        size: await this.calculateFileLineCount(filePath),
+                    }))
+                )
+                files.push(...batchResults)
             }
 
             return files
@@ -283,8 +213,7 @@ export class MemoryBankController {
     }
 
     /**
-     * SCIENCE DOCUMENT METHOD 2: calculateFileLineCount() - Programmatic line counting
-     * Equivalent to: def get_file_size(file): return len(f.readlines())
+     * SCIENCE DOCUMENT METHOD 2: line counting
      */
     async calculateFileLineCount(filePath: string): Promise<number> {
         try {
@@ -297,26 +226,44 @@ export class MemoryBankController {
     }
 
     /**
-     * EXACT IMPLEMENTATION of science document's get_lexical_dissimilarity()
+     * SCIENCE DOCUMENT METHOD 3: lexical dissimilarity calculation (OPTIMIZED)
      */
     async calculateLexicalDissimilarity(
         files: Array<{ path: string; size: number }>
     ): Promise<Array<{ path: string; size: number; dissimilarity: number }>> {
         try {
-            this.features.logging.info(
-                `[TF-IDF] Processing ${files.length} files for lexical dissimilarity calculation`
-            )
-
-            // Step 1: Get the contents of each file (like Python's file reading)
+            // OPTIMIZATION: Parallel file reading with batching
+            const batchSize = 20 // Process 20 files at a time to reduce I/O overhead
             const fileContents: string[] = []
-            for (const file of files) {
-                try {
-                    const content = await this.features.workspace.fs.readFile(file.path)
-                    fileContents.push(content)
-                } catch (error) {
-                    this.features.logging.warn(`[TF-IDF] Could not read file ${file.path}: ${error}`)
-                    fileContents.push('') // Empty content for unreadable files
+            let hasReadErrors = false
+
+            for (let i = 0; i < files.length; i += batchSize) {
+                const batch = files.slice(i, i + batchSize)
+                const batchContents = await Promise.all(
+                    batch.map(async file => {
+                        try {
+                            return await this.features.workspace.fs.readFile(file.path)
+                        } catch (error) {
+                            this.features.logging.warn(`Could not read file for TF-IDF analysis: ${file.path}`)
+                            hasReadErrors = true
+                            return '' // Empty content for unreadable files
+                        }
+                    })
+                )
+                fileContents.push(...batchContents)
+            }
+
+            // Check if all files are empty (no content to analyze)
+            const hasContent = fileContents.some(content => content.trim().length > 0)
+            if (!hasContent) {
+                // If no files have content due to read errors, log as error
+                if (hasReadErrors) {
+                    this.features.logging.error(
+                        'All files failed to read or are empty, using fallback dissimilarity values'
+                    )
                 }
+                // If no files have content, return fallback values
+                return files.map(f => ({ ...f, dissimilarity: 0.85 }))
             }
 
             // Step 2: Get the TF-IDF vectors for each file (equivalent to sklearn's TfidfVectorizer)
@@ -340,14 +287,7 @@ export class MemoryBankController {
                     size: files[i].size,
                     dissimilarity: Math.max(0.0, Math.min(1.0, dissimilarity)), // Ensure bounds [0,1]
                 })
-
-                this.features.logging.debug(`[TF-IDF] ${files[i].path}: dissimilarity = ${dissimilarity.toFixed(6)}`)
             }
-
-            // Log summary statistics
-            const avgDissimilarity =
-                lexicalDissimilarities.reduce((sum, f) => sum + f.dissimilarity, 0) / lexicalDissimilarities.length
-            this.features.logging.info(`[TF-IDF] Completed. Average dissimilarity: ${avgDissimilarity.toFixed(6)}`)
 
             return lexicalDissimilarities
         } catch (error) {
@@ -358,8 +298,7 @@ export class MemoryBankController {
     }
 
     /**
-     * Create TF-IDF matrix (equivalent to sklearn's TfidfVectorizer().fit_transform())
-     * Returns array of TF-IDF vectors, where each vector is a Map<term, tfidf_score>
+     * Create TF-IDF matrix, Returns array of TF-IDF vectors, where each vector is a Map<term, tfidf_score>
      */
     private createTfidfMatrix(documents: string[]): Map<string, number>[] {
         // Step 1: Tokenize all documents and build vocabulary
@@ -405,7 +344,7 @@ export class MemoryBankController {
     }
 
     /**
-     * Calculate cosine similarity matrix (equivalent to sklearn's cosine_similarity)
+     * Calculate cosine similarity matrix
      */
     private calculateCosineSimilarityMatrix(tfidfMatrix: Map<string, number>[]): number[][] {
         const numDocs = tfidfMatrix.length
@@ -463,7 +402,8 @@ export class MemoryBankController {
     }
 
     /**
-     * Execute the complete guidelines generation pipeline (Science Document Methods 1-3)
+     * Execute the complete guidelines generation pipeline
+     * https://code.amazon.com/packages/QIDEPersonalization/blobs/mainline/--/src/stylefile-gen.ipynb
      */
     async executeGuidelinesGenerationPipeline(workspaceFolderUri: string): Promise<{
         discoveredFiles: Array<{ path: string; size: number }>
@@ -472,63 +412,156 @@ export class MemoryBankController {
         rankedFilesList: string[]
     }> {
         try {
-            this.features.logging.info(`[Science Pipeline] Starting for workspace: ${workspaceFolderUri}`)
+            // Step 1: Discover all source files
+            // OPTIMIZATION: Prioritize common extensions first for faster discovery
+            const extensions = [
+                // Most Common (check first for early termination)
+                '.ts',
+                '.js',
+                '.tsx',
+                '.jsx',
+                '.py',
+                '.java',
+                '.cpp',
+                '.c',
+                '.h',
+                '.cs',
+                '.go',
+                '.rs',
+                // Web Technologies
+                '.vue',
+                '.svelte',
+                '.html',
+                '.css',
+                '.scss',
+                '.sass',
+                '.less',
+                // Backend Languages
+                '.scala',
+                '.kt',
+                '.kts',
+                '.groovy',
+                '.clj',
+                '.cljs',
+                '.fs',
+                '.vb',
+                '.php',
+                '.rb',
+                '.pl',
+                '.pm',
+                // Systems Programming
+                '.cc',
+                '.cxx',
+                '.c++',
+                '.hpp',
+                '.hxx',
+                '.h++',
+                '.zig',
+                '.nim',
+                '.d',
+                // Mobile Development
+                '.swift',
+                '.m',
+                '.mm',
+                '.dart',
+                // Functional Languages
+                '.hs',
+                '.lhs',
+                '.elm',
+                '.ml',
+                '.mli',
+                '.f90',
+                '.f95',
+                '.f03',
+                '.f08',
+                // JVM Languages
+                '.gradle',
+                '.sbt',
+                // Scripting Languages
+                '.sh',
+                '.bash',
+                '.zsh',
+                '.fish',
+                '.ps1',
+                '.bat',
+                '.cmd',
+                '.lua',
+                '.tcl',
+                '.awk',
+                '.sed',
+                // Data & Config Languages
+                '.sql',
+                '.graphql',
+                '.gql',
+                '.proto',
+                '.thrift',
+                '.yaml',
+                '.yml',
+                '.toml',
+                '.ini',
+                '.cfg',
+                '.conf',
+                '.json',
+                '.jsonc',
+                '.json5',
+                '.xml',
+                '.plist',
+                // Documentation & Markup
+                '.md',
+                '.mdx',
+                '.rst',
+                '.adoc',
+                '.tex',
+                '.org',
+                // Domain Specific
+                '.r',
+                '.R',
+                '.jl',
+                '.nb',
+                '.ipynb',
+                '.sol',
+                '.move',
+                '.cairo',
+                '.fe',
+                // Assembly & Low Level
+                '.asm',
+                '.s',
+                '.S',
+                '.nasm',
+                // Other Notable Languages
+                '.ex',
+                '.exs',
+                '.erl',
+                '.hrl',
+                '.cr',
+                '.v',
+                '.sv',
+                '.vhd',
+                '.vhdl',
+            ]
 
-            // Step 1: Discover all source files (Science Document Method 1)
-            const extensions = ['.ts', '.js', '.tsx', '.jsx', '.py', '.java', '.cpp', '.c', '.h', '.cs', '.go', '.rs']
             const discoveredFiles = await this.discoverAllSourceFiles(workspaceFolderUri, extensions)
 
-            this.features.logging.info(`[Science Pipeline] Discovered ${discoveredFiles.length} source files`)
-
-            // Log discovered files for debugging
-            this.features.logging.info(
-                `[Science Pipeline] Discovered files: ${discoveredFiles.map(f => `${f.path} (${f.size} lines)`).join(', ')}`
-            )
+            this.features.logging.info(`Memory Bank analysis: discovered ${discoveredFiles.length} source files`)
 
             if (discoveredFiles.length === 0) {
                 throw new Error('No source files found in workspace')
             }
 
-            // Step 2: Calculate lexical dissimilarity (Science Document Method 3)
+            // Step 2: Calculate lexical dissimilarity using TF-IDF
             const filesWithDissimilarity = await this.calculateLexicalDissimilarity(discoveredFiles)
 
-            // Log dissimilarity results
-            const avgDissimilarity =
-                filesWithDissimilarity.reduce((sum, f) => sum + f.dissimilarity, 0) / filesWithDissimilarity.length
-            this.features.logging.info(
-                `[Science Pipeline] Lexical dissimilarity calculated. Average: ${avgDissimilarity.toFixed(6)}`
-            )
-            this.features.logging.info(
-                `[Science Pipeline] Top 5 most dissimilar files: ${filesWithDissimilarity
-                    .sort((a, b) => b.dissimilarity - a.dissimilarity)
-                    .slice(0, 5)
-                    .map(f => `${f.path} (${f.dissimilarity.toFixed(3)})`)
-                    .join(', ')}`
-            )
+            // Step 3: Sort by size
+            filesWithDissimilarity.sort((a, b) => b.size - a.size)
 
-            // Step 3: Format files string for LLM ranking (Science Document Method 4 prep)
+            // Step 4: Format files string for LLM ranking
             const formattedFilesString = this.formatFilesForRanking(filesWithDissimilarity)
 
-            // Log formatted string preview
-            this.features.logging.info(
-                `[Science Pipeline] Formatted files string created (${formattedFilesString.length} chars)`
-            )
-            this.features.logging.info(
-                `[Science Pipeline] Formatted string preview: ${formattedFilesString.substring(0, 200)}...`
-            )
-
-            // Step 4: Create fallback ranking (deterministic, for when LLM fails)
+            // Step 5: Create fallback ranking (deterministic, for when LLM fails)
             const rankedFilesList = filesWithDissimilarity
                 .sort((a, b) => b.dissimilarity - a.dissimilarity)
                 .slice(0, 20)
                 .map(f => f.path)
-
-            this.features.logging.info(
-                `[Science Pipeline] Fallback ranking created with ${rankedFilesList.length} files`
-            )
-            this.features.logging.info(`[Science Pipeline] Fallback ranking: ${rankedFilesList.join(', ')}`)
-
-            this.features.logging.info(`[Science Pipeline] Completed successfully`)
 
             return {
                 discoveredFiles,
@@ -537,17 +570,17 @@ export class MemoryBankController {
                 rankedFilesList,
             }
         } catch (error) {
-            this.features.logging.error(`[Science Pipeline] Error: ${error}`)
+            this.features.logging.error(`Memory Bank analysis pipeline failed: ${error}`)
             throw error
         }
     }
 
     /**
-     * Format files for science document pipeline (like Python's files_string)
+     * Format files for processing pipeline
      */
     formatFilesForRanking(files: Array<{ path: string; size: number; dissimilarity: number }>): string {
+        // Files are already sorted by size in executeGuidelinesGenerationPipeline()
         return files
-            .sort((a, b) => b.size - a.size) // Sort by size like science document
             .map(
                 f =>
                     `${f.path} has ${f.size} lines and a mean lexical dissimilarity of ${f.dissimilarity.toFixed(6)} to the other files`
@@ -596,29 +629,208 @@ export class MemoryBankController {
      * Check if a directory should be skipped during source file discovery
      */
     private shouldSkipDirectory(dirName: string): boolean {
+        // Comprehensive language-agnostic directory exclusions
         const skipDirs = [
-            'node_modules',
+            // Version Control Systems
             '.git',
             '.svn',
             '.hg',
+            '.bzr',
+            '.fossil-settings',
+
+            // Package Managers & Dependencies
+            'node_modules',
+            'bower_components',
+            'jspm_packages',
+            'vendor',
+            'packages',
+            'deps',
+            '_deps',
+            'third_party',
+            'external',
+            'Pods',
+            'Carthage',
+            'DerivedData', // iOS/macOS
+            'venv',
+            'env',
+            '.venv',
+            '.env',
+            'virtualenv',
+            '__pycache__',
+            '.tox', // Python
+            'gems',
+            '.bundle', // Ruby
+            'composer', // PHP
+            'node_modules',
+            'elm-stuff', // Elm
+            'target',
+            'project/target',
+            'project/project', // Scala/SBT
+
+            // Build Outputs & Artifacts
             'build',
+            'builds',
             'dist',
             'out',
-            'target',
+            'output',
             'bin',
             'obj',
+            'lib',
+            'release',
+            'debug',
+            'Release',
+            'Debug',
+            'x64',
+            'x86',
+            'AnyCPU',
+            '.next',
+            '.nuxt',
+            '.output',
+            '.vercel',
+            '.netlify', // Web frameworks
+            'public/build',
+            'static/build',
+            'assets/build',
+            'cmake-build-debug',
+            'cmake-build-release', // CMake
+            '_build',
+            'ebin',
+            'deps', // Erlang/Elixir
+            'zig-cache',
+            'zig-out', // Zig
+
+            // IDE & Editor Directories
             '.vscode',
             '.idea',
+            '.vs',
+            '.vscode-test',
+            '.eclipse',
+            '.metadata',
+            '.settings',
+            '.project',
+            '.classpath',
+            '.atom',
+            '.sublime-project',
+            '.sublime-workspace',
             '__pycache__',
-            '.pytest_cache',
+            '.mypy_cache',
+            '.dmypy.json', // Python
+            '.dart_tool',
+            '.flutter-plugins',
+            '.flutter-plugins-dependencies', // Dart/Flutter
+
+            // Testing & Coverage
             'coverage',
+            '.coverage',
             '.nyc_output',
+            '.pytest_cache',
+            '.cache',
+            'htmlcov',
+            'test-results',
+            'test-reports',
+            'allure-results',
+            'junit',
+            'xunit',
+            'nunit',
+            'TestResults',
+            '.jest',
+            'jest_html_reporters.html',
+
+            // Logs & Temporary Files
             'logs',
+            'log',
             'tmp',
             'temp',
+            '.tmp',
+            '.temp',
+            'crash-reports',
+            'error-reports',
+
+            // Documentation Build Outputs
+            '_site',
+            '.jekyll-cache',
+            '.jekyll-metadata', // Jekyll
+            'docs/_build',
+            'doc/_build',
+            'documentation/_build', // Sphinx
+            '.docusaurus',
+            'website/build', // Docusaurus
+            'book',
+            '_book', // GitBook/mdBook
+
+            // Language-Specific Caches & Artifacts
+            '.gradle',
+            'gradle', // Gradle
+            '.m2',
+            '.ivy2', // Maven/Ivy
+            '.stack-work',
+            '.cabal-sandbox',
+            'cabal.sandbox.config', // Haskell
+            '_opam',
+            '.opam', // OCaml
+            'Cargo.lock', // Rust (keep Cargo.toml but skip lock in some cases)
+            '.cargo', // Rust cache
+            '.mix',
+            '_build', // Elixir
+            'rebar3.crashdump',
+            '_checkouts', // Erlang
+            '.rebar',
+            '.rebar3',
+            'priv/static', // Phoenix framework
+
+            // OS-Specific
+            '.DS_Store',
+            'Thumbs.db',
+            'Desktop.ini',
+            '$RECYCLE.BIN',
+            '.Trash-*',
+            '.fuse_hidden*',
+
+            // Cloud & Deployment
+            '.serverless',
+            '.aws-sam',
+            '.terraform',
+            '.pulumi',
+            'cdk.out',
+            '.cdk.staging',
+            'amplify',
+
+            // Mobile Development
+            'ios/build',
+            'android/build',
+            'android/.gradle',
+            'ios/Pods',
+            'android/app/build',
+
+            // Game Development
+            'Library',
+            'Temp',
+            'Obj',
+            'Build',
+            'Builds', // Unity
+            'Intermediate',
+            'Binaries',
+            'DerivedDataCache', // Unreal
+
+            // Database
+            '*.db-journal',
+            '*.sqlite-journal',
+
+            // Backup & Archive
+            'backup',
+            'backups',
+            '.backup',
+            'archive',
+            'archives',
         ]
 
-        return skipDirs.includes(dirName) || dirName.startsWith('.')
+        // Skip any directory starting with . (hidden directories) except some important ones
+        if (dirName.startsWith('.')) {
+            const allowedHiddenDirs = ['.github', '.gitlab', '.circleci', '.travis', '.azure', '.devcontainer']
+            return !allowedHiddenDirs.includes(dirName)
+        }
+
+        return skipDirs.includes(dirName)
     }
 
     /**
@@ -627,28 +839,21 @@ export class MemoryBankController {
     async memoryBankExists(workspaceFolderUri: string): Promise<boolean> {
         try {
             const memoryBankPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}`
-            this.features.logging.info(`[Memory Bank] Checking directory: ${memoryBankPath}`)
-
             const exists = await this.features.workspace.fs.exists(memoryBankPath)
-            this.features.logging.info(`[Memory Bank] Directory exists: ${exists}`)
             if (!exists) {
                 return false
             }
 
             // Check if at least one memory bank file exists
             const files = Object.values(MEMORY_BANK_FILES)
-            this.features.logging.info(`[Memory Bank] Checking files: ${files.join(', ')}`)
-
             for (const file of files) {
                 const filePath = `${memoryBankPath}/${file}`
                 const fileExists = await this.features.workspace.fs.exists(filePath)
-                this.features.logging.info(`[Memory Bank] File ${file} exists: ${fileExists}`)
                 if (fileExists) {
                     return true
                 }
             }
 
-            this.features.logging.info(`[Memory Bank] No files found`)
             return false
         } catch (error) {
             this.features.logging.error(`Error checking memory bank existence: ${error}`)

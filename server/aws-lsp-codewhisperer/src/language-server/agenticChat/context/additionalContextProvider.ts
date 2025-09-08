@@ -34,7 +34,6 @@ import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-stream
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT_COUNT } from '../../../shared/imageVerification'
 import { MemoryBankController } from './memorybank/memoryBankController'
-import { mergeFileLists } from './contextUtils'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -159,7 +158,7 @@ export class AdditionalContextProvider {
             let needsUpdate = false
 
             // Ensure memory-bank folder is active by default
-            const memoryBankFolderName = '.amazonq/rules/memory-bank'
+            const memoryBankFolderName = 'memory-bank'
             if (rulesState.folders[memoryBankFolderName] === undefined) {
                 rulesState.folders[memoryBankFolderName] = true
                 needsUpdate = true
@@ -176,9 +175,7 @@ export class AdditionalContextProvider {
             // Save the updated rules state if we made changes
             if (needsUpdate) {
                 this.chatDb.setRules(tabId, rulesState)
-                this.features.logging.info(
-                    `[Memory Bank] Activated ${memoryBankFiles.length} memory bank files by default`
-                )
+                this.features.logging.info(`Memory Bank files activated by default: ${memoryBankFiles.length} files`)
             }
         }
 
@@ -260,30 +257,20 @@ export class AdditionalContextProvider {
             let rulesToInclude = workspaceRules
 
             if (isMemoryBankRequest) {
-                // Exclude memory bank files from context when generating memory bank
+                // Exclude memory bank files from context when regenerating memory bank
                 const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
                 rulesToInclude = workspaceRules.filter(rule => !rule.id?.includes('memory-bank'))
 
                 if (memoryBankFiles.length > 0) {
                     this.features.logging.info(
-                        `[Memory Bank] Excluding ${memoryBankFiles.length} existing memory bank files from context for regeneration`
+                        `Memory Bank regeneration: excluding ${memoryBankFiles.length} existing files from context`
                     )
-                    memoryBankFiles.forEach(file => {
-                        const fileName = path.basename(file.id)
-                        this.features.logging.info(`[Memory Bank] - Excluding: ${fileName} (${file.id})`)
-                    })
                 }
             } else {
                 // Normal behavior: include all workspace rules (including memory bank files)
                 const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
                 if (memoryBankFiles.length > 0) {
-                    this.features.logging.info(
-                        `[Memory Bank] Including ${memoryBankFiles.length} memory bank files in chat context for tabId: ${tabId}`
-                    )
-                    memoryBankFiles.forEach(file => {
-                        const fileName = path.basename(file.id)
-                        this.features.logging.info(`[Memory Bank] - Including: ${fileName} (${file.id})`)
-                    })
+                    this.features.logging.info(`Including ${memoryBankFiles.length} memory bank files in chat context`)
                 }
             }
 
@@ -724,8 +711,6 @@ export class AdditionalContextProvider {
     }
 
     convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
-        this.features.logging.info(`[DEBUG] convertRulesToRulesFolders called with ${workspaceRules.length} rules`)
-
         // Check if there's only one workspace folder
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
         const isSingleWorkspace = workspaceFolders.length <= 1
@@ -745,9 +730,13 @@ export class AdditionalContextProvider {
                 if (dirPath === '.') {
                     folderName = undefined
                 } else {
-                    // Use only the last part of the directory path for display
-                    // e.g., ".amazonq/rules/memory-bank" becomes "memory-bank"
-                    folderName = path.basename(dirPath)
+                    // Special handling for memory bank files
+                    if (dirPath === '.amazonq/rules/memory-bank') {
+                        folderName = 'memory-bank'
+                    } else {
+                        // Use the full directory path for folder name
+                        folderName = dirPath
+                    }
                 }
             } else {
                 // In multi-workspace: include workspace folder name for all files
@@ -833,8 +822,6 @@ export class AdditionalContextProvider {
             return a.folderName.localeCompare(b.folderName)
         })
 
-        this.features.logging.info(`[DEBUG] Final rulesFolders structure: ${JSON.stringify(rulesFolders, null, 2)}`)
-
         return rulesFolders
     }
 
@@ -865,25 +852,7 @@ export class AdditionalContextProvider {
         getWorkspaceFolder?: (uri: string) => WorkspaceFolder | null | undefined
     ): Promise<ChatMessage[]> {
         if (!pinnedContext || pinnedContext.length === 0) {
-            this.features.logging.info('[Memory Bank] No pinned context to convert to chat messages')
             return []
-        }
-
-        this.features.logging.info(
-            `[Memory Bank] Converting ${pinnedContext.length} pinned context items to chat messages`
-        )
-
-        // Log memory bank files in pinned context
-        const memoryBankItems = pinnedContext.filter(item => item.path?.includes('memory-bank'))
-        if (memoryBankItems.length > 0) {
-            this.features.logging.info(
-                `[Memory Bank] Found ${memoryBankItems.length} memory bank items in pinned context`
-            )
-            memoryBankItems.forEach(item => {
-                this.features.logging.info(
-                    `[Memory Bank] - Pinned context item: ${item.relativePath} (${item.innerContext?.length || 0} chars)`
-                )
-            })
         }
 
         // Build the pinned context XML content

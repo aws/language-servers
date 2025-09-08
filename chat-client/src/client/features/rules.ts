@@ -71,7 +71,6 @@ export class RulesList {
                 )
             } else if (item.id === ContextRule.CreateMemoryBankId) {
                 this.rulesList?.close()
-                // Use MemoryBankManager to handle creation
                 this.handleMemoryBankCreation()
             } else {
                 this.messager.onRuleClick({ tabId: this.tabId, type: 'rule', id: item.id })
@@ -83,14 +82,13 @@ export class RulesList {
         // Close the rules list first
         this.rulesList?.close()
 
-        // Use the current tab ID instead of creating a new one
-        // The tabId should be the same as the one used for the rules list
+        // Use the current tab I, the tabId should be the same as the one used for the rules list
         this.messager.onChatPrompt({
             prompt: {
                 prompt: 'Generate a Memory Bank for this project',
                 escapedPrompt: 'Generate a Memory Bank for this project',
             },
-            tabId: this.tabId, // Use the current tab ID
+            tabId: this.tabId,
         })
     }
 
@@ -177,29 +175,17 @@ const createRuleListItem: DetailedListItem = {
 }
 
 function createMemoryBankListItem(rules: RulesFolder[]): DetailedListItem {
-    // Check if memory-bank folder exists with files
-    // Look for folder that contains memory bank files (product, structure, tech, guidelines)
-    // Note: Server sends rule names WITHOUT .md extension (e.g., 'product' not 'product.md')
+    // Handles text changes between "Generation" and "Regenerate"
     const memoryBankFiles = ['product', 'structure', 'tech', 'guidelines']
-
-    console.log('[DEBUG] createMemoryBankListItem called with rules:', JSON.stringify(rules, null, 2))
 
     // Find memory-bank folder
     const memoryBankFolder = rules.find(folder => folder.folderName === 'memory-bank')
-    console.log('[DEBUG] Found memory-bank folder:', JSON.stringify(memoryBankFolder, null, 2))
 
     // Check if any memory bank files exist
     const hasMemoryBankFiles =
-        memoryBankFolder &&
-        memoryBankFolder.rules.some(rule => {
-            const matches = memoryBankFiles.includes(rule.name)
-            console.log(`[DEBUG] Checking rule "${rule.name}" against memory bank files:`, matches)
-            return matches
-        })
+        memoryBankFolder && memoryBankFolder.rules.some(rule => memoryBankFiles.includes(rule.name))
 
-    console.log('[DEBUG] hasMemoryBankFiles result:', hasMemoryBankFiles)
     const buttonText = hasMemoryBankFiles ? 'Regenerate Memory Bank' : 'Generate Memory Bank'
-    console.log('[DEBUG] Button text will be:', buttonText)
 
     return {
         description: buttonText,
