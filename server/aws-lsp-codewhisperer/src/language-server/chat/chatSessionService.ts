@@ -269,12 +269,7 @@ export class ChatSessionService {
     }
 
     #onDelayNotification(notification: DelayNotification): void {
-        // This can be extended to send notifications to the UI
-        // For now, just log the notification
+        // Log the notification for debugging purposes
         this.#logging?.info(`Delay notification: ${notification.message}`)
-
-        // TODO: Integrate with chat result stream to show delay notifications to users
-        // This would require passing the chat result stream to the session service
-        // Example: this.#chatResultStream?.updateProgressMessage(notification.message)
     }
 }
