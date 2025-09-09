@@ -862,44 +862,17 @@ export class AgenticChatController implements ChatHandlers {
                 const actionType = memoryBankExists ? 'Regenerating' : 'Generating'
                 this.#features.logging.info(`${actionType} Memory Bank for workspace: ${workspaceUri}`)
 
-                // Send initial status message
-                try {
-                    await this.#features.chat.sendChatUpdate({
-                        tabId: params.tabId,
-                        data: {
-                            messages: [
-                                {
-                                    messageId: `memory-bank-init-${Date.now()}`,
-                                    body: `**${actionType} Memory Bank**\n\n${memoryBankExists ? 'Updating existing' : 'Generating new'} Memory Bank for your workspace.`,
-                                },
-                            ],
-                        },
-                    })
-                } catch (updateError) {
-                    this.#features.logging.warn(`Failed to send initial status update: ${updateError}`)
-                }
+                const resultStream = this.#getChatResultStream(params.partialResultToken)
+                await resultStream.writeResultBlock({
+                    body: `Preparing to analyze your project...`,
+                    type: 'answer',
+                    messageId: crypto.randomUUID(),
+                })
 
                 const comprehensivePrompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
                     workspaceUri,
-                    async (message: string) => {
-                        try {
-                            await this.#features.chat.sendChatUpdate({
-                                tabId: params.tabId,
-                                data: {
-                                    messages: [
-                                        {
-                                            messageId: `memory-bank-status-${Date.now()}`,
-                                            body: message,
-                                        },
-                                    ],
-                                },
-                            })
-                        } catch (updateError) {
-                            this.#features.logging.warn(`Failed to send status update: ${updateError}`)
-                        }
-                    },
                     async (prompt: string) => {
-                        // Direct LLM call for ranking - no agentic loop, just a simple API call
+                        // Direct LLM call for ranking - no agentic loop
                         try {
                             if (!this.#serviceManager) {
                                 throw new Error('amazonQServiceManager is not initialized')
@@ -1341,7 +1314,6 @@ export class AgenticChatController implements ChatHandlers {
             }),
             chatResultStream,
             session,
-            tabId,
             documentReference,
             true
         )
@@ -1516,7 +1488,6 @@ export class AgenticChatController implements ChatHandlers {
                 }),
                 chatResultStream,
                 session,
-                tabId,
                 documentReference
             )
             const llmLatency = Date.now() - this.#llmRequestStartTime
@@ -4327,7 +4298,6 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
-        tabId: string,
         contextList?: FileList,
         isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
@@ -4351,7 +4321,6 @@ export class AgenticChatController implements ChatHandlers {
             chatResultStream,
             streamWriter,
             session,
-            tabId,
             contextList,
             abortController.signal,
             isCompaction
@@ -4431,7 +4400,6 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         streamWriter: ResultStreamWriter,
         session: ChatSessionService,
-        tabId: string,
         contextList?: FileList,
         abortSignal?: AbortSignal,
         isCompaction?: boolean

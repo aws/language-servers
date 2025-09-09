@@ -157,14 +157,12 @@ export class AdditionalContextProvider {
         if (memoryBankFiles.length > 0) {
             let needsUpdate = false
 
-            // Ensure memory-bank folder is active by default
             const memoryBankFolderName = 'memory-bank'
             if (rulesState.folders[memoryBankFolderName] === undefined) {
                 rulesState.folders[memoryBankFolderName] = true
                 needsUpdate = true
             }
 
-            // Ensure each memory bank file is active by default
             memoryBankFiles.forEach(file => {
                 if (rulesState.rules[file.id] === undefined) {
                     rulesState.rules[file.id] = true

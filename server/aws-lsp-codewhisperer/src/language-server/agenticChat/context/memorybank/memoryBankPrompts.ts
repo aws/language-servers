@@ -67,7 +67,7 @@ The .amazonq/rules/memory-bank/ directory has been prepared and cleaned. You can
 
 **Part 1: Fresh Analysis and Documentation Creation**
 
-FIRST: Start by saying "I'll analyze the codebase and generate a complete Memory Bank. Let me start by exploring the project structure."
+FIRST: Start by saying "Now I'll explore the project structure and create the Memory Bank documentation."
 
 THEN: Explore the project structure and create these files (send progress message before each):
 
