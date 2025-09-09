@@ -29,6 +29,8 @@ export type PrepareAndUploadArtifactsResult = {
     isCodeDiffPresent: boolean
     artifactSize: number
     programmingLanguages: Set<string>
+    numberOfFilesInCustomerCodeZip: number
+    codeDiffFiles: Set<string>
 }
 
 export type StartCodeAnalysisResult = {
