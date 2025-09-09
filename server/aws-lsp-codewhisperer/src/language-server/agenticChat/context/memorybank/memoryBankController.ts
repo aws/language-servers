@@ -23,9 +23,6 @@ export class MemoryBankController {
 
     constructor(private features: Features) {}
 
-    /**
-     * Get singleton instance of MemoryBankController
-     */
     static getInstance(features: Features): MemoryBankController {
         if (!MemoryBankController.instance) {
             MemoryBankController.instance = new MemoryBankController(features)
@@ -35,6 +32,7 @@ export class MemoryBankController {
 
     /**
      * Check if a prompt is requesting memory bank creation
+     * Can be expanded based on feedbacks
      */
     isMemoryBankCreationRequest(prompt: string): boolean {
         const normalizedPrompt = prompt.toLowerCase().trim()
@@ -59,32 +57,21 @@ export class MemoryBankController {
      */
     async prepareComprehensiveMemoryBankPrompt(
         workspaceFolderUri: string,
-        statusUpdateFunction: (message: string) => Promise<void>,
         llmCallFunction: (prompt: string) => Promise<string>
     ): Promise<string> {
         try {
             // Step 1: Clean directory
             await this.cleanMemoryBankDirectory(workspaceFolderUri)
 
-            // Step 2: Send status update
-            await statusUpdateFunction(
-                '**Analyzing codebase structure...**\n\nScanning files and calculating similarity metrics.'
-            )
-
-            // Step 3: Execute deterministic analysis (TF-IDF)
+            // Step 2: Execute deterministic analysis (TF-IDF)
             this.features.logging.info(`Memory Bank: running analysis for workspace: ${workspaceFolderUri}`)
             const analysisResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
 
-            // Step 4: Send ranking status update
-            await statusUpdateFunction(
-                '**Ranking important files...**\n\nUsing AI to identify the most representative files.'
-            )
-
-            // Step 5: Make LLM call for file ranking
+            // Step 3: Make LLM call for file ranking
             const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(analysisResults.formattedFilesString, 20)
             const rankedFilesResponse = await llmCallFunction(rankingPrompt)
 
-            // Step 6: Parse ranked files
+            // Step 4: Parse ranked files
             let rankedFilesList: string[] = []
             try {
                 // Clean the response - remove any markdown formatting or extra text
@@ -128,13 +115,7 @@ export class MemoryBankController {
                 `Memory Bank: using ${rankedFilesList.length} files for documentation generation`
             )
 
-            // Step 7: Send final status update
-            const totalChunks = Math.ceil(rankedFilesList.length / 4)
-            await statusUpdateFunction(
-                `**Generating comprehensive documentation...**\n\nGenerating all 4 Memory Bank files with iterative analysis.\n\n**Agent Processing:** Processes ${rankedFilesList.length} files in chunks of 4\n${Array.from({ length: totalChunks }, (_, i) => `- Iteration ${i + 1}: Files ${i * 4 + 1}-${Math.min((i + 1) * 4, rankedFilesList.length)}   (${Math.min(4, rankedFilesList.length - i * 4)} files)`).join('\n')}\n↓`
-            )
-
-            // Step 8: Create the comprehensive prompt with ranked files
+            // Step 5: Create the comprehensive prompt with ranked files
             const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList)
             return finalPrompt
         } catch (error) {
@@ -144,7 +125,7 @@ export class MemoryBankController {
     }
 
     /**
-     * Clean memory bank directory
+     * Clean and recreate memory bank directory
      */
     async cleanMemoryBankDirectory(workspaceFolderUri: string): Promise<void> {
         try {
@@ -180,7 +161,7 @@ export class MemoryBankController {
     }
 
     /**
-     * SCIENCE DOCUMENT METHOD 1: file discovery (OPTIMIZED)
+     * files discovery
      */
     async discoverAllSourceFiles(
         workspaceFolderUri: string,
@@ -213,7 +194,7 @@ export class MemoryBankController {
     }
 
     /**
-     * SCIENCE DOCUMENT METHOD 2: line counting
+     * line counting
      */
     async calculateFileLineCount(filePath: string): Promise<number> {
         try {
@@ -226,7 +207,7 @@ export class MemoryBankController {
     }
 
     /**
-     * SCIENCE DOCUMENT METHOD 3: lexical dissimilarity calculation (OPTIMIZED)
+     * lexical dissimilarity calculation
      */
     async calculateLexicalDissimilarity(
         files: Array<{ path: string; size: number }>

@@ -82,7 +82,7 @@ export class RulesList {
         // Close the rules list first
         this.rulesList?.close()
 
-        // Use the current tab I, the tabId should be the same as the one used for the rules list
+        // Use the current tab, the tabId should be the same as the one used for the rules list
         this.messager.onChatPrompt({
             prompt: {
                 prompt: 'Generate a Memory Bank for this project',
@@ -175,13 +175,11 @@ const createRuleListItem: DetailedListItem = {
 }
 
 function createMemoryBankListItem(rules: RulesFolder[]): DetailedListItem {
-    // Handles text changes between "Generation" and "Regenerate"
+    // Handles button text changes between "Generation" and "Regenerate"
     const memoryBankFiles = ['product', 'structure', 'tech', 'guidelines']
 
-    // Find memory-bank folder
     const memoryBankFolder = rules.find(folder => folder.folderName === 'memory-bank')
 
-    // Check if any memory bank files exist
     const hasMemoryBankFiles =
         memoryBankFolder && memoryBankFolder.rules.some(rule => memoryBankFiles.includes(rule.name))
 

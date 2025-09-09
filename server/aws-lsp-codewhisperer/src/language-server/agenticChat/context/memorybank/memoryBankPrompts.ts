@@ -67,7 +67,7 @@ The .amazonq/rules/memory-bank/ directory has been prepared and cleaned. You can
 
 **Part 1: Fresh Analysis and Documentation Creation**
 
-FIRST: Start by saying "I'll analyze the codebase and generate a complete Memory Bank. Let me start by exploring the project structure."
+FIRST: Start by saying "Now I'll explore the project structure and create the Memory Bank documentation."
 
 THEN: Explore the project structure and create these files (send progress message before each):
 
@@ -87,6 +87,8 @@ THEN: Explore the project structure and create these files (send progress messag
 - Development commands
 
 **Part 2: Advanced Guidelines Generation Using Iterative Analysis**
+
+THEN: Say "Now I'll analyze the most representative files from the codebase to identify development patterns and create comprehensive guidelines."
 
 I have ${rankedFiles.length} representative files ranked by lexical dissimilarity analysis:
 ${rankedFiles.map((file, i) => `${i + 1}. ${file}`).join('\n')}

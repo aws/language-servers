@@ -157,14 +157,12 @@ export class AdditionalContextProvider {
         if (memoryBankFiles.length > 0) {
             let needsUpdate = false
 
-            // Ensure memory-bank folder is active by default
             const memoryBankFolderName = 'memory-bank'
             if (rulesState.folders[memoryBankFolderName] === undefined) {
                 rulesState.folders[memoryBankFolderName] = true
                 needsUpdate = true
             }
 
-            // Ensure each memory bank file is active by default
             memoryBankFiles.forEach(file => {
                 if (rulesState.rules[file.id] === undefined) {
                     rulesState.rules[file.id] = true
@@ -172,7 +170,6 @@ export class AdditionalContextProvider {
                 }
             })
 
-            // Save the updated rules state if we made changes
             if (needsUpdate) {
                 this.chatDb.setRules(tabId, rulesState)
                 this.features.logging.info(`Memory Bank files activated by default: ${memoryBankFiles.length} files`)
@@ -734,7 +731,6 @@ export class AdditionalContextProvider {
                     if (dirPath === '.amazonq/rules/memory-bank') {
                         folderName = 'memory-bank'
                     } else {
-                        // Use the full directory path for folder name
                         folderName = dirPath
                     }
                 }
