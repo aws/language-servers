@@ -318,7 +318,7 @@ describe('CodeWhispererService', function () {
                 }
 
                 const result = await service.generateSuggestions(mockRequest)
-                assert.strictEqual(result.responseContext.serviceType, 'iam')
+                assert.strictEqual(result.responseContext.authType, 'iam')
             })
         })
 

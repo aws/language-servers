@@ -86,7 +86,7 @@ export interface ResponseContext {
     requestId: string
     codewhispererSessionId: string
     nextToken?: string
-    serviceType?: 'iam' | 'token'
+    authType?: 'iam' | 'token'
 }
 
 export enum SuggestionType {
@@ -291,7 +291,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
-            serviceType: 'iam' as const,
+            authType: 'iam' as const,
         })
     }
 
@@ -512,7 +512,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
                 nextToken: response.nextToken,
                 // CRITICAL: Add service type for proper error handling
-                serviceType: 'token' as const,
+                authType: 'token' as const,
             }
 
             const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)

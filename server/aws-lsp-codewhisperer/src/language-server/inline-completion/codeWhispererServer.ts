@@ -554,24 +554,6 @@ export const CodewhispererServerFactory =
         ): InlineCompletionListWithReferences => {
             logging.log('Recommendation failure: ' + error)
 
-            // Add specific handling for IAM-related errors
-            if (isUsingIAMAuth(credentialsProvider)) {
-                if (error.message?.includes('not authorized') || error.message?.includes('AccessDenied')) {
-                    logging.error(
-                        `[IAM AUTH ERROR] IAM authentication error: User not authorized. Check IAM permissions for CodeWhisperer.`
-                    )
-                } else if (error.message?.includes('invalid parameter')) {
-                    logging.error(
-                        `[IAM AUTH ERROR] IAM authentication error: Invalid request parameters for IAM client`
-                    )
-                } else if (error.message?.includes('credentials')) {
-                    logging.error(`[IAM AUTH ERROR] IAM authentication error: Invalid or missing credentials`)
-                }
-
-                // Log detailed information about the request context
-                logging.error(`[IAM AUTH ERROR] Request context: ${JSON.stringify(session.requestContext)}`)
-            }
-
             emitServiceInvocationFailure(telemetry, session, error)
 
             // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
@@ -754,14 +736,7 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            try {
-                amazonQServiceManager = serviceManager(credentialsProvider)
-            } catch (Error) {
-                logging.info(`In IAM Auth mode: ${isUsingIAMAuth(credentialsProvider)}`)
-                amazonQServiceManager = isUsingIAMAuth(credentialsProvider)
-                    ? getOrThrowBaseIAMServiceManager()
-                    : getOrThrowBaseTokenServiceManager()
-            }
+            amazonQServiceManager = serviceManager(credentialsProvider)
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),

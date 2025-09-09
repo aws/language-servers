@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
+import { CodeWhispererServer, CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -2519,10 +2519,7 @@ describe('CodeWhisperer Server', () => {
             mockTokenService.withCodeWhispererService(stubCodeWhispererService())
 
             const features = new TestFeatures()
-            // Make the factory throw an error to trigger fallback logic
-            const server = CodewhispererServerFactory(() => {
-                throw new Error('Factory error to trigger fallback')
-            })
+            const server = CodeWhispererServer
 
             try {
                 await startServer(features, server)
@@ -2543,10 +2540,7 @@ describe('CodeWhisperer Server', () => {
             mockIAMService.withCodeWhispererService(stubCodeWhispererService())
 
             const features = new TestFeatures()
-            // Make the factory throw an error to trigger fallback logic
-            const server = CodewhispererServerFactory(() => {
-                throw new Error('Factory error to trigger fallback')
-            })
+            const server = CodeWhispererServer
 
             try {
                 await startServer(features, server)
