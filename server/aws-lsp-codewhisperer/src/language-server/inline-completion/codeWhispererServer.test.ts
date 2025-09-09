@@ -55,6 +55,7 @@ import {
 import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import * as utils from '../../shared/utils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
@@ -107,6 +108,33 @@ describe('CodeWhisperer Server', () => {
             .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
+
+        // Stub the global service manager functions to ensure they return test service managers
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager'),
+                'getOrThrowBaseTokenServiceManager'
+            )
+            .callsFake(() => {
+                // Create a new test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Also stub the IAM service manager
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager'),
+                'getOrThrowBaseIAMServiceManager'
+            )
+            .callsFake(() => {
+                // Return the same test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Reset AmazonQTokenServiceManager singleton to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        AmazonQTokenServiceManager.resetInstance()
     })
 
     afterEach(() => {
@@ -115,6 +143,14 @@ describe('CodeWhisperer Server', () => {
         sandbox.restore()
         sinon.restore()
         SESSION_IDS_LOG = []
+
+        // Reset all service manager singletons to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        const AmazonQIAMServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager').AmazonQIAMServiceManager
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQIAMServiceManager.resetInstance()
     })
 
     describe('Recommendations', () => {
@@ -2472,6 +2508,56 @@ describe('CodeWhisperer Server', () => {
         it('should handle URIs without extensions', () => {
             const uri = 'file:///path/to/file'
             assert.strictEqual(getLanguageIdFromUri(uri), '')
+        })
+    })
+
+    describe('Dynamic Service Manager Selection', () => {
+        it('should use Token service manager when not using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(false)
+            const mockTokenService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockTokenService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            // Make the factory throw an error to trigger fallback logic
+            const server = CodewhispererServerFactory(() => {
+                throw new Error('Factory error to trigger fallback')
+            })
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
+        })
+
+        it('should use IAM service manager when using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(true)
+            const mockIAMService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockIAMService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            // Make the factory throw an error to trigger fallback logic
+            const server = CodewhispererServerFactory(() => {
+                throw new Error('Factory error to trigger fallback')
+            })
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
         })
     })
 })

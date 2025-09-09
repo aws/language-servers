@@ -106,7 +106,7 @@ const mergeSuggestionsWithRightContext = (
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: () => AmazonQBaseServiceManager): Server =>
+    (serviceManager: (credentialsProvider?: any) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -155,6 +155,13 @@ export const CodewhispererServerFactory =
                 logging.log(`Skip concurrent inline completion`)
                 return EMPTY_RESULT
             }
+
+            // Add this check to ensure service manager is initialized
+            if (!amazonQServiceManager) {
+                logging.log('Amazon Q Service Manager not initialized yet')
+                return EMPTY_RESULT
+            }
+
             isOnInlineCompletionHandlerInProgress = true
 
             try {
@@ -747,9 +754,14 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = isUsingIAMAuth()
-                ? getOrThrowBaseIAMServiceManager()
-                : getOrThrowBaseTokenServiceManager()
+            try {
+                amazonQServiceManager = serviceManager(credentialsProvider)
+            } catch (Error) {
+                logging.info(`In IAM Auth mode: ${isUsingIAMAuth(credentialsProvider)}`)
+                amazonQServiceManager = isUsingIAMAuth(credentialsProvider)
+                    ? getOrThrowBaseIAMServiceManager()
+                    : getOrThrowBaseTokenServiceManager()
+            }
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
@@ -917,6 +929,11 @@ export const CodewhispererServerFactory =
             logging.log('Amazon Q Inline Suggestion server has been shut down')
         }
     }
+
+// Dynamic service manager factory that detects auth type at runtime
+export const CodeWhispererServer = CodewhispererServerFactory((credentialsProvider?: any) => {
+    return isUsingIAMAuth(credentialsProvider) ? getOrThrowBaseIAMServiceManager() : getOrThrowBaseTokenServiceManager()
+})
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
