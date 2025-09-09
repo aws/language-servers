@@ -19,6 +19,8 @@ import {
     createNamespacedToolName,
     enabledMCP,
     migrateToAgentConfig,
+    migrateAgentConfigToCLIFormat,
+    normalizePathFromUri,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
@@ -319,6 +321,15 @@ export const McpToolsServer: Server = ({
             const allAgentPaths = [...wsAgentPaths, globalAgentPath]
 
             await migrateToAgentConfig(workspace, logging, agent)
+
+            // Migrate existing agent configs to CLI format
+            for (const agentPath of allAgentPaths) {
+                const normalizedAgentPath = normalizePathFromUri(agentPath)
+                const exists = await workspace.fs.exists(normalizedAgentPath).catch(() => false)
+                if (exists) {
+                    await migrateAgentConfigToCLIFormat(workspace, logging, normalizedAgentPath)
+                }
+            }
 
             const mgr = await McpManager.init(allAgentPaths, {
                 logging,

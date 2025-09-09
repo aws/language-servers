@@ -136,6 +136,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -178,6 +179,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -241,6 +243,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
 
             try {
@@ -268,6 +271,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
 
             try {
@@ -301,6 +305,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
 
             // Stub setTimeout to avoid actual delays
