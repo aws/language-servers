@@ -11,7 +11,7 @@ SHASUMS_FILE="SHASUMS256.txt"
 ASSETS_DIR="build/node-assets"
 
 # Download SHASUMS256.txt
-wget -q "$BASE_URL/$SHASUMS_FILE" -O "$SHASUMS_FILE"
+curl -s "$BASE_URL/$SHASUMS_FILE" -o "$SHASUMS_FILE"
 
 # Extract exact Node.js version from any entry in SHASUMS256.txt
 NODE_SEMVER=$(grep -o 'node-v[0-9]*\.[0-9]*\.[0-9]*' SHASUMS256.txt | head -1 | cut -d'v' -f2)
@@ -47,7 +47,7 @@ for actual_file in "${EXPECTED_FILES[@]}"; do
 
         echo "Updating $actual_file"
         mkdir -p "$(dirname "$filepath")"
-        wget -q "$BASE_URL/$actual_file" -O $filepath
+        curl -s "$BASE_URL/$actual_file" -o "$filepath"
     else
         echo "Warning: $actual_file not found in SHASUMS256.txt"
     fi
@@ -58,7 +58,7 @@ LICENSE_URL="https://raw.githubusercontent.com/nodejs/node/v${NODE_SEMVER}/LICEN
 LICENSE_FILE="$ASSETS_DIR/LICENSE"
 
 echo "Fetching Node.js license from $LICENSE_URL"
-wget -q "$LICENSE_URL" -O "$LICENSE_FILE"
+curl -s "$LICENSE_URL" -o "$LICENSE_FILE"
 
 # Verify the license file was downloaded successfully
 if [ ! -s "$LICENSE_FILE" ]; then
