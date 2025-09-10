@@ -24,6 +24,8 @@ const packagesFolderName = 'packages'
 const thirdPartyPackageFolderName = 'thirdpartypackages'
 const customTransformationFolderName = 'customTransformation'
 const filteredExtensions = ['.suo', '.meta', '.user', '.obj', '.tmp', '.log', '.dbmdl', '.jfm', '.pdb']
+const filteredDirectories = ['.git', 'bin', 'obj', '.idea', '.vs', 'artifactworkspace', 'node_modules', 'nuget.config']
+const failedCopies: string[] = []
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -172,6 +174,10 @@ export class ArtifactManager {
                     }
                     await this.copySourceFile(request.SolutionRootPath, filePath)
                     const contentHash = await this.calculateMD5Async(filePath)
+                    if (contentHash.length == 0) {
+                        //if can't generate hash then file copy failed previously
+                        continue
+                    }
                     const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
                     codeFiles.push({
                         contentMd5Hash: contentHash,
@@ -308,7 +314,15 @@ export class ArtifactManager {
                 `Custom transformation folder not accessible (not found or no permissions): ${customTransformationPath}`
             )
         }
-
+        this.logging.log(
+            `Files with extensions ${filteredExtensions.join(', ')} are not zipped, as they are not necessary for transformation`
+        )
+        this.logging.log(
+            `Files in directories ${filteredDirectories.join(', ')} are not zipped, as they are not necessary for transformation`
+        )
+        if (failedCopies.length > 0) {
+            this.logging.log(`Files - ${failedCopies.join(',')} - could not be copied.`)
+        }
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
@@ -402,14 +416,14 @@ export class ArtifactManager {
             return
         }
         if (this.shouldFilterFile(sourceFilePath)) {
-            this.logging.log(`Successfully filtered ${sourceFilePath} to avoid error`)
             return
         } else {
             return new Promise<void>((resolve, reject) => {
                 fs.copyFile(sourceFilePath, destFilePath, err => {
                     if (err) {
                         this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
-                        reject(err)
+                        failedCopies.push(sourceFilePath)
+                        resolve()
                     } else {
                         resolve()
                     }
@@ -432,6 +446,12 @@ export class ArtifactManager {
         }
     }
     private shouldFilterFile(filePath: string): boolean {
-        return filteredExtensions.includes(path.extname(filePath).toLowerCase())
+        if (filteredExtensions.includes(path.extname(filePath).toLowerCase())) {
+            return true
+        }
+        const dirPath = path.dirname(filePath).toLowerCase()
+        const pathSegments = dirPath.split(path.sep)
+
+        return pathSegments.some(segment => filteredDirectories.includes(segment))
     }
 }
