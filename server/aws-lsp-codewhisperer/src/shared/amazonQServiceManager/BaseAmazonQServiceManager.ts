@@ -17,7 +17,6 @@ import {
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
 import { StreamingClientServiceBase } from '../streamingClientService'
-import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 
 export interface QServiceManagerFeatures {
     lsp: Lsp

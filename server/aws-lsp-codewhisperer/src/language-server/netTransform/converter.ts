@@ -1,28 +1,22 @@
-import { AWSError } from 'aws-sdk'
-import { PromiseResult } from 'aws-sdk/lib/request'
 import { StartTransformRequest, StartTransformResponse, TransformProjectMetadata } from './models'
-import CodeWhispererTokenUserClient = require('../../client/token/codewhispererbearertokenclient')
+import {
+    StartTransformationRequest,
+    StartTransformationResponse,
+    TransformationDotNetRuntimeEnv,
+} from '@amzn/codewhisperer-runtime'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 
-//sequence of targetFrameworkMap matters a lot because we are using as sorted indices of old to new .net versions
-export const targetFrameworkMap = new Map<string, string>([
-    ['net8.0', 'NET_8_0'],
-    ['net9.0', 'NET_9_0'],
-    ['netstandard2.0', 'NET_STANDARD_2_0'],
-])
-
-const dummyVersionIndex = 999
-
-const targetFrameworkKeysArray = Array.from(targetFrameworkMap.keys())
-function getKeyIndexOfVersion(key: any) {
-    return targetFrameworkKeysArray.indexOf(key)
+const targetFrameworkRecord: Record<string, TransformationDotNetRuntimeEnv> = {
+    'net8.0': 'NET_8_0',
+    'net9.0': 'NET_9_0',
+    'netstandard2.0': 'NET_STANDARD_2_0',
 }
 
 export function getCWStartTransformRequest(
     userInputRequest: StartTransformRequest,
-    uploadId: string,
+    uploadId: string | undefined,
     logging: Logging
-): CodeWhispererTokenUserClient.StartTransformationRequest {
+): StartTransformationRequest {
     return {
         workspaceState: {
             uploadId: uploadId,
@@ -48,9 +42,7 @@ export function getCWStartTransformRequest(
             target: {
                 language: 'C_SHARP',
                 runtimeEnv: {
-                    dotNet: targetFrameworkMap.has(userInputRequest.TargetFramework)
-                        ? targetFrameworkMap.get(userInputRequest.TargetFramework)
-                        : 'NET_8_0',
+                    dotNet: targetFrameworkRecord[userInputRequest.TargetFramework] ?? 'NET_8_0',
                 },
                 platformConfig: {
                     operatingSystemFamily: 'LINUX',
@@ -61,8 +53,8 @@ export function getCWStartTransformRequest(
 }
 
 export function getCWStartTransformResponse(
-    response: PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError>,
-    uploadId: string,
+    response: StartTransformationResponse,
+    uploadId: string | undefined,
     artifactPath: string,
     unsupportedProjects: string[],
     containsUnsupportedViews: boolean

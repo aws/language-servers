@@ -225,7 +225,7 @@ import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_I
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
-import { UserContext } from '../../client/token/codewhispererbearertokenclient'
+import { UserContext } from '@amzn/codewhisperer-runtime'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
@@ -717,10 +717,12 @@ export class AgenticChatController implements ChatHandlers {
 
             // Wait for the response to be completed before proceeding
             this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
-            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
-                id: modelId,
-                name: modelName ?? modelId,
-            }))
+            if (responseResult.models) {
+                models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+                    id: modelId ?? 'unknown',
+                    name: modelName ?? modelId ?? 'unknown',
+                }))
+            }
             defaultModelId = responseResult.defaultModel?.modelId
 
             // Cache the models with defaultModelId
@@ -4674,7 +4676,7 @@ export class AgenticChatController implements ChatHandlers {
                     const feature = result.featureEvaluations?.find(
                         feature => feature.feature === 'MaestroWorkspaceContext'
                     )
-                    if (feature) {
+                    if (feature && feature.feature && feature.variation) {
                         this.#abTestingAllocation = {
                             experimentName: feature.feature,
                             userVariation: feature.variation,

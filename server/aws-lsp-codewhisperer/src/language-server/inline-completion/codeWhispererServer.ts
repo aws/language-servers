@@ -59,6 +59,7 @@ import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
+import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -676,8 +677,8 @@ export const CodewhispererServerFactory =
                 timeSinceLastUserModification,
                 addedLengthForEdits,
                 deletedLengthForEdits,
-                addedDiagnostics,
-                removedDiagnostics,
+                addedDiagnostics as IdeDiagnostic[],
+                removedDiagnostics as IdeDiagnostic[],
                 streakLength,
                 Object.keys(params.completionSessionResult)[0]
             )

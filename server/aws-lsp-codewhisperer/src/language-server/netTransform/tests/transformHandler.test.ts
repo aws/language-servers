@@ -127,6 +127,7 @@ describe('Test Transform handler ', () => {
                 uploadId: testUploadId,
                 uploadUrl: 'dummy-upload-url',
                 kmsKeyArn: 'ResourceArn',
+                $metadata: {},
                 ...mocked$Response,
             })
         })
@@ -201,6 +202,7 @@ describe('Test Transform handler ', () => {
             client.codeModernizerStopCodeTransformation.returns(
                 Promise.resolve({
                     transformationStatus: 'STOPPED',
+                    $metadata: {},
                     ...mocked$Response,
                 })
             )
@@ -218,6 +220,7 @@ describe('Test Transform handler ', () => {
             client.codeModernizerStopCodeTransformation.returns(
                 Promise.resolve({
                     transformationStatus: 'COMPLETED',
+                    $metadata: {},
                     ...mocked$Response,
                 })
             )
@@ -282,6 +285,7 @@ describe('Test Transform handler ', () => {
                         status: 'COMPLETED',
                         ...mocked$Response,
                     },
+                    $metadata: {},
                     ...mocked$Response,
                 })
             )
@@ -306,6 +310,7 @@ describe('Test Transform handler ', () => {
                         status: 'FAILED',
                         ...mocked$Response,
                     },
+                    $metadata: {},
                     ...mocked$Response,
                 })
             )
@@ -356,9 +361,9 @@ describe('Test Transform handler ', () => {
             const request = JSON.parse(requestString) as GetTransformPlanRequest
             const res = await transformHandler.getTransformationPlan(request)
 
-            expect(res.TransformationPlan.transformationSteps[0].status).to.equal('COMPLETED')
-            expect(res.TransformationPlan.transformationSteps[0].name).to.equal('PlanStepName 1')
-            if (res.TransformationPlan.transformationSteps[0].progressUpdates) {
+            expect(res.TransformationPlan.transformationSteps?.[0].status).to.equal('COMPLETED')
+            expect(res.TransformationPlan.transformationSteps?.[0].name).to.equal('PlanStepName 1')
+            if (res.TransformationPlan.transformationSteps?.[0].progressUpdates) {
                 expect(res.TransformationPlan.transformationSteps[0].progressUpdates[0].name).to.equal(
                     'ProgressUpdateName 1 for PlanStep 1'
                 )
