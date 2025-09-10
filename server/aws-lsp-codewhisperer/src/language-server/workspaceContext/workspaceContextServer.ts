@@ -203,10 +203,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     feature =>
                         feature.feature === 'BuilderIdServiceSideProjectContext' && feature.variation === 'TREATMENT'
                 ) ?? false
-            semanticSearchAbTestingEnabled =
-                result.featureEvaluations?.some(
-                    feature => feature.feature === 'SematicSearchTool' && feature.variation === 'TREATMENT'
-                ) ?? false
+            semanticSearchAbTestingEnabled = true
             const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
             if (startUrl && startUrl.includes(INTERNAL_USER_START_URL)) {
                 // Overriding abTestingEnabled to true for all internal users
