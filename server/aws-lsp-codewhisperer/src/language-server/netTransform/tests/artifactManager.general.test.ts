@@ -247,4 +247,24 @@ describe('ArtifactManager - Complete Coverage', () => {
             // Should not throw
         })
     })
+
+    describe('shouldFilterFile', () => {
+        it('should filter filetypes', async () => {
+            expect(artifactManager.shouldFilterFile('test.cs')).to.be.false
+            expect(artifactManager.shouldFilterFile('test.jfm.cs')).to.be.false
+            expect(artifactManager.shouldFilterFile('test.jfm')).to.be.true
+        })
+
+        it('should filter directories', async () => {
+            const unfilteredString = path.join('test', 'solution', 'test.cs')
+            const filteredString = path.join('test', 'artifactworkspace', 'test.cs')
+            const filteredStringWithCasing = path.join('test', 'ArtifactWorkspace', 'test.cs')
+            const hardCodeFilterString = '\\test\\.GIT\\test.cs'
+
+            expect(artifactManager.shouldFilterFile(unfilteredString)).to.be.false
+            expect(artifactManager.shouldFilterFile(filteredString)).to.be.true
+            expect(artifactManager.shouldFilterFile(filteredStringWithCasing)).to.be.true
+            expect(artifactManager.shouldFilterFile(hardCodeFilterString)).to.be.true
+        })
+    })
 })
