@@ -23,6 +23,7 @@ const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
 const thirdPartyPackageFolderName = 'thirdpartypackages'
 const customTransformationFolderName = 'customTransformation'
+const filteredExtensions = ['.suo', '.meta', '.user', '.obj', '.tmp', '.log', '.dbmdl', '.jfm', '.pdb']
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -160,14 +161,15 @@ export class ArtifactManager {
 
     async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
         const projects: Project[] = []
-
         for (const project of request.ProjectMetadata) {
             const sourceCodeFilePaths = project.SourceCodeFilePaths.filter(filePath => filePath)
             const codeFiles: CodeFile[] = []
             const references: References[] = []
-
             for (const filePath of sourceCodeFilePaths) {
                 try {
+                    if (this.shouldFilterFile(filePath)) {
+                        continue
+                    }
                     await this.copySourceFile(request.SolutionRootPath, filePath)
                     const contentHash = await this.calculateMD5Async(filePath)
                     const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
@@ -181,6 +183,9 @@ export class ArtifactManager {
             }
 
             for (const reference of project.ExternalReferences) {
+                if (this.shouldFilterFile(reference.AssemblyFullPath)) {
+                    continue
+                }
                 try {
                     const relativePath = this.normalizeReferenceFileRelativePath(
                         reference.RelativePath,
@@ -214,6 +219,8 @@ export class ArtifactManager {
         if (request.PackageReferences != null) {
             for (const pkg of request.PackageReferences) {
                 if (!pkg.NetCompatiblePackageFilePath) {
+                    continue
+                } else if (this.shouldFilterFile(pkg.NetCompatiblePackageFilePath)) {
                     continue
                 }
                 try {
@@ -394,17 +401,21 @@ export class ArtifactManager {
             //Packages folder has been deleted to avoid duplicates in artifacts.zip
             return
         }
-
-        return new Promise<void>((resolve, reject) => {
-            fs.copyFile(sourceFilePath, destFilePath, err => {
-                if (err) {
-                    this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
-                    reject(err)
-                } else {
-                    resolve()
-                }
+        if (this.shouldFilterFile(sourceFilePath)) {
+            this.logging.log(`Successfully filtered ${sourceFilePath} to avoid error`)
+            return
+        } else {
+            return new Promise<void>((resolve, reject) => {
+                fs.copyFile(sourceFilePath, destFilePath, err => {
+                    if (err) {
+                        this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
+                        reject(err)
+                    } else {
+                        resolve()
+                    }
+                })
             })
-        })
+        }
     }
 
     async calculateMD5Async(filePath: string): Promise<string> {
@@ -419,5 +430,8 @@ export class ArtifactManager {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)
             return ''
         }
+    }
+    private shouldFilterFile(filePath: string): boolean {
+        return filteredExtensions.includes(path.extname(filePath).toLowerCase())
     }
 }
