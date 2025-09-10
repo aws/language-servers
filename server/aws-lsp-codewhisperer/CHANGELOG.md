@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.79](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.78...lsp-codewhisperer/v0.0.79) (2025-09-10)
+
+
+### Features
+
+* feature to add iam inline suggestion support in codeWhispererservice ([#2223](https://github.com/aws/language-servers/issues/2223)) ([8e19f19](https://github.com/aws/language-servers/commit/8e19f19a71e63a1196f4cb67ded8360c8da8129e))
+
 ## [0.0.78](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.77...lsp-codewhisperer/v0.0.78) (2025-09-09)
 
 
