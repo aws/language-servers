@@ -32,6 +32,7 @@ import {
     InlineChatResult,
     CancellationTokenSource,
     ContextCommand,
+    ChatUpdateParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -241,7 +242,7 @@ describe('AgenticChatController', () => {
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
             getTools: sinon.stub().returns(
-                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2', 'codeReview'].map(toolName => ({
                     toolSpecification: { name: toolName, description: 'Mock tool for testing' },
                 }))
             ),
@@ -368,17 +369,6 @@ describe('AgenticChatController', () => {
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
     })
 
-    it('onTabAdd updates model ID in chat options and session', () => {
-        const modelId = 'test-model-id'
-        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-        chatController.onTabAdd({ tabId: mockTabId })
-
-        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
-
-        const session = chatSessionManagementService.getSession(mockTabId).data
-        assert.strictEqual(session!.modelId, modelId)
-    })
-
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
         chatController.onTabChange({ tabId: mockTabId })
 
@@ -451,7 +441,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -1150,7 +1140,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1169,7 +1159,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -3003,153 +2993,251 @@ ${' '.repeat(8)}}
     })
 
     describe('onListAvailableModels', () => {
-        let tokenServiceManagerStub: sinon.SinonStub
+        let isCachedModelsValidStub: sinon.SinonStub
+        let getCachedModelsStub: sinon.SinonStub
+        let setCachedModelsStub: sinon.SinonStub
+        let getConnectionTypeStub: sinon.SinonStub
+        let getActiveProfileArnStub: sinon.SinonStub
+        let getCodewhispererServiceStub: sinon.SinonStub
+        let listAvailableModelsStub: sinon.SinonStub
 
         beforeEach(() => {
-            // Create a session with a model ID
+            // Create a session
             chatController.onTabAdd({ tabId: mockTabId })
-            const session = chatSessionManagementService.getSession(mockTabId).data!
-            session.modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
 
-            // Stub the getRegion method
-            tokenServiceManagerStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getRegion')
+            // Stub ChatDatabase methods
+            isCachedModelsValidStub = sinon.stub(ChatDatabase.prototype, 'isCachedModelsValid')
+            getCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'getCachedModels')
+            setCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'setCachedModels')
+
+            // Stub AmazonQTokenServiceManager methods
+            getConnectionTypeStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getConnectionType')
+            getActiveProfileArnStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getActiveProfileArn')
+            getCodewhispererServiceStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getCodewhispererService')
+
+            // Mock listAvailableModels method
+            listAvailableModelsStub = sinon.stub()
+            getCodewhispererServiceStub.returns({
+                listAvailableModels: listAvailableModelsStub,
+            })
         })
 
         afterEach(() => {
-            tokenServiceManagerStub.restore()
+            isCachedModelsValidStub.restore()
+            getCachedModelsStub.restore()
+            setCachedModelsStub.restore()
+            getConnectionTypeStub.restore()
+            getActiveProfileArnStub.restore()
+            getCodewhispererServiceStub.restore()
         })
 
-        it('should return all available models for us-east-1 region', async () => {
-            // Set up the region to be us-east-1
-            tokenServiceManagerStub.returns('us-east-1')
+        describe('ListAvailableModels Cache scenarios', () => {
+            it('should return cached models when cache is valid', async () => {
+                // Setup valid cache
+                isCachedModelsValidStub.returns(true)
+                const cachedData = {
+                    models: [
+                        { id: 'model1', name: 'Model 1' },
+                        { id: 'model2', name: 'Model 2' },
+                    ],
+                    defaultModelId: 'model1',
+                    timestamp: Date.now(),
+                }
+                getCachedModelsStub.returns(cachedData)
 
-            // Call the method
-            const params = { tabId: mockTabId }
-            const result = await chatController.onListAvailableModels(params)
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.modelId = 'model1'
 
-            // Verify the result
-            assert.strictEqual(result.tabId, mockTabId)
-            assert.strictEqual(result.models.length, 2)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
-            // Check that the models include both Claude versions
-            const modelIds = result.models.map(model => model.id)
-            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
-            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
-        })
+                // Verify cached data is used
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.deepStrictEqual(result.models, cachedData.models)
+                assert.strictEqual(result.selectedModelId, 'model1')
 
-        it('should return all available models for eu-central-1 region', async () => {
-            // Set up the region to be eu-central-1
-            tokenServiceManagerStub.returns('eu-central-1')
-
-            // Call the method
-            const params = { tabId: mockTabId }
-            const result = await chatController.onListAvailableModels(params)
-
-            // Verify the result
-            assert.strictEqual(result.tabId, mockTabId)
-            assert.strictEqual(result.models.length, 2)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
-
-            // Check that the models include both Claude versions
-            const modelIds = result.models.map(model => model.id)
-            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
-            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
-        })
-
-        it('should return all models when region is unknown', async () => {
-            // Set up the region to be unknown
-            tokenServiceManagerStub.returns('unknown-region')
-
-            // Call the method
-            const params = { tabId: mockTabId }
-            const result = await chatController.onListAvailableModels(params)
-
-            // Verify the result
-            assert.strictEqual(result.tabId, mockTabId)
-            assert.strictEqual(result.models.length, 2)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
-        })
-
-        it('should return undefined for selectedModelId when no session data exists', async () => {
-            // Set up the session to return no session (failure case)
-            const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
-            getSessionStub.returns({
-                data: undefined,
-                success: false,
-                error: 'error',
+                // Verify API was not called
+                sinon.assert.notCalled(listAvailableModelsStub)
+                sinon.assert.notCalled(setCachedModelsStub)
             })
 
-            // Call the method
-            const params = { tabId: 'non-existent-tab' }
-            const result = await chatController.onListAvailableModels(params)
+            it('should return cached models when cache is valid but has empty models array', async () => {
+                // Setup cache with empty models
+                isCachedModelsValidStub.returns(true)
+                const cachedData = {
+                    models: [],
+                    defaultModelId: undefined,
+                    timestamp: Date.now(),
+                }
+                getCachedModelsStub.returns(cachedData)
 
-            // Verify the result
-            assert.strictEqual(result.tabId, 'non-existent-tab')
-            assert.strictEqual(result.models.length, 2)
-            assert.strictEqual(result.selectedModelId, undefined)
-
-            getSessionStub.restore()
-        })
-
-        it('should fallback to latest available model when saved model is not available in current region', async () => {
-            // Import the module to stub
-            const modelSelection = await import('./constants/modelSelection')
-
-            // Create a mock region with only Claude 3.7
-            const mockModelOptionsForRegion = {
-                ...modelSelection.MODEL_OPTIONS_FOR_REGION,
-                'test-region-limited': [
-                    {
-                        id: 'CLAUDE_3_7_SONNET_20250219_V1_0',
-                        name: 'Claude Sonnet 3.7',
+                // Should fall back to API call since models array is empty
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-arn')
+                listAvailableModelsStub.resolves({
+                    models: {
+                        model1: { modelId: 'model1' },
+                        model2: { modelId: 'model2' },
                     },
-                ],
-            }
+                    defaultModel: { modelId: 'model1' },
+                })
 
-            // Stub the MODEL_OPTIONS_FOR_REGION
-            const modelOptionsStub = sinon
-                .stub(modelSelection, 'MODEL_OPTIONS_FOR_REGION')
-                .value(mockModelOptionsForRegion)
+                await chatController.onListAvailableModels({ tabId: mockTabId })
 
-            // Set up the region to be the test region (which only has Claude 3.7)
-            tokenServiceManagerStub.returns('test-region-limited')
+                // Verify API was called due to empty cached models
+                sinon.assert.calledOnce(listAvailableModelsStub)
+                sinon.assert.calledOnce(setCachedModelsStub)
+            })
 
-            // Mock database to return Claude Sonnet 4 (not available in test-region-limited)
-            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
-            getModelIdStub.returns('CLAUDE_SONNET_4_20250514_V1_0')
+            it('should return cached models when cache is valid but cachedData is null', async () => {
+                // Setup cache as valid but returns null
+                isCachedModelsValidStub.returns(true)
+                getCachedModelsStub.returns(null)
 
-            // Call the method
-            const params = { tabId: mockTabId }
-            const result = await chatController.onListAvailableModels(params)
+                // Should fall back to API call
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-arn')
+                listAvailableModelsStub.resolves({
+                    models: {
+                        model1: { modelId: 'model1' },
+                    },
+                    defaultModel: { modelId: 'model1' },
+                })
 
-            // Verify the result falls back to available model
-            assert.strictEqual(result.tabId, mockTabId)
-            assert.strictEqual(result.models.length, 1)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+                await chatController.onListAvailableModels({ tabId: mockTabId })
 
-            getModelIdStub.restore()
-            modelOptionsStub.restore()
+                // Verify API was called
+                sinon.assert.calledOnce(listAvailableModelsStub)
+            })
         })
 
-        it('should use saved model when it is available in current region', async () => {
-            // Set up the region to be us-east-1 (which has both models)
-            tokenServiceManagerStub.returns('us-east-1')
+        describe('ListAvailableModels API call scenarios', () => {
+            beforeEach(() => {
+                // Setup invalid cache to force API call
+                isCachedModelsValidStub.returns(false)
+            })
 
-            // Mock database to return Claude 3.7 (available in us-east-1)
-            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
-            getModelIdStub.returns('CLAUDE_3_7_SONNET_20250219_V1_0')
+            it('should fetch models from API when cache is invalid', async () => {
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-profile-arn')
 
-            // Call the method
-            const params = { tabId: mockTabId }
-            const result = await chatController.onListAvailableModels(params)
+                const mockApiResponse = {
+                    models: {
+                        'claude-3-sonnet': { modelId: 'claude-3-sonnet' },
+                        'claude-4-sonnet': { modelId: 'claude-4-sonnet' },
+                    },
+                    defaultModel: { modelId: 'claude-3-sonnet' },
+                }
+                listAvailableModelsStub.resolves(mockApiResponse)
 
-            // Verify the result uses the saved model
-            assert.strictEqual(result.tabId, mockTabId)
-            assert.strictEqual(result.models.length, 2)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
-            getModelIdStub.restore()
+                // Verify API call was made with correct parameters
+                sinon.assert.calledOnceWithExactly(listAvailableModelsStub, {
+                    origin: 'IDE',
+                    profileArn: 'test-profile-arn',
+                })
+
+                // Verify result structure
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.strictEqual(result.models.length, 2)
+                assert.deepStrictEqual(result.models, [
+                    { id: 'claude-3-sonnet', name: 'claude-3-sonnet' },
+                    { id: 'claude-4-sonnet', name: 'claude-4-sonnet' },
+                ])
+
+                // Verify cache was updated
+                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, 'claude-3-sonnet')
+            })
+
+            it('should fall back to hardcoded models when API call fails', async () => {
+                getConnectionTypeStub.returns('builderId')
+                listAvailableModelsStub.rejects(new Error('API Error'))
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify fallback to FALLBACK_MODEL_OPTIONS
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.strictEqual(result.models.length, 2) // FALLBACK_MODEL_OPTIONS length
+
+                // Verify cache was not updated due to error
+                sinon.assert.notCalled(setCachedModelsStub)
+            })
+
+            it('should handle API response with no defaultModel', async () => {
+                getConnectionTypeStub.returns('builderId')
+
+                const mockApiResponse = {
+                    models: {
+                        model1: { modelId: 'model1' },
+                    },
+                    defaultModel: undefined, // No default model
+                }
+                listAvailableModelsStub.resolves(mockApiResponse)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify cache was updated with undefined defaultModelId
+                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, undefined)
+            })
+        })
+
+        describe('Session and model selection scenarios', () => {
+            beforeEach(() => {
+                // Setup cache to avoid API calls in these tests
+                isCachedModelsValidStub.returns(true)
+                getCachedModelsStub.returns({
+                    models: [
+                        { id: 'model1', name: 'Model 1' },
+                        { id: 'model2', name: 'Model 2' },
+                    ],
+                    defaultModelId: 'model1',
+                    timestamp: Date.now(),
+                })
+            })
+
+            it('should return default model when session fails to load', async () => {
+                const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+                getSessionStub.returns({
+                    data: undefined,
+                    success: false,
+                    error: 'Session not found',
+                })
+
+                const result = await chatController.onListAvailableModels({ tabId: 'invalid-tab' })
+
+                assert.strictEqual(result.tabId, 'invalid-tab')
+                assert.strictEqual(result.selectedModelId, 'model1')
+
+                getSessionStub.restore()
+            })
+
+            it('should use defaultModelId from cache when session has no modelId', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.modelId = undefined
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                assert.strictEqual(result.selectedModelId, 'model1') // defaultModelId from cache
+                // Verify session modelId is updated
+                assert.strictEqual(session.modelId, 'model1')
+            })
+
+            it('should fall back to default model when session has no modelId and no defaultModelId in cache', async () => {
+                getCachedModelsStub.returns({
+                    models: [{ id: 'model1', name: 'Model 1' }],
+                    defaultModelId: undefined, // No default model
+                    timestamp: Date.now(),
+                })
+
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.modelId = undefined
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                assert.strictEqual(result.selectedModelId, 'claude-sonnet-4') // FALLBACK_MODEL_RECORD[DEFAULT_MODEL_ID].label
+                // Verify session modelId is updated
+                assert.strictEqual(session.modelId, 'claude-sonnet-4')
+            })
         })
     })
 
@@ -3281,6 +3369,90 @@ ${' '.repeat(8)}}
             sinon.assert.calledOnce(onManageSubscriptionSpy)
             const returnValue = await onManageSubscriptionSpy.returnValues[0]
             assert.strictEqual(returnValue, undefined)
+        })
+    })
+
+    describe('processToolUses', () => {
+        it('filters rule artifacts from additionalContext for CodeReview tool', async () => {
+            const mockAdditionalContext = [
+                {
+                    type: 'file',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/file.js',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule1.json',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule2.json',
+                },
+            ]
+
+            const toolUse = {
+                toolUseId: 'test-id',
+                name: 'codeReview',
+                input: { fileLevelArtifacts: [{ path: '/test/file.js' }] },
+                stop: true,
+            }
+
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.resolves({})
+
+            // Create a mock session with toolUseLookup
+            const mockSession = {
+                toolUseLookup: new Map(),
+                pairProgrammingMode: true,
+            } as any
+
+            // Create a minimal mock of AgenticChatResultStream
+            const mockChatResultStream = {
+                removeResultBlockAndUpdateUI: sinon.stub().resolves(),
+                writeResultBlock: sinon.stub().resolves(1),
+                overwriteResultBlock: sinon.stub().resolves(),
+                removeResultBlock: sinon.stub().resolves(),
+                getMessageBlockId: sinon.stub().returns(undefined),
+                hasMessage: sinon.stub().returns(false),
+                updateOngoingProgressResult: sinon.stub().resolves(),
+                getResult: sinon.stub().returns({ messageId: 'test', body: '' }),
+                setMessageIdToUpdateForTool: sinon.stub(),
+                getMessageIdToUpdateForTool: sinon.stub().returns(undefined),
+                addMessageOperation: sinon.stub(),
+                getMessageOperation: sinon.stub().returns(undefined),
+            }
+
+            // Call processToolUses directly
+            await chatController.processToolUses(
+                [toolUse],
+                mockChatResultStream as any,
+                mockSession,
+                'tabId',
+                mockCancellationToken,
+                mockAdditionalContext
+            )
+
+            // Verify runTool was called with ruleArtifacts
+            sinon.assert.calledOnce(runToolStub)
+            const toolInput = runToolStub.firstCall.args[1]
+            assert.ok(toolInput.ruleArtifacts)
+            assert.strictEqual(toolInput.ruleArtifacts.length, 2)
+            assert.strictEqual(toolInput.ruleArtifacts[0].path, '/test/rule1.json')
+            assert.strictEqual(toolInput.ruleArtifacts[1].path, '/test/rule2.json')
         })
     })
 })

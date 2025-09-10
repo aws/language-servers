@@ -10,6 +10,7 @@ export enum FailedMetricName {
 }
 export enum SuccessMetricName {
     CodeScanSuccess = 'codeScanSuccess',
+    IssuesDetected = 'issuesDetected',
 }
 
 export type ValidateInputAndSetupResult = {
@@ -20,6 +21,7 @@ export type ValidateInputAndSetupResult = {
     programmingLanguage: string
     scanName: string
     ruleArtifacts: RuleArtifacts
+    modelId?: string
 }
 
 export type PrepareAndUploadArtifactsResult = {
@@ -27,6 +29,8 @@ export type PrepareAndUploadArtifactsResult = {
     isCodeDiffPresent: boolean
     artifactSize: number
     programmingLanguages: Set<string>
+    numberOfFilesInCustomerCodeZip: number
+    codeDiffFiles: Set<string>
 }
 
 export type StartCodeAnalysisResult = {

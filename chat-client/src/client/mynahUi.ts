@@ -151,11 +151,20 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
         }
     }
 
+    const updatedPromptInputOptions = promptInputOptions?.map(option => {
+        option.value = optionsValues[option.id]
+        return option
+    })
+
     mynahUi.updateStore(tabId, {
-        promptInputOptions: promptInputOptions?.map(option => {
-            option.value = optionsValues[option.id]
-            return option
-        }),
+        promptInputOptions: updatedPromptInputOptions,
+    })
+
+    // Store the updated values in tab defaults for new tabs
+    mynahUi.updateTabDefaults({
+        store: {
+            promptInputOptions: updatedPromptInputOptions,
+        },
     })
 }
 
@@ -414,6 +423,12 @@ export const createMynahUi = (
             }
 
             const tabStore = mynahUi.getTabData(tabId).getStore()
+            const storedPromptInputOptions = mynahUi.getTabDefaults().store?.promptInputOptions
+
+            // Retrieve stored model selection and pair programming mode from defaults
+            if (storedPromptInputOptions) {
+                defaultTabConfig.promptInputOptions = storedPromptInputOptions
+            }
 
             // Tabs can be opened through different methods, including server-initiated 'openTab' requests.
             // The 'openTab' request is specifically used for loading historical chat sessions with pre-existing messages.
@@ -827,6 +842,7 @@ export const createMynahUi = (
             // if we want to max user input as 500000, need to configure the maxUserInput as 500096
             maxUserInput: 500096,
             userInputLengthWarningThreshold: 450000,
+            disableTypewriterAnimation: true,
         },
     }
 
@@ -1353,10 +1369,15 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
+                    renderAsPills:
+                        !header.fileList.details ||
+                        (Object.values(header.fileList.details).every(detail => !detail.changes) &&
+                            (!header.buttons || !header.buttons.some(button => button.id === 'undo-changes')) &&
+                            !header.status?.icon),
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader) {
+                if (processedHeader && !message.header?.status) {
                     processedHeader.status = undefined
                 }
             }
@@ -1369,7 +1390,8 @@ export const createMynahUi = (
                 processedHeader.buttons !== null &&
                 processedHeader.buttons.length > 0) ||
                 processedHeader.status !== undefined ||
-                processedHeader.icon !== undefined)
+                processedHeader.icon !== undefined ||
+                processedHeader.fileList !== undefined)
 
         const padding =
             message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
@@ -1380,8 +1402,10 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
-        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
-        const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
+        // If message.header?.status?.text is Stopped or Rejected or Ignored etc.. card should be in disabled state.
+        const shouldMute =
+            message.header?.status?.text !== undefined &&
+            ['Stopped', 'Rejected', 'Ignored', 'Failed', 'Error'].includes(message.header.status.text)
 
         return {
             body: message.body,
@@ -1769,7 +1793,7 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
-const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform code analysis of the open file. If there is no open file, ask what the user would like to review.`
+const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform a diff review code analysis of the open file. If there is no open file, ask what the user would like to review. Please tell the user that the scan is a diff scan.`
 
 export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',

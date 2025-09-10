@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.73",
+    "version": "0.0.78",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -36,8 +36,8 @@
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.56",
-        "@aws/language-server-runtimes": "^0.2.124",
-        "@aws/lsp-core": "^0.0.13",
+        "@aws/language-server-runtimes": "^0.2.128",
+        "@aws/lsp-core": "^0.0.15",
         "@modelcontextprotocol/sdk": "^1.15.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
@@ -67,13 +67,15 @@
         "vscode-uri": "^3.1.0",
         "ws": "^8.18.0",
         "xml2js": "^0.6.2",
-        "xmlbuilder2": "^3.1.1"
+        "xmlbuilder2": "^3.1.1",
+        "unescape-html": "^1.1.0"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
         "@types/diff": "^7.0.2",
         "@types/encoding-japanese": "^2.2.1",
+        "@types/escape-html": "^1.0.4",
         "@types/ignore-walk": "^4.0.3",
         "@types/local-indexing": "file:./types/types-local-indexing-1.1.0.tgz",
         "@types/lokijs": "^1.5.14",

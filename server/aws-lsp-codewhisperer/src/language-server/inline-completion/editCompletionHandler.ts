@@ -16,7 +16,6 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
-    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -24,25 +23,29 @@ import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/lang
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import { shouldTriggerEdits } from './trigger'
 import {
+    emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { mergeEditSuggestionsWithFileContext } from './mergeRightUtils'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS, EDIT_STALE_RETRY_COUNT } from './constants'
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
+import { StreakTracker } from './tracker/streakTracker'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
     private debounceTimeout: NodeJS.Timeout | undefined
     private isWaiting: boolean = false
     private hasDocumentChangedSinceInvocation: boolean = false
+    private readonly streakTracker: StreakTracker
+
+    private isInProgress = false
 
     constructor(
         readonly logging: Logging,
@@ -61,6 +64,7 @@ export class EditCompletionHandler {
         this.editsEnabled =
             this.clientMetadata.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                 ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
+        this.streakTracker = StreakTracker.getInstance()
     }
 
     get codeWhispererService() {
@@ -74,12 +78,12 @@ export class EditCompletionHandler {
      */
     documentChanged() {
         if (this.debounceTimeout) {
-            this.logging.info('[NEP] refresh timeout')
-            this.debounceTimeout.refresh()
-        }
-
-        if (this.isWaiting) {
-            this.hasDocumentChangedSinceInvocation = true
+            if (this.isWaiting) {
+                this.hasDocumentChangedSinceInvocation = true
+            } else {
+                this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
+                this.debounceTimeout.refresh()
+            }
         }
     }
 
@@ -87,8 +91,10 @@ export class EditCompletionHandler {
         params: InlineCompletionWithReferencesParams,
         token: CancellationToken
     ): Promise<InlineCompletionListWithReferences> {
-        this.hasDocumentChangedSinceInvocation = false
-        this.debounceTimeout = undefined
+        if (this.isInProgress) {
+            this.logging.info(`editCompletionHandler is WIP, skip the request`)
+            return EMPTY_RESULT
+        }
 
         // On every new completion request close current inflight session.
         const currentSession = this.sessionManager.getCurrentSession()
@@ -118,6 +124,9 @@ export class EditCompletionHandler {
             )
             return EMPTY_RESULT
         }
+
+        // Not ideally to rely on a state, should improve it and simply make it a debounced API
+        this.isInProgress = true
 
         if (params.partialResultToken && currentSession) {
             // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
@@ -153,49 +162,44 @@ export class EditCompletionHandler {
                 )
             } catch (error) {
                 return this.handleSuggestionsErrors(error as Error, currentSession)
+            } finally {
+                this.isInProgress = false
             }
         }
 
-        // TODO: telemetry, discarded suggestions
-        // The other easy way to do this is simply not return any suggestion (which is used when retry > 3)
-        const invokeWithRetry = async (attempt: number = 0): Promise<InlineCompletionListWithReferences> => {
-            return new Promise(async resolve => {
-                this.debounceTimeout = setTimeout(async () => {
-                    try {
-                        this.isWaiting = true
-                        const result = await this._invoke(
-                            params,
-                            token,
-                            textDocument,
-                            inferredLanguageId,
-                            currentSession
-                        ).finally(() => {
-                            this.isWaiting = false
+        return new Promise<InlineCompletionListWithReferences>(async resolve => {
+            this.debounceTimeout = setTimeout(async () => {
+                try {
+                    this.isWaiting = true
+                    const result = await this._invoke(
+                        params,
+                        token,
+                        textDocument,
+                        inferredLanguageId,
+                        currentSession
+                    ).finally(() => {
+                        this.isWaiting = false
+                    })
+                    if (this.hasDocumentChangedSinceInvocation) {
+                        this.logging.info(
+                            'EditCompletionHandler - Document changed during execution, resolving empty result'
+                        )
+                        resolve({
+                            sessionId: SessionManager.getInstance('EDITS').getActiveSession()?.id ?? '',
+                            items: [],
                         })
-                        if (this.hasDocumentChangedSinceInvocation) {
-                            if (attempt < EDIT_STALE_RETRY_COUNT) {
-                                this.logging.info(
-                                    `EditCompletionHandler - Document changed during execution, retrying (attempt ${attempt + 1})`
-                                )
-                                this.hasDocumentChangedSinceInvocation = false
-                                const retryResult = await invokeWithRetry(attempt + 1)
-                                resolve(retryResult)
-                            } else {
-                                this.logging.info('EditCompletionHandler - Max retries reached, returning empty result')
-                                resolve(EMPTY_RESULT)
-                            }
-                        } else {
-                            this.logging.info('EditCompletionHandler - No document changes, resolving result')
-                            resolve(result)
-                        }
-                    } finally {
-                        this.debounceTimeout = undefined
+                    } else {
+                        this.logging.info('EditCompletionHandler - No document changes, resolving result')
+                        resolve(result)
                     }
-                }, EDIT_DEBOUNCE_INTERVAL_MS)
-            })
-        }
-
-        return invokeWithRetry()
+                } finally {
+                    this.debounceTimeout = undefined
+                    this.hasDocumentChangedSinceInvocation = false
+                }
+            }, EDIT_DEBOUNCE_INTERVAL_MS)
+        }).finally(() => {
+            this.isInProgress = false
+        })
     }
 
     async _invoke(
@@ -277,7 +281,7 @@ export class EditCompletionHandler {
         if (currentSession && currentSession.state === 'ACTIVE') {
             // Emit user trigger decision at session close time for active session
             this.sessionManager.discardSession(currentSession)
-            const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+            const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -348,7 +352,7 @@ export class EditCompletionHandler {
         if (session.discardInflightSessionOnNewInvocation) {
             session.discardInflightSessionOnNewInvocation = false
             this.sessionManager.discardSession(session)
-            const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+            const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -366,35 +370,16 @@ export class EditCompletionHandler {
         this.sessionManager.activateSession(session)
 
         // Process suggestions to apply Empty or Filter filters
-        const filteredSuggestions = suggestionResponse.suggestions
-            // Empty suggestion filter
-            .filter(suggestion => {
-                if (suggestion.content === '') {
-                    session.setSuggestionState(suggestion.itemId, 'Empty')
-                    return false
-                }
-
-                return true
-            })
-            // References setting filter
-            .filter(suggestion => {
-                // State to track whether code with references should be included in
-                // the response. No locking or concurrency controls, filtering is done
-                // right before returning and is only guaranteed to be consistent within
-                // the context of a single response.
-                const { includeSuggestionsWithCodeReferences } = this.amazonQServiceManager.getConfiguration()
-                if (includeSuggestionsWithCodeReferences) {
-                    return true
-                }
-
-                if (suggestion.references == null || suggestion.references.length === 0) {
-                    return true
-                }
-
-                // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
-                session.setSuggestionState(suggestion.itemId, 'Filter')
-                return false
-            })
+        if (suggestionResponse.suggestions.length === 0) {
+            this.sessionManager.closeSession(session)
+            await emitEmptyUserTriggerDecisionTelemetry(
+                this.telemetryService,
+                session,
+                this.documentChangedListener.timeSinceLastUserModification,
+                this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
+            )
+            return EMPTY_RESULT
+        }
 
         return {
             items: suggestionResponse.suggestions
@@ -435,6 +420,7 @@ export class EditCompletionHandler {
         this.logging.log('Recommendation failure: ' + error)
         emitServiceInvocationFailure(this.telemetry, session, error)
 
+        // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
         this.sessionManager.closeSession(session)
 
         let translatedError = error
