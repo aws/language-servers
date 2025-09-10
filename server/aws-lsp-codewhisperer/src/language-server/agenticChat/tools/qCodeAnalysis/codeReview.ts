@@ -49,7 +49,7 @@ export class CodeReview {
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
         MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${CODE_REVIEW_TOOL_NAME} tool. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
-        MISSING_FILES_TO_SCAN: `There are no valid files to scan in the input. Use other available tools to find the correct path to the files, otherwise ask user to provide a specific file which has code that can be scanned.`,
+        MISSING_FILES_TO_SCAN: `There are no valid files to scan in the input. Use other available tools to find the correct path to the files, otherwise ask user to provide a specific file which has code that can be scanned. Then perform another scan with the correct file paths.`,
         UPLOAD_FAILED: `Failed to upload artifact for code review in ${CODE_REVIEW_TOOL_NAME} tool.`,
         START_CODE_ANALYSIS_FAILED: (scanName: string, errorMessage?: string) =>
             `Failed to start code analysis for scanName - ${scanName} due to - ${errorMessage}`,
