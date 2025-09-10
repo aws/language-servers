@@ -37,7 +37,6 @@ function stubAgentConfig(): sinon.SinonStub {
         errors: new Map(),
         agentConfig: {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {},
             tools: [],
@@ -157,7 +156,6 @@ describe('callTool()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: disabledCfg },
                 tools: ['@s1'],
@@ -184,7 +182,6 @@ describe('callTool()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: enabledCfg },
                 tools: ['@s1'],
@@ -210,7 +207,6 @@ describe('callTool()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: timeoutCfg },
                 tools: ['@s1'],
@@ -279,7 +275,6 @@ describe('addServer()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -353,7 +348,6 @@ describe('removeServer()', () => {
         ;(mgr as any).serverNameMapping.set('x', 'x')
         ;(mgr as any).agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: { x: {} },
             tools: ['@x'],
@@ -383,7 +377,6 @@ describe('removeServer()', () => {
         ;(mgr as any).serverNameMapping.set('x', 'x')
         ;(mgr as any).agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: { x: {} },
             tools: ['@x'],
@@ -501,7 +494,6 @@ describe('updateServer()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { u1: oldCfg },
                 tools: ['@u1'],
@@ -544,7 +536,6 @@ describe('updateServer()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: oldCfg },
                 tools: ['@srv'],
@@ -598,7 +589,6 @@ describe('requiresApproval()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s: cfg },
                 tools: ['@s'],
@@ -639,7 +629,6 @@ describe('getAllServerConfigs()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -687,7 +676,6 @@ describe('getServerState()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -729,7 +717,6 @@ describe('getAllServerStates()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -779,7 +766,6 @@ describe('getEnabledTools()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -797,7 +783,6 @@ describe('getEnabledTools()', () => {
         if (!(mgr as any).agentConfig) {
             ;(mgr as any).agentConfig = {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -828,7 +813,6 @@ describe('getEnabledTools()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: disabledCfg },
                 tools: ['@srv'],
@@ -866,7 +850,6 @@ describe('getAllToolsWithPermissions()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: cfg },
                 tools: ['@s1'],
@@ -931,7 +914,6 @@ describe('isServerDisabled()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: disabledCfg },
                 tools: ['@srv'],
@@ -962,7 +944,6 @@ describe('isServerDisabled()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: enabledCfg },
                 tools: ['@srv'],
@@ -992,7 +973,6 @@ describe('isServerDisabled()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: undefinedCfg },
                 tools: ['@srv'],
@@ -1091,7 +1071,6 @@ describe('updateServerPermission()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -1156,7 +1135,6 @@ describe('reinitializeMcpServers()', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: { srvA: cfg1 },
                     tools: ['@srvA'],
@@ -1173,7 +1151,6 @@ describe('reinitializeMcpServers()', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: { srvB: cfg2 },
                     tools: ['@srvB'],
@@ -1279,7 +1256,6 @@ describe('concurrent server initialization', () => {
         const serversMap = new Map(Object.entries(serverConfigs))
         const agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: Object.fromEntries(Object.entries(serverConfigs)),
             tools: Object.keys(serverConfigs).map(name => `@${name}`),
@@ -1424,7 +1400,6 @@ describe('McpManager error handling', () => {
             errors: mockErrors,
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -1452,7 +1427,6 @@ describe('McpManager error handling', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -1478,7 +1452,6 @@ describe('McpManager error handling', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -1521,7 +1494,6 @@ describe('McpManager error handling', () => {
                 errors: new Map([['file1.json', 'Initial error']]),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -1539,7 +1511,6 @@ describe('McpManager error handling', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],

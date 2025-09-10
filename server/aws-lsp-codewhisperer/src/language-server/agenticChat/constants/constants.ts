@@ -14,7 +14,6 @@ export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100
 
 // LLM Constants
 export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
-export const DEFAULT_MODEL_ID = BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
 
 // Compaction
 export const COMPACTION_BODY = (threshold: number) =>
