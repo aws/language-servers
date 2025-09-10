@@ -294,7 +294,12 @@ export class ChatTelemetryController {
         })
     }
 
-    public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>, result?: string) {
+    public emitAddMessageMetric(
+        tabId: string,
+        metric: Partial<CombinedConversationEvent>,
+        result?: string,
+        errorMessage?: string
+    ) {
         const conversationId = this.getConversationId(tabId)
         // Store the customization value associated with the message
         if (metric.cwsprChatMessageId && metric.codewhispererCustomizationArn) {
@@ -349,6 +354,7 @@ export class ChatTelemetryController {
                 requestIds: metric.requestIds,
                 experimentName: metric.experimentName,
                 userVariation: metric.userVariation,
+                errorMessage: errorMessage,
             }
         )
     }
@@ -421,10 +427,12 @@ export class ChatTelemetryController {
 
     public emitInteractWithMessageMetric(
         tabId: string,
-        metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>
+        metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>,
+        acceptedLineCount?: number
     ) {
         return this.#telemetryService.emitChatInteractWithMessage(metric, {
             conversationId: this.getConversationId(tabId),
+            acceptedLineCount,
         })
     }
 

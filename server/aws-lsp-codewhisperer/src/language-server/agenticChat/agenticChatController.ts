@@ -24,7 +24,6 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -70,8 +69,6 @@ import {
     OpenFileDialogResult,
     CheckDiagnosticsParams,
     CheckDiagnosticsResult,
-} from '@aws/language-server-runtimes/protocol'
-import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
@@ -86,6 +83,7 @@ import {
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
+    Model,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -171,8 +169,9 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
+import { calculateModifiedLines } from './utils/fileModificationMetrics'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
@@ -183,7 +182,6 @@ import {
     OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
-    DEFAULT_MODEL_ID,
     COMPACTION_BODY,
     COMPACTION_HEADER_BODY,
     DEFAULT_MACOS_RUN_SHORTCUT,
@@ -225,16 +223,17 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
+import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_ID } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { DiagnosticManager, DiagnosticError } from './diagnosticManager'
+import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import escapeHTML = require('escape-html')
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -358,7 +357,7 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         })
-        this.#chatHistoryDb = new ChatDatabase(features)
+        this.#chatHistoryDb = ChatDatabase.getInstance(features)
         this.#tabBarController = new TabBarController(
             features,
             this.#chatHistoryDb,
@@ -690,25 +689,134 @@ export class AgenticChatController implements ChatHandlers {
     async onMcpServerClick(params: McpServerClickParams) {
         return this.#mcpEventHandler.onMcpServerClick(params)
     }
-    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
 
-        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-        const { data: session, success } = sessionResult
-        if (!success) {
-            return {
-                tabId: params.tabId,
-                models: models,
+    /**
+     * Fetches available models either from cache or API
+     * If cache is valid (less than 5 minutes old), returns cached models
+     * If cache is invalid or empty, makes an API call and stores results in cache
+     * If the API throws errors (e.g., throttling), falls back to default models
+     */
+    async #fetchModelsWithCache(): Promise<{ models: Model[]; defaultModelId?: string; errorFromAPI: boolean }> {
+        let models: Model[] = []
+        let defaultModelId: string | undefined
+        let errorFromAPI = false
+
+        // Check if cache is valid (less than 5 minutes old)
+        if (this.#chatHistoryDb.isCachedModelsValid()) {
+            const cachedData = this.#chatHistoryDb.getCachedModels()
+            if (cachedData && cachedData.models && cachedData.models.length > 0) {
+                this.#log('Using cached models, last updated at:', new Date(cachedData.timestamp).toISOString())
+                return {
+                    models: cachedData.models,
+                    defaultModelId: cachedData.defaultModelId,
+                    errorFromAPI: false,
+                }
             }
         }
 
-        const savedModelId = this.#chatHistoryDb.getModelId()
-        const selectedModelId =
-            savedModelId && models.some(model => model.id === savedModelId)
-                ? savedModelId
-                : getLatestAvailableModel(region).id
+        // If cache is invalid or empty, make an API call
+        this.#log('Cache miss or expired, fetching models from API')
+        try {
+            const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const responseResult = await client.listAvailableModels({
+                origin: IDE,
+                profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
+                    ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+                    : undefined,
+            })
+
+            // Wait for the response to be completed before proceeding
+            this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
+            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+                id: modelId,
+                name: modelName ?? modelId,
+            }))
+            defaultModelId = responseResult.defaultModel?.modelId
+
+            // Cache the models with defaultModelId
+            this.#chatHistoryDb.setCachedModels(models, defaultModelId)
+        } catch (err) {
+            // In case of API throttling or other errors, fall back to hardcoded models
+            this.#log('Error fetching models from API, using fallback models:', fmtError(err))
+            errorFromAPI = true
+            models = FALLBACK_MODEL_OPTIONS
+        }
+
+        return {
+            models,
+            defaultModelId,
+            errorFromAPI,
+        }
+    }
+
+    /**
+     * This function handles the model selection process for the chat interface.
+     * It first attempts to retrieve models from cache or API, then determines the appropriate model to select
+     * based on the following priority:
+     * 1. When errors occur or session is invalid: Use the default model as a fallback
+     * 2. When user has previously selected a model: Use that model (or its mapped version if the model ID has changed)
+     * 3. When there's a default model from the API: Use the server-recommended default model
+     * 4. Last resort: Use the newest model defined in modelSelection constants
+     *
+     * This ensures users maintain consistent model selection across sessions while also handling
+     * API failures and model ID migrations gracefully.
+     */
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        // Get models from cache or API
+        const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
+
+        // Get the first fallback model option as default
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        // Handle error cases by returning default model
+        if (!success || errorFromAPI) {
+            return {
+                tabId: params.tabId,
+                models: models,
+                selectedModelId: DEFAULT_MODEL_ID,
+            }
+        }
+
+        // Determine selected model ID based on priority
+        let selectedModelId: string
+        let modelId = this.#chatHistoryDb.getModelId()
+
+        // Helper function to get model label from FALLBACK_MODEL_RECORD
+        const getModelLabel = (modelKey: string) =>
+            FALLBACK_MODEL_RECORD[modelKey as keyof typeof FALLBACK_MODEL_RECORD]?.label || modelKey
+
+        // Helper function to map enum model ID to API model ID
+        const getMappedModelId = (modelKey: string) =>
+            BEDROCK_MODEL_TO_MODEL_ID[modelKey as keyof typeof BEDROCK_MODEL_TO_MODEL_ID] || modelKey
+
+        // Determine selected model ID based on priority
+        if (modelId) {
+            const mappedModelId = getMappedModelId(modelId)
+
+            // Priority 1: Use mapped modelId if it exists in available models from backend
+            if (models.some(model => model.id === mappedModelId)) {
+                selectedModelId = mappedModelId
+            }
+            // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD and no backend models available
+            else if (models.length === 0 && modelId in FALLBACK_MODEL_RECORD) {
+                selectedModelId = getModelLabel(modelId)
+            }
+            // Priority 3: Fall back to default or system default
+            else {
+                selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
+            }
+        } else {
+            // No user-selected model - use API default or system default
+            selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
+        }
+
+        // Store the selected model in the session
         session.modelId = selectedModelId
+
         return {
             tabId: params.tabId,
             models: models,
@@ -1266,7 +1374,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: currentMessage.userInputMessage?.content ?? '',
+                        body: escapeHTML(currentMessage.userInputMessage?.content ?? ''),
                         type: 'prompt' as any,
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
@@ -1425,7 +1533,14 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                toolResults = await this.processToolUses(
+                    pendingToolUses,
+                    chatResultStream,
+                    session,
+                    tabId,
+                    token,
+                    additionalContext
+                )
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
@@ -1700,12 +1815,13 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Processes tool uses by running the tools and collecting results
      */
-    async #processToolUses(
+    async processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         tabId: string,
-        token?: CancellationToken
+        token?: CancellationToken,
+        additionalContext?: AdditionalContentEntryAddition[]
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -1733,8 +1849,7 @@ export class AgenticChatController implements ChatHandlers {
                 // remove progress UI
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
-                // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (![FS_WRITE, FS_REPLACE, FS_READ, LIST_DIRECTORY].includes(toolUse.name)) {
+                if (![FS_WRITE, FS_REPLACE].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
@@ -1908,13 +2023,13 @@ export class AgenticChatController implements ChatHandlers {
                 if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
-                        let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
-                        if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
-                            this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
-                            let pathsToRulesMap = ruleArtifacts.map(ruleArtifact => ({ path: ruleArtifact.id }))
-                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
-                            initialInput['ruleArtifacts'] = pathsToRulesMap
+
+                        if (additionalContext !== undefined) {
+                            initialInput['ruleArtifacts'] = additionalContext
+                                .filter(c => c.type === 'rule')
+                                .map(c => ({ path: c.path }))
                         }
+                        initialInput['modelId'] = session.modelId
                         toolUse.input = initialInput
                     } catch (e) {
                         this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
@@ -1950,10 +2065,19 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case FS_READ:
                     case LIST_DIRECTORY:
+                        const readToolResult = await this.#processReadTool(toolUse, chatResultStream)
+                        if (readToolResult) {
+                            await chatResultStream.writeResultBlock(readToolResult)
+                        }
+                        break
                     case FILE_SEARCH:
-                        const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
-                        if (initialListDirResult) {
-                            await chatResultStream.writeResultBlock(initialListDirResult)
+                        if (isFileSearchParams(toolUse.input)) {
+                            await this.#processFileSearchTool(
+                                toolUse.input,
+                                toolUse.toolUseId,
+                                result,
+                                chatResultStream
+                            )
                         }
                         break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
@@ -1993,6 +2117,17 @@ export class AgenticChatController implements ChatHandlers {
                             session.getConversationType(),
                             this.#abTestingAllocation?.experimentName,
                             this.#abTestingAllocation?.userVariation
+                        )
+                        // Emit acceptedLineCount when write tool is used and code changes are accepted
+                        const acceptedLineCount = calculateModifiedLines(toolUse, doc?.getText())
+                        await this.#telemetryController.emitInteractWithMessageMetric(
+                            tabId,
+                            {
+                                cwsprChatMessageId: chatResult.messageId ?? toolUse.toolUseId,
+                                cwsprChatInteractionType: ChatInteractionType.AgenticCodeAccepted,
+                                codewhispererCustomizationArn: this.#customizationArn,
+                            },
+                            acceptedLineCount
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
@@ -2108,6 +2243,50 @@ export class AgenticChatController implements ChatHandlers {
                         this.#abTestingAllocation?.userVariation,
                         'Failed'
                     )
+                }
+
+                // Handle MCP tool failures
+                const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                if (originalNames && toolUse.toolUseId) {
+                    const { toolName } = originalNames
+                    const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+                    const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+                    const customerFacingError = getCustomerFacingErrorMessage(err)
+
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        summary: {
+                            content: {
+                                header: {
+                                    icon: 'tools',
+                                    body: `${toolName}`,
+                                    status: {
+                                        status: 'error',
+                                        icon: 'cancel-circle',
+                                        text: 'Error',
+                                        description: customerFacingError,
+                                    },
+                                },
+                            },
+                            collapsedContent: [
+                                {
+                                    header: { body: 'Parameters' },
+                                    body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                                },
+                                {
+                                    header: { body: 'Error' },
+                                    body: customerFacingError,
+                                },
+                            ],
+                        },
+                    } as ChatResult
+
+                    if (cachedButtonBlockId !== undefined) {
+                        await chatResultStream.overwriteResultBlock(errorResult, cachedButtonBlockId)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
+                    }
                 }
 
                 // display fs write failure status in the UX of that file card
@@ -2354,7 +2533,6 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         const toolMsgId = toolUse.toolUseId!
-        const chatMsgId = chatResultStream.getResult().messageId
         let headerEmitted = false
 
         const initialHeader: ChatMessage['header'] = {
@@ -2390,13 +2568,6 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: toolMsgId,
                     body: '```',
                     header: completedHeader,
-                })
-
-                await chatResultStream.writeResultBlock({
-                    type: 'answer',
-                    messageId: chatMsgId,
-                    body: '',
-                    header: undefined,
                 })
 
                 this.#stoppedToolUses.add(toolMsgId)
@@ -2489,7 +2660,7 @@ export class AgenticChatController implements ChatHandlers {
                                 status: {
                                     status: isAccept ? 'success' : 'error',
                                     icon: isAccept ? 'ok' : 'cancel',
-                                    text: isAccept ? 'Completed' : 'Rejected',
+                                    text: isAccept ? 'Accepted' : 'Rejected',
                                 },
                                 fileList: undefined,
                             },
@@ -2576,6 +2747,7 @@ export class AgenticChatController implements ChatHandlers {
         session.setDeferredToolExecution(messageId, deferred.resolve, deferred.reject)
         this.#log(`Prompting for compaction approval for messageId: ${messageId}`)
         await deferred.promise
+        session.removeDeferredToolExecution(messageId)
         // Note: we want to overwrite the button block because it already exists in the stream.
         await resultStream.overwriteResultBlock(this.#getUpdateCompactConfirmResult(messageId), promptBlockId)
     }
@@ -2916,70 +3088,135 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
-        let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
+    async #processFileSearchTool(
+        toolInput: FileSearchParams,
+        toolUseId: string,
+        result: InvokeOutput,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        if (typeof result.output.content !== 'string') return
 
-        if (currentId) {
-            messageIdToUpdate = currentId
-        } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
+        const { queryName, path: inputPath } = toolInput
+        const resultCount = result.output.content
+            .split('\n')
+            .filter(line => line.trim().startsWith('[F]') || line.trim().startsWith('[D]')).length
+
+        const chatMessage: ChatMessage = {
+            type: 'tool',
+            messageId: toolUseId,
+            header: {
+                body: `Searched for "${queryName}" in `,
+                icon: 'search',
+                status: {
+                    text: `${resultCount} result${resultCount !== 1 ? 's' : ''} found`,
+                },
+                fileList: {
+                    filePaths: [inputPath],
+                    details: {
+                        [inputPath]: {
+                            description: inputPath,
+                            visibleName: path.basename(inputPath),
+                            clickable: false,
+                        },
+                    },
+                },
+            },
         }
-        let currentPaths = []
+        await chatResultStream.writeResultBlock(chatMessage)
+    }
+
+    async #processReadTool(
+        toolUse: ToolUse,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<ChatMessage | undefined> {
+        let currentPaths: string[] = []
         if (toolUse.name === FS_READ) {
-            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
+            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths || []
+        } else if (toolUse.name === LIST_DIRECTORY) {
+            const singlePath = (toolUse.input as unknown as ListDirectoryParams)?.path
+            if (singlePath) {
+                currentPaths = [singlePath]
+            }
+        } else if (toolUse.name === FILE_SEARCH) {
+            const queryName = (toolUse.input as unknown as FileSearchParams)?.queryName
+            if (queryName) {
+                currentPaths = [queryName]
+            }
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
+            return
         }
 
-        if (!currentPaths) return
+        if (currentPaths.length === 0) return
 
-        for (const currentPath of currentPaths) {
-            const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
-            // Check if path already exists in the list
-            const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
-            if (!isPathAlreadyProcessed) {
-                const currentFileDetail = {
-                    relativeFilePath: currentPath,
-                    lineRanges: [{ first: -1, second: -1 }],
-                }
-                chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
-                    ...existingPaths,
-                    currentFileDetail,
-                ])
+        // Check if the last message is the same tool type
+        const lastMessage = chatResultStream.getLastMessage()
+        const isSameToolType =
+            lastMessage?.type === 'tool' && lastMessage.header?.icon === this.#toolToIcon(toolUse.name)
+
+        let allPaths = currentPaths
+
+        if (isSameToolType && lastMessage.messageId) {
+            // Combine with existing paths and overwrite the last message
+            const existingPaths = lastMessage.header?.fileList?.filePaths || []
+            allPaths = [...existingPaths, ...currentPaths]
+
+            const blockId = chatResultStream.getMessageBlockId(lastMessage.messageId)
+            if (blockId !== undefined) {
+                // Create the updated message with combined paths
+                const updatedMessage = this.#createFileListToolMessage(toolUse, allPaths, lastMessage.messageId)
+                // Overwrite the existing block
+                await chatResultStream.overwriteResultBlock(updatedMessage, blockId)
+                return undefined // Don't return a message since we already wrote it
             }
         }
+
+        // Create new message with current paths
+        return this.#createFileListToolMessage(toolUse, allPaths, toolUse.toolUseId!)
+    }
+
+    #createFileListToolMessage(toolUse: ToolUse, filePaths: string[], messageId: string): ChatMessage {
+        const itemCount = filePaths.length
         let title: string
-        const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
-        const filePathsPushed = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths ?? []
-        if (!itemCount) {
+        if (itemCount === 0) {
             title = 'Gathering context'
         } else {
             title =
                 toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === FILE_SEARCH
-                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
-                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                    : toolUse.name === LIST_DIRECTORY
+                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                      : ''
         }
         const details: Record<string, FileDetails> = {}
-        for (const item of filePathsPushed) {
-            details[item.relativeFilePath] = {
-                lineRanges: item.lineRanges,
-                description: item.relativeFilePath,
+        for (const filePath of filePaths) {
+            details[filePath] = {
+                description: filePath,
+                visibleName: path.basename(filePath),
+                clickable: toolUse.name === FS_READ,
             }
-        }
-
-        const fileList: FileList = {
-            rootFolderTitle: title,
-            filePaths: filePathsPushed.map(item => item.relativeFilePath),
-            details,
         }
         return {
             type: 'tool',
-            fileList,
-            messageId: messageIdToUpdate,
-            body: '',
+            header: {
+                body: title,
+                icon: this.#toolToIcon(toolUse.name),
+                fileList: {
+                    filePaths,
+                    details,
+                },
+            },
+            messageId,
+        }
+    }
+
+    #toolToIcon(toolName: string | undefined): string | undefined {
+        switch (toolName) {
+            case FS_READ:
+                return 'eye'
+            case LIST_DIRECTORY:
+                return 'check-list'
+            default:
+                return undefined
         }
     }
 
@@ -2995,14 +3232,7 @@ export class AgenticChatController implements ChatHandlers {
             return undefined
         }
 
-        let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
-
-        if (currentId) {
-            messageIdToUpdate = currentId
-        } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
-        }
+        const messageIdToUpdate = toolUse.toolUseId!
 
         // Extract search results from the tool output
         const output = result.output.content as SanitizedRipgrepOutput
@@ -3182,7 +3412,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMsg(err)
+        const errorMessage = getErrorMsg(err) ?? GENERIC_ERROR_MS
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
@@ -3192,7 +3422,7 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage)
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
@@ -3237,7 +3467,7 @@ export class AgenticChatController implements ChatHandlers {
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? GENERIC_ERROR_MS,
+                errorMessage,
                 agenticCodingMode
             )
         }
@@ -3554,25 +3784,6 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    /**
-     * @deprecated use aws/chat/listAvailableModels server request instead
-     */
-    #legacySetModelId(tabId: string, session: ChatSessionService) {
-        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
-        // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
-
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        if (region === 'eu-central-1') {
-            // Only 3.7 Sonnet is available in eu-central-1 for now
-            modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
-            // @ts-ignore
-            this.#features.chat.chatOptionsUpdate({ region })
-        }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
-        session.modelId = modelId
-    }
-
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
@@ -3585,11 +3796,14 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
         session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+        if (session) {
+            // Set the logging object on the session
+            session.setLogging(this.#features.logging)
+        }
 
         // Update the client with the initial pair programming mode
         this.#features.chat.chatOptionsUpdate({
@@ -3597,11 +3811,6 @@ export class AgenticChatController implements ChatHandlers {
             // Type assertion to support pairProgrammingMode
             ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
         } as ChatUpdateParams)
-
-        if (success && session) {
-            // Set the logging object on the session
-            session.setLogging(this.#features.logging)
-        }
         this.setPaidTierMode(params.tabId)
     }
 
@@ -4457,6 +4666,13 @@ export class AgenticChatController implements ChatHandlers {
                     await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
                 } else {
                     // Fallback to creating a new card
+                    if (toolResultCard.summary?.content?.header) {
+                        toolResultCard.summary.content.header.status = {
+                            status: 'success',
+                            icon: 'ok',
+                            text: 'Completed',
+                        }
+                    }
                     this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
                     await chatResultStream.writeResultBlock(toolResultCard)
                 }

@@ -17,6 +17,7 @@ import {
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
 import { StreamingClientServiceBase } from '../streamingClientService'
+import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 
 export interface QServiceManagerFeatures {
     lsp: Lsp
@@ -85,6 +86,10 @@ export abstract class BaseAmazonQServiceManager<
 
     abstract getCodewhispererService(): C
     abstract getStreamingClient(): S
+
+    get serverInfo() {
+        return this.features.runtime.serverInfo
+    }
 
     public getConfiguration(): Readonly<AmazonQWorkspaceConfig> {
         return this.configurationCache.getConfig()

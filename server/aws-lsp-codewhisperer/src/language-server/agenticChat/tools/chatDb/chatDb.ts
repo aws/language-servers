@@ -24,16 +24,18 @@ import {
     getMd5WorkspaceId,
     MessagesWithCharacterCount,
     estimateCharacterCountFromImageBlock,
+    isCachedValid,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ContextCommand, ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
+import { ContextCommand, ConversationItemGroup, Model } from '@aws/language-server-runtimes/protocol'
 import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
 import { existsSync, renameSync } from 'fs'
+import escapeHTML = require('escape-html')
 
 export class ToolResultValidationError extends Error {
     constructor(message?: string) {
@@ -120,6 +122,12 @@ export class ChatDatabase {
             ChatDatabase.#instance = new ChatDatabase(features)
         }
         return ChatDatabase.#instance
+    }
+
+    public static clearModelCache(): void {
+        if (ChatDatabase.#instance) {
+            ChatDatabase.#instance.clearCachedModels()
+        }
     }
 
     public close() {
@@ -686,6 +694,7 @@ export class ChatDatabase {
             }
             return {
                 ...message,
+                body: escapeHTML(message.body),
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
@@ -1082,6 +1091,48 @@ export class ChatDatabase {
 
     setModelId(modelId: string | undefined): void {
         this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
+    }
+
+    getCachedModels(): { models: Model[]; defaultModelId?: string; timestamp: number } | undefined {
+        const settings = this.getSettings()
+        if (settings?.cachedModels && settings?.modelCacheTimestamp) {
+            return {
+                models: settings.cachedModels,
+                defaultModelId: settings.cachedDefaultModelId,
+                timestamp: settings.modelCacheTimestamp,
+            }
+        }
+        return undefined
+    }
+
+    setCachedModels(models: Model[], defaultModelId?: string): void {
+        const currentTimestamp = Date.now()
+        // Get existing settings to preserve fields like modelId
+        const existingSettings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({
+            ...existingSettings,
+            cachedModels: models,
+            cachedDefaultModelId: defaultModelId,
+            modelCacheTimestamp: currentTimestamp,
+        })
+        this.#features.logging.log(`Models cached at timestamp: ${currentTimestamp}`)
+    }
+
+    isCachedModelsValid(): boolean {
+        const cachedData = this.getCachedModels()
+        if (!cachedData) return false
+        return isCachedValid(cachedData.timestamp)
+    }
+
+    clearCachedModels(): void {
+        const existingSettings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({
+            ...existingSettings,
+            cachedModels: undefined,
+            cachedDefaultModelId: undefined,
+            modelCacheTimestamp: undefined,
+        })
+        this.#features.logging.log('Model cache cleared')
     }
 
     getPairProgrammingMode(): boolean | undefined {

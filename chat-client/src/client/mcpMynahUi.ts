@@ -276,6 +276,7 @@ export class McpMynahUi {
                           params.header.actions?.map(action => ({
                               ...action,
                               icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                              text: undefined,
                           })) || [],
                   }
                 : undefined,

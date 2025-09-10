@@ -11,6 +11,7 @@ import * as path from 'path'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import * as JSZip from 'jszip'
+import { Origin } from '@amzn/codewhisperer-streaming'
 
 describe('CodeReview', () => {
     let sandbox: sinon.SinonSandbox
@@ -103,6 +104,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
         })
 
@@ -134,6 +136,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -141,6 +144,62 @@ describe('CodeReview', () => {
 
             expect(result.output.success).to.be.true
             expect(result.output.kind).to.equal('json')
+        })
+
+        it('should execute successfully and pass languageModelId and clientType to startCodeAnalysis', async () => {
+            const inputWithModelId = {
+                ...validInput,
+                modelId: 'test-model-789',
+            }
+
+            // Setup mocks for successful execution
+            mockCodeWhispererClient.createUploadUrl.resolves({
+                uploadUrl: 'https://upload.com',
+                uploadId: 'upload-123',
+                requestHeaders: {},
+            })
+
+            mockCodeWhispererClient.startCodeAnalysis.resolves({
+                jobId: 'job-123',
+                status: 'Pending',
+            })
+
+            mockCodeWhispererClient.getCodeAnalysis.resolves({
+                status: 'Completed',
+            })
+
+            mockCodeWhispererClient.listCodeAnalysisFindings.resolves({
+                codeAnalysisFindings: '[]',
+                nextToken: undefined,
+            })
+
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+                zipBuffer: Buffer.from('test'),
+                md5Hash: 'hash123',
+                isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
+            })
+            sandbox.stub(codeReview as any, 'parseFindings').returns([])
+
+            const result = await codeReview.execute(inputWithModelId, context)
+
+            expect(result.output.success).to.be.true
+            expect(result.output.kind).to.equal('json')
+
+            // Verify that startCodeAnalysis was called with the correct parameters
+            expect(mockCodeWhispererClient.startCodeAnalysis.calledOnce).to.be.true
+            const startAnalysisCall = mockCodeWhispererClient.startCodeAnalysis.getCall(0)
+            const callArgs = startAnalysisCall.args[0]
+
+            expect(callArgs).to.have.property('languageModelId', 'test-model-789')
+            expect(callArgs).to.have.property('clientType', Origin.IDE)
+            expect(callArgs).to.have.property('artifacts')
+            expect(callArgs).to.have.property('programmingLanguage')
+            expect(callArgs).to.have.property('clientToken')
+            expect(callArgs).to.have.property('codeScanName')
+            expect(callArgs).to.have.property('scope', 'AGENTIC')
         })
 
         it('should handle missing client error', async () => {
@@ -160,6 +219,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             try {
@@ -183,6 +243,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
 
             try {
@@ -210,6 +271,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
 
             try {
@@ -243,6 +305,7 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                codeDiffFiles: new Set(),
             })
 
             // Stub setTimeout to avoid actual delays
@@ -279,6 +342,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             const context = {
@@ -303,6 +367,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [{ path: '/test/folder' }],
                 ruleArtifacts: [],
                 scopeOfReview: CODE_DIFF_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             const context = {
@@ -384,6 +449,34 @@ describe('CodeReview', () => {
             } catch (error: any) {
                 expect(error.message).to.include('There are no valid files to scan')
             }
+        })
+
+        it('should handle duplicate rule filenames with unique UUIDs', async () => {
+            const fileArtifacts = [{ path: '/test/file.js' }]
+            const folderArtifacts: any[] = []
+            const ruleArtifacts = [{ path: '/test/path1/rule.json' }, { path: '/test/path2/rule.json' }]
+
+            const mockZip = {
+                file: sandbox.stub(),
+                generateAsync: sandbox.stub().resolves(Buffer.from('test')),
+            }
+            sandbox.stub(JSZip.prototype, 'file').callsFake(mockZip.file)
+            sandbox.stub(JSZip.prototype, 'generateAsync').callsFake(mockZip.generateAsync)
+            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns(3)
+            sandbox.stub(require('crypto'), 'randomUUID').returns('test-uuid-123')
+
+            await (codeReview as any).prepareFilesAndFoldersForUpload(
+                fileArtifacts,
+                folderArtifacts,
+                ruleArtifacts,
+                false
+            )
+
+            // Verify first file uses original name
+            expect(mockZip.file.firstCall.args[0]).to.include('/test/file.js')
+            expect(mockZip.file.secondCall.args[0]).to.include('rule.json')
+            // Verify second file gets UUID suffix
+            expect(mockZip.file.thirdCall.args[0]).to.include('rule_test-uuid-123.json')
         })
     })
 
@@ -586,6 +679,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             // Make prepareFilesAndFoldersForUpload throw an error

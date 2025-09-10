@@ -392,8 +392,27 @@ export function getOriginFromClientInfo(clientName: string | undefined): Origin 
     return 'IDE'
 }
 
-export function isUsingIAMAuth(): boolean {
-    return process.env.USE_IAM_AUTH === 'true'
+export function isUsingIAMAuth(credentialsProvider?: CredentialsProvider): boolean {
+    if (process.env.USE_IAM_AUTH === 'true') {
+        return true
+    }
+
+    // CRITICAL: Add credential-based detection as fallback
+    if (credentialsProvider) {
+        try {
+            const iamCreds = credentialsProvider.getCredentials('iam')
+            const bearerCreds = credentialsProvider.getCredentials('bearer')
+
+            // If only IAM creds available, use IAM
+            if (iamCreds && !(bearerCreds as any)?.token) {
+                return true
+            }
+        } catch (error) {
+            // If credential access fails, default to bearer
+            return false
+        }
+    }
+    return false
 }
 
 export const flattenMetric = (obj: any, prefix = '') => {

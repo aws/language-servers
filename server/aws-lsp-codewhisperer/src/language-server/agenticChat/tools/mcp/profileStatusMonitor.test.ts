@@ -3,17 +3,24 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { expect } from 'chai'
+import * as chai from 'chai'
 import * as sinon from 'sinon'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import * as AmazonQTokenServiceManagerModule from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
+const { expect } = chai
+
+interface MockLogging {
+    info: sinon.SinonStub
+    debug: sinon.SinonStub
+    error: sinon.SinonStub
+    warn: sinon.SinonStub
+    log: sinon.SinonStub
+}
+
 describe('ProfileStatusMonitor', () => {
     let profileStatusMonitor: ProfileStatusMonitor
-    let mockCredentialsProvider: any
-    let mockWorkspace: any
-    let mockLogging: any
-    let mockSdkInitializator: any
+    let mockLogging: MockLogging
     let mockOnMcpDisabled: sinon.SinonStub
     let mockOnMcpEnabled: sinon.SinonStub
     let clock: sinon.SinonFakeTimers
@@ -21,29 +28,18 @@ describe('ProfileStatusMonitor', () => {
     beforeEach(() => {
         clock = sinon.useFakeTimers()
 
-        mockCredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
-        }
-
-        mockWorkspace = {}
-
         mockLogging = {
             info: sinon.stub(),
             debug: sinon.stub(),
+            error: sinon.stub(),
+            warn: sinon.stub(),
+            log: sinon.stub(),
         }
 
-        mockSdkInitializator = {}
         mockOnMcpDisabled = sinon.stub()
         mockOnMcpEnabled = sinon.stub()
 
-        profileStatusMonitor = new ProfileStatusMonitor(
-            mockCredentialsProvider,
-            mockWorkspace,
-            mockLogging,
-            mockSdkInitializator,
-            mockOnMcpDisabled,
-            mockOnMcpEnabled
-        )
+        profileStatusMonitor = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
     })
 
     afterEach(() => {
@@ -118,23 +114,9 @@ describe('ProfileStatusMonitor', () => {
         })
 
         it('should be accessible across different instances', () => {
-            const monitor1 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
-            const monitor2 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Set state through static property
             ;(ProfileStatusMonitor as any).lastMcpState = true
@@ -151,26 +133,12 @@ describe('ProfileStatusMonitor', () => {
         })
 
         it('should maintain state across multiple instances', () => {
-            const monitor1 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
-            const monitor2 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
-            // Initially undefined
-            expect(ProfileStatusMonitor.getMcpState()).to.be.undefined
+            // Initially true (default value)
+            expect(ProfileStatusMonitor.getMcpState()).to.be.true
 
             // Set through internal mechanism (simulating state change)
             ;(ProfileStatusMonitor as any).lastMcpState = false

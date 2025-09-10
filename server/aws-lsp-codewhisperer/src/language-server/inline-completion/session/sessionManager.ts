@@ -14,7 +14,6 @@ import {
 } from '../../../shared/codeWhispererService'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
@@ -45,7 +44,13 @@ export class CodeWhispererSession {
     startTime: number
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
-    state: SessionState
+    private _state: SessionState
+    get state(): SessionState {
+        return this._state
+    }
+    private set state(newState: SessionState) {
+        this._state = newState
+    }
     codewhispererSessionId?: string
     startPosition: Position = {
         line: 0,
@@ -55,6 +60,13 @@ export class CodeWhispererSession {
     suggestions: CachedSuggestion[] = []
     suggestionsAfterRightContextMerge: InlineCompletionItemWithReferences[] = []
     suggestionsStates = new Map<string, UserDecision>()
+    private _decisionTimestamp = 0
+    get decisionMadeTimestamp() {
+        return this._decisionTimestamp
+    }
+    set decisionMadeTimestamp(time: number) {
+        this._decisionTimestamp = time
+    }
     acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
@@ -96,7 +108,8 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
-        this.state = 'REQUESTING'
+        this._state = 'REQUESTING'
+
         this.startTime = new Date().getTime()
     }
 
@@ -276,7 +289,6 @@ export class SessionManager {
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
-    streakLength: number = 0
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
 
     private constructor() {}
@@ -299,8 +311,6 @@ export class SessionManager {
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
-        this.closeCurrentSession()
-
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
@@ -319,12 +329,6 @@ export class SessionManager {
         this.sessionsLog.push(session)
 
         return session
-    }
-
-    closeCurrentSession() {
-        if (this.currentSession) {
-            this.closeSession(this.currentSession)
-        }
     }
 
     closeSession(session: CodeWhispererSession) {
@@ -363,17 +367,5 @@ export class SessionManager {
         if (this.currentSession === session) {
             this.currentSession.activate()
         }
-    }
-
-    getAndUpdateStreakLength(isAccepted: boolean | undefined): number {
-        if (!isAccepted && this.streakLength != 0) {
-            const currentStreakLength = this.streakLength
-            this.streakLength = 0
-            return currentStreakLength
-        } else if (isAccepted) {
-            // increment streakLength everytime a suggestion is accepted.
-            this.streakLength = this.streakLength + 1
-        }
-        return -1
     }
 }
