@@ -14,8 +14,9 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
 import { getOriginFromClientInfo, getClientName } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
-import { AwsRetryStrategy, DelayNotification } from '../agenticChat/retry/awsRetryStrategy'
-import { DEFAULT_RETRY_ATTEMPTS } from './constants'
+import { QErrorTransformer } from '../agenticChat/retry/errorTransformer'
+import { DelayNotification } from '../agenticChat/retry/delayInterceptor'
+import { MAX_REQUEST_ATTEMPTS } from '../agenticChat/constants/constants'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -45,7 +46,7 @@ export class ChatSessionService {
     #serviceManager?: AmazonQBaseServiceManager
     #logging?: Logging
     #origin?: Origin
-    #retryStrategy: AwsRetryStrategy
+    #errorTransformer: QErrorTransformer
 
     public getConversationType(): string {
         return this.#conversationType
@@ -135,13 +136,8 @@ export class ChatSessionService {
         this.#logging = logging
         this.#origin = getOriginFromClientInfo(getClientName(this.#lsp?.getClientInitializeParams()))
 
-        // Initialize retry strategy
-        this.#retryStrategy = new AwsRetryStrategy(
-            DEFAULT_RETRY_ATTEMPTS,
-            logging,
-            this.#onDelayNotification.bind(this),
-            this.isModelSelectionEnabled()
-        )
+        // Initialize Q-specific error transformation
+        this.#errorTransformer = new QErrorTransformer(logging, this.isModelSelectionEnabled())
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -157,12 +153,12 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
-        // Execute with retry logic
-        return await this.#retryStrategy.executeWithRetry(
-            () => client.sendMessage(request, this.#abortController),
-            'sendMessage',
-            this.#abortController?.signal
-        )
+        // AWS SDK handles retries natively, we just transform final errors
+        try {
+            return await client.sendMessage(request, this.#abortController)
+        } catch (error) {
+            throw this.#errorTransformer.transformFinalError(error)
+        }
     }
 
     private isModelSelectionEnabled(): boolean {
@@ -182,12 +178,12 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
-        // Execute with retry logic
-        return await this.#retryStrategy.executeWithRetry(
-            () => this.#performChatRequest(client, request),
-            'getChatResponse',
-            this.#abortController?.signal
-        )
+        // AWS SDK handles retries natively, we just transform final errors
+        try {
+            return await this.#performChatRequest(client, request)
+        } catch (error) {
+            throw this.#errorTransformer.transformFinalError(error)
+        }
     }
 
     async #performChatRequest(client: any, request: ChatCommandInput): Promise<ChatCommandOutput> {
@@ -251,16 +247,9 @@ export class ChatSessionService {
      * @param callback Function to call when delay notifications occur
      */
     public setDelayNotificationCallback(callback: (notification: DelayNotification) => void): void {
-        this.#retryStrategy = new AwsRetryStrategy(
-            DEFAULT_RETRY_ATTEMPTS,
-            this.#logging,
-            callback,
-            this.isModelSelectionEnabled()
-        )
-    }
-
-    #onDelayNotification(notification: DelayNotification): void {
-        // Log the notification for debugging purposes
-        this.#logging?.info(`Delay notification: ${notification.message}`)
+        if (this.#serviceManager) {
+            const client = this.#serviceManager.getStreamingClient()
+            client.setDelayNotificationCallback(callback)
+        }
     }
 }

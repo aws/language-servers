@@ -94,9 +94,21 @@ export const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500
 
 // Error Messages
 export const MONTHLY_LIMIT_ERROR_MARKER = 'MONTHLY_REQUEST_COUNT'
-export const HIGH_LOAD_ERROR_MESSAGE = 'Encountered unexpectedly high load when processing the request, please try again.'
+export const HIGH_LOAD_ERROR_MESSAGE =
+    'Encountered unexpectedly high load when processing the request, please try again.'
 export const SERVICE_UNAVAILABLE_EXCEPTION = 'ServiceUnavailableException'
 export const INSUFFICIENT_MODEL_CAPACITY = 'INSUFFICIENT_MODEL_CAPACITY'
+
+// Delay tracking constants
+export const MINOR_DELAY_THRESHOLD_MS = 2000 // 2 seconds
+export const MAJOR_DELAY_THRESHOLD_MS = 5000 // 5 seconds
+
+// Stalled stream protection constants
+export const STALLED_STREAM_GRACE_PERIOD_MS = 300000 // 5 minutes
+export const STALLED_STREAM_CHECK_INTERVAL_MS = 1000 // 1 second
+
+// Request attempt tracking
+export const MAX_REQUEST_ATTEMPTS = 3
 
 // shortcut constant
 export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8679; &#8984; &#8629;'

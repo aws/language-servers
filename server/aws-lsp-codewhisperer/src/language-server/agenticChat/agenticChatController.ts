@@ -908,6 +908,7 @@ export class AgenticChatController implements ChatHandlers {
             // Set up delay notification callback to show retry progress to users
             session.setDelayNotificationCallback(notification => {
                 if (notification.thresholdExceeded) {
+                    this.#log(`Updating progress message: ${notification.message}`)
                     void chatResultStream.updateProgressMessage(notification.message)
                 }
             })
