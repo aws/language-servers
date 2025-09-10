@@ -345,6 +345,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                                 throw new Error('Authorization failed, bearer token is not set')
                             }
                             httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                            httpRequest.headers['TokenType'] = 'EXTERNAL_IDP'
                             httpRequest.headers['x-amzn-codewhisperer-optout'] =
                                 `${!this.shareCodeWhispererContentWithAWS}`
                         } catch (err) {
