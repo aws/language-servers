@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.0.79](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.78...lsp-codewhisperer/v0.0.79) (2025-09-10)
+
+
+### Features
+
+* feature to add iam inline suggestion support in codeWhispererservice ([#2223](https://github.com/aws/language-servers/issues/2223)) ([8e19f19](https://github.com/aws/language-servers/commit/8e19f19a71e63a1196f4cb67ded8360c8da8129e))
+
+## [0.0.78](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.77...lsp-codewhisperer/v0.0.78) (2025-09-09)
+
+
+### Features
+
+* add custom_transformation folder support to artifact.zip ([#2201](https://github.com/aws/language-servers/issues/2201)) ([1222905](https://github.com/aws/language-servers/commit/12229059421b773d3e99d28809fdff4abf242b26))
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+* **amazonq:** default to diff-based scans ([#2195](https://github.com/aws/language-servers/issues/2195)) ([da4c3db](https://github.com/aws/language-servers/commit/da4c3db5329bd50cfe249bf8c1d59afa9bcb0157))
+* model selection for code review tool ([#2196](https://github.com/aws/language-servers/issues/2196)) ([34bc9bd](https://github.com/aws/language-servers/commit/34bc9bd1d3433bbb1d903eb0f212b10709ea8412))
+
+
+### Bug Fixes
+
+* **amazonq:** add IntelliSense autotriggerType ([#2199](https://github.com/aws/language-servers/issues/2199)) ([013aa59](https://github.com/aws/language-servers/commit/013aa5913c242451a91ed36b0dcf961a3f8ec697))
+* **amazonq:** fix to correct the client for getProfile request ([#2211](https://github.com/aws/language-servers/issues/2211)) ([8bde8c9](https://github.com/aws/language-servers/commit/8bde8c97e1e3bcd67d9816a3385c50c7765c3b2f))
+* **amazonq:** fix to update MCP servers list when last server is removed from agent config ([#2206](https://github.com/aws/language-servers/issues/2206)) ([512502a](https://github.com/aws/language-servers/commit/512502af947dcfed9288be2f67fc58affd4445fe))
+* **amazonq:** update to the agent config format to bring parity with Q CLI ([#2202](https://github.com/aws/language-servers/issues/2202)) ([698d06c](https://github.com/aws/language-servers/commit/698d06c643897da6ca37a49e6544b150b72678a3))
+* potential xss issue reported in `mynah-ui` ([#2209](https://github.com/aws/language-servers/issues/2209)) ([cf585cd](https://github.com/aws/language-servers/commit/cf585cd400dab6274f8220139ae94287c0d96824))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.14 to ^0.0.15
+
 ## [0.0.77](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.76...lsp-codewhisperer/v0.0.77) (2025-09-02)
 
 

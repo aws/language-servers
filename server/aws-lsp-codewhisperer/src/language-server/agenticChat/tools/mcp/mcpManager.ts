@@ -944,8 +944,7 @@ export class McpManager {
         this.mcpServers.clear()
         this.mcpServerStates.clear()
         this.agentConfig = {
-            name: 'default-agent',
-            version: '1.0.0',
+            name: 'amazon_q_default',
             description: 'Agent configuration',
             mcpServers: {},
             tools: [],

@@ -248,7 +248,7 @@ export class EditCompletionHandler {
                 document: {
                     relativeFilePath: textDocument.uri,
                     programmingLanguage: {
-                        languageName: generateCompletionReq.fileContext.programmingLanguage.languageName,
+                        languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
                     },
                     text: textDocument.getText(),
                 },

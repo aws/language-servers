@@ -44,7 +44,7 @@ export class CodeReview {
     private static readonly POLLING_INTERVAL_MS = 10000 // 10 seconds
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
-    private static readonly MAX_FINDINGS_COUNT = 50
+    private static readonly MAX_FINDINGS_COUNT = 40
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
@@ -67,6 +67,7 @@ export class CodeReview {
     private cancellationToken?: CancellationToken
     private writableStream?: WritableStream
     private toolStartTime: number = 0
+    private overrideDiffScan = false
 
     constructor(
         features: Pick<Features, 'credentialsProvider' | 'logging' | 'telemetry' | 'workspace'> & Partial<Features>
@@ -111,7 +112,16 @@ export class CodeReview {
             const analysisResult = await this.startCodeAnalysis(setup, uploadResult)
             this.checkCancellation()
 
-            await chatStreamWriter?.write('Reviewing your code...')
+            const nonRuleFiles = uploadResult.numberOfFilesInCustomerCodeZip - setup.ruleArtifacts.length
+            const diffFiles = uploadResult.codeDiffFiles.size
+            if (diffFiles == 0 && !setup.isFullReviewRequest) {
+                setup.isFullReviewRequest = true
+                this.overrideDiffScan = true
+            }
+            const reviewMessage = setup.isFullReviewRequest
+                ? `Reviewing the entire code in ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
+                : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
+            await chatStreamWriter?.write(reviewMessage)
 
             // 4. Wait for scan to complete
             await this.pollForCompletion(analysisResult.jobId, setup, uploadResult, chatStreamWriter)
@@ -206,13 +216,19 @@ export class CodeReview {
     private async prepareAndUploadArtifacts(
         setup: ValidateInputAndSetupResult
     ): Promise<PrepareAndUploadArtifactsResult> {
-        const { zipBuffer, md5Hash, isCodeDiffPresent, programmingLanguages } =
-            await this.prepareFilesAndFoldersForUpload(
-                setup.fileArtifacts,
-                setup.folderArtifacts,
-                setup.ruleArtifacts,
-                setup.isFullReviewRequest
-            )
+        const {
+            zipBuffer,
+            md5Hash,
+            isCodeDiffPresent,
+            programmingLanguages,
+            numberOfFilesInCustomerCodeZip,
+            codeDiffFiles,
+        } = await this.prepareFilesAndFoldersForUpload(
+            setup.fileArtifacts,
+            setup.folderArtifacts,
+            setup.ruleArtifacts,
+            setup.isFullReviewRequest
+        )
 
         const uploadUrlResponse = await this.codeWhispererClient!.createUploadUrl({
             contentLength: zipBuffer.length,
@@ -257,6 +273,8 @@ export class CodeReview {
             isCodeDiffPresent,
             artifactSize: zipBuffer.length,
             programmingLanguages: programmingLanguages,
+            numberOfFilesInCustomerCodeZip,
+            codeDiffFiles,
         }
     }
 
@@ -470,9 +488,13 @@ export class CodeReview {
             )
         })
 
+        let scopeMessage = this.overrideDiffScan
+            ? `Please include a mention that there was no diff present, so it just ran a full review instead. Be very explicit about this so that the user could not be confused.`
+            : `Please include a mention that the scan was on the ${setup.isFullReviewRequest ? `entire` : `uncommitted`} code.`
+
         return {
             codeReviewId: jobId,
-            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully.${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
         }
     }
@@ -559,7 +581,14 @@ export class CodeReview {
         folderArtifacts: FolderArtifacts,
         ruleArtifacts: RuleArtifacts,
         isFullReviewRequest: boolean
-    ): Promise<{ zipBuffer: Buffer; md5Hash: string; isCodeDiffPresent: boolean; programmingLanguages: Set<string> }> {
+    ): Promise<{
+        zipBuffer: Buffer
+        md5Hash: string
+        isCodeDiffPresent: boolean
+        programmingLanguages: Set<string>
+        numberOfFilesInCustomerCodeZip: number
+        codeDiffFiles: Set<string>
+    }> {
         try {
             this.logging.info(
                 `Preparing ${fileArtifacts.length} files and ${folderArtifacts.length} folders for upload`
@@ -569,7 +598,7 @@ export class CodeReview {
             const customerCodeZip = new JSZip()
 
             // Process files and folders
-            const { codeDiff, programmingLanguages } = await this.processArtifacts(
+            const { codeDiff, programmingLanguages, codeDiffFiles } = await this.processArtifacts(
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -613,7 +642,14 @@ export class CodeReview {
 
             this.logging.info(`Created zip archive, size: ${zipBuffer.byteLength} bytes, MD5: ${md5Hash}`)
 
-            return { zipBuffer, md5Hash, isCodeDiffPresent, programmingLanguages }
+            return {
+                zipBuffer,
+                md5Hash,
+                isCodeDiffPresent,
+                programmingLanguages,
+                numberOfFilesInCustomerCodeZip,
+                codeDiffFiles,
+            }
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
             throw error
@@ -635,9 +671,9 @@ export class CodeReview {
         ruleArtifacts: RuleArtifacts,
         customerCodeZip: JSZip,
         isCodeDiffScan: boolean
-    ): Promise<{ codeDiff: string; programmingLanguages: Set<string> }> {
+    ): Promise<{ codeDiff: string; programmingLanguages: Set<string>; codeDiffFiles: Set<string> }> {
         // Process files
-        let { codeDiff, programmingLanguages } = await this.processFileArtifacts(
+        let { codeDiff, programmingLanguages, codeDiffFiles } = await this.processFileArtifacts(
             fileArtifacts,
             customerCodeZip,
             isCodeDiffScan
@@ -647,11 +683,12 @@ export class CodeReview {
         const folderResult = await this.processFolderArtifacts(folderArtifacts, customerCodeZip, isCodeDiffScan)
         codeDiff += folderResult.codeDiff
         folderResult.programmingLanguages.forEach(item => programmingLanguages.add(item))
+        folderResult.codeDiffFiles.forEach(item => codeDiffFiles.add(item))
 
         // Process rule artifacts
         await this.processRuleArtifacts(ruleArtifacts, customerCodeZip)
 
-        return { codeDiff, programmingLanguages }
+        return { codeDiff, programmingLanguages, codeDiffFiles }
     }
 
     /**
@@ -665,9 +702,10 @@ export class CodeReview {
         fileArtifacts: FileArtifacts,
         customerCodeZip: JSZip,
         isCodeDiffScan: boolean
-    ): Promise<{ codeDiff: string; programmingLanguages: Set<string> }> {
+    ): Promise<{ codeDiff: string; programmingLanguages: Set<string>; codeDiffFiles: Set<string> }> {
         let codeDiff = ''
         let programmingLanguages: Set<string> = new Set()
+        let codeDiffFiles: Set<string> = new Set()
 
         for (const artifact of fileArtifacts) {
             await CodeReviewUtils.withErrorHandling(
@@ -695,10 +733,12 @@ export class CodeReview {
                 artifact.path
             )
 
+            const artifactFileDiffs = await CodeReviewUtils.getGitDiffNames(artifact.path, this.logging)
+            artifactFileDiffs.forEach(filepath => codeDiffFiles.add(filepath))
             codeDiff += await CodeReviewUtils.processArtifactWithDiff(artifact, isCodeDiffScan, this.logging)
         }
 
-        return { codeDiff, programmingLanguages }
+        return { codeDiff, programmingLanguages, codeDiffFiles }
     }
 
     /**
@@ -712,9 +752,10 @@ export class CodeReview {
         folderArtifacts: FolderArtifacts,
         customerCodeZip: JSZip,
         isCodeDiffScan: boolean
-    ): Promise<{ codeDiff: string; programmingLanguages: Set<string> }> {
+    ): Promise<{ codeDiff: string; programmingLanguages: Set<string>; codeDiffFiles: Set<string> }> {
         let codeDiff = ''
         let programmingLanguages = new Set<string>()
+        let codeDiffFiles: Set<string> = new Set()
 
         for (const folderArtifact of folderArtifacts) {
             await CodeReviewUtils.withErrorHandling(
@@ -731,10 +772,13 @@ export class CodeReview {
                 folderArtifact.path
             )
 
+            const artifactFileDiffs = await CodeReviewUtils.getGitDiffNames(folderArtifact.path, this.logging)
+            artifactFileDiffs.forEach(filepath => codeDiffFiles.add(filepath))
+
             codeDiff += await CodeReviewUtils.processArtifactWithDiff(folderArtifact, isCodeDiffScan, this.logging)
         }
 
-        return { codeDiff, programmingLanguages }
+        return { codeDiff, programmingLanguages, codeDiffFiles }
     }
 
     /**

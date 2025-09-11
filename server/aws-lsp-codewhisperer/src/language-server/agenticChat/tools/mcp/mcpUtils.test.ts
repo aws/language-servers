@@ -238,7 +238,6 @@ describe('loadAgentConfig', () => {
 
         const agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {
                 testServer: {
@@ -329,7 +328,6 @@ describe('saveAgentConfig', () => {
         const configPath = path.join(tmpDir, 'agent-config.json')
         const config = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {},
             tools: ['tool1', 'tool2'],
@@ -353,7 +351,6 @@ describe('saveAgentConfig', () => {
         const configPath = path.join(tmpDir, 'nested', 'dir', 'agent-config.json')
         const config = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {},
             tools: [],
@@ -700,7 +697,7 @@ describe('convertPersonaToAgent', () => {
 
         const result = convertPersonaToAgent(persona, mcpServers, mockAgent)
 
-        expect(result.name).to.equal('default-agent')
+        expect(result.name).to.equal('amazon_q_default')
         expect(result.mcpServers).to.have.property('testServer')
         expect(result.tools).to.include('@testServer')
         expect(result.tools).to.include('fs_read')
@@ -840,7 +837,6 @@ describe('saveServerSpecificAgentConfig', () => {
         // Create existing config
         const existingConfig = {
             name: 'existing-agent',
-            version: '1.0.0',
             description: 'Existing agent',
             mcpServers: {
                 existingServer: { command: 'existing-cmd' },
@@ -881,7 +877,6 @@ describe('saveServerSpecificAgentConfig', () => {
         // Create existing config with server tools
         const existingConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {
                 testServer: { command: 'old-cmd' },

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.19](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.18...lsp-yaml/v0.1.19) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.14 to ^0.0.15
+
 ## [0.1.18](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.17...lsp-yaml/v0.1.18) (2025-08-19)
 
 
