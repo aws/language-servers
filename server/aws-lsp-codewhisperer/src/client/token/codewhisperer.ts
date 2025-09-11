@@ -1,6 +1,6 @@
 import { CodeWhispererRuntimeClient, CodeWhispererRuntimeClientConfig } from '@amzn/codewhisperer-runtime'
 import { SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
-import { HttpResponse } from '@smithy/protocol-http'
+import { HttpResponse } from '@smithy/types'
 
 export interface CodeWhispererTokenClientConfigurationOptions extends CodeWhispererRuntimeClientConfig {
     // Add any custom options if needed
@@ -27,9 +27,9 @@ export function createCodeWhispererTokenClient(
             // Store headers on the response metadata
             if (result.response) {
                 const httpResponse = result.response as HttpResponse
-                if (httpResponse.headers) {
+                if (httpResponse.headers && result.output?.$metadata) {
                     // Extend metadata to include headers
-                    ;(result.output as any).$httpHeaders = httpResponse.headers
+                    ;(result.output.$metadata as any).httpHeaders = httpResponse.headers
                 }
             }
 
@@ -38,7 +38,7 @@ export function createCodeWhispererTokenClient(
         {
             step: 'deserialize',
             name: 'captureHeaders',
-            priority: 'low',
+            priority: 'high',
         }
     )
 

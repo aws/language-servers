@@ -499,7 +499,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
             const responseContext: ResponseContext = {
                 requestId: response?.$metadata?.requestId ?? 'unknown',
-                codewhispererSessionId: (response as any)?.$httpHeaders?.['x-amzn-sessionid'] ?? 'unknown',
+                codewhispererSessionId: (response?.$metadata as any)?.httpHeaders?.['x-amzn-sessionid'] ?? 'unknown',
                 nextToken: response.nextToken,
                 // CRITICAL: Add service type for proper error handling
                 authType: 'token' as const,
