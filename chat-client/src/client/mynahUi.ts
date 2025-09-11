@@ -69,12 +69,7 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import {
-    pairProgrammingModeOff,
-    pairProgrammingModeOn,
-    programmerModeCard,
-    createRerouteCard,
-} from './texts/pairProgramming'
+import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
 import { getModelSelectionChatItem, modelUnavailableBanner, modelThrottledBanner } from './texts/modelSelection'
 import {
@@ -285,11 +280,6 @@ export const handleChatPrompt = (
     // For /doc command, don't show any prompt in UI
     const displayPrompt = isReroutedCommand && prompt.command === '/doc' ? '' : userPrompt
     initializeChatResponse(mynahUi, tabId, displayPrompt, agenticMode)
-
-    // If this is a rerouted command AND reroute feature is enabled, show the reroute card after the prompt
-    if (isReroutedCommand && tabFactory?.isRerouteEnabled() && prompt.command) {
-        mynahUi.addChatItem(tabId, createRerouteCard(prompt.command))
-    }
 }
 
 const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string, agenticMode?: boolean) => {
@@ -404,9 +394,6 @@ export const createMynahUi = (
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
-                ...(tabFactory.isRerouteEnabled()
-                    ? { quickActionCommandsHeader: defaultTabBarData.quickActionCommandsHeader }
-                    : {}),
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: [
                     ...(contextCommandGroups || []),

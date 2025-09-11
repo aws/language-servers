@@ -4,7 +4,6 @@ import {
     MynahIcons,
     MynahUIDataModel,
     QuickActionCommandGroup,
-    QuickActionCommandsHeader,
     TabBarMainAction,
 } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
@@ -143,17 +142,6 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
                       quickActionCommands: this.quickActionCommands,
                   }
                 : {}),
-            ...(this.reroute
-                ? {
-                      quickActionCommandsHeader: {
-                          status: 'warning',
-                          icon: MynahIcons.INFO,
-                          title: 'Q Developer agentic capabilities',
-                          description:
-                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, /review or /doc",
-                      } as QuickActionCommandsHeader,
-                  }
-                : {}),
         }
 
         tabData.tabBarButtons = this.getTabBarButtons()
@@ -228,51 +216,5 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
         }
 
         return tabBarButtons.length ? tabBarButtons : undefined
-    }
-
-    // Enhanced welcome messages block for non-agentic mode
-    private getEnhancedWelcomeBlock() {
-        return {
-            text: '',
-            options: [
-                {
-                    pillText: 'Getting Started',
-                    prompt: 'What can Amazon Q help me with?',
-                    type: 'help',
-                },
-            ],
-        }
-    }
-
-    // Agentic welcome messages block
-    private getAgenticWelcomeBlock() {
-        return {
-            text: '',
-            options: [
-                {
-                    pillText: 'Getting Started',
-                    prompt: 'What can Amazon Q help me with?',
-                    type: 'help',
-                },
-            ],
-        }
-    }
-
-    // Legacy welcome messages block
-    private getWelcomeBlock() {
-        return {
-            text: 'Try Examples:',
-            options: [
-                {
-                    pillText: 'Explain selected code',
-                    prompt: 'Explain selected code',
-                    type: 'init-prompt',
-                },
-                {
-                    pillText: 'How can Amazon Q help me?',
-                    type: 'help',
-                },
-            ],
-        }
     }
 }
