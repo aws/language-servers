@@ -529,12 +529,12 @@ describe('SessionManager', function () {
             assert.strictEqual(manager.getCurrentSession()?.state, 'REQUESTING')
         })
 
-        it('should deactivate previous session when creating a new session', function () {
+        it('should not deactivate previous session when creating a new session', function () {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             session.activate()
             manager.createSession(data)
-            assert.strictEqual(session.state, 'CLOSED')
+            assert.strictEqual(session.state, 'ACTIVE')
         })
 
         it('should set previous active session trigger decision from discarded REQUESTING session', function () {
@@ -548,7 +548,7 @@ describe('SessionManager', function () {
             assert.strictEqual(session2.previousTriggerDecision, 'Discard')
         })
 
-        it('should set previous active session trigger decision to new session object', function () {
+        it('should not set previous active session trigger decision to new session object if it is not closed', function () {
             const manager = SessionManager.getInstance()
             const session1 = manager.createSession(data)
             assert.strictEqual(session1?.state, 'REQUESTING')
@@ -557,22 +557,8 @@ describe('SessionManager', function () {
 
             const session2 = manager.createSession(data)
 
-            assert.strictEqual(session1?.state, 'CLOSED')
-            assert.strictEqual(session2.previousTriggerDecision, 'Empty')
-        })
-    })
-
-    describe('closeCurrentSession()', function () {
-        it('should add the current session to the sessions log if it is active', function () {
-            const manager = SessionManager.getInstance()
-            const session = manager.createSession(data)
-            assert.strictEqual(session.state, 'REQUESTING')
-            session.activate()
-            assert.strictEqual(session.state, 'ACTIVE')
-            manager.closeCurrentSession()
-            assert.strictEqual(manager.getSessionsLog().length, 1)
-            assert.strictEqual(manager.getSessionsLog()[0], session)
-            assert.strictEqual(session.state, 'CLOSED')
+            assert.strictEqual(session1?.state, 'ACTIVE')
+            assert.strictEqual(session2.previousTriggerDecision, undefined)
         })
     })
 
@@ -599,7 +585,6 @@ describe('SessionManager', function () {
             session2.activate()
             const session3 = manager.createSession(data)
             session3.activate()
-            manager.closeCurrentSession()
             const result = manager.getPreviousSession()
             assert.strictEqual(result, session3)
             assert.strictEqual(manager.getSessionsLog().length, 3)
@@ -612,7 +597,6 @@ describe('SessionManager', function () {
             const session2 = manager.createSession(data)
             const session3 = manager.createSession(data)
             session3.activate()
-            manager.closeCurrentSession()
             const result = manager.getPreviousSession()
             assert.strictEqual(result, session3)
             assert.strictEqual(manager.getSessionsLog().length, 3)
@@ -632,7 +616,6 @@ describe('SessionManager', function () {
             session.activate()
             const session2 = manager.createSession({ ...data, triggerType: 'AutoTrigger' })
             session2.activate()
-            manager.closeCurrentSession()
             assert.strictEqual(manager.getSessionsLog().length, 2)
 
             const sessionId = session.id
@@ -644,7 +627,6 @@ describe('SessionManager', function () {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             session.activate()
-            manager.closeCurrentSession()
             assert.strictEqual(manager.getSessionsLog().length, 1)
 
             const sessionId = session.id + '1'
@@ -689,48 +671,6 @@ describe('SessionManager', function () {
             assert.equal(session.getSuggestionState('id2'), 'Empty')
             assert.equal(session.getSuggestionState('id3'), 'Filter')
             assert.equal(session.getSuggestionState('id4'), 'Discard')
-        })
-    })
-
-    describe('getAndUpdateStreakLength()', function () {
-        it('should return 0 if user rejects suggestion A', function () {
-            const manager = SessionManager.getInstance()
-
-            assert.equal(manager.getAndUpdateStreakLength(false), -1)
-            assert.equal(manager.streakLength, 0)
-        })
-
-        it('should return -1 for A and 1 for B if user accepts suggestion A and rejects B', function () {
-            const manager = SessionManager.getInstance()
-
-            assert.equal(manager.getAndUpdateStreakLength(true), -1)
-            assert.equal(manager.streakLength, 1)
-            assert.equal(manager.getAndUpdateStreakLength(false), 1)
-            assert.equal(manager.streakLength, 0)
-        })
-
-        it('should return -1 for A, -1 for B, and 2 for C if user accepts A, accepts B, and rejects C', function () {
-            const manager = SessionManager.getInstance()
-
-            assert.equal(manager.getAndUpdateStreakLength(true), -1)
-            assert.equal(manager.streakLength, 1)
-            assert.equal(manager.getAndUpdateStreakLength(true), -1)
-            assert.equal(manager.streakLength, 2)
-            assert.equal(manager.getAndUpdateStreakLength(false), 2)
-            assert.equal(manager.streakLength, 0)
-        })
-
-        it('should return -1 for A, -1 for B, and 1 for C if user accepts A, make an edit, accepts B, and rejects C', function () {
-            const manager = SessionManager.getInstance()
-
-            assert.equal(manager.getAndUpdateStreakLength(true), -1)
-            assert.equal(manager.streakLength, 1)
-            assert.equal(manager.getAndUpdateStreakLength(false), 1)
-            assert.equal(manager.streakLength, 0)
-            assert.equal(manager.getAndUpdateStreakLength(true), -1)
-            assert.equal(manager.streakLength, 1)
-            assert.equal(manager.getAndUpdateStreakLength(false), 1)
-            assert.equal(manager.streakLength, 0)
         })
     })
 })

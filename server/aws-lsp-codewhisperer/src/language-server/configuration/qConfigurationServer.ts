@@ -39,6 +39,12 @@ export interface QClientCapabilities {
     developerProfiles?: boolean
     customizationsWithMetadata?: boolean
     mcp?: boolean
+    modelSelection?: boolean
+    reroute?: boolean
+    codeReviewInChat?: boolean
+    displayFindings?: boolean
+    compaction?: boolean
+    shortcut?: boolean
 }
 
 type QConfigurationResponse =

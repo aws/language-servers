@@ -5,6 +5,8 @@ import {
     getSupportedLanguageId,
     languageByExtension,
     qLanguageIdByDocumentLanguageId,
+    getCodeWhispererLanguageIdFromPath,
+    isJavaProjectFileFromPath,
 } from './languageDetection'
 
 describe('LanguageDetection', () => {
@@ -38,6 +40,26 @@ describe('LanguageDetection', () => {
         it('should return language id if it is in the list of supported languages', () => {
             assert.ok(getSupportedLanguageId(typescriptDocument, ['typescript', 'javascript']))
             assert.ok(!getSupportedLanguageId(typescriptDocument, ['javascript']))
+        })
+    })
+
+    describe('getCodeWhispererLanguageIdFromPath', () => {
+        it('should return language type with override', () => {
+            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/test.java'), 'java')
+            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/package.json'), 'javascript')
+            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/test.js'), 'javascript')
+            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/test.ts'), 'typescript')
+            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/test.py'), 'python')
+        })
+    })
+
+    describe('isJavaProjectFileFromPath', () => {
+        it('should return project file as java language', () => {
+            assert.ok(isJavaProjectFileFromPath('test/build.gradle'))
+            assert.ok(isJavaProjectFileFromPath('test/pom.xml'))
+            assert.ok(isJavaProjectFileFromPath('test/build.gradle.kts'))
+            assert.ok(isJavaProjectFileFromPath('test/build.xml'))
+            assert.ok(!isJavaProjectFileFromPath('test/package.json'))
         })
     })
 })

@@ -1,0 +1,15 @@
+{
+    "file-description": "Used by generate-attribution in script/generate-attribution.sh",
+    "@aws/language-server-runtimes": {
+        "ignore": true
+    },
+    "@aws/lsp-codewhisperer": {
+        "ignore": true
+    },
+    "@aws/lsp-core": {
+        "ignore": true
+    },
+    "caniuse-lite": {
+        "ignore": true
+    }
+}

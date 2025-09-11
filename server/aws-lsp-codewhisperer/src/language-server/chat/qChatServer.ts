@@ -59,7 +59,9 @@ export const QChatServerFactory =
                     'TelemetryService initialized before LSP connection was initialized.'
                 )
             )
-            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
+            telemetryService.updateUserContext(
+                makeUserContextObject(clientParams, runtime.platform, 'CHAT', amazonQServiceManager.serverInfo)
+            )
 
             chatController = new ChatController(
                 chatSessionManagementService,

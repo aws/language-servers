@@ -11,7 +11,7 @@ import * as path from 'path'
 import * as sinon from 'sinon'
 import { AgenticChatTriggerContext } from './agenticChatTriggerContext'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
-import { ChatTriggerType, CursorState } from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
 import { URI } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 import { TestFolder } from '@aws/lsp-core/out/test/testFolder'
@@ -143,11 +143,9 @@ describe('AgenticChatTriggerContext', () => {
             undefined,
             undefined,
             [],
-            [],
             undefined,
             modelId
         )
-
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, modelId)
     })
 
@@ -158,7 +156,6 @@ describe('AgenticChatTriggerContext', () => {
             {},
             ChatTriggerType.MANUAL
         )
-
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
     })
 

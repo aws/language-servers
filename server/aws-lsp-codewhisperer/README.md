@@ -102,6 +102,8 @@ The server supports the following [workspace configurations](https://github.com/
     - This flag controls whether to opt-in or opt-out to telemetry.
 - `aws.q.inlineSuggestions.extraContext` (type: `string | undefined`, default: `undefined`)
     - The extra context to be included for suggestions, an empty string will be interpreted as undefined. See [below](#extra-context-for-q-inline-suggestions) for more context.
+- `aws.q.inlineChat.extraContext` (type: `string | undefined`, default: `undefined`)
+    - The extra context to be included for inline chat, an empty string will be interpreted as undefined. See [below](#extra-context-for-q-inline-chat) for more context.
 - `aws.codeWhisperer.includeSuggestionsWithCodeReferences`: (type: `boolean`, default: `false`)
     - This flag controls whether to include references with code suggestions.
 - `aws.codeWhisperer.shareCodeWhispererContentWithAWS`: (type: `boolean`, default: `false`)
@@ -111,3 +113,6 @@ The client can signal updates to the workspace configuration with the `DidChange
 
 #### Extra context for Q Inline Suggestions
 In cases when the client runs in a specific environment that requires customized suggestions, the server supports a `aws.q.inlineSuggestions.extraContext` workspace configuration. This extra context will be passed to the left file content of the request in the beginning of the file.
+
+#### Extra context for Q Inline Chat
+In cases when the client runs in a specific environment that requires customized inline chat responses, the server supports a `aws.q.inlineChat.extraContext` workspace configuration. This extra context will be prepended to the document text of the request, similar to how inline suggestions work.

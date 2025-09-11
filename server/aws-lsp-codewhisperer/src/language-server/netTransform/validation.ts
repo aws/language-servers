@@ -5,35 +5,16 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { TransformationJob } from '../../client/token/codewhispererbearertokenclient'
 import { TransformationErrorCode } from './models'
 
+/**
+ * Project type validation moved to backend service.
+ */
+
 export function isProject(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.csproj')
 }
 
 export function isSolution(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.sln')
-}
-
-export function validateProject(userInputrequest: StartTransformRequest, logging: Logging): boolean {
-    var selectedProject = userInputrequest.ProjectMetadata.find(
-        project => project.ProjectPath == userInputrequest.SelectedProjectPath
-    )
-
-    if (selectedProject) {
-        var isValid = supportedProjects.includes(selectedProject?.ProjectType)
-        logging.log(
-            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}` +
-                (isValid ? '' : ' that is not supported')
-        )
-        return isValid
-    }
-    logging.log(`Error occured in verifying selected project with path ${userInputrequest.SelectedProjectPath}`)
-    return false
-}
-
-export function validateSolution(userInputrequest: StartTransformRequest): string[] {
-    return userInputrequest.ProjectMetadata.filter(project => !supportedProjects.includes(project.ProjectType)).map(
-        project => project.ProjectPath
-    )
 }
 
 export async function checkForUnsupportedViews(

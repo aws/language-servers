@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { InitializeParams, Platform } from '@aws/language-server-runtimes/server-interface'
+import { InitializeParams, Platform, ServerInfo } from '@aws/language-server-runtimes/server-interface'
 import { getUserAgent, makeUserContextObject } from './telemetryUtils'
 
 describe('getUserAgent', () => {
@@ -115,6 +115,7 @@ describe('getUserAgent', () => {
 
 describe('makeUserContextObject', () => {
     let mockInitializeParams: InitializeParams
+    let mockServerInfo: ServerInfo
     // let osStub: sinon.SinonStubbedInstance<{ now: () => number }>
 
     beforeEach(() => {
@@ -123,10 +124,10 @@ describe('makeUserContextObject', () => {
                 aws: {
                     clientInfo: {
                         name: 'test-custom-client-name',
-                        version: '1.2.3',
+                        version: '1.0.0',
                         extension: {
                             name: 'AmazonQ-For-VSCode',
-                            version: '2.2.2',
+                            version: '2.0.0',
                         },
                         clientId: 'test-client-id',
                     },
@@ -138,6 +139,11 @@ describe('makeUserContextObject', () => {
             },
         } as InitializeParams
 
+        mockServerInfo = {
+            name: 'foo',
+            version: '3.0.0',
+        }
+
         sinon.stub(process, 'platform').value('win32')
     })
 
@@ -146,33 +152,33 @@ describe('makeUserContextObject', () => {
     })
 
     it('should return a valid UserContext object', () => {
-        const result = makeUserContextObject(mockInitializeParams, 'win32', 'TestProduct')
+        const result = makeUserContextObject(mockInitializeParams, 'win32', 'TestProduct', mockServerInfo)
         assert(result)
         assert.ok('ideCategory' in result)
         assert.ok('operatingSystem' in result)
         assert.strictEqual(result.operatingSystem, 'WINDOWS')
         assert.strictEqual(result.product, 'TestProduct')
         assert.strictEqual(result.clientId, 'test-client-id')
-        assert.strictEqual(result.ideVersion, '1.2.3')
+        assert.strictEqual(result.ideVersion, 'ide=1.0.0;plugin=2.0.0;lsp=3.0.0')
     })
 
     it('should prefer initializationOptions.aws version over clientInfo version', () => {
-        const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct')
-        assert.strictEqual(result?.ideVersion, '1.2.3')
+        const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct', mockServerInfo)
+        assert.strictEqual(result?.ideVersion, 'ide=1.0.0;plugin=2.0.0;lsp=3.0.0')
     })
 
     it('should use clientInfo version if initializationOptions.aws version is not available', () => {
         // @ts-ignore
         mockInitializeParams.initializationOptions.aws.clientInfo.version = undefined
-        const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct')
-        assert.strictEqual(result?.ideVersion, '1.1.1')
+        const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct', mockServerInfo)
+        assert.strictEqual(result?.ideVersion, 'ide=1.1.1;plugin=2.0.0;lsp=3.0.0')
     })
 
     it('should return undefined if ideCategory is not in IDE_CATEGORY_MAP', () => {
         // @ts-ignore
         mockInitializeParams.initializationOptions.aws.clientInfo.extension.name = 'Unknown IDE'
 
-        const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct')
+        const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct', mockServerInfo)
         assert.strictEqual(result, undefined)
     })
 
@@ -188,7 +194,7 @@ describe('makeUserContextObject', () => {
             // @ts-ignore
             mockInitializeParams.initializationOptions.aws.clientInfo.extension.name = clientName
 
-            const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct')
+            const result = makeUserContextObject(mockInitializeParams, 'linux', 'TestProduct', mockServerInfo)
             switch (clientName) {
                 case 'AmazonQ-For-VSCode':
                     assert.strictEqual(result?.ideCategory, 'VSCODE')
@@ -222,7 +228,7 @@ describe('makeUserContextObject', () => {
         ]
 
         platforms.forEach(platform => {
-            const result = makeUserContextObject(mockInitializeParams, platform, 'TestProduct')
+            const result = makeUserContextObject(mockInitializeParams, platform, 'TestProduct', mockServerInfo)
             switch (platform) {
                 case 'win32':
                     assert.strictEqual(result?.operatingSystem, 'WINDOWS')

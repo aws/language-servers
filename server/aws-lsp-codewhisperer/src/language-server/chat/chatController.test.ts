@@ -1,8 +1,4 @@
-import {
-    ChatResponseStream,
-    CodeWhispererStreaming,
-    SendMessageCommandInput,
-} from '@aws/codewhisperer-streaming-client'
+import { ChatResponseStream, CodeWhispererStreaming, SendMessageCommandInput } from '@amzn/codewhisperer-streaming'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -641,6 +637,31 @@ describe('ChatController', () => {
             )
 
             assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
+        })
+
+        it('emits telemetry on successful inline chat response', async () => {
+            await chatController.onInlineChatPrompt({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledWith(
+                testFeatures.telemetry.emitMetric,
+                sinon.match.has('name', 'codewhisperer_inlineChatServiceInvocation')
+            )
+        })
+
+        it('emits failure telemetry when inline chat service invocation fails', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Service Error')
+            })
+
+            await chatController.onInlineChatPrompt({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledWith(
+                testFeatures.telemetry.emitMetric,
+                sinon.match({
+                    name: 'codewhisperer_inlineChatServiceInvocation',
+                    result: 'Failed',
+                })
+            )
         })
 
         describe('#extractDocumentContext', () => {

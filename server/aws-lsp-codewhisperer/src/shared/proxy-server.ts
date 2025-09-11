@@ -20,10 +20,10 @@ export const QNetTransformServerTokenProxy = QNetTransformServerToken()
 export const QChatServerTokenProxy = QChatServerFactory(getOrThrowBaseTokenServiceManager)
 export const QChatServerIAMProxy = QChatServerFactory(getOrThrowBaseIAMServiceManager)
 
-export const QAgenticChatServerTokenProxy = QAgenticChatServer()
+export const QAgenticChatServerProxy = QAgenticChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
 
-export const QLocalProjectContextServerTokenProxy = LocalProjectContextServer()
+export const QLocalProjectContextServerProxy = LocalProjectContextServer()
 
 export const WorkspaceContextServerTokenProxy = WorkspaceContextServer()

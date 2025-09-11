@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
+import { CodeWhispererServer, CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -27,6 +27,7 @@ import {
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
+    EXPECTED_RESULT_EDITS,
     EXPECTED_RESULT_WITHOUT_IMPORTS,
     EXPECTED_RESULT_WITHOUT_REFERENCES,
     EXPECTED_RESULT_WITH_IMPORTS,
@@ -54,11 +55,14 @@ import {
 import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import * as utils from '../../shared/utils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
-import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
+import { CONTEXT_CHARACTERS_LIMIT } from './constants'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -104,6 +108,33 @@ describe('CodeWhisperer Server', () => {
             .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
+
+        // Stub the global service manager functions to ensure they return test service managers
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager'),
+                'getOrThrowBaseTokenServiceManager'
+            )
+            .callsFake(() => {
+                // Create a new test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Also stub the IAM service manager
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager'),
+                'getOrThrowBaseIAMServiceManager'
+            )
+            .callsFake(() => {
+                // Return the same test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Reset AmazonQTokenServiceManager singleton to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        AmazonQTokenServiceManager.resetInstance()
     })
 
     afterEach(() => {
@@ -112,6 +143,14 @@ describe('CodeWhisperer Server', () => {
         sandbox.restore()
         sinon.restore()
         SESSION_IDS_LOG = []
+
+        // Reset all service manager singletons to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        const AmazonQIAMServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager').AmazonQIAMServiceManager
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQIAMServiceManager.resetInstance()
     })
 
     describe('Recommendations', () => {
@@ -645,7 +684,8 @@ describe('CodeWhisperer Server', () => {
 
         it('handles partialResultToken in request', async () => {
             const manager = SessionManager.getInstance()
-            manager.createSession(SAMPLE_SESSION_DATA)
+            const session = manager.createSession(SAMPLE_SESSION_DATA)
+            manager.activateSession(session)
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -768,11 +808,59 @@ describe('CodeWhisperer Server', () => {
             assert.rejects(promise, ResponseError)
         })
 
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
+        })
+
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
                     CodeWhispererServiceToken
                 ) as StubbedInstance<CodeWhispererServiceToken>
+                // TODO: Use real CodeWhispererServiceToken instead of stub
+                test_service.constructSupplementalContext.resolves({
+                    supContextData: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                content: 'class Foo',
+                                filePath: 'foo.java',
+                                score: 0,
+                            },
+                            {
+                                content: 'class Bar',
+                                filePath: 'bar.java',
+                                score: 0,
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'OpenTabs_BM25',
+                    },
+                    items: [
+                        {
+                            content: 'class Foo',
+                            filePath: 'Foo.java',
+                        },
+                        {
+                            content: 'class Bar',
+                            filePath: 'Bar.java',
+                        },
+                    ],
+                })
 
                 test_service.generateSuggestions.returns(
                     Promise.resolve({
@@ -826,8 +914,8 @@ describe('CodeWhisperer Server', () => {
                     },
                     maxResults: 5,
                     supplementalContexts: [
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                        { content: 'class Foo', filePath: 'Foo.java' },
+                        { content: 'class Bar', filePath: 'Bar.java' },
                     ],
                     // workspaceId: undefined,
                 }
@@ -1452,7 +1540,7 @@ describe('CodeWhisperer Server', () => {
             manager.activateSession(session)
             const session2 = manager.createSession(sessionData)
             manager.activateSession(session2)
-            assert.equal(session.state, 'CLOSED')
+            assert.equal(session.state, 'ACTIVE')
             assert.equal(session2.state, 'ACTIVE')
 
             await features.doLogInlineCompletionSessionResults(sessionResultData)
@@ -2064,8 +2152,8 @@ describe('CodeWhisperer Server', () => {
                 expectedSessionData
             )
         })
-
-        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+        // we decided to temporarily stop concurrent trigger and disable such logic
+        it.skip('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
             const getCompletionsResponses = await Promise.all([
                 features.doInlineCompletionWithReferences(
                     {
@@ -2127,7 +2215,47 @@ describe('CodeWhisperer Server', () => {
             )
         })
 
-        it('should record all sessions that were created in session log', async () => {
+        it('should block inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+            const getCompletionsResponses = await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            // 3 requests were processed by server, but only first should return results
+            const EXPECTED_COMPLETION_RESPONSES = [
+                { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // First session wins
+                { sessionId: '', items: [] },
+                { sessionId: '', items: [] },
+            ]
+            // Only last request must return completion items
+            assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+        })
+
+        it.skip('should record all sessions that were created in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
@@ -2209,39 +2337,6 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
         })
 
-        it('Manual completion invocation should close previous session', async () => {
-            const TRIGGER_KIND = InlineCompletionTriggerKind.Invoked
-
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    // Manual trigger kind
-                    context: { triggerKind: TRIGGER_KIND },
-                },
-                CancellationToken.None
-            )
-
-            assert.deepEqual(result, EXPECTED_RESULT)
-            const firstSession = sessionManager.getActiveSession()
-
-            // There is ACTIVE session
-            assert(firstSession)
-            assert.equal(sessionManager.getCurrentSession(), firstSession)
-            assert.equal(firstSession.state, 'ACTIVE')
-
-            const secondResult = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: TRIGGER_KIND },
-                },
-                CancellationToken.None
-            )
-            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
-            sinon.assert.called(sessionManagerSpy.closeCurrentSession)
-        })
-
         it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
             // This test fails when the file starts with a new line, probably due to the way we handle right context merge
@@ -2275,6 +2370,188 @@ describe('CodeWhisperer Server', () => {
             assert(session)
             assert(session.state, 'CLOSED')
             sinon.assert.calledOnce(sessionManagerSpy.closeSession)
+        })
+    })
+
+    describe('Recommendation with editsEnabled', () => {
+        let features: TestFeatures
+        let server: Server
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = sinon.createStubInstance(CodeWhispererServiceToken) as StubbedInstance<CodeWhispererServiceToken>
+
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.EDIT,
+                })
+            )
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            const mockInitParams: InitializeParams = {
+                processId: 0,
+                rootUri: 'some-root-uri',
+                capabilities: {},
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            textDocument: {
+                                inlineCompletionWithReferences: {
+                                    inlineEditSupport: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            }
+
+            features.lsp.getClientInitializeParams.returns(mockInitParams)
+
+            TestAmazonQServiceManager.resetInstance()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
+            // Return no specific configuration for CodeWhisperer
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+
+            // Start the server and open a document
+            await startServer(features, server)
+
+            features.openDocument(SOME_FILE)
+        })
+
+        afterEach(() => {
+            features.dispose()
+            TestAmazonQServiceManager.resetInstance()
+        })
+    })
+
+    describe('IAM Error Handling', () => {
+        it('should handle IAM access denied errors', async () => {
+            const service = sinon.createStubInstance(
+                CodeWhispererServiceToken
+            ) as StubbedInstance<CodeWhispererServiceToken>
+            service.generateSuggestions.rejects(new Error('not authorized'))
+
+            const features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            TestAmazonQServiceManager.resetInstance()
+            const server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await startServer(features, server)
+            features.openDocument(SOME_FILE)
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EMPTY_RESULT)
+            TestAmazonQServiceManager.resetInstance()
+        })
+    })
+
+    describe('getLanguageIdFromUri', () => {
+        it('should return python for notebook cell URIs', () => {
+            const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'
+            assert.strictEqual(getLanguageIdFromUri(uri), 'python')
+        })
+
+        it('should return abap for files with ABAP extensions', () => {
+            const uris = ['file:///path/to/file.asprog']
+
+            uris.forEach(uri => {
+                assert.strictEqual(getLanguageIdFromUri(uri), 'abap')
+            })
+        })
+
+        it('should return empty string for non-ABAP files', () => {
+            const uris = ['file:///path/to/file.js', 'file:///path/to/file.ts', 'file:///path/to/file.py']
+
+            uris.forEach(uri => {
+                assert.strictEqual(getLanguageIdFromUri(uri), '')
+            })
+        })
+
+        it('should return empty string for invalid URIs', () => {
+            const invalidUris = ['', 'invalid-uri', 'file:///']
+
+            invalidUris.forEach(uri => {
+                assert.strictEqual(getLanguageIdFromUri(uri), '')
+            })
+        })
+
+        it('should log errors when provided with a logging object', () => {
+            const mockLogger = {
+                log: sinon.spy(),
+            }
+
+            const invalidUri = {} as string // Force type error
+            getLanguageIdFromUri(invalidUri, mockLogger)
+
+            sinon.assert.calledOnce(mockLogger.log)
+            sinon.assert.calledWith(mockLogger.log, sinon.match(/Error parsing URI to determine language:.*/))
+        })
+
+        it('should handle URIs without extensions', () => {
+            const uri = 'file:///path/to/file'
+            assert.strictEqual(getLanguageIdFromUri(uri), '')
+        })
+    })
+
+    describe('Dynamic Service Manager Selection', () => {
+        it('should use Token service manager when not using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(false)
+            const mockTokenService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockTokenService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            const server = CodeWhispererServer
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
+        })
+
+        it('should use IAM service manager when using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(true)
+            const mockIAMService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockIAMService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            const server = CodeWhispererServer
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
         })
     })
 })

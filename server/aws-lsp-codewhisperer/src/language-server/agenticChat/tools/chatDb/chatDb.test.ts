@@ -8,8 +8,10 @@ import sinon from 'ts-sinon'
 import { ChatDatabase, ToolResultValidationError } from './chatDb'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { Message } from './util'
-import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import * as fs from 'fs'
+import * as util from './util'
+import { sleep } from '@aws/lsp-core/out/util/timeoutUtils'
 
 describe('ChatDatabase', () => {
     let mockFeatures: Features
@@ -55,12 +57,62 @@ describe('ChatDatabase', () => {
             },
         } as unknown as Features
 
-        chatDb = new ChatDatabase(mockFeatures)
+        chatDb = ChatDatabase.getInstance(mockFeatures)
     })
 
     afterEach(() => {
         chatDb.close()
         sinon.restore()
+    })
+
+    describe('replaceWithSummary', () => {
+        it('should create a new history with summary message', async () => {
+            await chatDb.databaseInitialize(0)
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const summaryMessage = {
+                body: 'This is a summary of the conversation',
+                type: 'prompt' as any,
+                timestamp: new Date(),
+            }
+
+            // Call the method
+            chatDb.replaceWithSummary(tabId, tabType, conversationId, summaryMessage)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messages = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messages.length, 2)
+            assert.strictEqual(messages[0].body, summaryMessage.body)
+            assert.strictEqual(messages[0].type, 'prompt')
+            assert.strictEqual(messages[1].body, 'Working...')
+            assert.strictEqual(messages[1].type, 'answer')
+            assert.strictEqual(messages[1].shouldDisplayMessage, false)
+        })
+    })
+
+    describe('replaceHistory', () => {
+        it('should replace history with messages', async () => {
+            await chatDb.databaseInitialize(0)
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const messages = [
+                { body: 'Test', type: 'prompt' as any, timestamp: new Date() },
+                { body: 'Thinking...', type: 'answer', timestamp: new Date() },
+            ]
+
+            // Call the method
+            chatDb.replaceHistory(tabId, tabType, conversationId, messages)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messagesFromDb = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messagesFromDb.length, 2)
+            assert.strictEqual(messagesFromDb[0].body, 'Test')
+            assert.strictEqual(messagesFromDb[0].type, 'prompt')
+            assert.strictEqual(messagesFromDb[1].body, 'Thinking...')
+            assert.strictEqual(messagesFromDb[1].type, 'answer')
+        })
     })
 
     describe('ensureValidMessageSequence', () => {
@@ -429,4 +481,258 @@ describe('ChatDatabase', () => {
             }, ToolResultValidationError)
         })
     })
+
+    describe('calculateNewMessageCharacterCount', () => {
+        it('should calculate character count for new message and pinned context', () => {
+            const newUserMessage = {
+                userInputMessage: {
+                    content: 'Test message',
+                    userInputMessageContext: {},
+                },
+            } as ChatMessage
+
+            const pinnedContextMessages = [
+                {
+                    userInputMessage: {
+                        content: 'Pinned context 1',
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Pinned response 1',
+                    },
+                },
+            ]
+
+            // Stub the calculateMessagesCharacterCount method
+            const calculateMessagesCharacterCountStub = sinon.stub(chatDb, 'calculateMessagesCharacterCount')
+            calculateMessagesCharacterCountStub.onFirstCall().returns(11) // 'Test message'
+            calculateMessagesCharacterCountStub.onSecondCall().returns(30) // Pinned context messages
+
+            // Stub the calculateToolSpecCharacterCount method
+            const calculateToolSpecCharacterCountStub = sinon.stub(chatDb as any, 'calculateToolSpecCharacterCount')
+            calculateToolSpecCharacterCountStub.returns(50) // Tool spec count
+
+            const result = chatDb.calculateNewMessageCharacterCount(newUserMessage, pinnedContextMessages)
+
+            // Verify the result is the sum of all character counts
+            assert.strictEqual(result, 91) // 11 + 30 + 50
+
+            // Verify the methods were called with correct arguments
+            sinon.assert.calledWith(calculateMessagesCharacterCountStub.firstCall, [
+                {
+                    body: 'Test message',
+                    type: 'prompt',
+                    userIntent: undefined,
+                    origin: 'IDE',
+                    userInputMessageContext: {},
+                },
+            ])
+
+            // Clean up
+            calculateMessagesCharacterCountStub.restore()
+            calculateToolSpecCharacterCountStub.restore()
+        })
+    })
+
+    describe('getWorkspaceIdentifier', () => {
+        const MOCK_MD5_HASH = '5bc032692b81700eb516f317861fbf32'
+        const MOCK_SHA256_HASH = 'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f'
+
+        let existsSyncStub: sinon.SinonStub
+        let renameSyncStub: sinon.SinonStub
+        let getMd5WorkspaceIdStub: sinon.SinonStub
+        let getSha256WorkspaceIdStub: sinon.SinonStub
+
+        beforeEach(() => {
+            existsSyncStub = sinon.stub(fs, 'existsSync')
+            renameSyncStub = sinon.stub(fs, 'renameSync')
+
+            // Mock hash functions
+            getMd5WorkspaceIdStub = sinon.stub(util, 'getMd5WorkspaceId')
+            getMd5WorkspaceIdStub.withArgs('/path/to/workspace').returns(MOCK_MD5_HASH)
+
+            getSha256WorkspaceIdStub = sinon.stub(util, 'getSha256WorkspaceId')
+            getSha256WorkspaceIdStub.withArgs('/path/to/workspace.code-workspace').returns(MOCK_SHA256_HASH)
+        })
+
+        afterEach(() => {
+            existsSyncStub.restore()
+            renameSyncStub.restore()
+            getMd5WorkspaceIdStub.restore()
+            getSha256WorkspaceIdStub.restore()
+        })
+
+        it('case 1: old plugin, workspaceFilePath is not provided. Should return folder based ID', () => {
+            // Setup: workspaceFilePath is undefined
+            const lspStub = mockFeatures.lsp.getClientInitializeParams as sinon.SinonStub
+            lspStub.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            q: {},
+                        },
+                    },
+                },
+            })
+
+            // Setup: single workspace folder
+            const workspaceStub = mockFeatures.workspace.getAllWorkspaceFolders as sinon.SinonStub
+            workspaceStub.returns([{ uri: 'file:///path/to/workspace' }])
+
+            // Verify: should use folder-based identifier (MD5 hash)
+            assert.strictEqual(
+                MOCK_MD5_HASH,
+                chatDb.getWorkspaceIdentifier(),
+                'should use md5 hash for workspace folder'
+            )
+        })
+
+        it('case 2: new plugin, workspaceFilePath is provided, no existing folder based history file. Should return ws file based ID', () => {
+            // Setup: workspaceFilePath is provided
+            const lspStub = mockFeatures.lsp.getClientInitializeParams as sinon.SinonStub
+            lspStub.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            q: {
+                                workspaceFilePath: '/path/to/workspace.code-workspace',
+                            },
+                        },
+                    },
+                },
+            })
+
+            // Setup: new DB file exists, so no migration needed
+            existsSyncStub.returns(true)
+
+            // Verify: should use workspace file based identifier (sha256 hash)
+            assert.strictEqual(
+                MOCK_SHA256_HASH,
+                chatDb.getWorkspaceIdentifier(),
+                'should use sha256 hash for workspace file'
+            )
+            // Verify: should not attempt migration since new file exists
+            assert.strictEqual(renameSyncStub.callCount, 0, 'Should not attempt migration when new file exists')
+        })
+
+        it('case 3: new plugin, workspaceFilePath is provided, folder based history file exists. Should migrate to ws file based ID', () => {
+            // Setup: workspaceFilePath is provided
+            const lspStub = mockFeatures.lsp.getClientInitializeParams as sinon.SinonStub
+            lspStub.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            q: {
+                                workspaceFilePath: '/path/to/workspace.code-workspace',
+                            },
+                        },
+                    },
+                },
+            })
+
+            // Setup: single workspace folder
+            const workspaceStub = mockFeatures.workspace.getAllWorkspaceFolders as sinon.SinonStub
+            workspaceStub.returns([{ uri: 'file:///path/to/workspace' }])
+
+            // Setup: new DB file doesn't exist, but old file exists
+            // Use callsFake with a counter to control return values consistently
+            let callCount = 0
+            existsSyncStub.callsFake(() => {
+                // First call returns false (new file doesn't exist)
+                // All subsequent calls return true (old file exists)
+                return callCount++ === 0 ? false : true
+            })
+
+            // Verify: should attempt migration
+            assert.strictEqual(
+                'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f',
+                chatDb.getWorkspaceIdentifier(),
+                'should use sha256 hash for workspace file'
+            )
+            assert.strictEqual(renameSyncStub.callCount, 1, 'Should attempt migration when old file exists')
+            // Verify: migration should rename old file to new file
+            const renameCall = renameSyncStub.getCall(0)
+            assert.ok(
+                renameCall.args[0].endsWith('chat-history-5bc032692b81700eb516f317861fbf32.json'),
+                'Should rename from old file path'
+            )
+            assert.ok(
+                renameCall.args[1].endsWith(
+                    'chat-history-bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f.json'
+                ),
+                'Should rename to new file path'
+            )
+        })
+    })
+
+    describe('Model Cache Management', () => {
+        beforeEach(async () => {
+            await chatDb.databaseInitialize(0)
+        })
+
+        it('should cache and retrieve models', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            const defaultModelId = 'model-1'
+
+            chatDb.setCachedModels(models, defaultModelId)
+            const cached = chatDb.getCachedModels()
+
+            assert.ok(cached, 'Should return cached data')
+            assert.deepStrictEqual(cached.models, models)
+            assert.strictEqual(cached.defaultModelId, defaultModelId)
+            assert.ok(cached.timestamp > 0, 'Should have timestamp')
+        })
+
+        it('should validate cache expiry', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            chatDb.setCachedModels(models)
+
+            // Mock isCachedValid to return false (expired)
+            const isCachedValidStub = sinon.stub(util, 'isCachedValid').returns(false)
+
+            assert.strictEqual(chatDb.isCachedModelsValid(), false)
+
+            isCachedValidStub.restore()
+        })
+
+        it('should clear cached models', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            chatDb.setCachedModels(models)
+
+            // Verify cache exists
+            assert.ok(chatDb.getCachedModels(), 'Cache should exist before clearing')
+
+            chatDb.clearCachedModels()
+
+            // Verify cache is cleared
+            assert.strictEqual(chatDb.getCachedModels(), undefined, 'Cache should be cleared')
+        })
+
+        it('should clear model cache via static method when instance exists', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            chatDb.setCachedModels(models)
+
+            // Verify cache exists
+            assert.ok(chatDb.getCachedModels(), 'Cache should exist before clearing')
+
+            ChatDatabase.clearModelCache()
+
+            // Verify cache is cleared
+            assert.strictEqual(chatDb.getCachedModels(), undefined, 'Cache should be cleared via static method')
+        })
+
+        it('should handle static clearModelCache when no instance exists', () => {
+            // Close current instance
+            chatDb.close()
+
+            // Should not throw when no instance exists
+            assert.doesNotThrow(() => {
+                ChatDatabase.clearModelCache()
+            }, 'Should not throw when no instance exists')
+        })
+    })
 })
+function uuid(): `${string}-${string}-${string}-${string}-${string}` {
+    throw new Error('Function not implemented.')
+}

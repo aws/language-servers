@@ -9,6 +9,10 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
+    TextDocument,
+    Position,
+    CancellationToken,
+    InlineCompletionWithReferencesParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
@@ -19,7 +23,12 @@ import {
     CodeWhispererServiceIAM,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    isIAMRequest,
+    isTokenRequest,
 } from './codeWhispererService'
+import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
+import { CodeWhispererSupplementalContext } from './models/model'
+import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox
@@ -69,6 +78,25 @@ describe('CodeWhispererService', function () {
 
                 getCredentialsType(): CredentialsType {
                     return 'iam'
+                }
+
+                async constructSupplementalContext(
+                    document: TextDocument,
+                    position: Position,
+                    workspace: Workspace,
+                    recentEditTracker: RecentEditTracker,
+                    logging: Logging,
+                    cancellationToken: CancellationToken,
+                    opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
+                    config: { includeRecentEdits: boolean }
+                ): Promise<
+                    | {
+                          supContextData: CodeWhispererSupplementalContext
+                          items: CodeWhispererTokenClient.SupplementalContextList
+                      }
+                    | undefined
+                > {
+                    return undefined
                 }
 
                 // Add public getters for protected properties
@@ -276,6 +304,38 @@ describe('CodeWhispererService', function () {
                 // Verify that the client was called with the customizationArn
                 const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
                 assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
+            })
+
+            it('should include serviceType in response', async function () {
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
+
+                const result = await service.generateSuggestions(mockRequest)
+                assert.strictEqual(result.responseContext.authType, 'iam')
+            })
+        })
+
+        describe('Request Type Guards', function () {
+            it('should identify IAM vs Token requests', function () {
+                const iamRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: '',
+                        rightFileContent: '',
+                    },
+                }
+                const tokenRequest = { ...iamRequest, editorState: {} }
+
+                assert.strictEqual(isIAMRequest(iamRequest), true)
+                assert.strictEqual(isTokenRequest(tokenRequest), true)
             })
         })
     })

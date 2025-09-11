@@ -340,4 +340,13 @@ export class TabBarController {
 
         return false
     }
+
+    public static enableShowLogs(params?: InitializeParams) {
+        if (params?.initializationOptions?.aws?.awsClientCapabilities?.window?.showLogs) {
+            // Export Chat UX flow relies on show Save File dialog protocol supported by client
+            return true
+        }
+
+        return false
+    }
 }

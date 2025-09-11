@@ -2,6 +2,8 @@ import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAccepta
 import { EmptyPathError, MissingContentError, FileExistsWithSameContentError, EmptyAppendContentError } from '../errors'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 interface BaseParams extends ExplanatoryParams {
     path: string
@@ -99,6 +101,12 @@ export class FsWrite {
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
         const content = params.fileText
         await this.workspace.fs.writeFile(sanitizedPath, content)
+
+        // Add created file to @Files list
+        void LocalProjectContextController.getInstance().then(controller => {
+            const filePath = URI.file(sanitizedPath).fsPath
+            return controller.updateIndexAndContextCommand([filePath], true)
+        })
     }
 
     private async handleAppend(params: AppendParams, sanitizedPath: string): Promise<void> {

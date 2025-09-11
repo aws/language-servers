@@ -1,4 +1,4 @@
-import { ExportIntent } from '@aws/codewhisperer-streaming-client'
+import { ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
@@ -54,23 +54,12 @@ export class TransformHandler {
             isProject,
             this.logging
         )
-        if (isProject) {
-            let isValid = validation.validateProject(userInputrequest, this.logging)
-            if (!isValid) {
-                return {
-                    Error: 'NotSupported',
-                    IsSupported: false,
-                    ContainsUnsupportedViews: containsUnsupportedViews,
-                } as StartTransformResponse
-            }
-        } else {
-            unsupportedProjects = validation.validateSolution(userInputrequest)
-        }
 
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
-            this.getWorkspacePath(userInputrequest.SolutionRootPath)
+            this.getWorkspacePath(userInputrequest.SolutionRootPath),
+            userInputrequest.SolutionRootPath
         )
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)

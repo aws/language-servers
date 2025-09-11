@@ -17,6 +17,9 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
         inlineSuggestions: {
             extraContext: 'some-extra-context',
         },
+        inlineChat: {
+            extraContext: 'some-inline-chat-context',
+        },
         projectContext: {
             enableLocalIndexing: true,
             enableGpuAcceleration: true,
@@ -51,6 +54,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             customizationArn: MOCKED_AWS_Q_SECTION.customization,
             optOutTelemetryPreference: 'OPTOUT',
             inlineSuggestions: { extraContext: MOCKED_AWS_Q_SECTION.inlineSuggestions.extraContext },
+            inlineChat: { extraContext: MOCKED_AWS_Q_SECTION.inlineChat.extraContext },
             includeSuggestionsWithCodeReferences: MOCKED_AWS_CODEWHISPERER_SECTION.includeSuggestionsWithCodeReferences,
             includeImportsWithSuggestions: MOCKED_AWS_CODEWHISPERER_SECTION.includeImportsWithSuggestions,
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
@@ -99,6 +103,9 @@ describe('AmazonQConfigurationCache', () => {
             optOutTelemetryPreference: 'OPTIN',
             inlineSuggestions: {
                 extraContext: 'some-extra-context',
+            },
+            inlineChat: {
+                extraContext: 'some-inline-chat-context',
             },
             includeSuggestionsWithCodeReferences: false,
             includeImportsWithSuggestions: false,

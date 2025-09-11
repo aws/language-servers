@@ -12,7 +12,6 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { crossFileContextConfig, supplementalContextTimeoutInMs } from '../models/constants'
 import * as os from 'os'
-import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 import { TestIntentDetector } from './unitTestIntentDetection'
 import { FocalFileResolver } from './focalFileResolution'
 import * as fs from 'fs'
@@ -29,7 +28,7 @@ export async function fetchSupplementalContext(
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
 
@@ -73,7 +72,7 @@ export async function fetchSupplementalContext(
                 position,
                 workspace,
                 cancellationToken,
-                amazonQServiceManager
+                openTabFiles
             )
         }
 
@@ -92,7 +91,24 @@ export async function fetchSupplementalContext(
                 strategy: supplementalContextValue.strategy,
             }
 
-            return truncateSupplementalContext(resBeforeTruncation)
+            const r = truncateSupplementalContext(resBeforeTruncation)
+
+            let logstr = `@@supplemental context@@
+\tisUtg: ${r.isUtg},
+\tisProcessTimeout: ${r.isProcessTimeout},
+\tcontents.length: ${r.contentsLength},
+\tlatency: ${r.latency},
+\tstrategy: ${r.strategy},
+`
+            r.supplementalContextItems.forEach((item, index) => {
+                logstr += `\tChunk [${index}th]:\n`
+                logstr += `\t\tPath: ${item.filePath}\n`
+                logstr += `\t\tLength: ${item.content.length}\n`
+                logstr += `\t\tScore: ${item.score}\n`
+            })
+            logging.info(logstr)
+
+            return r
         } else {
             return undefined
         }

@@ -10,17 +10,30 @@ import * as path from 'path'
 import {
     loadMcpServerConfigs,
     loadPersonaPermissions,
+    loadAgentConfig,
     getWorkspacePersonaConfigPaths,
     getGlobalPersonaConfigPath,
+    getWorkspaceAgentConfigPaths,
+    getGlobalAgentConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getGlobalMcpConfigPath,
     createNamespacedToolName,
     MAX_TOOL_NAME_LENGTH,
     enabledMCP,
     normalizePathFromUri,
+    saveAgentConfig,
+    saveServerSpecificAgentConfig,
+    isEmptyEnv,
+    sanitizeName,
+    convertPersonaToAgent,
+    migrateToAgentConfig,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
+import { McpPermissionType } from './mcpTypes'
 import { pathToFileURL } from 'url'
 import * as sinon from 'sinon'
 import { URI } from 'vscode-uri'
+import { sanitizeInput } from '../../../../shared/utils'
 
 describe('loadMcpServerConfigs', () => {
     let tmpDir: string
@@ -104,6 +117,38 @@ describe('loadMcpServerConfigs', () => {
         const out2 = await loadMcpServerConfigs(workspace, logger, [overridePath, globalPath])
         expect(out2.servers.get('S')!.command).to.equal('workspaceCmd')
     })
+
+    it('loads config that uses url only', async () => {
+        const cfg = { mcpServers: { WebSrv: { url: 'https://example.com/mcp' } } }
+        const p = path.join(tmpDir, 'http.json')
+        fs.writeFileSync(p, JSON.stringify(cfg))
+
+        const out = await loadMcpServerConfigs(workspace, logger, [p])
+        expect(out.servers.has('WebSrv')).to.be.true
+        const c = out.servers.get('WebSrv')!
+        expect(c.url).to.equal('https://example.com/mcp')
+        expect(c.command).to.be.undefined
+    })
+
+    it('skips server that specifies both command and url', async () => {
+        const cfg = { mcpServers: { BadSrv: { command: 'foo', url: 'https://example.com' } } }
+        const p = path.join(tmpDir, 'bad.json')
+        fs.writeFileSync(p, JSON.stringify(cfg))
+
+        const out = await loadMcpServerConfigs(workspace, logger, [p])
+        expect(out.servers.size).to.equal(0)
+        expect(out.errors.get('BadSrv')).to.match(/either.*command.*url/i)
+    })
+
+    it('skips server that has neither command nor url', async () => {
+        const cfg = { mcpServers: { EmptySrv: { args: [] } } }
+        const p = path.join(tmpDir, 'empty.json')
+        fs.writeFileSync(p, JSON.stringify(cfg))
+
+        const out = await loadMcpServerConfigs(workspace, logger, [p])
+        expect(out.servers.size).to.equal(0)
+        expect(out.errors.get('EmptySrv')).to.match(/either.*command.*url/i)
+    })
 })
 
 describe('loadPersonaPermissions', () => {
@@ -146,7 +191,83 @@ describe('loadPersonaPermissions', () => {
     })
 })
 
-describe('persona path helpers', () => {
+describe('loadAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        sinon.restore()
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentConfigTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('creates a default agent config when none exists', async () => {
+        // Add the global agent path to the paths array
+        const agentPath = getGlobalAgentConfigPath(tmpDir)
+        const result = await loadAgentConfig(workspace, logger, [agentPath])
+
+        // Check that the agent config has the expected structure
+        expect(result.agentConfig).to.have.property('name')
+        expect(result.agentConfig).to.have.property('tools').that.is.an('array')
+        expect(result.agentConfig).to.have.property('allowedTools').that.is.an('array')
+
+        // The default file should have been written under ~/.aws/amazonq/agents/default.json
+        expect(fs.existsSync(agentPath)).to.be.true
+        const content = fs.readFileSync(agentPath, 'utf-8')
+        expect(content).to.contain('tools')
+    })
+
+    it('loads valid server configs from agent config', async () => {
+        // Create an agent config with a server
+        const agentPath = getGlobalAgentConfigPath(tmpDir)
+        await workspace.fs.mkdir(path.dirname(agentPath), { recursive: true })
+
+        const agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {
+                testServer: {
+                    command: 'test-command',
+                    args: ['arg1', 'arg2'],
+                    env: { TEST_ENV: 'value' },
+                },
+            },
+            tools: ['@testServer'],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await workspace.fs.writeFile(agentPath, JSON.stringify(agentConfig))
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath])
+
+        // Check that the server was loaded correctly
+        expect(result.servers.size).to.equal(1)
+        expect(result.servers.has('testServer')).to.be.true
+        const serverConfig = result.servers.get('testServer')
+        expect(serverConfig?.command).to.equal('test-command')
+        expect(serverConfig?.args).to.deep.equal(['arg1', 'arg2'])
+        expect(serverConfig?.env).to.deep.equal({ TEST_ENV: 'value' })
+    })
+})
+
+describe('path helpers', () => {
     it('getWorkspacePersonaConfigPaths()', () => {
         const uris = ['uri1', 'uri2']
         const expected = [
@@ -161,6 +282,88 @@ describe('persona path helpers', () => {
         const homePath = path.resolve('home_dir')
         const expected = path.join(homePath, '.aws', 'amazonq', 'personas', 'default.json')
         expect(getGlobalPersonaConfigPath(homePath)).to.equal(expected)
+    })
+
+    it('getWorkspaceAgentConfigPaths()', () => {
+        const uris = ['uri1', 'uri2']
+        const expected = [
+            path.join('uri1', '.amazonq', 'agents', 'default.json'),
+            path.join('uri2', '.amazonq', 'agents', 'default.json'),
+        ]
+        expect(getWorkspaceAgentConfigPaths(uris)).to.deep.equal(expected)
+    })
+
+    it('getGlobalAgentConfigPath()', () => {
+        // Use a platform-neutral path for testing
+        const homePath = path.resolve('home_dir')
+        const expected = path.join(homePath, '.aws', 'amazonq', 'agents', 'default.json')
+        expect(getGlobalAgentConfigPath(homePath)).to.equal(expected)
+    })
+})
+
+describe('saveAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'saveAgentTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('saves agent config to the specified path', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+        const config = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: ['tool1', 'tool2'],
+            allowedTools: ['tool1'],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await saveAgentConfig(workspace, logger, config, configPath)
+
+        // Verify the file was created
+        expect(fs.existsSync(configPath)).to.be.true
+
+        // Verify the content
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content).to.deep.equal(config)
+    })
+
+    it('creates parent directories if they do not exist', async () => {
+        const configPath = path.join(tmpDir, 'nested', 'dir', 'agent-config.json')
+        const config = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await saveAgentConfig(workspace, logger, config, configPath)
+
+        // Verify the file was created
+        expect(fs.existsSync(configPath)).to.be.true
     })
 })
 
@@ -218,17 +421,6 @@ describe('loadMcpServerConfigs error handling', () => {
         expect(result.servers.size).to.equal(0)
         expect(result.errors.size).to.equal(1)
         expect(result.errors.get(missingFieldPath)).to.include("missing or invalid 'mcpServers' field")
-    })
-
-    it('captures missing command errors', async () => {
-        const missingCommandPath = path.join(tmpDir, 'missing-command.json')
-        fs.writeFileSync(missingCommandPath, '{"mcpServers": {"serverA": {"args": []}}}')
-
-        const result = await loadMcpServerConfigs(workspace, logger, [missingCommandPath])
-
-        expect(result.servers.size).to.equal(0)
-        expect(result.errors.size).to.equal(1)
-        expect(result.errors.get('serverA')).to.include("missing required 'command'")
     })
 
     it('captures invalid timeout errors', async () => {
@@ -417,5 +609,324 @@ describe('normalizePathFromUri', () => {
         URI.parse = originalParse
 
         expect(result).to.equal(invalidUri)
+    })
+})
+
+describe('sanitizeContent', () => {
+    it('removes Unicode Tag characters (U+E0000–U+E007F)', () => {
+        const input = 'foo\u{E0001}bar\u{E0060}baz'
+        const expected = 'foobarbaz'
+        expect(sanitizeInput(input)).to.equal(expected)
+    })
+})
+
+describe('getWorkspaceMcpConfigPaths', () => {
+    it('returns correct paths for workspace MCP configs', () => {
+        const uris = ['uri1', 'uri2']
+        const expected = [path.join('uri1', '.amazonq', 'mcp.json'), path.join('uri2', '.amazonq', 'mcp.json')]
+        expect(getWorkspaceMcpConfigPaths(uris)).to.deep.equal(expected)
+    })
+})
+
+describe('getGlobalMcpConfigPath', () => {
+    it('returns correct global MCP config path', () => {
+        const homePath = path.resolve('home_dir')
+        const expected = path.join(homePath, '.aws', 'amazonq', 'mcp.json')
+        expect(getGlobalMcpConfigPath(homePath)).to.equal(expected)
+    })
+})
+
+describe('isEmptyEnv', () => {
+    it('returns true for undefined env', () => {
+        expect(isEmptyEnv(undefined as any)).to.be.true
+    })
+
+    it('returns true for null env', () => {
+        expect(isEmptyEnv(null as any)).to.be.true
+    })
+
+    it('returns true for empty object', () => {
+        expect(isEmptyEnv({})).to.be.true
+    })
+
+    it('returns true for object with empty keys/values', () => {
+        expect(isEmptyEnv({ '': 'value', key: '' })).to.be.true
+        expect(isEmptyEnv({ '  ': '  ' })).to.be.true
+    })
+
+    it('returns false for object with valid key-value pairs', () => {
+        expect(isEmptyEnv({ KEY: 'value' })).to.be.false
+        expect(isEmptyEnv({ KEY1: 'value1', KEY2: 'value2' })).to.be.false
+    })
+})
+
+describe('sanitizeName', () => {
+    it('returns original name if valid', () => {
+        expect(sanitizeName('valid_name-123')).to.equal('valid_name-123')
+    })
+
+    it('filters invalid characters', () => {
+        expect(sanitizeName('name@#$%')).to.equal('name')
+        expect(sanitizeName('name with spaces')).to.equal('namewithspaces')
+    })
+
+    it('removes namespace delimiter', () => {
+        expect(sanitizeName('server___tool')).to.equal('servertool')
+    })
+
+    it('returns hash for empty sanitized string', () => {
+        const result = sanitizeName('@#$%')
+        expect(result).to.have.length(3)
+        expect(/^[a-f0-9]+$/.test(result)).to.be.true
+    })
+})
+
+describe('convertPersonaToAgent', () => {
+    let mockAgent: any
+
+    beforeEach(() => {
+        mockAgent = {
+            getBuiltInToolNames: () => ['fs_read', 'execute_bash'],
+            getBuiltInWriteToolNames: () => ['fs_write'],
+        }
+    })
+
+    it('converts basic persona to agent config', () => {
+        const persona = { mcpServers: ['*'], toolPerms: {} }
+        const mcpServers = { testServer: { command: 'test', args: [], env: {} } }
+
+        const result = convertPersonaToAgent(persona, mcpServers, mockAgent)
+
+        expect(result.name).to.equal('amazon_q_default')
+        expect(result.mcpServers).to.have.property('testServer')
+        expect(result.tools).to.include('@testServer')
+        expect(result.tools).to.include('fs_read')
+        expect(result.allowedTools).to.include('fs_read')
+    })
+
+    it('handles alwaysAllow permissions', () => {
+        const persona = {
+            mcpServers: ['testServer'],
+            toolPerms: {
+                testServer: {
+                    tool1: McpPermissionType.alwaysAllow,
+                },
+            },
+        }
+        const mcpServers = { testServer: { command: 'test', args: [], env: {} } }
+
+        const result = convertPersonaToAgent(persona, mcpServers, mockAgent)
+
+        expect(result.allowedTools).to.include('@testServer/tool1')
+    })
+})
+
+describe('migrateToAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+    let mockAgent: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'migrateTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+            getAllWorkspaceFolders: () => [],
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {} }
+        mockAgent = {
+            getBuiltInToolNames: () => ['fs_read'],
+            getBuiltInWriteToolNames: () => ['fs_write'],
+        }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('migrates when no existing configs exist', async () => {
+        // Create empty MCP config to trigger migration
+        const mcpDir = path.join(tmpDir, '.aws', 'amazonq')
+        fs.mkdirSync(mcpDir, { recursive: true })
+        const mcpPath = path.join(mcpDir, 'mcp.json')
+        fs.writeFileSync(mcpPath, JSON.stringify({ mcpServers: {} }))
+
+        await migrateToAgentConfig(workspace, logger, mockAgent)
+
+        // Should create default agent config
+        const agentPath = path.join(tmpDir, '.aws', 'amazonq', 'agents', 'default.json')
+        expect(fs.existsSync(agentPath)).to.be.true
+    })
+
+    it('migrates existing MCP config to agent config', async () => {
+        // Create MCP config
+        const mcpDir = path.join(tmpDir, '.aws', 'amazonq')
+        fs.mkdirSync(mcpDir, { recursive: true })
+        const mcpPath = path.join(mcpDir, 'mcp.json')
+        fs.writeFileSync(
+            mcpPath,
+            JSON.stringify({
+                mcpServers: {
+                    testServer: { command: 'test-cmd', args: ['arg1'] },
+                },
+            })
+        )
+
+        await migrateToAgentConfig(workspace, logger, mockAgent)
+
+        const agentPath = path.join(tmpDir, '.aws', 'amazonq', 'agents', 'default.json')
+        expect(fs.existsSync(agentPath)).to.be.true
+        const agentConfig = JSON.parse(fs.readFileSync(agentPath, 'utf-8'))
+        expect(agentConfig.mcpServers).to.have.property('testServer')
+    })
+})
+describe('saveServerSpecificAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'saveServerSpecificTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+            },
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('creates new config file when it does not exist', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+        const serverConfig = { command: 'test-cmd', args: ['arg1'] }
+        const serverTools = ['@testServer']
+        const serverAllowedTools = ['@testServer/tool1']
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'testServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        expect(fs.existsSync(configPath)).to.be.true
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content.mcpServers.testServer).to.deep.equal(serverConfig)
+        expect(content.tools).to.include('@testServer')
+        expect(content.allowedTools).to.include('@testServer/tool1')
+    })
+
+    it('updates existing config file', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+
+        // Create existing config
+        const existingConfig = {
+            name: 'existing-agent',
+            description: 'Existing agent',
+            mcpServers: {
+                existingServer: { command: 'existing-cmd' },
+            },
+            tools: ['fs_read', '@existingServer'],
+            allowedTools: ['fs_read'],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+        fs.writeFileSync(configPath, JSON.stringify(existingConfig))
+
+        const serverConfig = { command: 'new-cmd', args: ['arg1'] }
+        const serverTools = ['@newServer']
+        const serverAllowedTools = ['@newServer/tool1']
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'newServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content.name).to.equal('existing-agent')
+        expect(content.mcpServers.existingServer).to.deep.equal({ command: 'existing-cmd' })
+        expect(content.mcpServers.newServer).to.deep.equal(serverConfig)
+        expect(content.tools).to.include('@newServer')
+        expect(content.allowedTools).to.include('@newServer/tool1')
+    })
+
+    it('removes existing server tools before adding new ones', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+
+        // Create existing config with server tools
+        const existingConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {
+                testServer: { command: 'old-cmd' },
+            },
+            tools: ['fs_read', '@testServer', '@testServer/oldTool'],
+            allowedTools: ['fs_read', '@testServer/oldAllowedTool'],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+        fs.writeFileSync(configPath, JSON.stringify(existingConfig))
+
+        const serverConfig = { command: 'new-cmd' }
+        const serverTools = ['@testServer']
+        const serverAllowedTools = ['@testServer/newTool']
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'testServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content.tools).to.not.include('@testServer/oldTool')
+        expect(content.allowedTools).to.not.include('@testServer/oldAllowedTool')
+        expect(content.tools).to.include('@testServer')
+        expect(content.allowedTools).to.include('@testServer/newTool')
+        expect(content.tools).to.include('fs_read')
+    })
+
+    it('creates parent directories if they do not exist', async () => {
+        const configPath = path.join(tmpDir, 'nested', 'dir', 'agent-config.json')
+        const serverConfig = { command: 'test-cmd' }
+        const serverTools = ['@testServer']
+        const serverAllowedTools: string[] = []
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'testServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        expect(fs.existsSync(configPath)).to.be.true
     })
 })

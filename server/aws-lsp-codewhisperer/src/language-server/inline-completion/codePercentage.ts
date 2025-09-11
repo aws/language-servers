@@ -137,10 +137,20 @@ export class CodePercentageTracker {
         }
     }
 
-    countAcceptedTokens(languageId: string, tokens: string): void {
+    addTotalTokensForEdits(languageId: string, count: number): void {
         const languageBucket = this.getLanguageBucket(languageId)
-        const tokenCount = tokens.length
-        languageBucket.acceptedTokens += tokenCount
+        if (count >= INSERT_CUTOFF_THRESHOLD) {
+            languageBucket.totalTokens += count
+        }
+    }
+
+    countAcceptedTokens(languageId: string, tokens: string): void {
+        this.countAcceptedTokensUsingCount(languageId, tokens.length)
+    }
+
+    countAcceptedTokensUsingCount(languageId: string, count: number): void {
+        const languageBucket = this.getLanguageBucket(languageId)
+        languageBucket.acceptedTokens += count
     }
 
     countInvocation(languageId: string): void {

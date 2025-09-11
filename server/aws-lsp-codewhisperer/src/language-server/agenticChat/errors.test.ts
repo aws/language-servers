@@ -1,5 +1,6 @@
 import * as assert from 'assert'
 import {
+    AgenticChatError,
     DirectoryNotFoundError,
     EmptyAppendContentError,
     EmptyDiffsError,
@@ -16,6 +17,7 @@ import {
     TooManyOpenFilesError,
     createFileOperationError,
     getCustomerFacingErrorMessage,
+    isThrottlingRelated,
 } from './errors'
 
 describe('errors', () => {
@@ -109,6 +111,26 @@ describe('errors', () => {
             assert.strictEqual(getCustomerFacingErrorMessage('string error'), 'string error')
             assert.strictEqual(getCustomerFacingErrorMessage(null), 'null')
             assert.strictEqual(getCustomerFacingErrorMessage(undefined), 'undefined')
+        })
+    })
+
+    describe('isThrottlingRelated', () => {
+        it('should return true for AgenticChatError with RequestThrottled code', () => {
+            const error = new AgenticChatError('Request was throttled', 'RequestThrottled')
+            assert.strictEqual(isThrottlingRelated(error), true)
+        })
+
+        it('should return true for ServiceUnavailableException', () => {
+            const error = new Error('Service Unavailable')
+            error.name = 'ServiceUnavailableException'
+            assert.strictEqual(isThrottlingRelated(error), true)
+        })
+
+        it('should return false for other errors', () => {
+            const error = new Error('Some other error')
+            assert.strictEqual(isThrottlingRelated(error), false)
+            assert.strictEqual(isThrottlingRelated('not an error'), false)
+            assert.strictEqual(isThrottlingRelated(null), false)
         })
     })
 })

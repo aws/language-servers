@@ -19,15 +19,23 @@ import {
     TabType,
     calculateDatabaseSize,
     updateOrCreateConversation,
+    getChatDbNameFromWorkspaceId,
+    getSha256WorkspaceId,
+    getMd5WorkspaceId,
+    MessagesWithCharacterCount,
+    estimateCharacterCountFromImageBlock,
+    isCachedValid,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ContextCommand, ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
-import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { ContextCommand, ConversationItemGroup, Model } from '@aws/language-server-runtimes/protocol'
+import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
+import { existsSync, renameSync } from 'fs'
+import escapeHTML = require('escape-html')
 
 export class ToolResultValidationError extends Error {
     constructor(message?: string) {
@@ -37,6 +45,9 @@ export class ToolResultValidationError extends Error {
 }
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
+// Maximum number of characters to keep in request
+// (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
+export const MaxOverallCharacters = 570_000
 // Maximum number of history messages to include in each request to the LLM
 const maxConversationHistoryMessages = 250
 
@@ -113,6 +124,12 @@ export class ChatDatabase {
         return ChatDatabase.#instance
     }
 
+    public static clearModelCache(): void {
+        if (ChatDatabase.#instance) {
+            ChatDatabase.#instance.clearCachedModels()
+        }
+    }
+
     public close() {
         this.#db.close()
         ChatDatabase.#instance = undefined
@@ -133,7 +150,7 @@ export class ChatDatabase {
     /**
      * Generates an identifier for the open workspace folder(s).
      */
-    getWorkspaceIdentifier() {
+    private getFolderBasedWorkspaceIdentifier() {
         let workspaceFolderPaths = this.#features.workspace
             .getAllWorkspaceFolders()
             ?.map(({ uri }) => new URL(uri).pathname)
@@ -143,16 +160,60 @@ export class ChatDatabase {
             const pathsString = workspaceFolderPaths
                 .sort() // Sort to ensure consistent hash regardless of folder order
                 .join('|')
-            return crypto.createHash('md5').update(pathsString).digest('hex')
+            return getMd5WorkspaceId(pathsString)
         }
 
         // Case 2: Single folder workspace
         if (workspaceFolderPaths && workspaceFolderPaths[0]) {
-            return crypto.createHash('md5').update(workspaceFolderPaths[0]).digest('hex')
+            return getMd5WorkspaceId(workspaceFolderPaths[0])
         }
 
         // Case 3: No workspace open
         return 'no-workspace'
+    }
+
+    /**
+     * Generates an identifier for the open workspace.
+     */
+    getWorkspaceIdentifier() {
+        const workspaceFilePath =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.workspaceFilePath
+
+        if (workspaceFilePath) {
+            // Case 1: The latest plugins provide workspaceFilePath - should use workspace file-based SHA256 hash for workspace ID.
+            // This distinguishes from older plugins that used MD5 of workspaceFilePath.
+            const workspaceId = getSha256WorkspaceId(workspaceFilePath)
+            const dbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(workspaceId))
+
+            const dbFileExists = existsSync(dbFilePath)
+            if (!dbFileExists) {
+                // Migrate the history file from folder-based to workspace file-based.
+                this.migrateHistoryFile(dbFilePath)
+            }
+
+            this.#features.logging.debug(`workspaceFilePath is set: ${workspaceFilePath}, workspaceId: ${workspaceId}`)
+            return workspaceId
+        } else {
+            // Case 2: workspaceFilePath is not set, use folder-based workspaceId
+            return this.getFolderBasedWorkspaceIdentifier()
+        }
+    }
+
+    /**
+     * Migrate the workspace folder based history file to workspaceFile based history file
+     * @param newDbFilePath workspaceFile based history file path
+     */
+    private migrateHistoryFile(newDbFilePath: string) {
+        // Check if old folder-based history file exists and migrate it to the new workspace file-based location.
+        // If no old file exists, we'll simply use the new workspace ID for the history file.
+        const oldWorkspaceIdentifier = this.getFolderBasedWorkspaceIdentifier()
+        const oldDbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(oldWorkspaceIdentifier))
+        const oldDbFileExists = existsSync(oldDbFilePath)
+        if (oldDbFileExists) {
+            this.#features.logging.log(`Migrating history file from ${oldDbFilePath} to ${newDbFilePath}`)
+            renameSync(oldDbFilePath, newDbFilePath)
+        }
     }
 
     /**
@@ -459,10 +520,16 @@ export class ChatDatabase {
         let historyId = this.#historyIdMapping.get(tabId)
 
         if (!historyId) {
-            historyId = crypto.randomUUID()
-            this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
-            this.setHistoryIdMapping(tabId, historyId)
+            historyId = this.createHistoryId(tabId)
         }
+
+        return historyId
+    }
+
+    createHistoryId(tabId: string) {
+        const historyId = crypto.randomUUID()
+        this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
+        this.setHistoryIdMapping(tabId, historyId)
 
         return historyId
     }
@@ -491,7 +558,7 @@ export class ChatDatabase {
             const tabTitle =
                 (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
                     ? message.body
-                    : tabData?.title) || 'Amazon Q Chat'
+                    : tabData?.title) || 'Amazon Q Chat Agent' // Show default message in place of IDE-to-LLM prompts for generating test/documentation/development content
             message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
@@ -518,6 +585,107 @@ export class ChatDatabase {
         }
     }
 
+    /**
+     * Replace history with summary/dummyResponse pair within a specified tab.
+     *
+     * This method manages chat messages by creating a new history with compacted summary and dummy response pairs
+     */
+    replaceWithSummary(tabId: string, tabType: TabType, conversationId: string, message: Message) {
+        if (this.isInitialized()) {
+            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
+            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
+
+            this.#features.logging.log(
+                `Replace history with summary: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
+            )
+
+            const oldHistoryId = this.getOrCreateHistoryId(tabId)
+            // create a new historyId to start fresh
+            const historyId = this.createHistoryId(tabId)
+
+            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
+            const tabTitle =
+                (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
+                    ? message.body
+                    : tabData?.title) || 'Amazon Q Chat'
+            message = this.formatChatHistoryMessage(message)
+            this.#features.logging.log(`Overriding tab with new historyId=${historyId}`)
+            tabCollection.insert({
+                historyId,
+                updatedAt: new Date(),
+                isOpen: true,
+                tabType: tabType,
+                title: tabTitle,
+                conversations: [
+                    {
+                        conversationId,
+                        clientType,
+                        updatedAt: new Date(),
+                        messages: [
+                            // summary
+                            message,
+                            // dummy response
+                            {
+                                body: 'Working...',
+                                type: 'answer',
+                                shouldDisplayMessage: false,
+                                timestamp: new Date(),
+                            },
+                        ],
+                    },
+                ],
+            })
+
+            if (oldHistoryId) {
+                tabCollection.findAndRemove({ historyId: oldHistoryId })
+            }
+        }
+    }
+
+    /**
+     * Replace history with summary/dummyResponse pair within a specified tab.
+     *
+     * This method manages chat messages by creating a new history with compacted summary and dummy response pairs
+     */
+    replaceHistory(tabId: string, tabType: TabType, conversationId: string, messages: Message[]) {
+        if (this.isInitialized()) {
+            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
+            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
+
+            this.#features.logging.log(
+                `Update history with new messages: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
+            )
+
+            const oldHistoryId = this.getOrCreateHistoryId(tabId)
+            // create a new historyId to start fresh
+            const historyId = this.createHistoryId(tabId)
+
+            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
+            const tabTitle = tabData?.title || 'Amazon Q Chat'
+            messages = messages.map(msg => this.formatChatHistoryMessage(msg))
+            this.#features.logging.log(`Overriding tab with new historyId=${historyId}`)
+            tabCollection.insert({
+                historyId,
+                updatedAt: new Date(),
+                isOpen: true,
+                tabType: tabType,
+                title: tabTitle,
+                conversations: [
+                    {
+                        conversationId,
+                        clientType,
+                        updatedAt: new Date(),
+                        messages: messages,
+                    },
+                ],
+            })
+
+            if (oldHistoryId) {
+                tabCollection.findAndRemove({ historyId: oldHistoryId })
+            }
+        }
+    }
+
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
             let hasToolResults = false
@@ -526,10 +694,10 @@ export class ChatDatabase {
             }
             return {
                 ...message,
+                body: escapeHTML(message.body),
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
-                    additionalContext: hasToolResults ? undefined : message.userInputMessageContext?.additionalContext,
                     // Only keep toolResults in history
                     toolResults: message.userInputMessageContext?.toolResults,
                 },
@@ -546,41 +714,62 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, remainingCharacterBudget: number) {
+    fixAndGetHistory(
+        tabId: string,
+        conversationId: string,
+        newUserMessage: ChatMessage,
+        pinnedContextMessages: ChatMessage[]
+    ): MessagesWithCharacterCount {
+        let newUserInputCount = this.calculateNewMessageCharacterCount(newUserMessage, pinnedContextMessages)
+        let messagesWithCount: MessagesWithCharacterCount = {
+            history: [],
+            historyCount: 0,
+            currentCount: newUserInputCount,
+        }
         if (!this.isInitialized()) {
-            return []
+            return messagesWithCount
         }
 
         this.#features.logging.info(`Fixing history: tabId=${tabId}`)
 
         // 1. Make sure the length of the history messages don't exceed MaxConversationHistoryMessages
         let allMessages = this.getMessages(tabId, maxConversationHistoryMessages)
-        if (allMessages.length === 0) {
-            return []
+        if (allMessages.length > 0) {
+            // 2. Fix history: Ensure messages in history is valid for server side checks
+            this.ensureValidMessageSequence(tabId, allMessages)
+
+            // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+            this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
+
+            // 4. NOTE: Keep this trimming logic at the end of the preprocess.
+            // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
+            messagesWithCount = this.trimMessagesToMaxLength(allMessages, newUserInputCount, tabId, conversationId)
+
+            // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+            if (
+                messagesWithCount.history.length === 0 &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+            ) {
+                this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+                newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+                newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+                // Update character count for current message
+                this.#features.logging.debug(`Updating input character with pinnedContext`)
+                messagesWithCount.currentCount = this.calculateNewMessageCharacterCount(
+                    newUserMessage,
+                    pinnedContextMessages
+                )
+            }
         }
 
-        // 2. Fix history: Ensure messages in history is valid for server side checks
-        this.ensureValidMessageSequence(tabId, allMessages)
-
-        // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
-        this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
-
-        // 4. NOTE: Keep this trimming logic at the end of the preprocess.
-        // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
-
-        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
-        if (
-            allMessages.length === 0 &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
-        ) {
-            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
-            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
-            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+        // Prepend pinned context fake message pair to beginning of history
+        if (pinnedContextMessages.length === 2) {
+            const pinnedMessages = pinnedContextMessages.map(msg => chatMessageToMessage(msg))
+            messagesWithCount.history = [...pinnedMessages, ...messagesWithCount.history]
         }
 
-        return allMessages
+        return messagesWithCount
     }
 
     /**
@@ -609,12 +798,20 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
-        let totalCharacters = this.calculateHistoryCharacterCount(messages)
-        this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
-        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
-        while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
+    private trimMessagesToMaxLength(
+        messages: Message[],
+        newUserInputCount: number,
+        tabId: string,
+        conversationId: string
+    ): MessagesWithCharacterCount {
+        let historyCharacterCount = this.calculateMessagesCharacterCount(messages)
+        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - newUserInputCount)
+        let trimmedHistory = false
+        this.#features.logging.debug(
+            `Current history character count: ${historyCharacterCount}, remaining history character budget: ${maxHistoryCharacterSize}`
+        )
+        while (historyCharacterCount > maxHistoryCharacterSize && messages.length > 2) {
+            trimmedHistory = true
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
             if (indexToTrim !== undefined && indexToTrim > 0) {
@@ -626,25 +823,68 @@ export class ChatDatabase {
                 this.#features.logging.debug(
                     'Could not find a valid point to trim, reset history to reduce character count'
                 )
-                return []
+                this.replaceHistory(tabId, 'cwc', conversationId, [])
+                return { history: [], historyCount: 0, currentCount: newUserInputCount }
             }
-            totalCharacters = this.calculateHistoryCharacterCount(messages)
-            this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
+            historyCharacterCount = this.calculateMessagesCharacterCount(messages)
+            this.#features.logging.debug(`History character count post trimming: ${historyCharacterCount}`)
         }
-        return messages
+
+        if (trimmedHistory) {
+            this.replaceHistory(tabId, 'cwc', conversationId, messages)
+        }
+        return {
+            history: messages,
+            historyCount: historyCharacterCount,
+            currentCount: newUserInputCount,
+        }
     }
 
-    private calculateHistoryCharacterCount(allMessages: Message[]): number {
+    private calculateToolSpecCharacterCount(currentMessage: ChatMessage): number {
         let count = 0
+        if (currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+            try {
+                for (const tool of currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+                    count += JSON.stringify(tool).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting tools: ${String(e)}`)
+            }
+        }
+        return count
+    }
+
+    calculateNewMessageCharacterCount(newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]): number {
+        const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
+            chatMessageToMessage(newUserMessage),
+        ])
+        const pinnedContextCount = this.calculateMessagesCharacterCount([
+            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
+        ])
+        const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
+        const totalCount = currentUserInputCharacterCount + currentInputToolSpecCount + pinnedContextCount
+        this.#features.logging.debug(
+            `Current user message characters input: ${currentUserInputCharacterCount} + toolSpec: ${currentInputToolSpecCount} + pinnedContext: ${pinnedContextCount} = total: ${totalCount}`
+        )
+        return totalCount
+    }
+
+    calculateMessagesCharacterCount(allMessages: Message[]): number {
+        let bodyCount = 0
+        let toolUsesCount = 0
+        let toolResultsCount = 0
+        let editorStateCount = 0
+        let imageCharCount = 0
+
         for (const message of allMessages) {
             // Count characters of all message text
-            count += message.body.length
+            bodyCount += message.body.length
 
             // Count characters in tool uses
             if (message.toolUses) {
                 try {
                     for (const toolUse of message.toolUses) {
-                        count += JSON.stringify(toolUse).length
+                        toolUsesCount += JSON.stringify(toolUse).length
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
@@ -654,7 +894,7 @@ export class ChatDatabase {
             if (message.userInputMessageContext?.toolResults) {
                 try {
                     for (const toolResul of message.userInputMessageContext.toolResults) {
-                        count += JSON.stringify(toolResul).length
+                        toolResultsCount += JSON.stringify(toolResul).length
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
@@ -662,21 +902,29 @@ export class ChatDatabase {
             }
             if (message.userInputMessageContext?.editorState) {
                 try {
-                    count += JSON.stringify(message.userInputMessageContext?.editorState).length
+                    editorStateCount += JSON.stringify(message.userInputMessageContext?.editorState).length
                 } catch (e) {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
                 }
             }
 
-            if (message.userInputMessageContext?.additionalContext) {
+            if (message.images) {
                 try {
-                    count += JSON.stringify(message.userInputMessageContext?.additionalContext).length
+                    for (const image of message.images) {
+                        let imageTokenInCharacter = estimateCharacterCountFromImageBlock(image)
+                        imageCharCount += imageTokenInCharacter
+                    }
                 } catch (e) {
-                    this.#features.logging.error(`Error counting additionalContext: ${String(e)}`)
+                    this.#features.logging.error(`Error counting images: ${String(e)}`)
                 }
             }
         }
-        return count
+
+        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageCharCount
+        this.#features.logging.debug(
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + images: ${imageCharCount} = total: ${totalCount}`
+        )
+        return totalCount
     }
 
     /**
@@ -736,7 +984,7 @@ export class ChatDatabase {
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             // Add an assistant response to both request and DB to maintain a valid sequence
             const dummyResponse: Message = {
-                body: 'Thinking...',
+                body: 'Working...',
                 type: 'answer',
                 shouldDisplayMessage: false,
                 timestamp: new Date(),
@@ -843,5 +1091,58 @@ export class ChatDatabase {
 
     setModelId(modelId: string | undefined): void {
         this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
+    }
+
+    getCachedModels(): { models: Model[]; defaultModelId?: string; timestamp: number } | undefined {
+        const settings = this.getSettings()
+        if (settings?.cachedModels && settings?.modelCacheTimestamp) {
+            return {
+                models: settings.cachedModels,
+                defaultModelId: settings.cachedDefaultModelId,
+                timestamp: settings.modelCacheTimestamp,
+            }
+        }
+        return undefined
+    }
+
+    setCachedModels(models: Model[], defaultModelId?: string): void {
+        const currentTimestamp = Date.now()
+        // Get existing settings to preserve fields like modelId
+        const existingSettings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({
+            ...existingSettings,
+            cachedModels: models,
+            cachedDefaultModelId: defaultModelId,
+            modelCacheTimestamp: currentTimestamp,
+        })
+        this.#features.logging.log(`Models cached at timestamp: ${currentTimestamp}`)
+    }
+
+    isCachedModelsValid(): boolean {
+        const cachedData = this.getCachedModels()
+        if (!cachedData) return false
+        return isCachedValid(cachedData.timestamp)
+    }
+
+    clearCachedModels(): void {
+        const existingSettings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({
+            ...existingSettings,
+            cachedModels: undefined,
+            cachedDefaultModelId: undefined,
+            modelCacheTimestamp: undefined,
+        })
+        this.#features.logging.log('Model cache cleared')
+    }
+
+    getPairProgrammingMode(): boolean | undefined {
+        const settings = this.getSettings()
+        return settings?.pairProgrammingMode
+    }
+
+    setPairProgrammingMode(pairProgrammingMode: boolean | undefined): void {
+        // Get existing settings to preserve other fields like modelId
+        const settings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({ ...settings, pairProgrammingMode })
     }
 }

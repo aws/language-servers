@@ -47,7 +47,7 @@ async function createLSPServer(runtimeFile: string) {
     return { client, endpoint, process }
 }
 
-describe('Test JsonServer with CloudFormation schema', () => {
+;(describe('Test JsonServer with CloudFormation schema', () => {
     let client: LspClient
     let endpoint: JSONRPCEndpoint
     let process: ChildProcessWithoutNullStreams
@@ -200,4 +200,4 @@ describe('Test JsonServer with CloudFormation schema', () => {
 
             expect(clientResult).to.deep.equal(HOVER_JSON_CUSTOMIZED)
         })
-    })
+    }))
