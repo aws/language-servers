@@ -8,7 +8,7 @@ import {
     GetTransformationRequest,
     StopTransformationRequest,
     TransformationJob,
-} from '../../client/token/codewhispererbearertokenclient'
+} from '@amzn/codewhisperer-runtime'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
@@ -95,7 +95,7 @@ export class TransformHandler {
         }
     }
 
-    async preTransformationUploadCode(payloadFilePath: string): Promise<string> {
+    async preTransformationUploadCode(payloadFilePath: string): Promise<string | undefined> {
         try {
             const uploadId = await this.uploadPayloadAsync(payloadFilePath)
             this.logging.log('Artifact was successfully uploaded. Upload tracking id: ' + uploadId)
@@ -106,7 +106,7 @@ export class TransformHandler {
         }
     }
 
-    async uploadPayloadAsync(payloadFileName: string): Promise<string> {
+    async uploadPayloadAsync(payloadFileName: string): Promise<string | undefined> {
         const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
@@ -144,7 +144,7 @@ export class TransformHandler {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
             const fileStream = fs.createReadStream(fileName)
-            const response = await got.put(resp.uploadUrl, {
+            const response = await got.put(resp.uploadUrl ?? 'invalid-url', {
                 body: fileStream,
                 headers: headersObj,
             })
@@ -331,7 +331,7 @@ export class TransformHandler {
                     break
                 }
 
-                status = response.transformationJob.status!
+                status = response.transformationJob?.status!
                 await this.sleep(10 * 1000)
                 timer += 10
 
@@ -472,7 +472,11 @@ export class TransformHandler {
         return exponentialDelay + jitteredDelay // returns in milliseconds
     }
 
-    logSuggestionForFailureResponse(request: GetTransformRequest, job: TransformationJob, failureStates: string[]) {
+    logSuggestionForFailureResponse(
+        request: GetTransformRequest,
+        job: TransformationJob | undefined,
+        failureStates: string[]
+    ) {
         let status = job?.status ?? PollTransformationStatus.NOT_FOUND
         let reason = job?.reason ?? ''
         if (failureStates.includes(status)) {
@@ -481,8 +485,7 @@ export class TransformHandler {
                 suggestion =
                     'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
             }
-            this.logging
-                .log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+            this.logging.log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}".
                 ${suggestion}`)
         }
     }

@@ -15,7 +15,6 @@ import {
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     FileContext,
-    BaseGenerateSuggestionsRequest,
     CodeWhispererServiceToken,
     GenerateIAMSuggestionsRequest,
     GenerateTokenSuggestionsRequest,
@@ -62,6 +61,7 @@ import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
+import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
 import { isUsingIAMAuth } from '../../shared/utils'
 
 const mergeSuggestionsWithRightContext = (
@@ -187,9 +187,6 @@ export const CodewhispererServerFactory =
                     try {
                         const suggestionResponse = await codeWhispererService.generateSuggestions({
                             ...currentSession.requestContext,
-                            fileContext: {
-                                ...currentSession.requestContext.fileContext,
-                            },
                             nextToken: `${params.partialResultToken}`,
                         })
                         return await processSuggestionResponse(
@@ -372,13 +369,13 @@ export const CodewhispererServerFactory =
 
                     // Add extra context to request context
                     const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
-                    if (extraContext) {
+                    if (extraContext && requestContext.fileContext) {
                         requestContext.fileContext.leftFileContent =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
                     // Create the appropriate request based on service type
-                    let generateCompletionReq: BaseGenerateSuggestionsRequest
+                    let generateCompletionReq: GenerateSuggestionsRequest
 
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
                         const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
@@ -496,7 +493,7 @@ export const CodewhispererServerFactory =
 
             const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
             const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
-                session.requestContext.fileContext.rightFileContent,
+                session.requestContext.fileContext?.rightFileContent ?? '',
                 filteredSuggestions,
                 includeImportsWithSuggestions,
                 selectionRange
@@ -706,8 +703,8 @@ export const CodewhispererServerFactory =
                 timeSinceLastUserModification,
                 addedLengthForEdits,
                 deletedLengthForEdits,
-                addedDiagnostics,
-                removedDiagnostics,
+                addedDiagnostics as IdeDiagnostic[],
+                removedDiagnostics as IdeDiagnostic[],
                 streakLength,
                 Object.keys(params.completionSessionResult)[0]
             )

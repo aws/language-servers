@@ -347,7 +347,7 @@ export class CodeReview {
         uploadResult: PrepareAndUploadArtifactsResult,
         chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
     ) {
-        let status = 'Pending'
+        let status: string | undefined = 'Pending'
         let attemptCount = 0
 
         while (status === 'Pending' && attemptCount < CodeReview.MAX_POLLING_ATTEMPTS) {
@@ -867,7 +867,14 @@ export class CodeReview {
      * @param programmingLanguage programming language
      * @returns Parsed and validated findings array
      */
-    private parseFindings(findingsJson: string, jobId: string, programmingLanguage: string): CodeReviewFinding[] {
+    private parseFindings(
+        findingsJson: string | undefined,
+        jobId: string,
+        programmingLanguage: string
+    ): CodeReviewFinding[] {
+        if (findingsJson === undefined) {
+            return []
+        }
         try {
             const findingsResponseJSON = JSON.parse(findingsJson)
 

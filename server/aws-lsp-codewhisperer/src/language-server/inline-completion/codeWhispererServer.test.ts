@@ -765,12 +765,12 @@ describe('CodeWhisperer Server', () => {
             const secondCallArgs = service.generateSuggestions.secondCall.args[0]
 
             // Verify context truncation in first call
-            assert.strictEqual(firstCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
-            assert.strictEqual(firstCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext?.leftFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext.rightFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
 
             // Verify context truncation in second call (pagination)
-            assert.strictEqual(secondCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
-            assert.strictEqual(secondCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext?.leftFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext.rightFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
 
             // Verify second call included the nextToken
             assert.strictEqual(secondCallArgs.nextToken, EXPECTED_NEXT_TOKEN)

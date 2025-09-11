@@ -1,4 +1,5 @@
-import { Telemetry, IdeDiagnostic } from '@aws/language-server-runtimes/server-interface'
+import { Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
 import { AWSError } from 'aws-sdk'
 import { CodeWhispererSession, UserTriggerDecision } from './session/sessionManager'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'

@@ -1,5 +1,5 @@
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
-import { TransformationSpec } from '../../client/token/codewhispererbearertokenclient'
+import { TransformationSpec } from '@amzn/codewhisperer-runtime'
 import {
     CancelTransformRequest,
     CancelTransformResponse,
@@ -225,7 +225,7 @@ export const emitTransformationPlanReceivedTelemetry = (
 ) => {
     const data: TransformationPlanReceivedEvent = {
         category: CODETRANSFORM_CATEGORY,
-        transformationJobId: jobId as string,
+        transformationJobId: jobId,
         transformationSteps: response.TransformationPlan.transformationSteps,
     }
 

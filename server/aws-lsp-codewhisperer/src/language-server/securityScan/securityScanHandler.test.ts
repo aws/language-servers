@@ -4,7 +4,7 @@ import { HttpResponse } from 'aws-sdk'
 import got from 'got'
 import * as Sinon from 'sinon'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
-import { StartCodeAnalysisRequest } from '../../client/token/codewhispererbearertokenclient'
+import { ListCodeAnalysisFindingsRequest, StartCodeAnalysisRequest } from '@amzn/codewhisperer-runtime'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
@@ -71,6 +71,7 @@ describe('securityScanHandler', () => {
                 uploadId: 'dummy-upload-id',
                 uploadUrl: 'dummy-upload-url',
                 kmsKeyArn: 'ResourceArn',
+                $metadata: {},
                 ...mocked$Response,
             })
             putStub = Sinon.stub(got, 'put').resolves({ statusCode: 'Success' })
@@ -93,6 +94,7 @@ describe('securityScanHandler', () => {
                 Promise.resolve({
                     jobId: 'dummy-job-id',
                     status: 'Pending',
+                    $metadata: {},
                     ...mocked$Response,
                 })
             )
@@ -118,6 +120,7 @@ describe('securityScanHandler', () => {
             // mock default return value for getCodeAnalysis
             client.getCodeAnalysis.resolves({
                 status: 'Pending',
+                $metadata: {},
                 ...mocked$Response,
             })
         })
@@ -125,10 +128,12 @@ describe('securityScanHandler', () => {
         it('should change job status from pending to completed', async () => {
             client.getCodeAnalysis.onCall(0).resolves({
                 status: 'Pending',
+                $metadata: {},
                 ...mocked$Response,
             })
             client.getCodeAnalysis.onCall(1).resolves({
                 status: 'Completed',
+                $metadata: {},
                 ...mocked$Response,
             })
             const dummyJobId = 'dummy-job-id'
@@ -142,10 +147,12 @@ describe('securityScanHandler', () => {
         it('should change job status from pending to failed', async () => {
             client.getCodeAnalysis.onCall(0).resolves({
                 status: 'Pending',
+                $metadata: {},
                 ...mocked$Response,
             })
             client.getCodeAnalysis.onCall(1).resolves({
                 status: 'Failed',
+                $metadata: {},
                 ...mocked$Response,
             })
             const dummyJobId = 'dummy-job-id'
@@ -162,6 +169,7 @@ describe('securityScanHandler', () => {
             // mock default return value for listCodeAnalysisFindings
             client.listCodeAnalysisFindings.resolves({
                 codeAnalysisFindings: mockCodeScanFindings,
+                $metadata: {},
                 ...mocked$Response,
             })
             workspace.fs.exists = simon.stub().resolves(true)
@@ -171,7 +179,10 @@ describe('securityScanHandler', () => {
             const dummyJobId = 'dummy-job-id'
             const codeAnalysisFindingsSchema = 'codeanalysis/findings/1.0'
             const dummyProjectPath = 'C:\\workspace\\workspaceFolder\\python3.7-plain-sam-app\\hello_world'
-            const requestParams = { jobId: dummyJobId, codeAnalysisFindingsSchema }
+            const requestParams = {
+                jobId: dummyJobId,
+                codeAnalysisFindingsSchema,
+            } satisfies ListCodeAnalysisFindingsRequest
 
             const aggregatedCodeScanIssueList = await securityScanhandler.listScanResults(dummyJobId, dummyProjectPath)
             simon.assert.calledWith(client.listCodeAnalysisFindings, requestParams)
@@ -181,12 +192,16 @@ describe('securityScanHandler', () => {
         it('should return zero issues', async () => {
             client.listCodeAnalysisFindings.resolves({
                 codeAnalysisFindings: '[]',
+                $metadata: {},
                 ...mocked$Response,
             })
             const dummyJobId = 'dummy-job-id'
             const codeAnalysisFindingsSchema = 'codeanalysis/findings/1.0'
             const dummyProjectPath = 'C:\\workspace\\workspaceFolder\\python3.7-plain-sam-app\\hello_world'
-            const requestParams = { jobId: dummyJobId, codeAnalysisFindingsSchema }
+            const requestParams = {
+                jobId: dummyJobId,
+                codeAnalysisFindingsSchema,
+            } satisfies ListCodeAnalysisFindingsRequest
 
             const aggregatedCodeScanIssueList = await securityScanhandler.listScanResults(dummyJobId, dummyProjectPath)
             simon.assert.calledWith(client.listCodeAnalysisFindings, requestParams)

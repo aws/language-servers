@@ -86,10 +86,13 @@ export function mergeEditSuggestionsWithFileContext(
             const suggestedFileContent = applyUnifiedDiff(previousTextDocument.getText(), suggestion.content)
             const currentLeftFileContent = currentFileContext.leftFileContent
             const currentRightFileContent = currentFileContext.rightFileContent
-            const previousLeftFileContent = currentSession.requestContext.fileContext.leftFileContent
-            const userEdit = currentLeftFileContent.substring(previousLeftFileContent.length)
+            const previousLeftFileContent = currentSession.requestContext.fileContext?.leftFileContent
+            const userEdit = currentLeftFileContent.substring(previousLeftFileContent?.length ?? 0)
             // if the user moves the cursor backward, deletes some contents, or goes to the next line, discard the suggestion
-            if (previousLeftFileContent.length > currentLeftFileContent.length || userEdit.includes('\n')) {
+            if (
+                (previousLeftFileContent && previousLeftFileContent.length > currentLeftFileContent.length) ||
+                userEdit.includes('\n')
+            ) {
                 return {
                     insertText: '',
                     isInlineEdit: true,
