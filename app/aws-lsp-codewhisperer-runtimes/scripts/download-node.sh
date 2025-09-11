@@ -4,7 +4,7 @@
 # build/node-assets, which is picked up 
 # by src/scripts/copy-node-assets.ts, to produce the final bundle.
 
-set -e
+set -eo pipefail
 NODE_VERSION="24"
 BASE_URL="https://nodejs.org/download/release/latest-v${NODE_VERSION}.x"
 SHASUMS_FILE="SHASUMS256.txt"
@@ -69,9 +69,6 @@ fi
 
 echo "License file has been updated in $LICENSE_FILE"
 
-# Read the escaped license text
-LICENSE_TEXT=$(cat "$LICENSE_FILE")
-
 # Update the attribution overrides file
 ATTRIBUTION_FILE="../../attribution/overrides.json"
 
@@ -86,11 +83,13 @@ fi
 jq --indent 4 \
    --arg name "Node.js" \
    --arg version "$NODE_SEMVER" \
-   --arg licenseText "$LICENSE_TEXT" \
+   --rawfile licenseText "$LICENSE_FILE" \
    --arg url "https://github.com/nodejs/node" \
    --arg license "MIT" \
    '.node.name = $name | .node.version = $version | .node.url = $url | .node.license = $license | .node.licenseText = $licenseText' \
-   "$ATTRIBUTION_FILE" > "$ATTRIBUTION_FILE.tmp" && mv "$ATTRIBUTION_FILE.tmp" "$ATTRIBUTION_FILE"
+   "$ATTRIBUTION_FILE" > "$ATTRIBUTION_FILE.tmp"
+
+mv "$ATTRIBUTION_FILE.tmp" "$ATTRIBUTION_FILE"
 echo "Successfully updated Node.js version and license in $ATTRIBUTION_FILE"
 
 # Cleanup
