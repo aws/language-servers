@@ -3,6 +3,7 @@ import {
     BearerCredentials,
     CredentialsProvider,
     Position,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, Credentials } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
@@ -31,7 +32,6 @@ import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
-export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -436,9 +436,7 @@ export const flattenMetric = (obj: any, prefix = '') => {
 }
 
 export function getSsoConnectionType(credentialsProvider: CredentialsProvider): SsoConnectionType {
-    const connectionMetadata = credentialsProvider.getConnectionMetadata()
-    const startUrl = connectionMetadata?.sso?.startUrl
-    return !startUrl ? 'none' : startUrl.includes(BUILDER_ID_START_URL) ? 'builderId' : 'identityCenter'
+    return credentialsProvider.getConnectionType()
 }
 
 // Port of implementation in AWS Toolkit for VSCode

@@ -1,11 +1,11 @@
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { SsoConnectionType } from '../utils'
 import {
     AWSInitializationOptions,
     CancellationTokenSource,
     Logging,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,

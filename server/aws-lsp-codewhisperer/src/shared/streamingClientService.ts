@@ -88,6 +88,19 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             }),
             customUserAgent: customUserAgent,
         })
+
+        this.client.middlewareStack.add(
+            (next, context) => args => {
+                if (credentialsProvider.getConnectionType() === 'external_idp') {
+                    // @ts-ignore
+                    args.request.headers['TokenType'] = 'EXTERNAL_IDP'
+                }
+                return next(args)
+            },
+            {
+                step: 'build',
+            }
+        )
     }
 
     public async sendMessage(
