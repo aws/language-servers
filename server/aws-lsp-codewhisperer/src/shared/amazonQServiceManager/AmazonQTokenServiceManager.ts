@@ -419,7 +419,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.log(`New profile is in the same region as old one, keeping exising service.`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
-            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${oldRegion}`)
+            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${newRegion}`)
 
             if (this.cachedCodewhispererService) {
                 this.cachedCodewhispererService.profileArn = newProfile.arn
