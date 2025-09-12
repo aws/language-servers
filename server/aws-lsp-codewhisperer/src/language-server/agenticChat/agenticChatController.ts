@@ -36,6 +36,7 @@ import {
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
+    MAX_DIAGNOSTIC_LOOP_TIMES,
 } from './constants/toolConstants'
 import {
     SendMessageCommandInput,
@@ -66,6 +67,8 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
+    CheckDiagnosticsParams,
+    CheckDiagnosticsResult,
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
@@ -227,6 +230,7 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { DiagnosticManager, DiagnosticError } from './diagnosticManager'
 import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import escapeHTML = require('escape-html')
@@ -274,6 +278,8 @@ export class AgenticChatController implements ChatHandlers {
     #paidTierMode: PaidTierMode | undefined
     #origin: Origin
     #activeUserTracker: ActiveUserTracker
+    #modifiedFile = new Set<string>()
+    #diagnosticManager: DiagnosticManager
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -369,6 +375,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
+        this.#diagnosticManager = new DiagnosticManager(features, chatSessionManagementService)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -542,6 +549,9 @@ export class AgenticChatController implements ChatHandlers {
         for (const messageId of [...toUndo].reverse()) {
             await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
         }
+    }
+    async getDiagnostics(params: CheckDiagnosticsParams): Promise<CheckDiagnosticsResult> {
+        return await this.#diagnosticManager.getDiagnostics(params)
     }
 
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
@@ -1270,6 +1280,7 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         let currentRequestCount = 0
+        let diagnosticLoopTimes = 0
         const pinnedContext = additionalContext?.filter(item => item.pinned)
 
         metric.recordStart()
@@ -1466,7 +1477,6 @@ export class AgenticChatController implements ChatHandlers {
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
 
             if (pendingToolUses.length === 0) {
-                this.recordChunk('agent_loop_done')
                 // No more tool uses, we're done
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
@@ -1485,7 +1495,36 @@ export class AgenticChatController implements ChatHandlers {
                     this.#abTestingAllocation?.experimentName,
                     this.#abTestingAllocation?.userVariation
                 )
+                const loopDebugEnabled =
+                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                        ?.LoopDebug
+                // Check for diagnostic errors before setting final result
+                if (
+                    loopDebugEnabled &&
+                    this.#modifiedFile.size > 0 &&
+                    diagnosticLoopTimes < MAX_DIAGNOSTIC_LOOP_TIMES
+                ) {
+                    diagnosticLoopTimes += 1
+                    const diagnosticErrors = await this.#diagnosticManager.checkDiagnosticErrors(
+                        Array.from(this.#modifiedFile)
+                    )
+                    if (diagnosticErrors.length > 0) {
+                        this.#log(`Found ${diagnosticErrors.length} files with diagnostic errors`)
+                        // Start a new agent loop to fix the selected errors
+                        const fixPrompt = this.#diagnosticManager.generateFixPrompt(diagnosticErrors)
+                        currentRequestInput = this.#updateRequestInputWithToolResults(
+                            currentRequestInput,
+                            [],
+                            fixPrompt
+                        )
+                        shouldDisplayMessage = false
+                        continue
+                    }
+                }
+
+                this.recordChunk('agent_loop_done')
                 finalResult = result
+                this.#modifiedFile.clear()
                 break
             }
 
@@ -1972,6 +2011,7 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) {
                     const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                    this.#modifiedFile.add(input.path)
                     const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
 
                     session.toolUseLookup.set(toolUse.toolUseId, {
