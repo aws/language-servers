@@ -4,8 +4,9 @@ import {
     Logging,
     LSPErrorCodes,
     ResponseError,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
-import { isBool, isObject, SsoConnectionType } from '../utils'
+import { isBool, isObject } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { AmazonQServiceProfileThrottlingError } from './errors'
