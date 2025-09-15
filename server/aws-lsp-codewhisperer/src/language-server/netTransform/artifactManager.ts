@@ -26,6 +26,10 @@ const customTransformationFolderName = 'customTransformation'
 const filteredExtensions = ['.suo', '.meta', '.user', '.obj', '.tmp', '.log', '.dbmdl', '.jfm', '.pdb']
 const filteredDirectories = ['.git', 'bin', 'obj', '.idea', '.vs', 'artifactworkspace', 'node_modules', 'nuget.config']
 const failedCopies: string[] = []
+const filteredPathRegex: RegExp[] = [
+    /\\users\\[^\\]+\\appdata/i, // IgnoreCase flag with 'i'
+    /.+\.(vspscc|vssscc)$/,
+]
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -467,6 +471,10 @@ export class ArtifactManager {
         const dirPath = path.dirname(filePath).toLowerCase()
         const pathSegments = dirPath.split(path.sep)
 
-        return pathSegments.some(segment => filteredDirectories.includes(segment))
+        if (pathSegments.some(segment => filteredDirectories.includes(segment))) {
+            return true
+        }
+
+        return filteredPathRegex.some(regex => regex.test(filePath))
     }
 }

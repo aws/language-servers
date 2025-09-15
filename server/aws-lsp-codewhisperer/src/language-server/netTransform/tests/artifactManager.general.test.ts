@@ -264,5 +264,21 @@ describe('ArtifactManager - Complete Coverage', () => {
             expect(artifactManager.shouldFilterFile(filteredString)).to.be.true
             expect(artifactManager.shouldFilterFile(filteredStringWithCasing)).to.be.true
         })
+
+        it('should filter regex', async () => {
+            const unfilteredString = '\\users\\test\\dataApp\\test.cs'
+            const unfilteredStringWithExtraDir = '\\users\\extraDir\\test\\appData\\test.cs'
+            const filteredString = '\\users\\test\\appdata\\test.cs'
+            const filteredStringWithCasing = '\\USERS\\test\\APPdata\\test.cs'
+            const filteredExtension = '\\users\\test\\project.vspscc'
+            const filteredExtensionTwo = '\\users\\test\\project.vssscc'
+
+            expect(artifactManager.shouldFilterFile(unfilteredString)).to.be.false
+            expect(artifactManager.shouldFilterFile(unfilteredStringWithExtraDir)).to.be.false
+            expect(artifactManager.shouldFilterFile(filteredString)).to.be.true
+            expect(artifactManager.shouldFilterFile(filteredStringWithCasing)).to.be.true
+            expect(artifactManager.shouldFilterFile(filteredExtension)).to.be.true
+            expect(artifactManager.shouldFilterFile(filteredExtensionTwo)).to.be.true
+        })
     })
 })
