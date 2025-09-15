@@ -36,3 +36,6 @@ export const BUTTON_PAIDTIER_UPGRADE_Q = 'paidtier-upgrade-q'
 export const SUFFIX_PERMISSION = '_permission'
 export const SUFFIX_UNDOALL = '_undoall'
 export const SUFFIX_EXPLANATION = '_explanation'
+
+// Max loop times
+export const MAX_DIAGNOSTIC_LOOP_TIMES = 5
