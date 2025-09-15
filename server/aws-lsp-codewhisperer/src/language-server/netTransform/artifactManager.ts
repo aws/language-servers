@@ -2,33 +2,99 @@ import { Logging, Workspace } from '@aws/language-server-runtimes/server-interfa
 import * as archiver from 'archiver'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { CodeFile, ExternalReference, Project, References, RequirementJson, StartTransformRequest } from './models'
+import {
+    CodeFile,
+    ExternalReference,
+    Project,
+    References,
+    RequirementJson,
+    StartTransformRequest,
+    TransformationPreferences,
+    TransformationSettings,
+} from './models'
 import path = require('path')
+
 const requriementJsonFileName = 'requirement.json'
+const transformationPreferencesFileName = 'transformation-preferences.json'
 const artifactFolderName = 'artifact'
 const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
 const thirdPartyPackageFolderName = 'thirdpartypackages'
+const customTransformationFolderName = 'customTransformation'
 
 export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
     private workspacePath: string
-    constructor(workspace: Workspace, logging: Logging, workspacePath: string) {
+    private solutionRootPath: string
+
+    constructor(workspace: Workspace, logging: Logging, workspacePath: string, solutionRootPath: string) {
         this.workspace = workspace
         this.logging = logging
         this.workspacePath = workspacePath
+        this.solutionRootPath = solutionRootPath
     }
 
     async createZip(request: StartTransformRequest): Promise<string> {
+        // Requirements.json contains project metadata
         const requirementJson = await this.createRequirementJsonContent(request)
         await this.writeRequirementJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
+
+        // Transformation preferences contains user intent for the transformation type
+        const transformationPreferences = await this.createTransformationPreferencesContent(request)
+        await this.writeTransformationPreferencesAsync(
+            this.getTransformationPreferencesPath(),
+            JSON.stringify(transformationPreferences)
+        )
+
         await this.copySolutionConfigFiles(request)
         await this.removeDuplicateNugetPackagesFolder(request)
         const zipPath = await this.zipArtifact()
         return zipPath
+    }
+
+    async createTransformationPreferencesContent(request: StartTransformRequest): Promise<TransformationPreferences> {
+        const transformationSettings: TransformationSettings = {}
+
+        // Detect database modernization intent from DatabaseSettings or DmsArn presence
+        const hasDatabaseSettings = request.DatabaseSettings != null
+        const hasDmsArn = request.DmsArn != null
+
+        // Conditional enabling of DatabaseModernization transformation
+        if (hasDatabaseSettings || hasDmsArn) {
+            transformationSettings.DatabaseModernization = {
+                Enabled: true,
+            }
+
+            // Handle DmsArn when present
+            if (hasDmsArn) {
+                transformationSettings.DatabaseModernization.DmsArn = request.DmsArn
+            }
+
+            // Handle full DatabaseSettings scenario
+            if (hasDatabaseSettings) {
+                transformationSettings.DatabaseModernization.DatabaseSettings = request.DatabaseSettings
+            } else if (hasDmsArn) {
+                // Handle DmsArn-only scenario - create minimal tool configuration
+                transformationSettings.DatabaseModernization.DatabaseSettings = {
+                    Tools: [
+                        {
+                            Name: 'DMS',
+                            Properties: { DmsArn: request.DmsArn },
+                        },
+                    ],
+                }
+            }
+        }
+
+        return {
+            Transformations: transformationSettings,
+            Metadata: {
+                GeneratedAt: new Date().toISOString(),
+            },
+        } as TransformationPreferences
     }
 
     async removeDir(dir: string) {
@@ -171,8 +237,8 @@ export class ArtifactManager {
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),
-            ...(request.EnableWebFormsToBlazorTransform !== undefined && {
-                EnableWebFormsToBlazorTransform: request.EnableWebFormsToBlazorTransform,
+            ...(request.EnableWebFormsTransform !== undefined && {
+                EnableWebFormsTransform: request.EnableWebFormsTransform,
             }),
             Packages: packages,
         } as RequirementJson
@@ -219,6 +285,23 @@ export class ArtifactManager {
             this.logging.log('Cannot find artifacts folder')
             return ''
         }
+
+        const customTransformationPath = path.join(this.solutionRootPath, customTransformationFolderName)
+        try {
+            await fs.promises.access(customTransformationPath)
+            try {
+                this.logging.log(`Adding custom transformation folder to artifact: ${customTransformationPath}`)
+                const artifactCustomTransformationPath = path.join(folderPath, customTransformationFolderName)
+                await fs.promises.cp(customTransformationPath, artifactCustomTransformationPath, { recursive: true })
+            } catch (error) {
+                this.logging.warn(`Failed to copy custom transformation folder: ${error}`)
+            }
+        } catch {
+            this.logging.log(
+                `Custom transformation folder not accessible (not found or no permissions): ${customTransformationPath}`
+            )
+        }
+
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
@@ -235,6 +318,12 @@ export class ArtifactManager {
     }
 
     getRequirementJsonPath(): string {
+        const dir = path.join(this.workspacePath, artifactFolderName)
+        this.createFolderIfNotExist(dir)
+        return dir
+    }
+
+    getTransformationPreferencesPath(): string {
         const dir = path.join(this.workspacePath, artifactFolderName)
         this.createFolderIfNotExist(dir)
         return dir
@@ -284,6 +373,11 @@ export class ArtifactManager {
 
     async writeRequirementJsonAsync(dir: string, fileContent: string) {
         const fileName = path.join(dir, requriementJsonFileName)
+        fs.writeFileSync(fileName, fileContent)
+    }
+
+    async writeTransformationPreferencesAsync(dir: string, fileContent: string) {
+        const fileName = path.join(dir, transformationPreferencesFileName)
         fs.writeFileSync(fileName, fileContent)
     }
 

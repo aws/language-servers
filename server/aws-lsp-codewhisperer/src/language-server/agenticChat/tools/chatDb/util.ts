@@ -10,6 +10,7 @@ import {
     ConversationItem,
     ConversationItemGroup,
     IconType,
+    Model,
     ReferenceTrackerInformation,
 } from '@aws/language-server-runtimes/server-interface'
 import {
@@ -20,12 +21,14 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
-} from '@aws/codewhisperer-streaming-client'
+    ImageBlock,
+} from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
-import { activeFileCmd } from '../../context/addtionalContextProvider'
-import { ChatItemType } from '@aws/mynah-ui'
+import { activeFileCmd } from '../../context/additionalContextProvider'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import * as crypto from 'crypto'
+import unescapeHTML = require('unescape-html')
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -82,6 +85,10 @@ export type Rules = {
 
 export type Settings = {
     modelId: string | undefined
+    pairProgrammingMode?: boolean
+    cachedModels?: Model[]
+    cachedDefaultModelId?: string
+    modelCacheTimestamp?: number
 }
 
 export type Conversation = {
@@ -103,6 +110,7 @@ export type Message = {
     toolUses?: ToolUse[]
     timestamp?: Date
     shouldDisplayMessage?: boolean
+    images?: ImageBlock[]
 }
 
 /**
@@ -122,6 +130,20 @@ export type TabWithDbMetadata = {
  */
 export type DbReference = { collection: Collection<Tab>; db: Loki }
 
+export type MessagesWithCharacterCount = {
+    history: Message[]
+    historyCount: number
+    currentCount: number
+}
+
+export function isCachedValid(timestamp: number): boolean {
+    const currentTime = Date.now()
+    const cacheAge = currentTime - timestamp
+    const CACHE_TTL = 30 * 60 * 1000 // 30 minutes in milliseconds
+
+    return cacheAge < CACHE_TTL
+}
+
 /**
  * Converts Message to codewhisperer-streaming ChatMessage
  */
@@ -140,6 +162,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   userIntent: msg.userIntent,
                   origin: msg.origin || 'IDE',
                   userInputMessageContext: msg.userInputMessageContext || {},
+                  images: msg.images || [],
               },
           }
 }
@@ -150,7 +173,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
 export function messageToChatMessage(msg: Message): ChatMessage[] {
     const chatMessages: ChatMessage[] = [
         {
-            body: msg.body,
+            body: unescapeHTML(msg.body),
             type: msg.type,
             codeReference: msg.codeReference,
             relatedContent:
@@ -440,4 +463,32 @@ function getTabTypeIcon(tabType: TabType): IconType {
 export async function calculateDatabaseSize(features: Features, dbPath: string): Promise<number> {
     const result = await features.workspace.fs.getFileSize(dbPath)
     return result.size
+}
+
+export function getChatDbNameFromWorkspaceId(workspaceId: string): string {
+    return `chat-history-${workspaceId}.json`
+}
+
+export function getMd5WorkspaceId(filePath: string): string {
+    return crypto.createHash('md5').update(filePath).digest('hex')
+}
+
+export function getSha256WorkspaceId(filePath: string): string {
+    return crypto.createHash('sha256').update(filePath).digest('hex')
+}
+
+/**
+ * Estimates the number of characters that an image binary would represent in a text context.
+ * The estimation is based on the image's byte size, converting bytes to megabytes, then estimating tokens (using 1100 tokens per MB),
+ * and finally converting tokens to characters (assuming 1 token ≈ 3 characters).
+ *
+ * @param image The ImageBlock object containing the image data (expects image.source.bytes to be a Buffer or Uint8Array).
+ * @returns The estimated number of characters that the image would represent.
+ */
+export function estimateCharacterCountFromImageBlock(image: ImageBlock): number {
+    let imagesBytesLen = image.source?.bytes?.byteLength ?? 0
+    // Convert bytes to MB and estimate tokens (using 1100 tokens per MB as middle ground)
+    const imageTokens = (imagesBytesLen / 1000000) * 1100
+    // Each token is 3 characters
+    return imageTokens * 3
 }

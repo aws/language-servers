@@ -1,0 +1,167 @@
+name: Create GitHub Prerelease - Agentic Chat
+
+permissions:
+    actions: read
+    contents: read
+
+on:
+    workflow_run:
+        workflows: [Create agent-standalone bundles]
+        types:
+            - completed
+        branches: [main, feature/*, release/agentic/*]
+
+jobs:
+    setup-vars:
+        runs-on: ubuntu-latest
+        outputs:
+            tagname: ${{ steps.build.outputs.tagname }}
+            serverversion: ${{ steps.build.outputs.serverversion }}
+            prereleasename: ${{ steps.build.outputs.prereleasename }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha }}
+
+            # if user ran this action manually
+            - if: github.event_name == 'workflow_dispatch'
+              run: |
+                  echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+                  echo "PRERELEASE_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+
+            # Otherwise a push to a branch triggered this action.
+            # Set TAG_NAME and PRERELEASE_NAME based on branch name
+            - if: github.event_name != 'workflow_dispatch'
+              run: |
+                  BRANCH_NAME="${{ github.event.workflow_run.head_branch }}"
+                  if [[ "$BRANCH_NAME" == "main" ]]; then
+                      echo "TAG_NAME=agentic-alpha" >> $GITHUB_ENV
+                      echo "PRERELEASE_NAME=alpha" >> $GITHUB_ENV
+                  elif [[ "$BRANCH_NAME" == feature/* ]]; then
+                      REMAINDER=$(echo "$BRANCH_NAME" | sed 's/^feature\///')
+                      echo "TAG_NAME=agentic-pre-$REMAINDER" >> $GITHUB_ENV
+                      echo "PRERELEASE_NAME=$REMAINDER" >> $GITHUB_ENV
+                  elif [[ "$BRANCH_NAME" == release/agentic/* ]]; then
+                      REMAINDER=$(echo "$BRANCH_NAME" | sed 's/^release\/agentic\///')
+                      echo "TAG_NAME=agentic-rc-$REMAINDER" >> $GITHUB_ENV
+                      echo "PRERELEASE_NAME=rc" >> $GITHUB_ENV
+                  else
+                      echo "Error: creating agentic releases for this branch is not supported"
+                      exit 1
+                  fi
+
+            # Make a sever version that is "decorated" as prerelease
+            - name: Create SERVER_VERSION
+              run: |
+                  # example: 1.0.999-pre-main.commitid
+                  # SERVER_VERSION - we're making "imitation" manifests that are accessible
+                  # from GitHub releases, as a convenience for plugins to easily consume
+                  # test/development builds. The version is pulled from the agenticChat field
+                  # in the version.json file.
+
+                  AGENTIC_VERSION=$(jq -r '.agenticChat' app/aws-lsp-codewhisperer-runtimes/src/version.json)
+                  COMMIT_SHORT=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-8)
+                  echo "SERVER_VERSION=$AGENTIC_VERSION-$PRERELEASE_NAME.$COMMIT_SHORT" >> $GITHUB_ENV
+
+            - name: Export outputs
+              id: build
+              run: |
+                  # tag name is the git tag that the github release is linked with
+                  echo "tagname=$TAG_NAME" >> $GITHUB_OUTPUT
+                  #  pre-release name is the semver pre-release decorator (eg 'alpha', 'rc', ...)
+                  echo "prereleasename=$PRERELEASE_NAME" >> $GITHUB_OUTPUT
+                  echo "serverversion=$SERVER_VERSION" >> $GITHUB_OUTPUT
+
+    create-release:
+        runs-on: ubuntu-latest
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        needs: [setup-vars]
+
+        env:
+            #
+            # For `gh` cli.
+            #
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            TAG_NAME: ${{ needs.setup-vars.outputs.tagname }}
+            #
+            # Used in release_notes.md and git tag
+            #
+            BRANCH: ${{ github.event.workflow_run.head_branch }}
+            COMMIT_ID: ${{ github.event.workflow_run.head_sha }}
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            # To run a ts script to create the manifest
+            - name: Install dependencies
+              run: npm i
+
+            # Download all the files uploaded by .github/workflows/create-agent-standalone.yml
+            - name: Download all platform artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  run-id: ${{ github.event.workflow_run.id }}
+                  path: ./downloaded-artifacts
+
+            # actions/download-artifact@v4 unzips all of the artifacts
+            # Flatten all files we want to attach to the Release into _release-artifacts/
+            - name: Create Release Artifacts
+              run: |
+                  mkdir -p _release-artifacts
+
+                  # servers.zip - one per platform
+                  platforms=("linux-arm64" "linux-x64" "mac-arm64" "mac-x64" "win-x64")
+                  for platform in "${platforms[@]}"; do
+                    cp downloaded-artifacts/$platform/servers.zip _release-artifacts/$platform-servers.zip
+                  done
+
+                  # clients.zip : just pick one of the platforms, they're all the same file
+                  cp downloaded-artifacts/linux-x64/clients.zip _release-artifacts/clients.zip
+
+                  # THIRD_PARTY_LICENSES
+                  cp downloaded-artifacts/THIRD_PARTY_LICENSES/THIRD_PARTY_LICENSES _release-artifacts/THIRD_PARTY_LICENSES
+
+            # Manifest assigned to the GitHub release will only ever contain one version,
+            # which points to the assets uploaded to the release (the latest commit).
+            - name: Create Artifact Manifest
+              env:
+                  SERVER_VERSION: ${{ needs.setup-vars.outputs.serverversion }}
+                  RELEASE_ARTIFACTS_PATH: ${{ github.workspace }}/_release-artifacts
+                  REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+
+              run: |
+                  npm run ci:generate:manifest -w app/aws-lsp-codewhisperer-runtimes/
+
+            - name: Remove existing release
+              run: |
+                  # Remove the existing release (if it exists), we (re)create it next.
+                  gh release delete "$TAG_NAME" --cleanup-tag --yes || true
+
+            - name: Create GitHub Release
+              env:
+                  SERVER_VERSION: ${{ needs.setup-vars.outputs.serverversion }}
+                  PRERELEASE_NAME: ${{ needs.setup-vars.outputs.prereleasename }}
+                  # MANIFEST_URL example:
+                  # https://github.com/aws/language-servers/releases/download/pre-main/manifest.json
+                  MANIFEST_URL: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ needs.setup-vars.outputs.tagname }}/manifest.json
+
+              run: |
+                  #  Produce the text for the release description
+                  envsubst < "$GITHUB_WORKSPACE/.github/workflows/agentic-prerelease-release-notes.md" > "$RUNNER_TEMP/release_notes.md"
+
+                  # main and feature branches create alpha builds.
+                  # In the future, release candidate branches will create preprod builds
+                  gh release create $TAG_NAME --prerelease --notes-file "$RUNNER_TEMP/release_notes.md" --title "Agentic Chat: $PRERELEASE_NAME ($BRANCH)" --target $COMMIT_ID _release-artifacts/*

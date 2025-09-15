@@ -33,6 +33,8 @@ import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
+import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
+import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -91,6 +93,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.state = state
     }
 
+    endpointOverride(): string | undefined {
+        return this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities
+            ?.textDocument?.inlineCompletionWithReferences?.endpointOverride
+    }
+
     public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
@@ -142,11 +149,18 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         if (type === 'iam') {
             return
         }
+
+        // Clear model cache when credentials are deleted
+        ChatDatabase.clearModelCache()
+
         this.cancelActiveProfileChangeToken()
 
         this.resetCodewhispererService()
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
+
+        // Reset MCP state cache when auth changes
+        ProfileStatusMonitor.resetMcpState()
     }
 
     public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
@@ -218,19 +232,31 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             return
         }
 
-        // Connection type changed to 'builderId'
+        const endpointOverride =
+            this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities
+                ?.textDocument?.inlineCompletionWithReferences?.endpointOverride
 
-        if (newConnectionType === 'builderId') {
-            this.log('Detected New connection type: builderId')
+        // Connection type changed to 'builderId' | 'external_idp'
+        // for now pretend External IdP is just a special case of Builder ID where the subscription has already been established
+        // and user does not need a profile
+        if (newConnectionType === 'builderId' || newConnectionType === 'external_idp') {
+            this.log(`Detected New connection type: ${newConnectionType}`)
             this.resetCodewhispererService()
 
             // For the builderId connection type regional endpoint discovery chain is:
             // region set by client -> runtime region -> default region
             const clientParams = this.features.lsp.getClientInitializeParams()
 
-            this.createCodewhispererServiceInstances('builderId', clientParams?.initializationOptions?.aws?.region)
+            this.createCodewhispererServiceInstances(
+                newConnectionType,
+                clientParams?.initializationOptions?.aws?.region,
+                endpointOverride
+            )
             this.state = 'INITIALIZED'
-            this.log('Initialized Amazon Q service with builderId connection')
+            this.log(`Initialized Amazon Q service with ${newConnectionType} connection`)
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -250,9 +276,12 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 return
             }
 
-            this.createCodewhispererServiceInstances('identityCenter')
+            this.createCodewhispererServiceInstances('identityCenter', undefined, endpointOverride)
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with identityCenter connection')
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -352,11 +381,18 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (!this.activeIdcProfile) {
             this.activeIdcProfile = newProfile
-            this.createCodewhispererServiceInstances('identityCenter', newProfile.identityDetails.region)
+            this.createCodewhispererServiceInstances(
+                'identityCenter',
+                newProfile.identityDetails.region,
+                this.endpointOverride()
+            )
             this.state = 'INITIALIZED'
             this.log(
                 `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
             )
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -367,6 +403,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.log(`Profile selection did not change, active profile is ${this.activeIdcProfile.arn}`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -404,8 +443,15 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.activeIdcProfile = newProfile
 
-        this.createCodewhispererServiceInstances('identityCenter', newProfile.identityDetails.region)
+        this.createCodewhispererServiceInstances(
+            'identityCenter',
+            newProfile.identityDetails.region,
+            this.endpointOverride()
+        )
         this.state = 'INITIALIZED'
+
+        // Emit auth success event
+        ProfileStatusMonitor.emitAuthSuccess()
 
         return
     }
@@ -461,8 +507,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     private createCodewhispererServiceInstances(
-        connectionType: 'builderId' | 'identityCenter',
-        clientOrProfileRegion?: string
+        connectionType: Exclude<SsoConnectionType, 'none'>,
+        clientOrProfileRegion: string | undefined,
+        endpointOverride: string | undefined
     ) {
         this.logServiceState('Initializing CodewhispererService')
 
@@ -477,10 +524,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.region = region
         this.endpoint = endpoint
 
-        this.cachedCodewhispererService = this.serviceFactory(region, endpoint)
+        if (endpointOverride) {
+            this.endpoint = endpointOverride
+        }
+
+        this.cachedCodewhispererService = this.serviceFactory(region, this.endpoint)
         this.log(`CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`)
 
-        this.cachedStreamingClient = this.streamingClientFactory(region, endpoint)
+        this.cachedStreamingClient = this.streamingClientFactory(region, this.endpoint)
         this.log(`StreamingClient service for connection type ${connectionType} was initialized, region=${region}`)
 
         this.logServiceState('CodewhispererService and StreamingClient Initialization finished')
@@ -566,7 +617,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.connectionType
     }
 
-    public getActiveProfileArn() {
+    public override getActiveProfileArn() {
         return this.activeIdcProfile?.arn
     }
 
@@ -587,7 +638,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
      * @param listener Function that will be called with the new region
      * @returns Function to unregister the listener
      */
-    public onRegionChange(listener: (region: string) => void): () => void {
+    public override onRegionChange(listener: (region: string) => void): () => void {
         this.regionChangeListeners.push(listener)
         // If we already have a region, notify the listener immediately
         if (this.region) {

@@ -107,10 +107,8 @@ describe('McpMynahUi', () => {
             assert.strictEqual(callArgs.detailedList.header.description, 'Test Description')
             assert.deepStrictEqual(callArgs.detailedList.header.status, { status: 'success' })
 
-            // Verify the actions in the header
-            assert.strictEqual(callArgs.detailedList.header.actions.length, 2)
-            assert.strictEqual(callArgs.detailedList.header.actions[0].id, 'add-new-mcp')
-            assert.strictEqual(callArgs.detailedList.header.actions[1].id, 'refresh-mcp-list')
+            // Verify the actions in the header (no default actions are added when header is provided)
+            assert.strictEqual(callArgs.detailedList.header.actions.length, 0)
 
             // Verify the list structure
             assert.strictEqual(callArgs.detailedList.list.length, 1)

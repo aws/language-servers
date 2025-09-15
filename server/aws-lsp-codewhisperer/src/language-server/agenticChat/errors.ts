@@ -1,4 +1,4 @@
-import { CodeWhispererStreamingServiceException } from '@aws/codewhisperer-streaming-client'
+import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 
 type AgenticChatErrorCode =
     | 'QModelResponse' // generic backend error.
@@ -11,7 +11,9 @@ type AgenticChatErrorCode =
     | 'MCPServerInitTimeout' // mcp server failed to start within allowed time
     | 'MCPToolExecTimeout' // mcp tool call failed to complete within allowed time
     | 'MCPServerConnectionFailed' // mcp server failed to connect
+    | 'MCPServerAuthFailed' // mcp server failed to complete auth flow
     | 'RequestAborted' // request was aborted by the user
+    | 'RequestThrottled' // request was aborted by the user
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
@@ -249,4 +251,16 @@ export function getCustomerFacingErrorMessage(error: unknown): string {
     }
 
     return String(error)
+}
+
+export function isThrottlingRelated(error: unknown): boolean {
+    if (error instanceof AgenticChatError && error.code === 'RequestThrottled') {
+        return true
+    }
+
+    if (error instanceof Error) {
+        //  Only depend on the exception name, not the stack trace
+        return error.name === 'ServiceUnavailableException'
+    }
+    return false
 }

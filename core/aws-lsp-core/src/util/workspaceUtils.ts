@@ -3,6 +3,7 @@ import { URI } from 'vscode-uri'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
 import { CancellationError } from './awsError'
+import * as fs from 'fs'
 
 type ElementType<T> = T extends (infer U)[] ? U : never
 type Dirent = ElementType<Awaited<ReturnType<Features['workspace']['fs']['readdir']>>>
@@ -125,7 +126,19 @@ export function isParentFolder(parentPath: string, childPath: string): boolean {
 }
 
 export function isInWorkspace(workspaceFolderPaths: string[], filepath: string) {
-    return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath) || wsFolder === filepath)
+    if (path.isAbsolute(filepath)) {
+        return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath) || wsFolder === filepath)
+    } else {
+        // For relative paths, try each workspace folder
+        for (const wsFolder of workspaceFolderPaths) {
+            const absolutePath = path.join(wsFolder, filepath)
+            if (fs.existsSync(absolutePath)) {
+                // If we found the file in this workspace folder, it's in the workspace automatically
+                return true
+            }
+        }
+    }
+    return false
 }
 
 /**

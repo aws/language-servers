@@ -17,6 +17,7 @@ import {
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
 import { StreamingClientServiceBase } from '../streamingClientService'
+import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 
 export interface QServiceManagerFeatures {
     lsp: Lsp
@@ -86,6 +87,10 @@ export abstract class BaseAmazonQServiceManager<
     abstract getCodewhispererService(): C
     abstract getStreamingClient(): S
 
+    get serverInfo() {
+        return this.features.runtime.serverInfo
+    }
+
     public getConfiguration(): Readonly<AmazonQWorkspaceConfig> {
         return this.configurationCache.getConfig()
     }
@@ -126,6 +131,15 @@ export abstract class BaseAmazonQServiceManager<
         } finally {
             this.isConfigChangeInProgress = false
         }
+    }
+
+    public onRegionChange(_listener: (region: string) => void): () => void {
+        // Default implementation - no-op
+        return () => {}
+    }
+
+    public getActiveProfileArn(): string | undefined {
+        return undefined // No-op / default implementation
     }
 
     protected updateCachedServiceConfig(): void {

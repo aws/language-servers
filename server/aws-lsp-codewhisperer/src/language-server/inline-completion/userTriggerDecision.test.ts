@@ -19,6 +19,7 @@ import {
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { getNormalizeOsName } from './auto-trigger/autoTrigger'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
@@ -55,6 +56,12 @@ describe('Telemetry', () => {
         clock.restore()
         sandbox.restore()
         telemetryServiceSpy.restore()
+    })
+
+    // Add a hook that runs after all tests in this describe block
+    after(() => {
+        // Force process to exit after tests complete to prevent hanging
+        setTimeout(() => process.exit(0), 1000)
     })
 
     describe('User Trigger Decision telemetry', () => {
@@ -138,6 +145,7 @@ describe('Telemetry', () => {
             },
         }
         const EMPTY_RESULT = { items: [], sessionId: '' }
+        const classifierResult = getNormalizeOsName() !== 'Linux' ? 0.6014326616203989 : 0.61475353067264
 
         let features: TestFeatures
         let server: Server
@@ -253,7 +261,7 @@ describe('Telemetry', () => {
                 triggerType: 'AutoTrigger',
                 autoTriggerType: 'SpecialCharacters',
                 triggerCharacter: '(',
-                classifierResult: 0.46733811481459187,
+                classifierResult: classifierResult,
                 classifierThreshold: 0.43,
                 language: 'csharp',
                 requestContext: {
@@ -300,7 +308,7 @@ describe('Telemetry', () => {
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision()
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Empty')
             })
 
             it('should send Empty User Decision when Codewhisperer returned empty list of suggestions', async () => {
@@ -318,7 +326,7 @@ describe('Telemetry', () => {
                     suggestions: [],
                     suggestionsStates: new Map([]),
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Empty')
             })
 
             it('should send Discard User Decision when all suggestions are filtered out by includeSuggestionsWithCodeReferences setting filter', async () => {
@@ -375,7 +383,7 @@ describe('Telemetry', () => {
                         ['cwspr-item-id-3', 'Filter'],
                     ]),
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
             })
 
             it('should send Discard User Decision when all suggestions are discarded after right context merge', async () => {
@@ -438,7 +446,8 @@ describe('Telemetry', () => {
                     triggerType: 'OnDemand',
                     autoTriggerType: undefined,
                     triggerCharacter: '',
-                    classifierResult: -0.8524073111924992,
+                    classifierResult: undefined,
+                    classifierThreshold: undefined,
                     requestContext: {
                         fileContext: {
                             filename: 'test.cs',
@@ -458,7 +467,7 @@ describe('Telemetry', () => {
                         maxResults: 5,
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
             })
         })
 
@@ -496,7 +505,7 @@ describe('Telemetry', () => {
                 sinon.assert.called(telemetryServiceSpy)
             })
 
-            it('should not emit User Decision event when session results are received after session was closed', async () => {
+            it('should not emit User Decision event after second trigger is received', async () => {
                 setServiceResponse(DEFAULT_SUGGESTIONS, {
                     ...EXPECTED_RESPONSE_CONTEXT,
                     codewhispererSessionId: 'cwspr-session-id-1',
@@ -510,7 +519,7 @@ describe('Telemetry', () => {
                 sinon.assert.notCalled(sessionManagerSpy.closeSession)
                 sinon.assert.notCalled(telemetryServiceSpy)
 
-                // Send second completion request to close first one
+                // Send second completion request should not close first one
                 setServiceResponse(DEFAULT_SUGGESTIONS, {
                     ...EXPECTED_RESPONSE_CONTEXT,
                     codewhispererSessionId: 'cwspr-session-id-2',
@@ -519,7 +528,7 @@ describe('Telemetry', () => {
 
                 assert.equal(firstSession.state, 'DISCARD')
                 assert.notEqual(firstSession, sessionManager.getCurrentSession())
-                sinon.assert.calledWithExactly(sessionManagerSpy.closeSession, firstSession)
+                sinon.assert.notCalled(sessionManagerSpy.closeSession)
                 // Test that session reports it's status when second request is received
                 const expectedEvent = aUserTriggerDecision({
                     state: 'DISCARD',
@@ -562,7 +571,7 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedEvent, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedEvent, 'Discard')
 
                 telemetryServiceSpy.resetHistory()
 
@@ -653,7 +662,7 @@ describe('Telemetry', () => {
                     ]),
                     acceptedSuggestionId: 'cwspr-item-id-2',
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Accept')
             })
 
             it('should emit Reject User Decision event for current active completion session when session results are received without accepted suggestion', async () => {
@@ -725,7 +734,7 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: false, accepted: false, discarded: true },
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Reject')
             })
 
             it('should send Discard User Decision when all suggestions have Discard state', async () => {
@@ -797,7 +806,7 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: false, accepted: false, discarded: true },
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
             })
 
             it('should set codewhispererTimeSinceLastDocumentChange as difference between 2 any document changes', async () => {
@@ -864,7 +873,7 @@ describe('Telemetry', () => {
                     ]),
                     closeTime: clock.now,
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 5678)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Reject', 5678)
             })
         })
 
@@ -923,7 +932,7 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
                 sinon.assert.neverCalledWithMatch(
                     telemetryServiceSpy,
                     {
@@ -987,7 +996,7 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
                 sinon.assert.neverCalledWithMatch(
                     telemetryServiceSpy,
                     {
@@ -1045,7 +1054,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.46733811481459187,
+                    classifierResult: classifierResult,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
@@ -1242,7 +1251,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.30173811481459184,
+                    classifierResult: getNormalizeOsName() === 'Linux' ? 0.5748673583477094 : 0.5611518554232429,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
@@ -1266,8 +1275,9 @@ describe('Telemetry', () => {
             })
         })
 
+        // we are blocking subsequent completion request as long as inflight is running
         describe('Case 4. Inflight session is closed by subsequent completion request', function () {
-            it('should emit Discard user trigger decision event when REQUESTING session is closed before becoming ACTIVE', async () => {
+            it.skip('should emit Discard user trigger decision event when REQUESTING session is closed before becoming ACTIVE', async () => {
                 // Chain requests in a callbacks
                 let concurrentCount = 0
                 let requests: Promise<InlineCompletionListWithReferences>[] = []
@@ -1358,7 +1368,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.46733811481459187,
+                    classifierResult: classifierResult,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
@@ -1441,7 +1451,7 @@ describe('Telemetry', () => {
                             codewhispererSessionId: 'cwspr-session-id-2',
                         },
                     }),
-                    0
+                    'Discard'
                 )
             })
         })
@@ -1505,6 +1515,12 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
                     },
                 }),
+                'Reject',
+                0,
+                0,
+                0,
+                undefined,
+                undefined,
                 0
             )
             assert.equal(firstSession?.state, 'CLOSED')

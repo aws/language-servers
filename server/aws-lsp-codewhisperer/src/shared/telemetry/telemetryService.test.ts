@@ -207,7 +207,7 @@ describe('TelemetryService', () => {
 
         telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
 
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession, 'Accept')
 
         sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
     })
@@ -222,7 +222,7 @@ describe('TelemetryService', () => {
 
         telemetryService.updateOptOutPreference('OPTOUT')
 
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession, 'Accept')
 
         sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
     })
@@ -238,7 +238,7 @@ describe('TelemetryService', () => {
         })
 
         // Emitting event with IdC connection
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession, 'Accept')
 
         sinon.assert.calledOnce(codeWhisperServiceStub.sendTelemetryEvent)
 
@@ -251,7 +251,7 @@ describe('TelemetryService', () => {
         codeWhisperServiceStub.sendTelemetryEvent.resetHistory()
 
         // Should not emit event anymore with BuilderId
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession, 'Accept')
         sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
     })
 
@@ -274,7 +274,10 @@ describe('TelemetryService', () => {
                     perceivedLatencyMilliseconds: undefined,
                     addedCharacterCount: undefined,
                     deletedCharacterCount: undefined,
-                    streakLength: undefined,
+                    addedIdeDiagnostics: undefined,
+                    removedIdeDiagnostics: undefined,
+                    streakLength: 0,
+                    suggestionType: 'COMPLETIONS',
                 },
             },
             optOutPreference: 'OPTIN',
@@ -288,7 +291,7 @@ describe('TelemetryService', () => {
         telemetryService.updateEnableTelemetryEventsToDestination(true)
         telemetryService.updateOptOutPreference('OPTIN')
 
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession, 'Accept')
 
         sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedUserTriggerDecisionEvent)
         sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
@@ -334,7 +337,7 @@ describe('TelemetryService', () => {
         telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateEnableTelemetryEventsToDestination(false)
         telemetryService.updateOptOutPreference('OPTOUT')
-        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
+        telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession, 'Accept')
         sinon.assert.neverCalledWithMatch(telemetry.emitMetric as sinon.SinonStub, {
             name: 'codewhisperer_userTriggerDecision',
         })
@@ -838,6 +841,8 @@ describe('TelemetryService', () => {
                     enabled: true,
                     languageServerVersion: undefined,
                     requestIds: undefined,
+                    experimentName: undefined,
+                    userVariation: undefined,
                     cwsprChatHasContextList: true,
                     cwsprChatFolderContextCount: 0,
                     cwsprChatFileContextCount: 0,
@@ -854,6 +859,7 @@ describe('TelemetryService', () => {
                     cwsprChatPinnedFileContextCount: undefined,
                     cwsprChatPinnedFolderContextCount: undefined,
                     cwsprChatPinnedPromptContextCount: undefined,
+                    errorMessage: undefined,
                 },
             })
         })

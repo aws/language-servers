@@ -6,7 +6,7 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
     ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
     ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
@@ -16,9 +16,10 @@ import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-se
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
-import { clientTimeoutMs } from '../language-server/agenticChat/constants'
+import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -26,6 +27,9 @@ export type SendMessageCommandInput =
 export type SendMessageCommandOutput =
     | SendMessageCommandOutputCodeWhispererStreaming
     | SendMessageCommandOutputQDeveloperStreaming
+
+export type ChatCommandInput = SendMessageCommandInput | GenerateAssistantResponseCommandInputCodeWhispererStreaming
+export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResponseCommandOutputCodeWhispererStreaming
 
 export abstract class StreamingClientServiceBase {
     protected readonly region
@@ -80,10 +84,23 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             token: tokenProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             requestHandler: new NodeHttpHandler({
-                requestTimeout: clientTimeoutMs,
+                requestTimeout: CLIENT_TIMEOUT_MS,
             }),
             customUserAgent: customUserAgent,
         })
+
+        this.client.middlewareStack.add(
+            (next, context) => args => {
+                if (credentialsProvider.getConnectionType() === 'external_idp') {
+                    // @ts-ignore
+                    args.request.headers['TokenType'] = 'EXTERNAL_IDP'
+                }
+                return next(args)
+            },
+            {
+                step: 'build',
+            }
+        )
     }
 
     public async sendMessage(
@@ -165,17 +182,26 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
         endpoint: string
     ) {
         super(region, endpoint)
-
         logging.log(
             `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
 
+        // Create a credential provider that fetches fresh credentials on each request
+        const iamCredentialProvider: AwsCredentialIdentityProvider = async (): Promise<AwsCredentialIdentity> => {
+            const creds = (await credentialsProvider.getCredentials('iam')) as Credentials
+            logging.log(`Fetching new IAM credentials`)
+            return {
+                accessKeyId: creds.accessKeyId,
+                secretAccessKey: creds.secretAccessKey,
+                sessionToken: creds.sessionToken,
+                expiration: creds.expireTime ? new Date(creds.expireTime) : new Date(), // Force refresh on each request if creds do not have expiration time
+            }
+        }
+
         this.client = sdkInitializator(QDeveloperStreaming, {
             region: region,
             endpoint: endpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
-            ]),
+            credentials: iamCredentialProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
     }

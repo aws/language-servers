@@ -1,11 +1,11 @@
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { SsoConnectionType } from '../utils'
 import {
     AWSInitializationOptions,
     CancellationTokenSource,
     Logging,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,
@@ -107,6 +107,32 @@ describe('ListAllAvailableProfiles Handler', () => {
             })
 
             assert.deepStrictEqual(profiles, [])
+        })
+    })
+
+    describe('Enhanced Logging for Debugging', () => {
+        it('should log complete error object when profile fetching fails', async () => {
+            const testError = new Error('Test error') as any
+            testError.code = 'TestErrorCode'
+            testError.statusCode = 500
+
+            codeWhispererService.listAvailableProfiles.rejects(testError)
+
+            try {
+                await handler({
+                    connectionType: 'identityCenter',
+                    logging,
+                    endpoints: SOME_AWS_Q_ENDPOINT,
+                    token: tokenSource.token,
+                })
+                assert.fail('Expected method to throw')
+            } catch (error) {
+                // Verify that debug logging was called for complete error object
+                sinon.assert.called(logging.debug)
+                const debugCalls = logging.debug.getCalls()
+                const hasCompleteErrorLogging = debugCalls.some(call => call.args[0].includes('Complete error object'))
+                assert.ok(hasCompleteErrorLogging, 'Should log complete error object in debug logs')
+            }
         })
     })
 

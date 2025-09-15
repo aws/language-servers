@@ -21,7 +21,9 @@ export const findWorkspaceRootFolder = (
 
     const matchingFolder = sortedFolders.find(folder => {
         const parsedFolderUri = URI.parse(folder.uri)
-        return parsedFileUri.path.startsWith(parsedFolderUri.path)
+        // Paths are normalized to use forward slashes in the .path property regardless of the underlying OS
+        const folderPath = parsedFolderUri.path.endsWith('/') ? parsedFolderUri.path : parsedFolderUri.path + '/'
+        return parsedFileUri.path.startsWith(folderPath)
     })
 
     return matchingFolder
@@ -79,4 +81,21 @@ export const getRelativePath = (workspaceFolder: WorkspaceFolder, filePath: stri
     const workspaceUri = URI.parse(workspaceFolder.uri)
     const fileUri = URI.parse(filePath)
     return path.relative(workspaceUri.path, fileUri.path)
+}
+
+export const getRelativePathWithUri = (uri: string, workspaceFolder?: WorkspaceFolder | null): string => {
+    const documentUri = URI.parse(uri)
+    const workspaceUri = workspaceFolder?.uri
+    const workspaceRoot = workspaceUri ? URI.parse(workspaceUri).fsPath : process.cwd()
+    const absolutePath = documentUri.fsPath
+    return path.relative(workspaceRoot, absolutePath)
+}
+
+// Include workspace folder name to disambiguate files when there are multiple workspace folders
+export const getRelativePathWithWorkspaceFolder = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
+    const workspaceUri = URI.parse(workspaceFolder.uri)
+    const fileUri = URI.parse(filePath)
+    const relativePath = path.relative(workspaceUri.fsPath, fileUri.fsPath)
+    const workspaceFolderName = path.basename(workspaceUri.fsPath)
+    return path.join(workspaceFolderName, relativePath)
 }

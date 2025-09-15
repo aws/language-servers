@@ -8,12 +8,13 @@ import {
     ChatTriggerType,
     UserIntent,
     AdditionalContentEntry,
-    GenerateAssistantResponseCommandInput,
     ChatMessage,
     ContentType,
     ProgrammingLanguage,
     EnvState,
-} from '@aws/codewhisperer-streaming-client'
+    Origin,
+    ImageBlock,
+} from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
     ChatParams,
@@ -29,16 +30,22 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
-import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
+import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
+import { getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
+import { ChatCommandInput } from '../../../shared/streamingClientService'
+import { COMPACTION_PROMPT } from '../constants/constants'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
     contextInfo?: ContextInfo
+    /**
+     * Represents the context transparency list displayed at the top of the assistant response.
+     */
     documentReference?: FileList
     hasWorkspace?: boolean
 }
@@ -48,6 +55,7 @@ export type AdditionalContentEntryAddition = AdditionalContentEntry & {
     type: string
     relativePath: string
     path: string
+    pinned?: boolean
 } & LineInfo
 
 export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo & { path: string }
@@ -99,6 +107,58 @@ export class AgenticChatTriggerContext {
         }
     }
 
+    /**
+     * Creates chat parameters from trigger context for sending to the backend
+     * @param profileArn Optional ARN for profile
+     * @param tools Optional Bedrock tools
+     * @param modelId Optional model ID
+     * @param origin Optional origin
+     * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
+     */
+    getCompactionChatCommandInput(
+        profileArn?: string,
+        tools: BedrockTools = [],
+        modelId?: string,
+        origin?: Origin
+    ): ChatCommandInput {
+        const data: ChatCommandInput = {
+            conversationState: {
+                chatTriggerType: ChatTriggerType.MANUAL,
+                currentMessage: {
+                    userInputMessage: {
+                        content: COMPACTION_PROMPT,
+                        userInputMessageContext: {
+                            tools,
+                            envState: this.#mapPlatformToEnvState(process.platform),
+                        },
+                        userIntent: undefined,
+                        origin: origin ? origin : 'IDE',
+                        modelId,
+                    },
+                },
+                customizationArn: undefined,
+            },
+            profileArn,
+        }
+
+        return data
+    }
+
+    /**
+     * Creates chat parameters from trigger context for sending to the backend
+     * @param params Chat parameters or inline chat parameters
+     * @param triggerContext Context information from the trigger
+     * @param chatTriggerType Type of chat trigger
+     * @param customizationArn Optional ARN for customization
+     * @param chatResultStream Optional stream for chat results
+     * @param profileArn Optional ARN for profile
+     * @param history Optional chat message history
+     * @param tools Optional Bedrock tools
+     * @param additionalContent Optional additional content entries
+     * @param modelId Optional model ID
+     * @param imageContext Optional image block for image context
+     * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
+     */
     async getChatParamsFromTrigger(
         params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
@@ -106,11 +166,12 @@ export class AgenticChatTriggerContext {
         customizationArn?: string,
         chatResultStream?: AgenticChatResultStream,
         profileArn?: string,
-        history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
-        modelId?: string
-    ): Promise<GenerateAssistantResponseCommandInput> {
+        modelId?: string,
+        origin?: Origin,
+        imageContext?: ImageBlock[]
+    ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
         const defaultEditorState = { workspaceFolders }
@@ -149,9 +210,14 @@ export class AgenticChatTriggerContext {
         triggerContext.documentReference = triggerContext.documentReference
             ? mergeFileLists(triggerContext.documentReference, workspaceFileList)
             : workspaceFileList
-        // Process additionalContent items if present
+        // Add @context in prompt to relevantDocuments
         if (additionalContent) {
-            for (const item of additionalContent) {
+            for (const item of additionalContent.filter(item => !item.pinned)) {
+                // image context does not come from workspace, skip
+                if (item.type === 'image') {
+                    continue
+                }
+
                 // Determine programming language from file extension or type
                 let programmingLanguage: ProgrammingLanguage | undefined = undefined
 
@@ -172,11 +238,14 @@ export class AgenticChatTriggerContext {
                           : item.type === 'code'
                             ? ContentType.CODE
                             : undefined
+                const workspaceFolder = this.#workspace.getWorkspaceFolder(URI.file(item.path).toString())
                 // Create the relevant text document
                 const relevantTextDocument: RelevantTextDocumentAddition = {
                     text: item.innerContext,
                     path: item.path,
-                    relativeFilePath: item.relativePath,
+                    relativeFilePath: workspaceFolder
+                        ? getRelativePathWithWorkspaceFolder(workspaceFolder, item.path)
+                        : item.relativePath,
                     programmingLanguage: programmingLanguage,
                     type: filteredType,
                     startLine: item.startLine ?? -1,
@@ -187,7 +256,7 @@ export class AgenticChatTriggerContext {
         }
         const useRelevantDocuments = relevantDocuments.length !== 0
 
-        const data: GenerateAssistantResponseCommandInput = {
+        const data: ChatCommandInput = {
             conversationState: {
                 workspaceId: workspaceId,
                 chatTriggerType: chatTriggerType,
@@ -221,12 +290,12 @@ export class AgenticChatTriggerContext {
                                       envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
-                        origin: 'IDE',
+                        origin: origin ? origin : 'IDE',
                         modelId,
+                        images: imageContext,
                     },
                 },
                 customizationArn,
-                history,
             },
             profileArn,
         }
@@ -273,7 +342,7 @@ export class AgenticChatTriggerContext {
             const content = await this.#workspace.fs.readFile(URI.parse(uri).fsPath)
             return TextDocument.create(uri, '', 0, content)
         } catch (err) {
-            this.#logging.error(`Unable to load from ${path}: ${err}`)
+            this.#logging.error(`Unable to load from ${uri}: ${err}`)
             return
         }
     }
