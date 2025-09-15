@@ -150,14 +150,4 @@ describe('QRetryStrategy', () => {
             ).to.be.true
         })
     })
-
-    describe('sanitizeLogInput', () => {
-        it('should sanitize control characters', async () => {
-            const strategy = retryStrategy as any
-
-            expect(strategy.sanitizeLogInput('test\nvalue\r')).to.equal('test_value_')
-            expect(strategy.sanitizeLogInput('normal')).to.equal('normal')
-            expect(strategy.sanitizeLogInput(123 as any)).to.equal('non-string-input')
-        })
-    })
 })

@@ -626,6 +626,16 @@ export function sanitizeInput(input: string): string {
 }
 
 /**
+ * Sanitizes input for logging to prevent log injection attacks
+ * @param input The input string to sanitize
+ * @returns The sanitized string with control characters replaced
+ */
+export function sanitizeLogInput(input: string): string {
+    // Remove newlines, carriage returns, and other control characters
+    return input.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, '_')
+}
+
+/**
  * Recursively sanitizes the entire request input to prevent Unicode ASCII smuggling
  * @param input The request input to sanitize
  * @returns The sanitized request input

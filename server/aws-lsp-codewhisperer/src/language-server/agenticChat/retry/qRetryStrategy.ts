@@ -2,6 +2,7 @@ import { RetryStrategyV2, RetryToken } from '@aws-sdk/types'
 import { QRetryClassifier, RetryAction } from './retryClassifier'
 import { QDelayTrackingInterceptor } from './delayInterceptor'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { sanitizeLogInput } from '../../../shared/utils'
 
 /**
  * Custom retry strategy that integrates Q-specific retry classification and delay tracking
@@ -27,7 +28,7 @@ export class QRetryStrategy implements RetryStrategyV2 {
 
     async acquireInitialRetryToken(retryTokenScope: string): Promise<RetryToken> {
         this.attemptCount = 0
-        const sanitizedScope = this.sanitizeLogInput(retryTokenScope)
+        const sanitizedScope = sanitizeLogInput(retryTokenScope)
         this.logging?.log(
             `QRetryStrategy: Initial retry token acquired for scope: ${sanitizedScope}, attempt count reset to 0`
         )
@@ -44,7 +45,7 @@ export class QRetryStrategy implements RetryStrategyV2 {
         const currentAttempt = token.getRetryCount() + 1
         this.attemptCount = currentAttempt
 
-        const errorCode = this.sanitizeLogInput(errorInfo.error?.code || errorInfo.error?.name || 'Unknown')
+        const errorCode = sanitizeLogInput(errorInfo.error?.code || errorInfo.error?.name || 'Unknown')
         this.logging?.log(`QRetryStrategy: Retry attempt ${currentAttempt} for error: ${errorCode}`)
 
         // Apply Q-specific retry classification
@@ -92,16 +93,5 @@ export class QRetryStrategy implements RetryStrategyV2 {
     // Test helper method to get current attempt count
     public getAttemptCount(): number {
         return this.attemptCount
-    }
-
-    /**
-     * Sanitizes input for logging to prevent log injection attacks
-     */
-    private sanitizeLogInput(input: string): string {
-        if (typeof input !== 'string') {
-            return 'non-string-input'
-        }
-        // Remove newlines, carriage returns, and other control characters
-        return input.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, '_')
     }
 }
