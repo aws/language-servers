@@ -35,7 +35,7 @@ export type PrepareAndUploadArtifactsResult = {
 
 export type StartCodeAnalysisResult = {
     jobId: string
-    status: string
+    status: string | undefined
 }
 
 export type CodeReviewResult = {

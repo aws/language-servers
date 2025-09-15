@@ -15,7 +15,7 @@
     "scripts": {
         "compile": "tsc --build",
         "postcompile": "npm run copyServiceClient",
-        "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
+        "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out",
         "fix": "npm run fix:prettier",
         "fix:prettier": "prettier . --write",
         "lint": "npm run lint:src",
@@ -32,6 +32,7 @@
     },
     "dependencies": {
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
+        "@amzn/codewhisperer-runtime": "file:../../core/codewhisperer-runtime/amzn-codewhisperer-runtime-1.0.0.tgz",
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
@@ -104,6 +105,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
+        "@amzn/codewhisperer-runtime",
         "@amzn/codewhisperer-streaming",
         "@amzn/amazon-q-developer-streaming-client"
     ]

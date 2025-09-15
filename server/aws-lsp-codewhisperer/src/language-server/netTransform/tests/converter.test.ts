@@ -2,82 +2,13 @@ import { expect } from 'chai'
 import { AWSError, HttpResponse } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Response } from 'aws-sdk/lib/response'
-import { StartTransformRequest, TransformProjectMetadata } from '../models'
-import { getCWStartTransformRequest, getCWStartTransformResponse, targetFrameworkMap } from '../converter'
-import CodeWhispererTokenUserClient = require('../../../client/token/codewhispererbearertokenclient')
-import { Logging } from '@aws/language-server-runtimes/server-interface'
-import { stubInterface } from 'ts-sinon'
-import sinon = require('sinon')
-
-const mockedLogging = stubInterface<Logging>()
-const sampleStartTransformationRequest: CodeWhispererTokenUserClient.StartTransformationRequest = {
-    workspaceState: {
-        uploadId: '',
-        programmingLanguage: {
-            languageName: '',
-        },
-        contextTruncationScheme: 'ANALYSIS',
-    },
-    transformationSpec: {
-        transformationType: 'LANGUAGE_UPGRADE',
-        source: {
-            language: 'C_SHARP',
-            platformConfig: {
-                operatingSystemFamily: 'WINDOWS',
-            },
-        },
-        target: {
-            language: 'C_SHARP',
-            runtimeEnv: {
-                dotNet: '',
-            },
-            platformConfig: {
-                operatingSystemFamily: 'LINUX',
-            },
-        },
-    },
-}
-
-const sampleUserInputRequest: StartTransformRequest = {
-    SolutionRootPath: '',
-    SolutionFilePath: '',
-    TargetFramework: '',
-    ProgramLanguage: '',
-    SelectedProjectPath: '',
-    SolutionConfigPaths: [],
-    ProjectMetadata: [
-        {
-            Name: '',
-            ProjectPath: '',
-            ProjectLanguage: 'csharp',
-            ProjectType: '',
-            ExternalReferences: [],
-            ProjectTargetFramework: '',
-            SourceCodeFilePaths: [],
-        },
-    ],
-    TransformNetStandardProjects: false,
-    EnableRazorViewTransform: false,
-    EnableWebFormsTransform: false,
-    command: '',
-    PackageReferences: [],
-}
-
-function safeSet(obj: any, path: string[], value: any): void {
-    let current = obj
-    for (let i = 0; i < path.length - 1; i++) {
-        if (current[path[i]] === undefined) {
-            current[path[i]] = {}
-        }
-        current = current[path[i]]
-    }
-    current[path[path.length - 1]] = value
-}
+import { getCWStartTransformResponse } from '../converter'
+import { StartTransformationResponse } from '@amzn/codewhisperer-runtime'
 
 describe('Test Converter', () => {
     describe('Test get CW StartTransformResponse', () => {
         it('should return the correct StarTransformResponse object', () => {
-            const mockResponseData: CodeWhispererTokenUserClient.StartTransformationResponse = {
+            const mockResponseData: StartTransformationResponse = {
                 transformationJobId: 'testJobId',
             }
 
@@ -90,7 +21,7 @@ describe('Test Converter', () => {
                 streaming: false,
             }
 
-            let mockResponse: Response<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError> = {
+            let mockResponse: Response<StartTransformationResponse, AWSError> = {
                 hasNextPage: () => false,
                 nextPage: () => null,
                 data: mockResponseData,
@@ -101,11 +32,10 @@ describe('Test Converter', () => {
                 httpResponse: mockHttpResponse,
             }
 
-            const mockPromiseResult: PromiseResult<CodeWhispererTokenUserClient.StartTransformationResponse, AWSError> =
-                {
-                    ...mockResponseData,
-                    $response: mockResponse,
-                }
+            const mockPromiseResult: PromiseResult<StartTransformationResponse, AWSError> = {
+                ...mockResponseData,
+                $response: mockResponse,
+            }
 
             const uploadId = 'upload-id-456'
             const artifactPath = '/path/to/artifact'

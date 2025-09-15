@@ -6,7 +6,7 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { WorkspaceFolder } from 'vscode-languageserver-protocol'
 import { ArtifactManager } from './artifactManager'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { ListWorkspaceMetadataResponse } from '../../client/token/codewhispererbearertokenclient'
+import { ListWorkspaceMetadataResponse, WorkspaceStatus } from '@amzn/codewhisperer-runtime'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
 import { AWSError } from 'aws-sdk'
 
@@ -200,7 +200,8 @@ describe('WorkspaceFolderManager', () => {
                 workspaces: [
                     {
                         workspaceId: 'test-workspace-id',
-                        workspaceStatus: 'RUNNING',
+                        // TODO: RUNNING does not exist in WorkspaceStatus so we need to use type assertion for now.
+                        workspaceStatus: 'RUNNING' as WorkspaceStatus,
                     },
                 ],
             }

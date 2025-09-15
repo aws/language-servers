@@ -313,7 +313,7 @@ export class ChatTelemetryController {
                 conversationId: conversationId,
                 messageId: metric.cwsprChatMessageId,
                 customizationArn: metric.codewhispererCustomizationArn,
-                userIntent: metric.cwsprChatUserIntent,
+                userIntent: metric.cwsprChatUserIntent as UserIntent,
                 hasCodeSnippet: metric.cwsprChatHasCodeSnippet,
                 programmingLanguage: metric.cwsprChatProgrammingLanguage as CodewhispererLanguage,
                 activeEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,

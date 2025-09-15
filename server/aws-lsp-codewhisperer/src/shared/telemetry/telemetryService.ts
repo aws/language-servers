@@ -25,7 +25,9 @@ import {
     AgenticChatEventStatus,
     IdeDiagnostic,
     UserModificationEvent,
-} from '../../client/token/codewhispererbearertokenclient'
+    CompletionType,
+    InlineChatUserDecision,
+} from '@amzn/codewhisperer-runtime'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
     ChatConversationType,
@@ -266,7 +268,11 @@ export class TelemetryService {
                 languageName: getRuntimeLanguage(session.language),
             },
             completionType:
-                session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
+                session.suggestions.length > 0
+                    ? getCompletionType(session.suggestions[0]) === 'Line'
+                        ? CompletionType.Line
+                        : CompletionType.Block
+                    : CompletionType.Line,
             suggestionState: this.getSuggestionState(userTriggerDecision),
             recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
                 ? session.firstCompletionDisplayLatency
@@ -637,7 +643,7 @@ export class TelemetryService {
             responseLength: params.responseLength,
             numberOfCodeBlocks: params.numberOfCodeBlocks,
             hasProjectLevelContext: false,
-            result: params.result?.toUpperCase() ?? 'SUCCEEDED',
+            result: (params.result?.toUpperCase() ?? AgenticChatEventStatus.Succeeded) as AgenticChatEventStatus,
         }
         if (params.customizationArn) {
             event.customizationArn = params.customizationArn
@@ -663,7 +669,7 @@ export class TelemetryService {
             numSuggestionDelChars: params.suggestionDeletedChars,
             numSuggestionDelLines: params.suggestionDeletedLines,
             codeIntent: params.codeIntent,
-            userDecision: params.userDecision,
+            userDecision: params.userDecision as InlineChatUserDecision,
             responseStartLatency: params.responseStartLatency,
             responseEndLatency: params.responseEndLatency,
         }
