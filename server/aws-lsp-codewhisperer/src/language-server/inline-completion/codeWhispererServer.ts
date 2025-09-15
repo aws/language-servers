@@ -591,7 +591,7 @@ export const CodewhispererServerFactory =
                 fileUrl: session.document.uri,
                 languageId: session.language,
                 time: Date.now(),
-                originalString: originalString,
+                originalString: originalString || '',
                 startPosition: session.startPosition,
                 endPosition: endPosition,
                 customizationArn: session.customizationArn,

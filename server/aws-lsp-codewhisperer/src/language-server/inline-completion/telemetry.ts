@@ -10,7 +10,7 @@ import { SuggestionType } from '../../shared/codeWhispererService'
 export const emitServiceInvocationTelemetry = (
     telemetry: Telemetry,
     session: CodeWhispererSession,
-    requestId: string
+    requestId: string | undefined
 ) => {
     const duration = new Date().getTime() - session.startTime
     const data: CodeWhispererServiceInvocationEvent = {
