@@ -1,20 +1,10 @@
-import {
-    CredentialsProvider,
-    SDKInitializator,
-    SDKClientConstructorV2,
-    SDKClientConstructorV3,
-} from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 
 describe('ChatSessionManagementService', () => {
     const mockSessionId = 'mockSessionId'
-    const mockAwsQRegion: string = 'mock-aws-q-region'
-    const mockAwsQEndpointUrl: string = 'mock-aws-q-endpoint-url'
 
     it('getInstance should return the same instance if initialized', () => {
         const instance = ChatSessionManagementService.getInstance()
@@ -23,44 +13,14 @@ describe('ChatSessionManagementService', () => {
         assert.strictEqual(instance, instance2)
     })
 
-    it('creating a session without credentials provider should throw an error', () => {
-        const createSessionResult = ChatSessionManagementService.getInstance().createSession(mockSessionId)
-
-        sinon.assert.match(createSessionResult, { success: false, error: sinon.match.string })
-    })
-
     describe('Session interface', () => {
-        const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
-            getCredentials: sinon.stub().returns(Promise.resolve({ token: 'mockToken' })),
-            getConnectionMetadata: sinon.stub(),
-            getConnectionType: sinon.stub(),
-            onCredentialsDeleted: sinon.stub(),
-        }
-
         const mockSessionId2 = 'mockSessionId2'
         let disposeStub: sinon.SinonStub
         let chatSessionManagementService: ChatSessionManagementService
 
-        const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
-            // Default callable function for v3 clients
-            <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-            // Property for v2 clients
-            {
-                v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                    Ctor: SDKClientConstructorV2<T, P>,
-                    current_config: P
-                ): T => new Ctor({ ...current_config }),
-            }
-        )
-
         beforeEach(() => {
             disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
             chatSessionManagementService = ChatSessionManagementService.getInstance()
-                .withCredentialsProvider(mockCredentialsProvider)
-                .withCodeWhispererRegion(mockAwsQRegion)
-                .withCodeWhispererEndpoint(mockAwsQEndpointUrl)
-                .withSdkRuntimeConfigurator(mockSdkRuntimeConfigurator)
         })
 
         afterEach(() => {

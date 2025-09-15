@@ -78,3 +78,20 @@ export function normalize(p: string): string {
     }
     return normalizeSeparator(path.normalize(p))
 }
+
+export function sanitize(inputPath: string): string {
+    let sanitized = inputPath.trim()
+
+    if (sanitized.startsWith('~')) {
+        sanitized = path.join(os.homedir(), sanitized.slice(1))
+    }
+
+    if (!path.isAbsolute(sanitized)) {
+        sanitized = path.resolve(sanitized)
+    }
+    return sanitized
+}
+
+export function getUserHomeDir(): string {
+    return os.homedir()
+}

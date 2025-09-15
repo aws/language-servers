@@ -3,12 +3,26 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
+import { Features } from '../../types'
+import { URI } from 'vscode-uri'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
     console.log('test')
 }`
-    const mockTSDocument = TextDocument.create('file://test.ts', 'typescript', 1, mockTypescriptCodeBlock)
+
+    const mockWorkspaceFolder = {
+        uri: 'file://mock/workspace',
+        name: 'test',
+    }
+    const mockWorkspace = {
+        getWorkspaceFolder: sinon.stub().returns(mockWorkspaceFolder),
+        fs: {
+            existsSync: sinon.stub().returns(true),
+        },
+    } as unknown as Features['workspace']
+    const testFilePath = 'file://mock/workspace/test.ts'
+    const mockTSDocument = TextDocument.create(testFilePath, 'typescript', 1, mockTypescriptCodeBlock)
 
     afterEach(() => {
         sinon.restore()
@@ -16,10 +30,19 @@ describe('DocumentContext', () => {
 
     describe('documentContextExtractor.extractEditorState', () => {
         it('extracts editor state for range selection', async () => {
-            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
+            const documentContextExtractor = new DocumentContextExtractor({
+                workspace: mockWorkspace,
+                characterLimits: 19,
+            })
+
+            let relativeFilePath = 'workspace/test.ts'
+            if (process.platform === 'win32') {
+                relativeFilePath = 'workspace\\test.ts'
+            }
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'file://test.ts',
+                relativeFilePath: relativeFilePath,
+                activeFilePath: URI.parse(testFilePath).fsPath,
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -35,6 +58,7 @@ describe('DocumentContext', () => {
                         },
                     },
                 },
+                workspaceFolder: mockWorkspaceFolder,
             }
 
             const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
@@ -55,10 +79,18 @@ describe('DocumentContext', () => {
         })
 
         it('extracts editor state for collapsed position', async () => {
-            const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
+            const documentContextExtractor = new DocumentContextExtractor({
+                workspace: mockWorkspace,
+                characterLimits: 19,
+            })
+            let relativeFilePath = 'workspace/test.ts'
+            if (process.platform === 'win32') {
+                relativeFilePath = 'workspace\\test.ts'
+            }
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'file://test.ts',
+                relativeFilePath: relativeFilePath,
+                activeFilePath: URI.parse(testFilePath).fsPath,
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -74,6 +106,7 @@ describe('DocumentContext', () => {
                         },
                     },
                 },
+                workspaceFolder: mockWorkspaceFolder,
             }
 
             const result = await documentContextExtractor.extractDocumentContext(mockTSDocument, {
@@ -95,16 +128,23 @@ describe('DocumentContext', () => {
     })
 
     it('handles other languages correctly', async () => {
-        const documentContextExtractor = new DocumentContextExtractor({ characterLimits: 19 })
+        const documentContextExtractor = new DocumentContextExtractor({ workspace: mockWorkspace, characterLimits: 19 })
 
         const mockGoCodeBLock = `func main() {
     fmt.Println("test")
 }`
-        const mockDocument = TextDocument.create('file://test.go', 'go', 1, mockGoCodeBLock)
+        const testGoFilePath = 'file://mock/workspace/test.go'
+        const mockDocument = TextDocument.create(testGoFilePath, 'go', 1, mockGoCodeBLock)
+
+        let relativeFilePath = 'workspace/test.go'
+        if (process.platform === 'win32') {
+            relativeFilePath = 'workspace\\test.go'
+        }
 
         const expectedResult: DocumentContext = {
             programmingLanguage: { languageName: 'go' },
-            relativeFilePath: 'file://test.go',
+            relativeFilePath: relativeFilePath,
+            activeFilePath: URI.parse(testGoFilePath).fsPath,
             text: 'fmt.Println("test")',
             totalEditorCharacters: mockGoCodeBLock.length,
             hasCodeSnippet: true,
@@ -114,6 +154,7 @@ describe('DocumentContext', () => {
                     end: { line: 0, character: 19 },
                 },
             },
+            workspaceFolder: mockWorkspaceFolder,
         }
         const result = await documentContextExtractor.extractDocumentContext(mockDocument, {
             range: {

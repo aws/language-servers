@@ -22,3 +22,20 @@ export class AwsError extends Error {
             : new AwsError(error?.message ?? 'Unknown error', awsErrorCode, { cause: error })
     }
 }
+
+const expiredMessage = 'token expired'
+const cancelledMessage = 'token cancelled'
+type CancellationAgent = 'user' | 'timeout'
+export class CancellationError extends Error {
+    public constructor(public readonly agent: CancellationAgent) {
+        super(agent === 'user' ? cancelledMessage : expiredMessage)
+    }
+
+    public static isUserCancelled(err: any): err is CancellationError & { agent: 'user' } {
+        return err instanceof CancellationError && err.agent === 'user'
+    }
+
+    public static isExpired(err: any): err is CancellationError & { agent: 'timeout' } {
+        return err instanceof CancellationError && err.agent === 'timeout'
+    }
+}

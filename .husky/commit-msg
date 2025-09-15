@@ -1,3 +1,0 @@
-echo [pre-commit] linting commit message...
-npm run commitlint ${1}
-echo [pre-commit] done linting commit message

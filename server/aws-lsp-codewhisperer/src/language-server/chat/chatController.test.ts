@@ -7,18 +7,17 @@ import {
     CredentialsProvider,
     Telemetry,
     Logging,
-    Workspace,
     Position,
     InsertToCursorPositionParams,
     TextDocumentEdit,
-    SDKInitializator,
-    SDKClientConstructorV2,
-    SDKClientConstructorV3,
+    InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
+
+import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
 import sinon from 'ts-sinon'
-import { createIterableResponse } from '../testUtils'
+
 import { ChatController } from './chatController'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatSessionService } from './chatSessionService'
@@ -26,11 +25,14 @@ import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
-import { TelemetryService } from '../telemetryService'
-import { TextEdit } from 'vscode-languageserver-textdocument'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../constants'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import {
+    AmazonQError,
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
+import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -69,6 +71,16 @@ describe('ChatController', () => {
         relatedContent: undefined,
     }
 
+    const expectedCompleteInlineChatResult: InlineChatResult = {
+        messageId: mockMessageId,
+        body: 'Hello World!',
+        canBeVoted: true,
+        codeReference: undefined,
+        followUp: undefined,
+        relatedContent: undefined,
+        requestId: mockMessageId,
+    }
+
     const mockCancellationToken = {
         isCancellationRequested: false,
         onCancellationRequested: () => ({ dispose: () => null }),
@@ -80,9 +92,6 @@ describe('ChatController', () => {
         },
     } as Logging
 
-    const awsQRegion: string = DEFAULT_AWS_Q_REGION
-    const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
-
     let sendMessageStub: sinon.SinonStub
     let disposeStub: sinon.SinonStub
     let activeTabSpy: {
@@ -93,11 +102,13 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
+    let serviceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
-    let invokeSendTelemetryEventStub: sinon.SinonStub
     let telemetry: Telemetry
+
+    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
@@ -115,29 +126,33 @@ describe('ChatController', () => {
 
         testFeatures = new TestFeatures()
 
+        // @ts-ignore
+        const cachedInitializeParams: InitializeParams = {
+            initializationOptions: {
+                aws: {
+                    awsClientCapabilities: {
+                        q: {
+                            developerProfiles: false,
+                        },
+                    },
+                },
+            },
+        }
+        testFeatures.setClientParams(cachedInitializeParams)
+        setCredentials('builderId')
+
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
-        const mockSdkRuntimeConfigurator: SDKInitializator = Object.assign(
-            // Default callable function for v3 clients
-            <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-            // Property for v2 clients
-            {
-                v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                    Ctor: SDKClientConstructorV2<T, P>,
-                    current_config: P
-                ): T => new Ctor({ ...current_config }),
-            }
-        )
+        AmazonQTokenServiceManager.resetInstance()
+
+        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
 
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-            .withCredentialsProvider(testFeatures.credentialsProvider)
-            .withCodeWhispererRegion(awsQRegion)
-            .withCodeWhispererEndpoint(awsQEndpointUrl)
-            .withSdkRuntimeConfigurator(mockSdkRuntimeConfigurator)
+        chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -151,25 +166,18 @@ describe('ChatController', () => {
             onCredentialsDeleted: sinon.stub(),
         }
 
-        const mockWorkspace = {} as unknown as Workspace
-
         telemetry = {
             emitMetric: sinon.stub(),
             onClientTelemetry: sinon.stub(),
         }
 
-        telemetryService = new TelemetryService(
-            mockCredentialsProvider,
-            'bearer',
-            telemetry,
-            logging,
-            mockWorkspace,
-            awsQRegion,
-            awsQEndpointUrl,
-            mockSdkRuntimeConfigurator
+        telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
+        chatController = new ChatController(
+            chatSessionManagementService,
+            testFeatures,
+            telemetryService,
+            serviceManager
         )
-        invokeSendTelemetryEventStub = sinon.stub(telemetryService, 'sendTelemetryEvent' as any)
-        chatController = new ChatController(chatSessionManagementService, testFeatures, telemetryService)
     })
 
     afterEach(() => {
@@ -256,15 +264,6 @@ describe('ChatController', () => {
         beforeEach(() => {
             chatController.onTabAdd({ tabId: mockTabId })
         })
-        it("throws error if credentials provider doesn't exist", async () => {
-            ChatSessionManagementService.getInstance().withCredentialsProvider(undefined as any)
-            const result = await chatController.onChatPrompt(
-                { tabId: 'XXXX', prompt: { prompt: 'Hello' } },
-                mockCancellationToken
-            )
-
-            assert.ok(result instanceof ResponseError)
-        })
 
         it('read all the response streams and return compiled results', async () => {
             const chatResultPromise = chatController.onChatPrompt(
@@ -329,21 +328,38 @@ describe('ChatController', () => {
             assert.ok(chatResult instanceof ResponseError)
         })
 
-        it('returns a auth follow up action if sendMessage returns an auth error', async () => {
-            sendMessageStub.callsFake(() => {
-                throw new Error('Error')
+        const authFollowUpTestCases = [
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new Error(MISSING_BEARER_TOKEN_ERROR),
+            },
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new AmazonQServicePendingSigninError(),
+            },
+            {
+                expectedAuthFollowUp: 'use-supported-auth',
+                error: new AmazonQServicePendingProfileError(),
+            },
+        ]
+
+        authFollowUpTestCases.forEach(testCase => {
+            it(`returns ${testCase.expectedAuthFollowUp} follow up action when sendMessage throws ${testCase.error instanceof AmazonQError ? testCase.error.code : testCase.error.message}`, async () => {
+                sendMessageStub.callsFake(() => {
+                    throw testCase.error
+                })
+
+                const chatResultPromise = chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                    mockCancellationToken
+                )
+
+                const chatResult = await chatResultPromise
+
+                sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+                // @ts-ignore
+                assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult(testCase.expectedAuthFollowUp))
             })
-
-            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
-                mockCancellationToken
-            )
-
-            const chatResult = await chatResultPromise
-
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
-            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {
@@ -484,6 +500,257 @@ describe('ChatController', () => {
                 await chatController.onChatPrompt(
                     {
                         tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///test.ts' },
+                        cursorState: [mockCursorState],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+
+                assert.deepStrictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    {
+                        cursorState: [],
+                        document: {
+                            programmingLanguage: 'typescript',
+                            relativeFilePath: 'file:///test.ts',
+                            text: undefined,
+                        },
+                    }
+                )
+            })
+        })
+    })
+
+    describe('onInlineChatPrompt', () => {
+        it('read all the response streams and return compiled results', async () => {
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
+        })
+
+        it('read all the response streams and send progress as partial result is received', async () => {
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
+            assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
+        })
+
+        it('can use 0 as progress token', async () => {
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' }, partialResultToken: 0 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length)
+            assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
+        })
+
+        it('returns a ResponseError if sendMessage returns an error', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Error')
+            })
+
+            const chatResult = await chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            assert.ok(chatResult instanceof ResponseError)
+        })
+
+        it('returns a Response error if sendMessage returns an auth error', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Error')
+            })
+
+            const chatResultPromise = chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                mockCancellationToken
+            )
+
+            const chatResult = await chatResultPromise
+
+            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+            assert.ok(chatResult instanceof ResponseError)
+        })
+
+        it('returns a ResponseError if response streams return an error event', async () => {
+            sendMessageStub.callsFake(() => {
+                return Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    sendMessageResponse: createIterableResponse([
+                        // ["Hello ", "World"]
+                        ...mockChatResponseList.slice(1, 3),
+                        { error: { message: 'some error' } },
+                        // ["!"]
+                        ...mockChatResponseList.slice(3),
+                    ]),
+                })
+            })
+
+            const chatResult = await chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'some error'))
+        })
+
+        it('returns a ResponseError if response streams return an invalid state event', async () => {
+            sendMessageStub.callsFake(() => {
+                return Promise.resolve({
+                    $metadata: {
+                        requestId: mockMessageId,
+                    },
+                    sendMessageResponse: createIterableResponse([
+                        // ["Hello ", "World"]
+                        ...mockChatResponseList.slice(1, 3),
+                        { invalidStateEvent: { message: 'invalid state' } },
+                        // ["!"]
+                        ...mockChatResponseList.slice(3),
+                    ]),
+                })
+            })
+
+            const chatResult = await chatController.onInlineChatPrompt(
+                { prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
+        })
+
+        it('emits telemetry on successful inline chat response', async () => {
+            await chatController.onInlineChatPrompt({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledWith(
+                testFeatures.telemetry.emitMetric,
+                sinon.match.has('name', 'codewhisperer_inlineChatServiceInvocation')
+            )
+        })
+
+        it('emits failure telemetry when inline chat service invocation fails', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Service Error')
+            })
+
+            await chatController.onInlineChatPrompt({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledWith(
+                testFeatures.telemetry.emitMetric,
+                sinon.match({
+                    name: 'codewhisperer_inlineChatServiceInvocation',
+                    result: 'Failed',
+                })
+            )
+        })
+
+        describe('#extractDocumentContext', () => {
+            const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
+            let extractDocumentContextStub: sinon.SinonStub
+
+            const mockCursorState = {
+                range: {
+                    start: {
+                        line: 1,
+                        character: 1,
+                    },
+                    end: {
+                        line: 1,
+                        character: 1,
+                    },
+                },
+            }
+
+            beforeEach(() => {
+                extractDocumentContextStub = sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext')
+                testFeatures.openDocument(typescriptDocument)
+            })
+
+            afterEach(() => {
+                extractDocumentContextStub.restore()
+            })
+
+            it('leaves editor state as undefined if cursorState is not passed', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: undefined,
+                    relativeFilePath: 'file:///test.ts',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onInlineChatPrompt(
+                    {
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///test.ts' },
+                        cursorState: undefined,
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    undefined
+                )
+            })
+
+            it('leaves editor state as undefined if relative file path is undefined', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: undefined,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onInlineChatPrompt(
+                    {
+                        prompt: { prompt: 'Hello' },
+                        cursorState: [mockCursorState],
+                    },
+                    mockCancellationToken
+                )
+
+                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+
+                assert.strictEqual(
+                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.editorState,
+                    undefined
+                )
+            })
+
+            it('parses editor state context and includes as requestInput if both cursor state and text document are found', async () => {
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: typescriptDocument.uri,
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onInlineChatPrompt(
+                    {
                         prompt: { prompt: 'Hello' },
                         textDocument: { uri: 'file:///test.ts' },
                         cursorState: [mockCursorState],

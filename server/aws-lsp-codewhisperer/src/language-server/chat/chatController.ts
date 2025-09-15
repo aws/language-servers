@@ -1,14 +1,18 @@
-import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
+    InlineChatParams,
     InsertToCursorPositionParams,
-    OpenTabParams,
-    OpenTabResult,
     TextDocumentEdit,
     TextEdit,
     chatRequestType,
+    InlineChatResultParams,
+    ButtonClickParams,
+    ButtonClickResult,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -22,6 +26,7 @@ import {
     TabAddParams,
     TabRemoveParams,
     TabChangeParams,
+    InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
@@ -29,22 +34,53 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
-} from '../telemetry/types'
+} from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from './chatEventParser'
 import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../utils'
-import { Metric } from '../telemetry/metric'
+import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { Metric } from '../../shared/telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
-import { Q_CONFIGURATION_SECTION } from '../configuration/qConfigurationServer'
-import { textUtils } from '@aws/lsp-core'
-import { TelemetryService } from '../telemetryService'
+import {
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
+import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS } from '../../shared/imageVerification'
 
-type ChatHandlers = Omit<LspHandlers<Chat>, 'openTab'>
+type ChatHandlers = Omit<
+    LspHandlers<Chat>,
+    | 'openTab'
+    | 'sendChatUpdate'
+    | 'onFileClicked'
+    | 'onInlineChatPrompt'
+    | 'sendContextCommands'
+    | 'onCreatePrompt'
+    | 'onListConversations'
+    | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
+    | 'getSerializedChat'
+    | 'onTabBarAction'
+    | 'chatOptionsUpdate'
+    | 'onRuleClick'
+    | 'onListRules'
+    | 'sendPinnedContext'
+    | 'onActiveEditorChanged'
+    | 'onPinnedContextAdd'
+    | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
+    | 'onListAvailableModels'
+    | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
+>
 
 export class ChatController implements ChatHandlers {
     #features: Features
@@ -53,22 +89,42 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
+    #serviceManager: AmazonQBaseServiceManager
+
+    #inlineChatRequestStartTime: number = 0
+    #inlineChatResponseLatency: number = 0
+    #inlineChatRequestId?: string
+    #inlineChatLanguage?: string
+    #inlineChatTriggerType: string = 'OnDemand'
+    #inlineChatCredentialStartUrl?: string
+    #inlineChatCustomizationArn?: string
+    #inlineChatResponseLength: number = 0
+    #inlineChatRequestPromptLength: number = 0
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
-        telemetryService: TelemetryService
+        telemetryService: TelemetryService,
+        serviceManager: AmazonQBaseServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
+        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging, serviceManager)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
+        this.#serviceManager = serviceManager
     }
 
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
+    }
+
+    async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
+        return {
+            success: false,
+            failureReason: 'not implemented',
+        }
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
@@ -104,7 +160,12 @@ export class ChatController implements ChatHandlers {
         const conversationIdentifier = session?.conversationId ?? 'New conversation'
         try {
             this.#log('Request for conversation id:', conversationIdentifier)
-            requestInput = this.#triggerContext.getChatParamsFromTrigger(params, triggerContext, this.#customizationArn)
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+                params,
+                triggerContext,
+                ChatTriggerType.MANUAL,
+                this.#customizationArn
+            )
 
             metric.recordStart()
             response = await session.sendMessage(requestInput)
@@ -184,6 +245,145 @@ export class ChatController implements ChatHandlers {
                 err instanceof Error ? err.message : 'Unknown error occured during response stream'
             )
         }
+    }
+
+    async onInlineChatPrompt(
+        params: InlineChatParams,
+        token: CancellationToken
+    ): Promise<InlineChatResult | ResponseError<InlineChatResult>> {
+        // TODO: This metric needs to be removed later, just added for now to be able to create a ChatEventParser object
+        const metric = new Metric<AddMessageEvent>({
+            cwsprChatConversationType: 'Chat',
+        })
+        const triggerContext = await this.#getInlineChatTriggerContext(params)
+
+        let response: SendMessageCommandOutput
+        let requestInput: SendMessageCommandInput
+
+        try {
+            requestInput = this.#triggerContext.getChatParamsFromTrigger(
+                params,
+                triggerContext,
+                ChatTriggerType.INLINE_CHAT,
+                this.#customizationArn
+            )
+
+            this.#inlineChatRequestStartTime = Date.now()
+            this.#inlineChatRequestId = undefined
+            this.#inlineChatLanguage = triggerContext.programmingLanguage?.languageName
+            this.#inlineChatTriggerType = ChatTriggerType.MANUAL
+            this.#inlineChatCustomizationArn = this.#customizationArn
+            this.#inlineChatRequestPromptLength = params.prompt?.prompt?.length ?? 0
+
+            const client = this.#serviceManager.getStreamingClient()
+            response = await client.sendMessage(requestInput)
+
+            this.#inlineChatRequestId = response.$metadata.requestId
+
+            this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
+        } catch (err) {
+            this.#log(`Inline Chat Service Invocation Failed: ${err instanceof Error ? err.message : 'unknown'}`)
+
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                result: 'Failed',
+                data: {
+                    codewhispererRequestId: isAwsError(err) ? err.requestId : undefined,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Failed',
+                    requestLength: this.#inlineChatRequestPromptLength,
+                    responseLength: 0,
+                    reason: `Inline Chat Invocation Exception: ${err instanceof Error ? err.name : 'UnknownError'}`,
+                },
+                errorData: {
+                    reason: err instanceof Error ? err.name : 'UnknownError',
+                    errorCode: isAwsError(err) ? err.code : undefined,
+                    httpStatusCode: isAwsError(err) ? err.statusCode : undefined,
+                },
+            })
+
+            if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
+                return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
+            }
+            this.#log(`Q api request error ${err instanceof Error ? err.message : 'unknown'}`)
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown request error'
+            )
+        }
+
+        try {
+            const result = await this.#processSendMessageResponseForInlineChat(
+                response,
+                metric,
+                params.partialResultToken
+            )
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#inlineChatResponseLength = result.data?.chatResult.body?.length ?? 0
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                data: {
+                    codewhispererRequestId: this.#inlineChatRequestId,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Succeeded',
+                    requestLength: this.#inlineChatRequestPromptLength,
+                    responseLength: this.#inlineChatResponseLength,
+                },
+            })
+
+            return result.success
+                ? {
+                      ...result.data.chatResult,
+                      requestId: response.$metadata.requestId,
+                  }
+                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+        } catch (err) {
+            this.#log(
+                'Error encountered during inline chat response streaming:',
+                err instanceof Error ? err.message : 'unknown'
+            )
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                result: 'Failed',
+                data: {
+                    codewhispererRequestId: this.#inlineChatRequestId,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Failed',
+                    requestLength: this.#inlineChatRequestPromptLength,
+                    responseLength: 0,
+                    reason: `Inline Chat Response Streaming Exception: ${err instanceof Error ? err.name : 'UnknownError'}`,
+                },
+                errorData: {
+                    reason: err instanceof Error ? err.name : 'UnknownError',
+                    errorCode: isAwsError(err) ? err.code : undefined,
+                    httpStatusCode: isAwsError(err) ? err.statusCode : undefined,
+                },
+            })
+
+            return new ResponseError<ChatResult>(
+                LSPErrorCodes.RequestFailed,
+                err instanceof Error ? err.message : 'Unknown error occurred during inline chat response stream'
+            )
+        }
+    }
+
+    async onInlineChatResult(params: InlineChatResultParams) {
+        await this.#telemetryService.emitInlineChatResultLog(params)
     }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
@@ -367,6 +567,11 @@ export class ChatController implements ChatHandlers {
         }
     }
 
+    async #getInlineChatTriggerContext(params: InlineChatParams) {
+        let triggerContext: TriggerContext = await this.#triggerContext.getNewTriggerContext(params)
+        return triggerContext
+    }
+
     async #getTriggerContext(params: ChatParams, metric: Metric<CombinedConversationEvent>) {
         const lastMessageTrigger = this.#telemetryController.getLastMessageTrigger(params.tabId)
 
@@ -430,27 +635,95 @@ export class ChatController implements ChatHandlers {
         return chatEventParser.getResult()
     }
 
-    updateConfiguration = async () => {
-        try {
-            const qConfig = await this.#features.lsp.workspace.getConfiguration(Q_CONFIGURATION_SECTION)
-            if (qConfig) {
-                this.#customizationArn = textUtils.undefinedIfEmpty(qConfig.customization)
-                this.#log(`Chat configuration updated to use ${this.#customizationArn}`)
-                /*
-                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                */
-                // const enableTelemetryEventsToDestination = true
-                // this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
-                const optOutTelemetryPreference = qConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN'
-                this.#telemetryService.updateOptOutPreference(optOutTelemetryPreference)
+    async #processSendMessageResponseForInlineChat(
+        response: SendMessageCommandOutput,
+        metric: Metric<AddMessageEvent>,
+        partialResultToken?: string | number
+    ): Promise<Result<ChatResultWithMetadata, string>> {
+        const requestId = response.$metadata.requestId!
+        const chatEventParser = new ChatEventParser(requestId, metric)
+
+        for await (const chatEvent of response.sendMessageResponse!) {
+            const result = chatEventParser.processPartialEvent(chatEvent)
+
+            // terminate early when there is an error
+            if (!result.success) {
+                return result
             }
-        } catch (error) {
-            this.#log(`Error in GetConfiguration: ${error}`)
+
+            if (!isNullish(partialResultToken)) {
+                await this.#features.lsp.sendProgress(chatRequestType, partialResultToken, result.data.chatResult)
+            }
         }
+
+        return chatEventParser.getResult()
+    }
+
+    onPromptInputOptionChange() {}
+
+    updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
+        this.#customizationArn = newConfig.customizationArn
+        this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
+        /*
+            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+        */
+        // const enableTelemetryEventsToDestination = true
+        // this.#telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
+        const updatedOptOutPreference = newConfig.optOutTelemetryPreference
+        this.#telemetryService.updateOptOutPreference(updatedOptOutPreference)
+        this.#log(`Chat configuration telemetry preference to ${updatedOptOutPreference}`)
     }
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            try {
+                const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+                const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+
+                const result = await this.#features.lsp.window.showOpenDialog({
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    filters,
+                })
+
+                if (result.uris && result.uris.length > 0) {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: result.uris,
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                } else {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: [],
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                }
+            } catch (error) {
+                this.#log('Error opening file dialog:', error instanceof Error ? error.message : String(error))
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    errorMessage: 'Failed to open file dialog',
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                }
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            errorMessage: 'File type not supported',
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
     }
 }

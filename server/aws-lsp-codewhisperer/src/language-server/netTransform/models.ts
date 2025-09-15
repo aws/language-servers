@@ -1,6 +1,17 @@
 import { ExecuteCommandParams } from 'vscode-languageserver'
 import { TransformationJob, TransformationPlan } from '../../client/token/codewhispererbearertokenclient'
 
+/**
+ * Error codes for transformation job failures.
+ * Additional error codes can be added here as needed for different failure scenarios.
+ */
+export enum TransformationErrorCode {
+    NONE = 'NONE',
+    QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
+    UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+    // TODO: Add more error codes as needed for different failure scenarios
+}
+
 export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionRootPath: string
     SolutionFilePath: string
@@ -10,6 +21,11 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     SolutionConfigPaths: string[]
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
+    EnableRazorViewTransform: boolean
+    EnableWebFormsTransform: boolean
+    PackageReferences?: PackageReferenceMetadata[]
+    DmsArn?: string
+    DatabaseSettings?: DatabaseSettings
 }
 
 export interface StartTransformResponse {
@@ -26,8 +42,20 @@ export interface GetTransformRequest extends ExecuteCommandParams {
     TransformationJobId: string
 }
 
+/**
+ * Response for a get transformation request.
+ * Contains the transformation job details and any error information.
+ */
 export interface GetTransformResponse {
+    /**
+     * The transformation job details
+     */
     TransformationJob: TransformationJob
+
+    /**
+     * Error code if the transformation job failed
+     */
+    ErrorCode: TransformationErrorCode
 }
 
 export interface GetTransformPlanRequest extends ExecuteCommandParams {
@@ -76,6 +104,42 @@ export interface RequirementJson {
     SolutionPath: string
     Projects: Project[]
     TransformNetStandardProjects: boolean
+    EnableRazorViewTransform: boolean
+    EnableWebFormsTransform: boolean
+}
+
+export interface TransformationPreferences {
+    Transformations: TransformationSettings
+    Metadata: TransformationMetadata
+}
+
+export interface TransformationSettings {
+    DatabaseModernization?: DatabaseModernizationTransformation
+}
+
+export interface DatabaseModernizationTransformation {
+    Enabled: boolean
+    DmsArn?: string
+    DatabaseSettings?: DatabaseSettings
+}
+
+export interface DatabaseSettings {
+    Tools?: Tool[]
+    Source?: DatabaseInfo
+    Target?: DatabaseInfo
+}
+
+export interface Tool {
+    Name?: string
+    Properties?: Object
+}
+
+export interface DatabaseInfo {
+    DatabaseName?: string
+    DatabaseVersion?: string
+}
+export interface TransformationMetadata {
+    GeneratedAt: string
 }
 
 export interface ExternalReference {
@@ -110,4 +174,19 @@ export interface CodeFile {
 export interface References {
     includedInArtifact: boolean
     relativePath: string
+    isThirdPartyPackage: boolean
+    netCompatibleRelativePath?: string
+    netCompatibleVersion?: string
+    packageId?: string
+}
+
+export interface PackageReferenceMetadata {
+    Id: string
+    Versions: string[]
+    IsPrivatePackage: boolean
+    NetCompatiblePackageVersion?: string
+    NetCompatibleAssemblyPath?: string
+    NetCompatibleAssemblyRelativePath?: string
+    NetCompatiblePackageFilePath?: string
+    CurrentVersionAssemblyPath?: string
 }

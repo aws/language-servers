@@ -211,14 +211,21 @@ and be able to debug it all.
    A new window will open.
 
 ### With CodeWhisperer Server in VSCode
-
-1. In the `Run & Debug` menu, run `"CodeWhisperer Server"`
+#### With token credentials
+1. In the `Run & Debug` menu, run `"CodeWhisperer Server Token"`
 2. Set breakpoints in `src` where needed
 3. Check the logs in `"AWS Documents Language Server"` output window.
 
 > **NOTE**: If you see "Recommendation failure: Error: Authorization failed, bearer token is not set" errors, make sure to authenticate using `"AWS LSP - Obtain bearer token and send to LSP server"` command.
 
 > **NOTE**: The lsp client is activated by one of the `activationEvents` defined [here](https://github.com/aws/language-servers/blob/06fd81d1e936648ef43243865039f89c7ac142a7/client/vscode/package.json#L18-L22), the lsp client then starts the LSP server.
+
+#### With IAM credentials
+1. In the `Run & Debug` menu, run `"CodeWhisperer Server IAM"`
+2. Set breakpoints in `src` where needed
+3. Check the logs in `"AWS Documents Language Server"` output window.
+
+> **NOTE**: To authenticate use ['AWS LSP - Choose credentials profile, resolve, and send to LSP Server'](https://github.com/aws/language-servers/blob/694bbb85580cc79313d65ad77b224875f74280c2/client/vscode/package.json#L32-L33) command, giving as input your iam credential profile name, for more info see [here](https://github.com/aws/language-servers/blob/694bbb85580cc79313d65ad77b224875f74280c2/client/vscode/README.md?plain=1#L11).
 
 ### With Other Clients
 Using other clients can also be done with the bundle created from this package.
@@ -349,6 +356,13 @@ myStubbedFunc.returns()
 -   In the top left menu bar: `View > Output`
 -   Select `"AWS Documents Language Server"` from the dropdown menu in the topright.
 
+### Amazon Q Chat window is not visible in sample VS Code extension
+
+Sample Q Chat extension window may not open at startup of this Sample extension or not in focus on extension startup.
+
+1. Check if `ENABLE_CHAT` flag is set to `true` in `.vscode/launch.json`.
+2. Manually focus on Chat window by running `Focus on Amazon Q Chat View` VS Code command.
+
 ## Developer Notes
 
 ### Develop and test Language servers with Language Server Runtimes locally
@@ -417,6 +431,20 @@ npm link @aws/language-server-runtimes @aws/language-server-runtimes-types &&
 npm run compile -- --force
 ```
 
+### Customization
+#### Single Profile Customizations
+To request customization information for a selected developer profile, use the `aws/getConfigurationFromServer` LSP extension with the section field set to `aws.q.customizations`.
+
+#### Multiple Profile Customizations
+To request customization information for all valid developer profiles, use the same `aws/getConfigurationFromServer` LSP extension. However, this requires setting the following initialization parameters in the client: 
+1. `initializationOptions.aws.awsClientCapabilities.q.customizationsWithMetadata`
+2. `initializationOptions.aws.awsClientCapabilities.q.developerProfiles`
+
+Both the above-mentioned fields must be set to true.
+
+#### Testing Customizations
+When testing customizations with the minimal VSCode extension, set the `ENABLE_CUSTOMIZATIONS_WITH_METADATA` environment variable to `true` in your launch configuration.
+
 ### Endpoint and region override
 It is possible to override the default region and default endpoint utilized by the AWS SDK clients (e.g. for the Q developer backend api endpoint) when building the capabilities servers.
 
@@ -449,3 +477,15 @@ As visible [here](https://github.com/aws/language-servers/blob/34dd2f6598bc9b170
 export const DEFAULT_AWS_Q_ENDPOINT_URL = 'https://codewhisperer.us-east-1.amazonaws.com/'
 export const DEFAULT_AWS_Q_REGION = 'us-east-1'
 ```
+
+### Important Note About Bundling
+
+When integrating and bundling the language servers into your own project, we provide examples of bundling configurations with webpack (see `language-servers/app` folder for different bundling config examples e.g. `aws-lsp-codewhisperer-runtimes` for the `server/aws-lsp-codewhisperer` language server). In case you are working with a different bundler (e.g. vite) we recommend using webpack pre-bundled server artifacts rather than attempting to bundle the server code with alternative bundlers.
+
+While it's possible to use other bundlers (like Vite, Rollup, etc.), we've encountered various compatibility issues when attempting direct bundling with these tools, for instance previous attempts with Vite resulted in significant challenges that were difficult to resolve.
+
+**Recommended Approach:**
+1. Use the Webpack configuration provided in this repository as a starting point to pre-bundle the language server with webpack
+2. Import and use the pre-bundled server artifact in your project, regardless of which bundler your project uses
+
+This approach ensures maximum compatibility and helps avoid common integration issues. While we don't provide out-of-the-box configurations for other bundlers, we might be able to assist with Webpack configuration for pre-bundling if needed. If you encounter webpack bundling-related issues, please open a GitHub issue for support.

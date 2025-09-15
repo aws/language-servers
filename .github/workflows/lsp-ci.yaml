@@ -1,9 +1,9 @@
 name: Language Server CI
 on:
     push:
-        branches: [main, dev, feature/*]
+        branches: [main, dev, feature/*, release/agentic/*]
     pull_request:
-        branches: [main, dev, feature/*]
+        branches: [main, dev, feature/*, release/agentic/*]
 
 jobs:
     test:
@@ -20,9 +20,15 @@ jobs:
               run: |
                   npm ci
                   npm run check:formatting
-            - name: Test
+            - name: Test with Coverage
               run: |
-                  npm run test
+                  npm run test:coverage
+            - name: Upload Coverage to Codecov
+              uses: codecov/codecov-action@v5
+              with:
+                  flags: unittests
+                  fail_ci_if_error: false
+                  token: ${{ secrets.CODECOV_TOKEN }}
     build:
         name: Package
         runs-on: ubuntu-latest
@@ -39,6 +45,9 @@ jobs:
             - name: Create runtime bundles
               run: |
                   npm run package
+            - name: Test bundles
+              run: |
+                  npm run test-bundles --workspaces --if-present
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:
@@ -77,6 +86,9 @@ jobs:
             - name: Create runtime bundles
               run: |
                   npm run package
+            - name: Test bundles
+              run: |
+                  npm run test-bundles --workspaces --if-present
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:

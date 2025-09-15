@@ -1,13 +1,14 @@
-import { MetricEvent } from '@aws/language-server-runtimes/server-interface/telemetry'
+import { MetricEvent, Telemetry } from '@aws/language-server-runtimes/server-interface/telemetry'
 import { TriggerType } from '@aws/chat-client-ui-types'
 import {
+    AgenticChatInteractionType,
     ChatInteractionType,
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
     InteractWithMessageEvent,
-    ModifyCodeEvent,
-} from '../../telemetry/types'
+} from '../../../shared/telemetry/types'
 import { Features, KeysMatching } from '../../types'
 import {
     ChatUIEventName,
@@ -15,12 +16,14 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { UserIntent } from '@amzn/codewhisperer-streaming'
+import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../telemetry/codeDiffTracker'
-import { TelemetryService } from '../../telemetryService'
-import { getEndPositionForAcceptedSuggestion } from '../../utils'
-import { CodewhispererLanguage } from '../../languageDetection'
+
+import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/codeDiffTracker'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
+import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
+import { CodewhispererLanguage } from '../../../shared/languageDetection'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -60,8 +63,9 @@ export class ChatTelemetryController {
     #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
     #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
     #customizationInfoByTabAndMessageId: { [tabId: string]: { [messageId: string]: string } }
-    #credentialsProvider: Features['credentialsProvider']
-    #telemetry: Features['telemetry']
+    #credentialsProvider: CredentialsProvider
+    #telemetry: Telemetry
+    #logging: Logging
     #codeDiffTracker: CodeDiffTracker<AcceptedSuggestionChatEntry>
     #telemetryService: TelemetryService
 
@@ -70,8 +74,9 @@ export class ChatTelemetryController {
         this.#currentTriggerByTabId = {}
         this.#customizationInfoByTabAndMessageId = {}
         this.#telemetry = features.telemetry
+        this.#logging = features.logging
         this.#credentialsProvider = features.credentialsProvider
-        this.#telemetry.onClientTelemetry(params => this.#handleClientTelemetry(params))
+        this.#telemetry.onClientTelemetry(async params => await this.#handleClientTelemetry(params))
         this.#codeDiffTracker = new CodeDiffTracker(features.workspace, features.logging, (entry, percentage) =>
             this.emitModifyCodeMetric(entry, percentage)
         )
@@ -137,6 +142,7 @@ export class ChatTelemetryController {
             data: {
                 ...metric.data,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
             },
         })
     }
@@ -158,12 +164,142 @@ export class ChatTelemetryController {
                     ...metric.data,
                     credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                     [CONVERSATION_ID_METRIC_KEY]: conversationId,
+                    result: 'Succeeded',
                 },
             })
         }
     }
 
-    public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
+    public emitActiveUser() {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.ActiveUser,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+            },
+        })
+    }
+
+    public emitAgencticLoop_InvokeLLM(
+        requestId: string,
+        conversationId: string,
+        conversationType: string,
+        toolNames: string[] | undefined,
+        toolUseId: string[] | undefined,
+        result: string,
+        languageServerVersion: string,
+        modelId: string | undefined,
+        latency?: number,
+        toolCallLatency?: number[],
+        cwsprChatTimeToFirstChunk?: number,
+        cwsprChatTimeBetweenChunks?: number[],
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string
+    ) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.AgencticLoop_InvokeLLM,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: conversationId,
+                cwsprChatConversationType: conversationType,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprToolName: toolNames?.join(',') ?? '',
+                cwsprToolUseId: toolUseId?.join(',') ?? '',
+                result,
+                languageServerVersion: languageServerVersion,
+                latency: latency,
+                toolCallLatency: toolCallLatency?.join(','),
+                cwsprChatTimeToFirstChunk: cwsprChatTimeToFirstChunk,
+                cwsprChatTimeBetweenChunks: cwsprChatTimeBetweenChunks?.join(','),
+                requestId,
+                enabled: agenticCodingMode,
+                modelId,
+                experimentName: experimentName,
+                userVariation: userVariation,
+            },
+        })
+    }
+
+    public emitCompactHistory(type: CompactHistoryActionType, characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactHistory,
+            data: {
+                type,
+                characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitCompactNudge(characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactNudge,
+            data: {
+                characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitToolUseSuggested(
+        toolUse: ToolUse,
+        conversationId: string,
+        languageServerVersion: string,
+        latency?: number,
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string,
+        result?: string
+    ) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.ToolUseSuggested,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: conversationId,
+                cwsprChatConversationType: 'AgenticChatWithToolUse',
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprToolName: toolUse.name ?? '',
+                cwsprToolUseId: toolUse.toolUseId ?? '',
+                perfE2ELatency: latency,
+                result: result,
+                languageServerVersion: languageServerVersion,
+                enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
+            },
+        })
+    }
+
+    public emitInteractWithAgenticChat(
+        interactionType: AgenticChatInteractionType,
+        tabId: string,
+        agenticCodingMode?: boolean,
+        conversationType?: string,
+        experimentName?: string,
+        userVariation?: string
+    ) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.InteractWithAgenticChat,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId) ?? '',
+                cwsprChatConversationType: conversationType,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprAgenticChatInteractionType: interactionType,
+                result: 'Succeeded',
+                enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
+            },
+        })
+    }
+
+    public emitAddMessageMetric(
+        tabId: string,
+        metric: Partial<CombinedConversationEvent>,
+        result?: string,
+        errorMessage?: string
+    ) {
         const conversationId = this.getConversationId(tabId)
         // Store the customization value associated with the message
         if (metric.cwsprChatMessageId && metric.codewhispererCustomizationArn) {
@@ -187,6 +323,8 @@ export class ChatTelemetryController {
                 requestLength: metric.cwsprChatRequestLength,
                 responseLength: metric.cwsprChatResponseLength,
                 numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
+                agenticCodingMode: metric.enabled,
+                result: result,
             },
             {
                 chatTriggerInteraction: metric.cwsprChatTriggerInteraction,
@@ -196,8 +334,79 @@ export class ChatTelemetryController {
                 chatFollowUpCount: metric.cwsprChatFollowUpCount,
                 chatConversationType: metric.cwsprChatConversationType,
                 chatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                cwsprChatHasContextList: metric.cwsprChatHasContextList,
+                cwsprChatFolderContextCount: metric.cwsprChatFolderContextCount,
+                cwsprChatFileContextCount: metric.cwsprChatFileContextCount,
+                cwsprChatRuleContextCount: metric.cwsprChatRuleContextCount,
+                cwsprChatPromptContextCount: metric.cwsprChatPromptContextCount,
+                cwsprChatFileContextLength: metric.cwsprChatFileContextLength,
+                cwsprChatRuleContextLength: metric.cwsprChatRuleContextLength,
+                cwsprChatTotalRuleContextCount: metric.cwsprChatTotalRuleContextCount,
+                cwsprChatPromptContextLength: metric.cwsprChatPromptContextLength,
+                cwsprChatCodeContextLength: metric.cwsprChatCodeContextLength,
+                cwsprChatCodeContextCount: metric.cwsprChatCodeContextCount,
+                cwsprChatFocusFileContextLength: metric.cwsprChatFocusFileContextLength,
+                cwsprChatPinnedCodeContextCount: metric.cwsprChatPinnedCodeContextCount,
+                cwsprChatPinnedFileContextCount: metric.cwsprChatPinnedFileContextCount,
+                cwsprChatPinnedFolderContextCount: metric.cwsprChatPinnedFolderContextCount,
+                cwsprChatPinnedPromptContextCount: metric.cwsprChatPinnedPromptContextCount,
+                languageServerVersion: metric.languageServerVersion,
+                requestIds: metric.requestIds,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
+                errorMessage: errorMessage,
             }
         )
+    }
+
+    public emitMCPConfigEvent(data?: {
+        numActiveServers?: number
+        numGlobalServers?: number
+        numProjectServers?: number
+        numToolsAlwaysAllowed?: number
+        numToolsDenied?: number
+        languageServerVersion?: string
+    }) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MCPConfig,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: data?.languageServerVersion,
+                numActiveServers: data?.numActiveServers,
+                numGlobalServers: data?.numGlobalServers,
+                numProjectServers: data?.numProjectServers,
+                numToolsAlwaysAllowed: data?.numToolsAlwaysAllowed,
+                numToolsDenied: data?.numToolsDenied,
+            },
+        })
+    }
+
+    public emitMCPServerInitializeEvent(data?: {
+        command?: string
+        url?: string
+        enabled?: boolean
+        initializeTime?: number
+        numTools?: number
+        scope?: string
+        source?: string
+        transportType?: string
+        languageServerVersion?: string
+    }) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MCPServerInit,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                command: data?.command,
+                url: data?.url,
+                enabled: data?.enabled,
+                initializeTime: data?.initializeTime,
+                languageServerVersion: data?.languageServerVersion,
+                numTools: data?.numTools,
+                scope: data?.scope,
+                source: data?.source,
+                transportType: data?.transportType,
+            },
+        })
     }
 
     public emitStartConversationMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
@@ -218,31 +427,45 @@ export class ChatTelemetryController {
 
     public emitInteractWithMessageMetric(
         tabId: string,
-        metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>
+        metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>,
+        acceptedLineCount?: number
     ) {
         return this.#telemetryService.emitChatInteractWithMessage(metric, {
             conversationId: this.getConversationId(tabId),
+            acceptedLineCount,
         })
     }
 
-    public emitMessageResponseError(tabId: string, metric: Partial<CombinedConversationEvent>) {
-        this.emitConversationMetric(
-            {
-                name: ChatTelemetryEventName.MessageResponseError,
-                data: {
-                    cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-                    cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
-                    cwsprChatUserIntent: metric.cwsprChatUserIntent,
-                    cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
-                    cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-                    cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                    cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
-                    cwsprChatRequestLength: metric.cwsprChatRequestLength,
-                    cwsprChatConversationType: metric.cwsprChatConversationType,
-                },
+    public emitMessageResponseError(
+        tabId: string,
+        metric: Partial<CombinedConversationEvent>,
+        requestId?: string,
+        errorReason?: string,
+        agenticCodingMode?: boolean
+    ) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MessageResponseError,
+            data: {
+                cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+                cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
+                cwsprChatUserIntent: metric.cwsprChatUserIntent,
+                cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+                cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+                cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+                cwsprChatResponseCode: metric.cwsprChatResponseCode,
+                cwsprChatRequestLength: metric.cwsprChatRequestLength,
+                cwsprChatConversationType: metric.cwsprChatConversationType,
+                requestId: requestId,
+                reasonDesc: getTelemetryReasonDesc(errorReason),
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+                enabled: agenticCodingMode,
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+                languageServerVersion: metric.languageServerVersion,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             },
-            tabId
-        )
+        })
     }
 
     public enqueueCodeDiffEntry(params: Omit<InsertToCursorPositionParams, 'name'>) {
@@ -292,91 +515,98 @@ export class ChatTelemetryController {
     }
 
     async #handleClientTelemetry(params: unknown) {
-        if (isClientTelemetryEvent(params)) {
-            switch (params.name) {
-                case ChatUIEventName.AddMessage:
-                    // we are trusting that the notification comes just right before the request
-                    this.#currentTriggerByTabId[params.tabId] = params.triggerType
-                    break
-                case ChatUIEventName.TabAdd:
-                    this.#tabTelemetryInfoByTabId[params.tabId] = {
-                        ...this.#tabTelemetryInfoByTabId[params.tabId],
-                        startTrigger: {
-                            triggerType: params.triggerType,
-                        },
-                    }
-                    break
-                case ChatUIEventName.EnterFocusChat:
-                    this.emitChatMetric({
-                        name: ChatTelemetryEventName.EnterFocusChat,
-                        data: {},
-                    })
-                    break
-                case ChatUIEventName.ExitFocusChat:
-                    this.emitChatMetric({
-                        name: ChatTelemetryEventName.ExitFocusChat,
-                        data: {},
-                    })
-                    break
-                case ChatUIEventName.Vote:
-                    const voteData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
-                        cwsprChatMessageId: params.messageId,
-                        cwsprChatInteractionType:
-                            params.vote === RelevancyVoteType.UP
-                                ? ChatInteractionType.Upvote
-                                : ChatInteractionType.Downvote,
-                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
-                    }
-                    await this.#telemetryService.emitChatInteractWithMessage(voteData, {
-                        conversationId: this.getConversationId(params.tabId),
-                    })
-                    break
-                case ChatUIEventName.InsertToCursorPosition:
-                case ChatUIEventName.CopyToClipboard:
-                    if (params.name === ChatUIEventName.InsertToCursorPosition) {
-                        this.#enqueueCodeDiffEntry(params)
-                    }
+        try {
+            if (isClientTelemetryEvent(params)) {
+                switch (params.name) {
+                    case ChatUIEventName.AddMessage:
+                        // we are trusting that the notification comes just right before the request
+                        this.#currentTriggerByTabId[params.tabId] = params.triggerType
+                        break
+                    case ChatUIEventName.TabAdd:
+                        this.#tabTelemetryInfoByTabId[params.tabId] = {
+                            ...this.#tabTelemetryInfoByTabId[params.tabId],
+                            startTrigger: {
+                                triggerType: params.triggerType,
+                            },
+                        }
+                        break
+                    case ChatUIEventName.EnterFocusChat:
+                        this.emitChatMetric({
+                            name: ChatTelemetryEventName.EnterFocusChat,
+                            data: {},
+                        })
+                        break
+                    case ChatUIEventName.ExitFocusChat:
+                        this.emitChatMetric({
+                            name: ChatTelemetryEventName.ExitFocusChat,
+                            data: {},
+                        })
+                        break
+                    case ChatUIEventName.Vote:
+                        const voteData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
+                            cwsprChatMessageId: params.messageId,
+                            cwsprChatInteractionType:
+                                params.vote === RelevancyVoteType.UP
+                                    ? ChatInteractionType.Upvote
+                                    : ChatInteractionType.Downvote,
+                            codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                        }
+                        await this.#telemetryService.emitChatInteractWithMessage(voteData, {
+                            conversationId: this.getConversationId(params.tabId),
+                        })
+                        break
+                    case ChatUIEventName.InsertToCursorPosition:
+                    case ChatUIEventName.CopyToClipboard:
+                        if (params.name === ChatUIEventName.InsertToCursorPosition) {
+                            this.#enqueueCodeDiffEntry(params)
+                        }
 
-                    const interactData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
-                        cwsprChatMessageId: params.messageId,
-                        cwsprChatInteractionType:
-                            params.name === ChatUIEventName.InsertToCursorPosition
-                                ? ChatInteractionType.InsertAtCursor
-                                : ChatInteractionType.CopySnippet,
-                        cwsprChatAcceptedCharactersLength: params.code?.length ?? 0,
-                        cwsprChatHasReference: Boolean(params.referenceTrackerInformation?.length),
-                        cwsprChatCodeBlockIndex: params.codeBlockIndex,
-                        cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
-                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
-                    }
-                    await this.#telemetryService.emitChatInteractWithMessage(interactData, {
-                        conversationId: this.getConversationId(params.tabId),
-                        acceptedLineCount:
-                            params.name === ChatUIEventName.InsertToCursorPosition
-                                ? params.code?.split('\n').length
-                                : undefined,
-                    })
-                    break
-                case ChatUIEventName.LinkClick:
-                case ChatUIEventName.InfoLinkClick:
-                    const clickBodyLinkData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
-                        cwsprChatMessageId: params.messageId,
-                        cwsprChatInteractionType: ChatInteractionType.ClickBodyLink,
-                        cwsprChatInteractionTarget: params.link,
-                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
-                    }
-                    await this.emitInteractWithMessageMetric(params.tabId, clickBodyLinkData)
-                    break
-                case ChatUIEventName.SourceLinkClick:
-                    const clickLinkData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
-                        cwsprChatMessageId: params.messageId,
-                        cwsprChatInteractionType: ChatInteractionType.ClickLink,
-                        cwsprChatInteractionTarget: params.link,
-                        codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
-                    }
-                    await this.emitInteractWithMessageMetric(params.tabId, clickLinkData)
-                    break
+                        const interactData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
+                            cwsprChatMessageId: params.messageId,
+                            cwsprChatInteractionType:
+                                params.name === ChatUIEventName.InsertToCursorPosition
+                                    ? ChatInteractionType.InsertAtCursor
+                                    : ChatInteractionType.CopySnippet,
+                            cwsprChatAcceptedCharactersLength: params.code?.length ?? 0,
+                            cwsprChatHasReference: Boolean(params.referenceTrackerInformation?.length),
+                            cwsprChatCodeBlockIndex: params.codeBlockIndex,
+                            cwsprChatTotalCodeBlocks: params.totalCodeBlocks,
+                            codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                        }
+                        await this.#telemetryService.emitChatInteractWithMessage(interactData, {
+                            conversationId: this.getConversationId(params.tabId),
+                            acceptedLineCount:
+                                params.name === ChatUIEventName.InsertToCursorPosition
+                                    ? params.code?.split('\n').length
+                                    : undefined,
+                        })
+                        break
+                    case ChatUIEventName.LinkClick:
+                    case ChatUIEventName.InfoLinkClick:
+                        const clickBodyLinkData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
+                            cwsprChatMessageId: params.messageId,
+                            cwsprChatInteractionType: ChatInteractionType.ClickBodyLink,
+                            cwsprChatInteractionTarget: params.link,
+                            codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                        }
+                        await this.emitInteractWithMessageMetric(params.tabId, clickBodyLinkData)
+                        break
+                    case ChatUIEventName.SourceLinkClick:
+                        const clickLinkData: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'> = {
+                            cwsprChatMessageId: params.messageId,
+                            cwsprChatInteractionType: ChatInteractionType.ClickLink,
+                            cwsprChatInteractionTarget: params.link,
+                            codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
+                        }
+                        await this.emitInteractWithMessageMetric(params.tabId, clickLinkData)
+                        break
+                    case ChatUIEventName.HistoryButtonClick:
+                        this.#telemetryService.emitUiClick({ elementId: 'amazonq_historyTabButton' })
+                        break
+                }
             }
+        } catch (err) {
+            this.#logging.log(`Exception Thrown from ChatTelemetryController: ${err}`)
         }
     }
 

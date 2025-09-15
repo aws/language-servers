@@ -1,3 +1,6 @@
+/**
+ * Reference only - validation moved to backend service.
+ */
 export const supportedProjects = [
     'AspNetCoreMvc',
     'AspNetCoreWebApi',
@@ -16,10 +19,4 @@ export const supportedProjects = [
     'Unknown',
 ]
 
-export const unsupportedViewComponents = [
-    '@Scripts',
-    '@Styles',
-    '@Session',
-    '@FormsAuthentication',
-    '@PagedListRenderOptions',
-]
+export const unsupportedViewComponents = ['@Session', '@PagedListRenderOptions']

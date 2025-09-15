@@ -12,7 +12,9 @@ import { SsoProfile as BaseSsoProfile, ClientRegistration, SsoToken, isExpired }
 
 import * as fs from 'fs'
 import * as path from 'path'
-const TOKEN_CACHE_DIR = path.join(__dirname, '.cache')
+import * as os from 'os'
+
+export const DEFAULT_TOKEN_CACHE_DIR = path.join(os.homedir(), '.aws/sso/cache')
 
 // For the Proof of concept, this file's code was copied (and culled) from the AWS Toolkit for VS Code repo
 // https://github.com/aws/aws-toolkit-vscode/blob/5d621c8405a8b20ffe571ad0ba10ae700178e051/src/auth/auth.ts
@@ -200,14 +202,18 @@ export class OidcClient {
  *         - RefreshToken (optional)
  */
 export class SsoAccessTokenProvider {
-    private readonly TOKEN_CACHE_FILE = path.join(TOKEN_CACHE_DIR, 'token.json')
-    private readonly REGISTRATION_CACHE_FILE = path.join(TOKEN_CACHE_DIR, 'registration.json')
+    private readonly TOKEN_CACHE_FILE
+    private readonly REGISTRATION_CACHE_FILE
 
     public constructor(
         private readonly profile: Pick<SsoProfile, 'startUrl' | 'region' | 'scopes' | 'identifier'>,
         private readonly uiHandler: UiHandler | undefined = undefined,
+        private readonly tokenCacheDir: string = DEFAULT_TOKEN_CACHE_DIR,
         private readonly oidc = OidcClient.create(profile.region)
-    ) {}
+    ) {
+        this.TOKEN_CACHE_FILE = path.join(this.tokenCacheDir, 'device-sso-lsp-token.json')
+        this.REGISTRATION_CACHE_FILE = path.join(this.tokenCacheDir, 'device-sso-lsp-registration.json')
+    }
 
     public async invalidate(): Promise<void> {
         await fs.promises.unlink(this.TOKEN_CACHE_FILE)
@@ -258,12 +264,12 @@ export class SsoAccessTokenProvider {
     }
 
     private async saveCachedToken(data: SsoAccess): Promise<void> {
-        await fs.promises.mkdir(TOKEN_CACHE_DIR, { recursive: true })
+        await fs.promises.mkdir(this.tokenCacheDir, { recursive: true })
         await fs.promises.writeFile(this.TOKEN_CACHE_FILE, JSON.stringify(data))
     }
 
-    private async saveRegisrationData(data: ClientRegistration): Promise<void> {
-        await fs.promises.mkdir(TOKEN_CACHE_DIR, { recursive: true })
+    private async saveRegistrationData(data: ClientRegistration): Promise<void> {
+        await fs.promises.mkdir(this.tokenCacheDir, { recursive: true })
         await fs.promises.writeFile(this.REGISTRATION_CACHE_FILE, JSON.stringify(data))
     }
 
@@ -279,7 +285,7 @@ export class SsoAccessTokenProvider {
         let cachedRegistration = await this.loadCachedRegistrationData()
         if (cachedRegistration === undefined) {
             cachedRegistration = await this.registerClient()
-            await this.saveRegisrationData(cachedRegistration)
+            await this.saveRegistrationData(cachedRegistration)
         }
 
         return await this.authorize(cachedRegistration)
@@ -355,9 +361,15 @@ interface UiHandler {
 export class BuilderIdConnectionBuilder {
     private static readonly getToken = keyedDebounce(BuilderIdConnectionBuilder._getToken.bind(this))
     public static uiHandler: UiHandler
+    private static tokenCacheDir: string
 
-    public static async build(uiHandler: UiHandler, startUrl: string = builderIdStartUrl): Promise<SsoConnection> {
+    public static async build(
+        uiHandler: UiHandler,
+        startUrl: string = builderIdStartUrl,
+        tokenCacheDir: string = DEFAULT_TOKEN_CACHE_DIR
+    ): Promise<SsoConnection> {
         BuilderIdConnectionBuilder.uiHandler = uiHandler
+        BuilderIdConnectionBuilder.tokenCacheDir = tokenCacheDir
 
         const awsBuilderIdSsoProfile = BuilderIdConnectionBuilder.createBuilderIdProfile(defaultScopes, startUrl)
         const connection = await BuilderIdConnectionBuilder.createConnection(awsBuilderIdSsoProfile)
@@ -392,7 +404,8 @@ export class BuilderIdConnectionBuilder {
                 scopes: profile.scopes,
                 region: profile.ssoRegion,
             },
-            BuilderIdConnectionBuilder.uiHandler
+            BuilderIdConnectionBuilder.uiHandler,
+            BuilderIdConnectionBuilder.tokenCacheDir
         )
 
         return provider

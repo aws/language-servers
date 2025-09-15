@@ -1,5 +1,6 @@
-var path = require('path')
-
+const path = require('path')
+const webpack = require('webpack')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
 const baseConfig = {
     mode: 'development',
     output: {
@@ -54,15 +55,22 @@ const nodeJsIamBundleConfig = {
     target: 'node',
 }
 
-const webworkerIamBundleConfig = {
-    target: 'webworker',
-    mode: 'production',
-    output: {
-        path: path.resolve(__dirname, 'build'),
-        filename: '[name].js',
+const isDevelopment = false
+
+// bundles webworker
+const webworkerConfig = {
+    mode: isDevelopment ? 'development' : 'production',
+    devtool: isDevelopment ? 'inline-source-map' : undefined,
+    optimization: {
+        minimize: !isDevelopment,
+        realContentHash: false,
     },
     entry: {
         worker: './src/iam-webworker.ts',
+    },
+    output: {
+        path: path.resolve(__dirname, 'dist'),
+        filename: '[name].js',
     },
     resolve: {
         fallback: {
@@ -72,9 +80,15 @@ const webworkerIamBundleConfig = {
             http: 'stream-http',
             crypto: 'crypto-browserify',
             stream: 'stream-browserify',
-            process: false,
-            fs: false,
+            fs: path.resolve(__dirname, 'src/mock-fs.js'),
+            child_process: false,
             vm: false,
+            dns: false,
+            zlib: false,
+            net: false,
+            tls: false,
+            http2: false,
+            buffer: require.resolve('buffer/'),
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
@@ -92,6 +106,71 @@ const webworkerIamBundleConfig = {
             },
         ],
     },
+    plugins: [
+        new webpack.ProvidePlugin({
+            process: 'process/browser',
+        }),
+        new webpack.ProvidePlugin({
+            Buffer: ['buffer', 'Buffer'],
+        }),
+    ],
 }
 
-module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig, webworkerIamBundleConfig]
+// bundles main web page (running webworker) and serves it on localhost
+const mainWebpageConfig = {
+    mode: isDevelopment ? 'development' : 'production',
+    devtool: isDevelopment ? 'inline-source-map' : undefined,
+    optimization: {
+        minimize: !isDevelopment,
+        realContentHash: false,
+    },
+    entry: {
+        main: './src/main.ts',
+    },
+    output: {
+        path: path.resolve(__dirname, 'dist'),
+        filename: '[name].js',
+    },
+    resolve: {
+        ...baseConfig.resolve,
+    },
+    module: {
+        parser: {
+            javascript: {
+                importMeta: false,
+            },
+        },
+        rules: [
+            {
+                test: /\.(ts|tsx)$/,
+                loader: 'ts-loader',
+                exclude: /node_modules/,
+            },
+            {
+                test: /\.html$/i,
+                loader: 'html-loader',
+            },
+        ],
+    },
+    plugins: [
+        new HtmlWebpackPlugin({
+            template: path.join(__dirname, 'public', 'index.html'),
+            filename: 'index.html',
+        }),
+    ],
+    devServer: {
+        allowedHosts: 'all',
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+        },
+        host: '127.0.0.1',
+        port: 8080,
+        webSocketServer: 'ws',
+        server: 'http',
+        client: {
+            overlay: false, // Disables the red error overlay
+        },
+    },
+}
+
+module.exports = [nodeJsBearerTokenBundleConfig, nodeJsIamBundleConfig, webworkerConfig, mainWebpageConfig]

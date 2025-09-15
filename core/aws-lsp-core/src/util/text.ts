@@ -30,3 +30,23 @@ export function undefinedIfEmpty(str: string | undefined): string | undefined {
 
     return undefined
 }
+
+/**
+ * Truncates string `s` if it has or exceeds `n` chars.
+ *
+ * If `n` is negative, truncates at start instead of end.
+ *
+ * @param s String to truncate
+ * @param n Truncate after this length
+ * @param suffix String appended to truncated value (default: "…")
+ */
+export function truncate(s: string, n: number, suffix?: string): string {
+    suffix = suffix ?? '…'
+    if (s.length <= Math.abs(n)) {
+        return s
+    }
+    const start = n < 0 ? s.length - Math.abs(n) : 0
+    const end = n < 0 ? s.length : n
+    const truncated = s.substring(start, end)
+    return n < 0 ? suffix + truncated : truncated + suffix
+}

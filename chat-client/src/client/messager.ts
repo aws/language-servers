@@ -3,6 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @fileoverview
+ * The Messager class serves as a communication bridge between the MynahUI chat interface
+ * and the host application (e.g., IDE extension). It translates UI events into standardized
+ * messages, handles telemetry collection, and provides a clean abstraction layer for sending
+ * different types of messages through the OutboundChatApi.
+ */
+
 import {
     AuthFollowUpClickedParams,
     CopyCodeToClipboardParams,
@@ -13,17 +21,34 @@ import {
     TriggerType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatParams,
+    ConversationAction,
+    ConversationClickParams,
+    CreatePromptParams,
     FeedbackParams,
+    FileClickParams,
+    FilterValue,
     FollowUpClickParams,
+    GetSerializedChatResult,
     InfoLinkClickParams,
     LinkClickParams,
+    ListConversationsParams,
+    ListRulesParams,
+    ListMcpServersParams,
+    McpServerClickParams,
+    OpenFileDialogParams,
     OpenTabResult,
+    PinnedContextParams,
+    PromptInputOptionChangeParams,
     QuickActionParams,
+    RuleClickParams,
     SourceLinkClickParams,
     TabAddParams,
+    TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
+    ListAvailableModelsParams,
 } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
 import {
@@ -33,6 +58,7 @@ import {
     ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     EXIT_FOCUS,
+    HISTORY_BUTTON_CLICK_TELEMETRY_EVENT,
     INFO_LINK_CLICK_TELEMETRY_EVENT,
     INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT,
     LINK_CLICK_TELEMETRY_EVENT,
@@ -43,6 +69,10 @@ import {
     VoteParams,
 } from '../contracts/telemetry'
 
+/**
+ * OutboundChatApi defines the interface for sending messages from the chat client
+ * to the host application. It provides methods for all supported outbound events.
+ */
 export interface OutboundChatApi {
     sendChatPrompt(params: ChatParams): void
     sendQuickActionCommand(params: QuickActionParams): void
@@ -60,15 +90,40 @@ export interface OutboundChatApi {
     infoLinkClick(params: InfoLinkClickParams): void
     uiReady(): void
     disclaimerAcknowledged(): void
-    onOpenTab(result: OpenTabResult | ErrorResult): void
+    chatPromptOptionAcknowledged(messageId: string): void
+    onOpenTab(requestId: string, result: OpenTabResult | ErrorResult): void
+    createPrompt(params: CreatePromptParams): void
+    fileClick(params: FileClickParams): void
+    listConversations(params: ListConversationsParams): void
+    conversationClick(params: ConversationClickParams): void
+    mcpServerClick(params: McpServerClickParams): void
+    listMcpServers(params: ListMcpServersParams): void
+    tabBarAction(params: TabBarActionParams): void
+    onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
+    promptInputOptionChange(params: PromptInputOptionChangeParams): void
+    promptInputButtonClick(params: ButtonClickParams): void
+    stopChatResponse(tabId: string): void
+    sendButtonClickEvent(params: ButtonClickParams): void
+    onOpenSettings(settingKey: string): void
+    onRuleClick(params: RuleClickParams): void
+    listRules(params: ListRulesParams): void
+    onAddPinnedContext(params: PinnedContextParams): void
+    onRemovePinnedContext(params: PinnedContextParams): void
+    onListAvailableModels(params: ListAvailableModelsParams): void
+    onOpenFileDialogClick(params: OpenFileDialogParams): void
+    onFilesDropped(params: { tabId: string; files: FileList; insertPosition: number }): void
 }
 
 export class Messager {
     constructor(private readonly chatApi: OutboundChatApi) {}
 
-    onTabAdd = (tabId: string, triggerType?: TriggerType): void => {
-        this.chatApi.tabAdded({ tabId })
+    onTabAdd = (tabId: string, triggerType?: TriggerType, restoredTab?: boolean): void => {
+        this.chatApi.tabAdded({ tabId, restoredTab })
         this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: TAB_ADD_TELEMETRY_EVENT })
+    }
+
+    onRuleClick = (params: RuleClickParams): void => {
+        this.chatApi.onRuleClick(params)
     }
 
     onTabChange = (tabId: string): void => {
@@ -85,6 +140,10 @@ export class Messager {
 
     onDisclaimerAcknowledged = (): void => {
         this.chatApi.disclaimerAcknowledged()
+    }
+
+    onChatPromptOptionAcknowledged = (messageId: string): void => {
+        this.chatApi.chatPromptOptionAcknowledged(messageId)
     }
 
     onFocusStateChanged = (focusState: boolean): void => {
@@ -156,7 +215,86 @@ export class Messager {
         this.chatApi.telemetry({ ...params, name: ERROR_MESSAGE_TELEMETRY_EVENT })
     }
 
-    onOpenTab = (result: OpenTabResult | ErrorResult): void => {
-        this.chatApi.onOpenTab(result)
+    onOpenTab = (requestId: string, result: OpenTabResult | ErrorResult): void => {
+        this.chatApi.onOpenTab(requestId, result)
+    }
+
+    onCreatePrompt = (params: CreatePromptParams): void => {
+        this.chatApi.createPrompt(params)
+    }
+
+    onFileClick = (params: FileClickParams): void => {
+        this.chatApi.fileClick(params)
+    }
+
+    onListConversations = (filter?: Record<string, FilterValue>, tabButtonClicked?: boolean): void => {
+        this.chatApi.listConversations({ filter })
+        if (tabButtonClicked) {
+            this.chatApi.telemetry({ triggerType: 'click', name: HISTORY_BUTTON_CLICK_TELEMETRY_EVENT })
+        }
+    }
+
+    onListRules = (params: ListRulesParams): void => {
+        this.chatApi.listRules(params)
+    }
+
+    onConversationClick = (conversationId: string, action?: ConversationAction): void => {
+        this.chatApi.conversationClick({ id: conversationId, action })
+    }
+
+    onListMcpServers = (filter?: Record<string, FilterValue>): void => {
+        this.chatApi.listMcpServers({ filter })
+    }
+
+    onMcpServerClick = (id: string, title?: string, options?: Record<string, string>): void => {
+        this.chatApi.mcpServerClick({ id: id, title: title, optionsValues: options })
+    }
+
+    onTabBarAction = (params: TabBarActionParams): void => {
+        this.chatApi.tabBarAction(params)
+    }
+
+    onGetSerializedChat = (requestId: string, result: GetSerializedChatResult | ErrorResult): void => {
+        this.chatApi.onGetSerializedChat(requestId, result)
+    }
+
+    onPromptInputOptionChange = (params: PromptInputOptionChangeParams): void => {
+        this.chatApi.promptInputOptionChange(params)
+    }
+
+    onPromptInputButtonClick = (params: ButtonClickParams): void => {
+        this.chatApi.promptInputButtonClick(params)
+    }
+
+    onStopChatResponse = (tabId: string): void => {
+        this.chatApi.stopChatResponse(tabId)
+    }
+
+    onButtonClick = (params: ButtonClickParams): void => {
+        this.chatApi.sendButtonClickEvent(params)
+    }
+
+    onOpenSettings = (settingKey: string): void => {
+        this.chatApi.onOpenSettings(settingKey)
+    }
+
+    onAddPinnedContext = (params: PinnedContextParams) => {
+        this.chatApi.onAddPinnedContext(params)
+    }
+
+    onRemovePinnedContext = (params: PinnedContextParams) => {
+        this.chatApi.onRemovePinnedContext(params)
+    }
+
+    onListAvailableModels = (params: ListAvailableModelsParams): void => {
+        this.chatApi.onListAvailableModels(params)
+    }
+
+    onOpenFileDialogClick = (params: OpenFileDialogParams): void => {
+        this.chatApi.onOpenFileDialogClick(params)
+    }
+
+    onFilesDropped = (params: { tabId: string; files: FileList; insertPosition: number }): void => {
+        this.chatApi.onFilesDropped(params)
     }
 }

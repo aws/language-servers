@@ -3,8 +3,8 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 
 import { ChatEventParser } from './chatEventParser'
-import { Metric } from '../telemetry/metric'
-import { AddMessageEvent } from '../telemetry/types'
+import { Metric } from '../../shared/telemetry/metric'
+import { AddMessageEvent } from '../../shared/telemetry/types'
 
 describe('ChatEventParser', () => {
     const mockMessageId = 'mock-message-id'

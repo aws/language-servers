@@ -1,10 +1,10 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
-import { ChatTelemetryEventName } from '../../telemetry/types'
+import { ChatTelemetryEventName } from '../../../shared/telemetry/types'
 import { CONVERSATION_ID_METRIC_KEY, ChatTelemetryController } from './chatTelemetryController'
 import assert = require('assert')
 import { ChatUIEventName } from './clientTelemetry'
-import { TelemetryService } from '../../telemetryService'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 
 describe('TelemetryController', () => {
     const mockTabId = 'mockTabId'
@@ -54,7 +54,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.EnterFocusChat,
-            data: { credentialStartUrl: undefined },
+            data: { credentialStartUrl: undefined, result: 'Succeeded' },
         })
     })
 
@@ -67,7 +67,7 @@ describe('TelemetryController', () => {
 
         sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
             name: ChatTelemetryEventName.ExitFocusChat,
-            data: { credentialStartUrl: undefined },
+            data: { credentialStartUrl: undefined, result: 'Succeeded' },
         })
     })
 
@@ -104,6 +104,7 @@ describe('TelemetryController', () => {
             data: {
                 [CONVERSATION_ID_METRIC_KEY]: mockConversationId,
                 credentialStartUrl: undefined,
+                result: 'Succeeded',
             },
         })
     })

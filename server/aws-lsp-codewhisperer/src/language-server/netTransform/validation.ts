@@ -2,6 +2,12 @@ import * as fs from 'fs'
 import { StartTransformRequest, TransformProjectMetadata } from './models'
 import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { TransformationJob } from '../../client/token/codewhispererbearertokenclient'
+import { TransformationErrorCode } from './models'
+
+/**
+ * Project type validation moved to backend service.
+ */
 
 export function isProject(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.csproj')
@@ -9,29 +15,6 @@ export function isProject(userInputrequest: StartTransformRequest): boolean {
 
 export function isSolution(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.sln')
-}
-
-export function validateProject(userInputrequest: StartTransformRequest, logging: Logging): boolean {
-    var selectedProject = userInputrequest.ProjectMetadata.find(
-        project => project.ProjectPath == userInputrequest.SelectedProjectPath
-    )
-
-    if (selectedProject) {
-        var isValid = supportedProjects.includes(selectedProject?.ProjectType)
-        logging.log(
-            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}` +
-                (isValid ? '' : ' that is not supported')
-        )
-        return isValid
-    }
-    logging.log(`Error occured in verifying selected project with path ${userInputrequest.SelectedProjectPath}`)
-    return false
-}
-
-export function validateSolution(userInputrequest: StartTransformRequest): string[] {
-    return userInputrequest.ProjectMetadata.filter(project => !supportedProjects.includes(project.ProjectType)).map(
-        project => project.ProjectPath
-    )
 }
 
 export async function checkForUnsupportedViews(
@@ -97,4 +80,46 @@ export function parseAndCheckUnsupportedComponents(htmlString: string): boolean 
         }
     })
     return containsUnsupportedComponents
+}
+
+/**
+ * Determines the appropriate error code for a transformation job based on its status and reason.
+ *
+ * @param transformationJob - The transformation job to analyze
+ * @returns An error code representing the job's error state, or NONE if no error
+ *
+ * TODO: Expand this function to handle additional error patterns as they are identified
+ */
+export function getTransformationErrorCode(transformationJob: TransformationJob | undefined): TransformationErrorCode {
+    if (!transformationJob) {
+        return TransformationErrorCode.NONE
+    }
+
+    // Check for failure states
+    if (
+        transformationJob.status === 'FAILED' ||
+        transformationJob.status === 'STOPPED' ||
+        transformationJob.status === 'REJECTED'
+    ) {
+        if (transformationJob.reason) {
+            // Check for quota exceeded error
+            if (
+                transformationJob.reason
+                    .toLowerCase()
+                    .includes(
+                        'the project was stopped because the projected resource usage would exceed your remaining quota.'
+                    )
+            ) {
+                return TransformationErrorCode.QUOTA_EXCEEDED
+            }
+
+            // TODO: Add more error pattern matching here as needed
+        }
+
+        // If we get here, there was a failure but we don't have a specific error code for it
+        return TransformationErrorCode.UNKNOWN_ERROR
+    }
+
+    // No error
+    return TransformationErrorCode.NONE
 }

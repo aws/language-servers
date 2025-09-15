@@ -7,6 +7,7 @@ import {
 import got from 'got'
 import { md5 } from 'js-md5'
 import * as path from 'path'
+import * as ScanConstants from './constants'
 
 import {
     ArtifactMap,
@@ -16,18 +17,18 @@ import {
     ListCodeAnalysisFindingsRequest,
     StartCodeAnalysisRequest,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { sleep } from '../dependencyGraph/commonUtil'
+import { sleep } from './dependencyGraph/commonUtil'
 import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class SecurityScanHandler {
-    private client: CodeWhispererServiceToken
+    private serviceManager: AmazonQTokenServiceManager
     private workspace: Workspace
     private logging: Logging
     public tokenSource: CancellationTokenSource
 
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging) {
-        this.client = client
+    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging) {
+        this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging
         this.tokenSource = new CancellationTokenSource()
@@ -49,14 +50,21 @@ export class SecurityScanHandler {
         this.tokenSource.cancel()
     }
 
-    async createCodeResourcePresignedUrlHandler(zipContent: Buffer) {
+    async createCodeResourcePresignedUrlHandler(zipContent: Buffer, scanName: string) {
+        const uploadIntent = ScanConstants.projectScanUploadIntent
         const request: CreateUploadUrlRequest = {
             contentMd5: this.getMd5(zipContent),
             artifactType: 'SourceCode',
+            uploadIntent: uploadIntent,
+            uploadContext: {
+                codeAnalysisUploadContext: {
+                    codeScanName: scanName,
+                },
+            },
         }
         try {
             this.logging.log('Prepare for uploading src context...')
-            const response = await this.client.createUploadUrl(request)
+            const response = await this.serviceManager.getCodewhispererService().createUploadUrl(request)
             this.logging.log(`Request id: ${response.$response.requestId}`)
             this.logging.log(`Complete Getting presigned Url for uploading src context.`)
             this.logging.log(`Uploading src context...`)
@@ -77,7 +85,7 @@ export class SecurityScanHandler {
         const encryptionContext = `{"uploadId":"${resp.uploadId}"}`
         const md5Content = this.getMd5(zipBuffer)
         const headersObj =
-            resp.kmsKeyArn !== '' || resp.kmsKeyArn !== undefined
+            resp.kmsKeyArn !== '' && resp.kmsKeyArn !== undefined
                 ? {
                       'Content-MD5': md5Content,
                       'x-amz-server-side-encryption': 'aws:kms',
@@ -93,21 +101,23 @@ export class SecurityScanHandler {
                   }
         const response = await got.put(resp.uploadUrl, {
             body: zipBuffer,
-            headers: headersObj,
+            headers: resp?.requestHeaders ?? headersObj,
         })
         this.logging.log(`StatusCode: ${response.statusCode}`)
     }
 
-    async createScanJob(artifactMap: ArtifactMap, languageName: string) {
+    async createScanJob(artifactMap: ArtifactMap, languageName: string, scanName: string) {
         const req: StartCodeAnalysisRequest = {
             artifacts: artifactMap,
             programmingLanguage: {
                 languageName,
             },
+            scope: ScanConstants.projectCodeAnalysisScope,
+            codeScanName: scanName,
         }
         this.logging.log(`Creating scan job...`)
         try {
-            const resp = await this.client.startCodeAnalysis(req)
+            const resp = await this.serviceManager.getCodewhispererService().startCodeAnalysis(req)
             this.logging.log(`Request id: ${resp.$response.requestId}`)
             return resp
         } catch (error) {
@@ -120,13 +130,13 @@ export class SecurityScanHandler {
         let status = 'Pending'
         let timer = 0
         const codeScanJobPollingIntervalSeconds = 1
-        const codeScanJobTimeoutSeconds = 50
+        const codeScanJobTimeoutSeconds = ScanConstants.standardScanTimeoutMs
         // eslint-disable-next-line no-constant-condition
         while (true) {
             const req: GetCodeAnalysisRequest = {
                 jobId: jobId,
             }
-            const resp = await this.client.getCodeAnalysis(req)
+            const resp = await this.serviceManager.getCodewhispererService().getCodeAnalysis(req)
             this.logging.log(`Request id: ${resp.$response.requestId}`)
 
             if (resp.status !== 'Pending') {
@@ -151,7 +161,7 @@ export class SecurityScanHandler {
             jobId,
             codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
         }
-        const response = await this.client.listCodeAnalysisFindings(request)
+        const response = await this.serviceManager.getCodewhispererService().listCodeAnalysisFindings(request)
         this.logging.log(`Request id: ${response.$response.requestId}`)
 
         const aggregatedCodeScanIssueList = await this.mapToAggregatedList(response.codeAnalysisFindings, projectPath)

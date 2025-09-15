@@ -9,6 +9,13 @@ module.exports = {
     rules: {
         'import/no-nodejs-modules': 'warn',
         '@typescript-eslint/no-floating-promises': 'error',
+        'no-restricted-globals': [
+            'error',
+            {
+                name: 'crypto',
+                message: 'Do not use global crypto object which only exists in browsers and fails for node runtimes',
+            },
+        ],
     },
     ignorePatterns: ['**/*.test.ts', 'out/', 'src.gen/', 'src/client/**/*.d.ts'],
     overrides: [

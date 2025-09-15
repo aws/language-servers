@@ -85,7 +85,7 @@ export async function openSsoPortalLink(
     }
 
     async function showLoginNotification() {
-        const name = startUrl === builderIdStartUrl ? 'builderId' : 'foo'
+        const name = startUrl === builderIdStartUrl ? 'BuilderID' : 'Identity Center'
         const title = `Copy Code for ${name}`
         const detail = `To proceed, open the login page and provide this code to confirm the access request: ${authorization.userCode}`
 

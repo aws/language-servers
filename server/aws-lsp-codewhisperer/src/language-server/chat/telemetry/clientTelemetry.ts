@@ -1,6 +1,6 @@
 import type * as ServerInterface from '@aws/language-server-runtimes/server-interface'
 import type * as ChatClientType from '@aws/chat-client-ui-types'
-import { isObject } from '../../utils'
+import { isObject } from '../../../shared/utils'
 
 export enum ChatUIEventName {
     EnterFocusChat = 'enterFocus',
@@ -14,6 +14,7 @@ export enum ChatUIEventName {
     LinkClick = 'linkClick',
     InfoLinkClick = 'infoLinkClick',
     SourceLinkClick = 'sourceLinkClick',
+    HistoryButtonClick = 'historyButtonClick',
 }
 
 /* Chat client only telemetry - we should import these in the future */
@@ -77,6 +78,8 @@ export type InsertToCursorPositionParams = ServerInterface.InsertToCursorPositio
         cursorState?: ServerInterface.CursorState[]
     }
 
+export type HistoryButtonClickParams = { name: ChatUIEventName.HistoryButtonClick }
+
 export type ClientTelemetryEvent =
     | BaseClientTelemetryParams<ChatUIEventName.EnterFocusChat>
     | BaseClientTelemetryParams<ChatUIEventName.ExitFocusChat>
@@ -89,6 +92,7 @@ export type ClientTelemetryEvent =
     | LinkClickParams
     | SourceLinkClickParams
     | InsertToCursorPositionParams
+    | HistoryButtonClickParams
 
 const chatUIEventNameSet = new Set<string>(Object.values(ChatUIEventName))
 

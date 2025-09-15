@@ -5,3 +5,4 @@ out/
 build/
 **/bin/
 **/obj/
+CHANGELOG.md

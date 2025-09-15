@@ -4,7 +4,8 @@
 import * as assert from 'assert'
 import * as path from 'path'
 import * as os from 'os'
-import { normalizeSeparator, normalize, isInDirectory } from './path'
+import { normalizeSeparator, normalize, isInDirectory, sanitize } from './path'
+import sinon from 'ts-sinon'
 
 describe('pathUtils', async function () {
     it('normalizeSeparator()', function () {
@@ -75,5 +76,41 @@ describe('pathUtils', async function () {
         } else {
             assert.ok(!isInDirectory('/foo/bar/baz/', '/FOO/BAR/BAZ/A.TXT'))
         }
+    })
+
+    describe('sanitizePath', function () {
+        let sandbox: sinon.SinonSandbox
+
+        beforeEach(function () {
+            sandbox = sinon.createSandbox()
+        })
+
+        afterEach(function () {
+            sandbox.restore()
+        })
+
+        it('trims whitespace from input path', function () {
+            const result = sanitize('  /test/path  ')
+            assert.strictEqual(result, '/test/path')
+        })
+
+        it('expands tilde to user home directory', function () {
+            const homeDir = '/Users/testuser'
+            sandbox.stub(os, 'homedir').returns(homeDir)
+
+            const result = sanitize('~/documents/file.txt')
+            assert.strictEqual(result, path.join(homeDir, 'documents/file.txt'))
+        })
+
+        it('converts relative paths to absolute paths', function () {
+            const result = sanitize('relative/path')
+            assert.strictEqual(result, path.resolve('relative/path'))
+        })
+
+        it('leaves absolute paths unchanged', function () {
+            const absolutePath = path.resolve('/absolute/path')
+            const result = sanitize(absolutePath)
+            assert.strictEqual(result, absolutePath)
+        })
     })
 })

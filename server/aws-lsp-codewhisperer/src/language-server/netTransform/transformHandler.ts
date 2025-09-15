@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming, ExportIntent } from '@amzn/codewhisperer-streaming'
+import { ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'
@@ -9,7 +9,6 @@ import {
     StopTransformationRequest,
     TransformationJob,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
@@ -29,21 +28,19 @@ import {
 import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
-import { Console } from 'console'
-import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
-import { String } from 'aws-sdk/clients/codebuild'
-import { ProjectMetadata } from 'aws-sdk/clients/lookoutvision'
-import { httpstatus } from 'aws-sdk/clients/glacier'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 const workspaceFolderName = 'artifactWorkspace'
 
 export class TransformHandler {
-    private client: CodeWhispererServiceToken
+    private serviceManager: AmazonQTokenServiceManager
     private workspace: Workspace
     private logging: Logging
     private runtime: Runtime
-    constructor(client: CodeWhispererServiceToken, workspace: Workspace, logging: Logging, runtime: Runtime) {
-        this.client = client
+    private cancelPollingEnabled: Boolean = false
+
+    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
+        this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging
         this.runtime = runtime
@@ -57,23 +54,12 @@ export class TransformHandler {
             isProject,
             this.logging
         )
-        if (isProject) {
-            let isValid = validation.validateProject(userInputrequest, this.logging)
-            if (!isValid) {
-                return {
-                    Error: 'NotSupported',
-                    IsSupported: false,
-                    ContainsUnsupportedViews: containsUnsupportedViews,
-                } as StartTransformResponse
-            }
-        } else {
-            unsupportedProjects = validation.validateSolution(userInputrequest)
-        }
 
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
-            this.getWorkspacePath(userInputrequest.SolutionRootPath)
+            this.getWorkspacePath(userInputrequest.SolutionRootPath),
+            userInputrequest.SolutionRootPath
         )
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
@@ -82,7 +68,9 @@ export class TransformHandler {
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
             this.logging.log('Sending request to start transform api: ' + JSON.stringify(request))
-            const response = await this.client.codeModernizerStartCodeTransformation(request)
+            const response = await this.serviceManager
+                .getCodewhispererService()
+                .codeModernizerStartCodeTransformation(request)
             this.logging.log('Received transformation job Id: ' + response?.transformationJobId)
             return getCWStartTransformResponse(
                 response,
@@ -119,10 +107,10 @@ export class TransformHandler {
     }
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
-        const sha256 = ArtifactManager.getSha256(payloadFileName)
+        const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
-            response = await this.client.codeModernizerCreateUploadUrl({
+            response = await this.serviceManager.getCodewhispererService().codeModernizerCreateUploadUrl({
                 contentChecksum: sha256,
                 contentChecksumType: 'SHA_256',
                 uploadIntent: 'TRANSFORMATION',
@@ -147,16 +135,17 @@ export class TransformHandler {
         try {
             return await artifactManager.createZip(request)
         } catch (e: any) {
-            this.logging.log('cause:' + e)
+            this.logging.log('Error creating zip: ' + e)
+            throw e
         }
-        return ''
     }
 
     async uploadArtifactToS3Async(fileName: string, resp: CreateUploadUrlResponse, sha256: string) {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
+            const fileStream = fs.createReadStream(fileName)
             const response = await got.put(resp.uploadUrl, {
-                body: fs.readFileSync(fileName),
+                body: fileStream,
                 headers: headersObj,
             })
 
@@ -186,15 +175,29 @@ export class TransformHandler {
         }
         return headersObj
     }
+    /**
+     * Retrieves the status and details of a transformation job.
+     * Includes error code when the job has failed.
+     *
+     * @param request - The request containing the transformation job ID
+     * @returns The transformation job details with error code if applicable, or null if the request fails
+     */
     async getTransformation(request: GetTransformRequest) {
         try {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
-            const response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+            const response = await this.serviceManager
+                .getCodewhispererService()
+                .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
             this.logging.log('Transformation status: ' + response.transformationJob?.status)
+
+            // Use validation function to determine the error code
+            const errorCode = validation.getTransformationErrorCode(response.transformationJob)
+
             return {
                 TransformationJob: response.transformationJob,
+                ErrorCode: errorCode,
             } as GetTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
@@ -210,9 +213,9 @@ export class TransformHandler {
                 const getCodeTransformationPlanRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                const response = await this.client.codeModernizerGetCodeTransformationPlan(
-                    getCodeTransformationPlanRequest
-                )
+                const response = await this.serviceManager
+                    .getCodewhispererService()
+                    .codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
                 return {
                     TransformationPlan: response.transformationPlan,
                 } as GetTransformPlanResponse
@@ -246,7 +249,9 @@ export class TransformHandler {
                 this.logging.log(
                     'Sending CancelTransformRequest with job Id: ' + stopCodeTransformationRequest.transformationJobId
                 )
-                const response = await this.client.codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
+                const response = await this.serviceManager
+                    .getCodewhispererService()
+                    .codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
                 this.logging.log('Transformation status: ' + response.transformationStatus)
                 let status: CancellationJobStatus
                 switch (response.transformationStatus) {
@@ -292,7 +297,9 @@ export class TransformHandler {
         const getCodeTransformationRequest = {
             transformationJobId: request.TransformationJobId,
         } as GetTransformationRequest
-        let response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+        let response = await this.serviceManager
+            .getCodewhispererService()
+            .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
         this.logging.log('Start polling for transformation plan.')
         this.logging.log('The valid status to exit polling are: ' + validExitStatus)
         this.logging.log('The failure status are: ' + failureStates)
@@ -302,12 +309,21 @@ export class TransformHandler {
 
         while (status != PollTransformationStatus.TIMEOUT && !failureStates.includes(status)) {
             try {
+                if (this.cancelPollingEnabled) {
+                    // Reset the flag
+                    this.cancelPollingEnabled = false
+                    return {
+                        TransformationJob: response.transformationJob,
+                    } as GetTransformResponse
+                }
                 const apiStartTime = Date.now()
 
                 const getCodeTransformationRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
-                response = await this.client.codeModernizerGetCodeTransformation(getCodeTransformationRequest)
+                response = await this.serviceManager
+                    .getCodewhispererService()
+                    .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
                 this.logging.log('Transformation status: ' + response.transformationJob?.status)
 
                 if (validExitStatus.includes(status)) {
@@ -349,10 +365,10 @@ export class TransformHandler {
         } as GetTransformResponse
     }
 
-    async downloadExportResultArchive(cwStreamingClient: CodeWhispererStreaming, exportId: string, saveToDir: string) {
+    async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
-            result = await cwStreamingClient.exportResultArchive({
+            result = await this.serviceManager.getStreamingClient().exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
             })
@@ -373,6 +389,7 @@ export class TransformHandler {
                 }
             }
             const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
+            this.logging.log(`Identified path of directory to save artifacts is ${saveToDir}`)
             const pathContainingArchive = await this.archivePathGenerator(exportId, buffer, saveToWorkspace)
             this.logging.log('PathContainingArchive :' + pathContainingArchive)
             return {
@@ -386,16 +403,47 @@ export class TransformHandler {
         }
     }
 
+    async cancelPollingAsync() {
+        this.cancelPollingEnabled = true
+    }
+
+    async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]) {
+        for (const entry of zipEntries) {
+            try {
+                const entryPath = path.join(pathContainingArchive, entry.entryName)
+                if (entry.isDirectory) {
+                    await fs.promises.mkdir(entryPath, { recursive: true })
+                } else {
+                    const parentDir = path.dirname(entryPath)
+                    await fs.promises.mkdir(parentDir, { recursive: true })
+                    await fs.promises.writeFile(entryPath, entry.getData())
+                }
+            } catch (extractError: any) {
+                if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
+                    this.logging.log(`Attempted to extract a file that does not exist : ${entry.entryName}`)
+                } else {
+                    throw extractError
+                }
+            }
+        }
+    }
+
     async archivePathGenerator(exportId: string, buffer: Uint8Array[], saveToDir: string) {
-        const tempDir = path.join(saveToDir, exportId)
-        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
-        await this.directoryExists(tempDir)
-        await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
-        let pathContainingArchive = ''
-        pathContainingArchive = path.dirname(pathToArchive)
-        const zip = new AdmZip(pathToArchive)
-        zip.extractAllTo(pathContainingArchive)
-        return pathContainingArchive
+        try {
+            const tempDir = path.join(saveToDir, exportId)
+            const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+            await this.directoryExists(tempDir)
+            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+            let pathContainingArchive = ''
+            pathContainingArchive = path.dirname(pathToArchive)
+            const zip = new AdmZip(pathToArchive)
+            const zipEntries = zip.getEntries()
+            await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+            return pathContainingArchive
+        } catch (error) {
+            this.logging.log(`error received ${JSON.stringify(error)}`)
+            return ''
+        }
     }
 
     async directoryExists(directoryPath: any) {
@@ -403,6 +451,7 @@ export class TransformHandler {
             await fs.accessSync(directoryPath)
         } catch (error) {
             // Directory doesn't exist, create it
+            this.logging.log(`Directory doesn't exist, creating it ${directoryPath}`)
             await fs.mkdirSync(directoryPath, { recursive: true })
         }
     }
@@ -432,10 +481,9 @@ export class TransformHandler {
                 suggestion =
                     'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
             }
-            this.logging.log(
-                `Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
-                ${suggestion}`
-            )
+            this.logging
+                .log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+                ${suggestion}`)
         }
     }
 }
