@@ -1,0 +1,10 @@
+branch="$(git symbolic-ref HEAD 2>/dev/null)"
+
+if [ "$branch" = "refs/heads/main" ]; then
+    echo "Direct push to the main branch is not allowed. Please create a new branch and open Pull Request."
+    exit 1
+fi
+
+echo "[pre-push] linting commit message..." 
+npm run commitlint
+echo "[pre-commit] done linting commit message"

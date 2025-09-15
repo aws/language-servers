@@ -1,0 +1,47 @@
+--- a/node_modules/yaml-language-server/out/server/src/languageservice/services/yamlHover.js	2024-05-02 15:13:13
++++ b/node_modules/yaml-language-server/out/server/src/languageservice/services/yamlHover.js	2024-05-02 15:28:53
+@@ -18,11 +18,13 @@
+     constructor(schemaService, telemetry) {
+         this.telemetry = telemetry;
+         this.shouldHover = true;
++        this.hoverSettings = {showSource: true, showTitle: true};
+         this.schemaService = schemaService;
+     }
+     configure(languageSettings) {
+         if (languageSettings) {
+             this.shouldHover = languageSettings.hover;
++            this.hoverSettings = languageSettings.hoverSettings;
+             this.indentation = languageSettings.indentation;
+         }
+     }
+\ No newline at end of file
+@@ -84,6 +86,8 @@
+         const removePipe = (value) => {
+             return value.replace(/\|\|\s*$/, '');
+         };
++        const showSource = this.hoverSettings?.showSource ?? true;
++        const showTitle = this.hoverSettings?.showTitle ?? true;
+         return this.schemaService.getSchemaForResource(document.uri, doc).then((schema) => {
+             if (schema && node && !schema.errors.length) {
+                 const matchingSchemas = doc.getMatchingSchemas(schema.schema, node.offset);
+\ No newline at end of file
+@@ -135,7 +139,7 @@
+                     return true;
+                 });
+                 let result = '';
+-                if (title) {
++                if (showTitle && title) {
+                     result = '#### ' + toMarkdown(title);
+                 }
+                 if (markdownDescription) {
+\ No newline at end of file
+@@ -159,7 +163,7 @@
+                         result += `\n\n\`\`\`${example}\`\`\``;
+                     });
+                 }
+-                if (result.length > 0 && schema.schema.url) {
++                if (showSource && result.length > 0 && schema.schema.url) {
+                     result += `\n\nSource: [${getSchemaName(schema.schema)}](${schema.schema.url})`;
+                 }
+                 return createHover(result);
+\ No newline at end of file

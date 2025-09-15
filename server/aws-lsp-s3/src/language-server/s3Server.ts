@@ -1,4 +1,4 @@
-import { AwsInitializationOptions, AwsLanguageService } from '@lsp-placeholder/aws-lsp-core'
+import { AwsInitializationOptions, AwsLanguageService } from '@aws/lsp-core'
 import {
     Connection,
     InitializeParams,

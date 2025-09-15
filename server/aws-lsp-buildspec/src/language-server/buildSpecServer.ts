@@ -4,9 +4,9 @@ import {
     UriResolver,
     completionItemUtils,
     textDocumentUtils,
-} from '@lsp-placeholder/aws-lsp-core'
-import { JsonLanguageService } from '@lsp-placeholder/aws-lsp-json-common'
-import { YamlLanguageService } from '@lsp-placeholder/aws-lsp-yaml-common'
+} from '@aws/lsp-core'
+import { JsonLanguageService } from '@aws/lsp-json'
+import { YamlLanguageService } from '@aws/lsp-yaml'
 import {
     Connection,
     InitializeParams,
@@ -108,7 +108,7 @@ export class BuildspecServer {
 
             const results = await this.buildSpecService.doComplete(textDocument, position)
 
-            if (results!!) {
+            if (results!) {
                 completionItemUtils.prependItemDetail(results.items, BuildspecServer.serverId)
             }
 

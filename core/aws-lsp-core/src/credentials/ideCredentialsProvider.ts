@@ -17,7 +17,11 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private pushedCredentials: IamCredentials | undefined
     private pushedToken: BearerToken | undefined
 
-    constructor(private readonly connection: Connection, key?: string, credentialsEncoding?: CredentialsEncoding) {
+    constructor(
+        private readonly connection: Connection,
+        key?: string,
+        credentialsEncoding?: CredentialsEncoding
+    ) {
         this.connection.console.info(`Server: I was initialized with credentials encoding: ${credentialsEncoding}`)
         this.credentialsEncoding = credentialsEncoding
         if (key) {
@@ -50,7 +54,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         this.connection.console.info('Server: Registering IAM credentials push handlers')
 
         // Handle when host sends us credentials to use
-        this.connection.onNotification(
+        this.connection.onRequest(
             credentialsProtocolMethodNames.iamCredentialsUpdate,
             async (request: UpdateCredentialsRequest) => {
                 try {
@@ -94,7 +98,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         this.connection.console.info('Server: Registering bearer token push handlers')
 
         // Handle when host sends us credentials to use
-        this.connection.onNotification(
+        this.connection.onRequest(
             credentialsProtocolMethodNames.iamBearerTokenUpdate,
             async (request: UpdateCredentialsRequest) => {
                 try {

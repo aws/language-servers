@@ -1,0 +1,77 @@
+name: Integration Tests
+
+on:
+    workflow_run:
+        workflows: [Create agent-standalone bundles]
+        types:
+            - completed
+        branches: [main, feature/*, release/agentic/*]
+
+jobs:
+    agent-server-tests:
+        name: Agent Server Tests (${{ matrix.target }})
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: ubuntu-24.04-arm
+                      target: linux-arm64
+                    - os: ubuntu-latest
+                      target: linux-x64
+                    - os: macos-latest
+                      target: mac-arm64
+                    - os: macos-13
+                      target: mac-x64
+                    - os: windows-latest
+                      target: win-x64
+        runs-on: ${{ matrix.os }}
+        permissions:
+            id-token: write
+            contents: read
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha }}
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 18
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  run-id: ${{ github.event.workflow_run.id }}
+                  name: ${{ matrix.target }}
+                  path: ./downloaded-artifacts
+            - name: Extract server files
+              run: |
+                  cd ./downloaded-artifacts/
+                  unzip servers.zip
+            - name: Configure AWS Credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  role-to-assume: arn:aws:iam::964765661569:role/GitHubActionsTokenRefresherRole
+                  role-session-name: language-servers-github
+                  aws-region: us-east-1
+            - name: Build
+              run: |
+                  npm ci
+                  npm run compile
+            - name: Refresh Token
+              run: aws lambda invoke --function-name TokenRefresherLambda --region us-east-1 --payload '{}' response.json
+            - name: Get SSO Token
+              uses: aws-actions/aws-secretsmanager-get-secrets@v2
+              with:
+                  secret-ids: |
+                      ,SsoTokenSecret
+                  parse-json-secrets: true
+            - name: Run Integration Tests
+              run: |
+                  npm run test-integ -w integration-tests/q-agentic-chat-server
+              env:
+                  TEST_SSO_TOKEN: ${{ env.SSOTOKEN }}
+                  TEST_SSO_START_URL: ${{ secrets.TEST_SSO_START_URL }}
+                  TEST_PROFILE_ARN: ${{ secrets.TEST_PROFILE_ARN }}
+                  TEST_RUNTIME_FILE: ${{ github.workspace }}/downloaded-artifacts/aws-lsp-codewhisperer.js

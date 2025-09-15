@@ -1,4 +1,4 @@
-import { YamlSchemaServer, YamlSchemaServerProps } from '@lsp-placeholder/aws-lsp-yaml-common'
+import { YamlSchemaServer, YamlSchemaServerProps } from './yamlSchemaServer'
 import { jsonSchemaUrl } from './urls'
 
 export type BuildspecYamlServerProps = Omit<YamlSchemaServerProps, 'defaultSchemaUri'>

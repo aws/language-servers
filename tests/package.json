@@ -1,0 +1,12 @@
+{
+    "name": "test-package",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "test": "npm run test:codewhisperer && npm run test:json && npm run test:partiql && npm run test:json",
+        "test:codewhisperer": "node aws-lsp-codewhisperer.js",
+        "test:json": "node aws-lsp-json.js",
+        "test:partiql": "node aws-lsp-partiql.js",
+        "test:yaml": "node aws-lsp-yaml.js"
+    }
+}

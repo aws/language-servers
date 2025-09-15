@@ -1,15 +1,16 @@
 {
     "compilerOptions": {
         "module": "CommonJS",
-        "target": "ES2021",
+        "target": "ES2022",
         "moduleResolution": "node",
-        "lib": ["ES2021"],
+        "lib": ["ES2022"],
         "declaration": true,
         "sourceMap": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
-        "composite": true
+        "composite": true,
+        "noImplicitOverride": true
     },
     "exclude": ["node_modules"]
 }

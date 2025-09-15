@@ -1,4 +1,4 @@
-import { JsonSchemaServer, JsonSchemaServerProps } from '@lsp-placeholder/aws-lsp-json-common'
+import { JsonSchemaServer, JsonSchemaServerProps } from './jsonSchemaServer'
 import { jsonSchemaUrl } from './urls'
 
 export type BuildspecJsonServerProps = Omit<JsonSchemaServerProps, 'defaultSchemaUri'>

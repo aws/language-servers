@@ -1,0 +1,12 @@
+src/
+src.gen/
+
+node_modules/
+bundle/
+package-lock.json
+.*
+tsconfig.*
+webpack.*.config.js
+*.test.js
+*.test.d.ts
+*.test.js.map

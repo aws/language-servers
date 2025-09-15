@@ -1,9 +1,33 @@
-# Please see the documentation for all configuration options:
-# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# Documentation for configuration options:
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
 updates:
     - package-ecosystem: 'npm'
       directory: '/'
+      target-branch: 'main' # Avoid updates to "staging".
       schedule:
           interval: 'weekly'
+      groups:
+          typescript-eslint:
+              patterns:
+                  - '@typescript-eslint/*'
+      commit-message:
+          prefix: 'chore'
+    - package-ecosystem: 'npm'
+      directory: '/core/codewhisperer-streaming'
+      target-branch: 'main'
+      schedule:
+          interval: 'weekly'
+      ignore:
+          - dependency-name: 'tslib'
+          - dependency-name: '@aws-crypto/*'
+          - dependency-name: '@aws-sdk/*'
+          - dependency-name: '@smithy/*'
+          - dependency-name: 'uuid'
+          - dependency-name: '@tsconfig/node16'
+          - dependency-name: 'concurrently'
+          - dependency-name: 'downlevel-dts'
+          - dependency-name: 'rimraf'
+          - dependency-name: 'typescript'
+          - dependency-name: '@types/*'

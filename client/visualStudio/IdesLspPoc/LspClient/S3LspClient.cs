@@ -36,7 +36,7 @@ namespace IdesLspPoc.LspClient
         {
             get
             {
-                // This is how we configure the behavior of AWS Language Servers.
+                // This is how we configure the behavior of Language Servers for AWS.
                 // The structure needs to be formalized across all AWS hosts/extensions.
                 //
                 // This structure is exploration/conceptual/speculative at this time.
@@ -70,7 +70,7 @@ namespace IdesLspPoc.LspClient
         protected override string GetServerWorkingDir()
         {
             // to try using this extension, update dir to wherever your lsp service executable is
-            return @"C:\code\aws-toolkit-common\lsp\app\aws-lsp-s3-binary\bin";
+            return @"C:\code\aws-language-servers\app\aws-lsp-s3-binary\bin";
         }
 
         protected override string GetServerPath()

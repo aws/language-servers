@@ -5,7 +5,7 @@ This is an example Visual Studio extension that wraps the experimental LSP servi
 ## Try it out
 
 -   compile the lsp service (elsewhere), produce a windows executable for the service
--   copy the executable to `C:\code\aws-toolkit-common\lsp`, or update `CreateLspProcess` in ToolkitLspClient.cs to point at your exe location
+-   copy the executable to `C:\code\aws-language-servers\lsp`, or update `CreateLspProcess` in ToolkitLspClient.cs to point at your exe location
 -   build this extension, and debug it (or otherwise run an experimental instance of Visual Studio)
 -   open a build.yaml file and try authoring a buildspec file
 
