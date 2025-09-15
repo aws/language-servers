@@ -1,6 +1,11 @@
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { isUsageLimitError, isAwsThrottlingError, getRequestID } from '../../../shared/utils'
 import { AgenticChatError, isThrottlingRelated, isRequestAbortedError, isInputTooLongError } from '../errors'
+import {
+    AmazonQError,
+    AmazonQServicePendingSigninError,
+    AmazonQServicePendingProfileError,
+} from '../../../shared/amazonQServiceManager/errors'
 
 import {
     HTTP_STATUS_TOO_MANY_REQUESTS,
@@ -18,11 +23,12 @@ import {
  */
 export class QErrorTransformer {
     private logging?: Logging
-    private isModelSelectionEnabled: boolean
+    private isModelSelectionEnabled: () => boolean
 
-    constructor(logging?: Logging, isModelSelectionEnabled: boolean = false) {
+    constructor(logging?: Logging, isModelSelectionEnabled: (() => boolean) | boolean = false) {
         this.logging = logging
-        this.isModelSelectionEnabled = isModelSelectionEnabled
+        this.isModelSelectionEnabled =
+            typeof isModelSelectionEnabled === 'function' ? isModelSelectionEnabled : () => isModelSelectionEnabled
     }
 
     private extractResponseBody(error: any): string | null {
@@ -40,6 +46,11 @@ export class QErrorTransformer {
         // Use default attempt count if not provided
         const attempts = attemptCount ?? MAX_REQUEST_ATTEMPTS
         const requestId = getRequestID(error)
+
+        // Don't transform authentication errors - let them pass through for auth follow-up handling
+        if (error instanceof AmazonQServicePendingSigninError || error instanceof AmazonQServicePendingProfileError) {
+            return error
+        }
 
         // Handle specific error types with retry context
         if (isUsageLimitError(error)) {
@@ -87,13 +98,15 @@ export class QErrorTransformer {
         // Check for model unavailability first (before general throttling)
         const statusCode = this.getStatusCode(error)
         const isModelUnavailable =
-            (statusCode === HTTP_STATUS_TOO_MANY_REQUESTS && error.cause?.reason === INSUFFICIENT_MODEL_CAPACITY) ||
+            (statusCode === HTTP_STATUS_TOO_MANY_REQUESTS &&
+                (error.cause?.reason === INSUFFICIENT_MODEL_CAPACITY ||
+                    error.reason === INSUFFICIENT_MODEL_CAPACITY)) ||
             (statusCode === HTTP_STATUS_INTERNAL_SERVER_ERROR && error.message === HIGH_LOAD_ERROR_MESSAGE)
 
         if (isModelUnavailable) {
-            const message = this.isModelSelectionEnabled
-                ? `The model you selected is temporarily unavailable after ${attempts} attempts. Please switch to a different model and try again.`
-                : `I am experiencing high traffic after ${attempts} attempts, please try again shortly.`
+            const message = this.isModelSelectionEnabled()
+                ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                : `I am experiencing high traffic, please try again shortly.`
 
             return new AgenticChatError(
                 message,
@@ -129,27 +142,24 @@ export class QErrorTransformer {
 
         // Check for service overloaded errors (status 500 with specific messages)
         if (statusCode === HTTP_STATUS_INTERNAL_SERVER_ERROR) {
-            const bodyStr = this.extractResponseBody(error)
-            if (bodyStr) {
+            // Check response body directly (not error message) to avoid conflict with model unavailability
+            const responseBody = error.cause?.$response?.body || error.$response?.body
+            if (responseBody) {
                 const isOverloaded =
-                    bodyStr.includes(HIGH_LOAD_ERROR_MESSAGE) || bodyStr.includes(SERVICE_UNAVAILABLE_EXCEPTION)
+                    responseBody.includes(HIGH_LOAD_ERROR_MESSAGE) ||
+                    responseBody.includes(SERVICE_UNAVAILABLE_EXCEPTION)
                 this.logging?.debug(
                     `QErrorTransformer: Service overloaded error detected (status 500): ${isOverloaded}`
                 )
                 return isOverloaded
             }
-
-            // Direct message check for high load
-            if (
-                error.message === HIGH_LOAD_ERROR_MESSAGE ||
-                error.message?.includes('Encountered unexpectedly high load')
-            ) {
-                return true
-            }
         }
 
-        // Model capacity issues
-        if (statusCode === HTTP_STATUS_TOO_MANY_REQUESTS && error.cause?.reason === INSUFFICIENT_MODEL_CAPACITY) {
+        // Model capacity issues - but these should be handled by model unavailability check first
+        if (
+            statusCode === HTTP_STATUS_TOO_MANY_REQUESTS &&
+            (error.cause?.reason === INSUFFICIENT_MODEL_CAPACITY || error.reason === INSUFFICIENT_MODEL_CAPACITY)
+        ) {
             return true
         }
 

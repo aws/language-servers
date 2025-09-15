@@ -137,7 +137,7 @@ export class ChatSessionService {
         this.#origin = getOriginFromClientInfo(getClientName(this.#lsp?.getClientInitializeParams()))
 
         // Initialize Q-specific error transformation
-        this.#errorTransformer = new QErrorTransformer(logging, this.isModelSelectionEnabled())
+        this.#errorTransformer = new QErrorTransformer(logging, () => this.isModelSelectionEnabled())
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
