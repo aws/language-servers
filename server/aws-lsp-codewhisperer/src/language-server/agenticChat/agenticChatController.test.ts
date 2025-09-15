@@ -32,6 +32,7 @@ import {
     InlineChatResult,
     CancellationTokenSource,
     ContextCommand,
+    ChatUpdateParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -55,8 +56,8 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
-import * as constants from './constants'
-import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
+import * as constants from './constants/constants'
+import { GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT, GENERIC_ERROR_MS } from './constants/constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
@@ -67,6 +68,7 @@ import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -183,7 +185,7 @@ describe('AgenticChatController', () => {
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
-        sinon.stub(constants, 'responseTimeoutMs').value(100)
+        sinon.stub(constants, 'RESPONSE_TIMEOUT_MS').value(100)
 
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
@@ -240,7 +242,7 @@ describe('AgenticChatController', () => {
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
             getTools: sinon.stub().returns(
-                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2', 'codeReview'].map(toolName => ({
                     toolSpecification: { name: toolName, description: 'Mock tool for testing' },
                 }))
             ),
@@ -367,17 +369,6 @@ describe('AgenticChatController', () => {
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
     })
 
-    it('onTabAdd updates model ID in chat options and session', () => {
-        const modelId = 'test-model-id'
-        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-        chatController.onTabAdd({ tabId: mockTabId })
-
-        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
-
-        const session = chatSessionManagementService.getSession(mockTabId).data
-        assert.strictEqual(session!.modelId, modelId)
-    })
-
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
         chatController.onTabChange({ tabId: mockTabId })
 
@@ -450,7 +441,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -475,6 +466,15 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typeof session.conversationId, 'string')
         })
 
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
+        })
+
         it('includes chat history from the database in the request input', async () => {
             // Mock chat history
             const mockHistory = [
@@ -491,6 +491,7 @@ describe('AgenticChatController', () => {
                 {
                     userInputMessage: {
                         content: 'Previous question',
+                        images: [],
                         origin: 'IDE',
                         userInputMessageContext: { toolResults: [] },
                         userIntent: undefined,
@@ -522,6 +523,60 @@ describe('AgenticChatController', () => {
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+        })
+
+        it('includes chat history from the database in the compaction request input', async () => {
+            // Mock chat history
+            const mockHistory = [
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                { type: 'answer', body: 'Previous answer' },
+            ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        images: [],
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
+
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.returns(mockHistory)
+
+            // Make the request
+            const result = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: '', command: '/compact' } },
+                mockCancellationToken
+            )
+
+            // Verify that history was requested from the db
+            sinon.assert.calledWith(getMessagesStub, mockTabId)
+
+            assert.ok(generateAssistantResponseStub.calledOnce)
+
+            // Verify that the history was passed to the request
+            const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+            assert.deepStrictEqual(
+                requestInput.conversationState?.currentMessage?.userInputMessage?.content,
+                constants.COMPACTION_PROMPT
+            )
         })
 
         it('skips adding user message to history when token is cancelled', async () => {
@@ -1085,7 +1140,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1104,7 +1159,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -1129,7 +1184,7 @@ describe('AgenticChatController', () => {
         })
 
         it('truncate input to 500k character ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            const input = 'X'.repeat(GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT + 10)
             generateAssistantResponseStub.restore()
             generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             generateAssistantResponseStub.callsFake(() => {})
@@ -1139,7 +1194,7 @@ describe('AgenticChatController', () => {
                 generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(
                 calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
-                generateAssistantResponseInputLimit
+                GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
             )
         })
         it('shows generic errorMsg on internal errors', async function () {
@@ -1149,7 +1204,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
         })
 
         const authFollowUpTestCases = [
@@ -1209,7 +1264,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'some error')
         })
 
@@ -1235,7 +1290,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
@@ -1749,6 +1804,241 @@ describe('AgenticChatController', () => {
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
             assert.strictEqual(result, 298000)
+        })
+
+        it('should truncate images when they exceed budget', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(493_400),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(2000000), //6600 chars - should be removed
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should only keep the first and third images (small ones)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 493400 - 3.3 - 3.3) // remaining budget after content and images
+        })
+
+        it('should handle images without bytes', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: null as any,
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should keep both images since the first one has 0 chars
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 400000 - 3.3) // remaining budget after content and second image
+        })
+
+        it('should truncate relevantDocuments and images together with equal priority', () => {
+            // 400_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'a', text: 'a'.repeat(100) },
+                                        { relativeFilePath: 'b', text: 'a'.repeat(100_000) }, // should be truncated
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000000000) }, // 3300000 chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000) }, // 3.3 chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            // Only the first doc and the image should fit
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
+            assert.strictEqual(result, 500000 - 400000 - 100 - 3.3)
+        })
+
+        it('should respect additionalContext order for mixed file and image truncation', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'file1.ts', text: 'a'.repeat(30_000) },
+                                        { relativeFilePath: 'file2.ts', text: 'b'.repeat(40_000) },
+                                        { relativeFilePath: 'file3.ts', text: 'c'.repeat(50_000) },
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(10_000_000) }, // 33k chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(20_000_000) }, // 66k chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(5_000_000) }, // 16.5k chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+
+            const additionalContext = [
+                {
+                    type: 'image',
+                    name: 'image1.png',
+                    description: 'First image',
+                    relativePath: 'images/image1.png',
+                    path: '/workspace/images/image1.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[0]: 33k chars (should be kept)
+                {
+                    type: 'file',
+                    name: 'file1.ts',
+                    description: 'First file',
+                    relativePath: 'src/file1.ts',
+                    path: '/workspace/src/file1.ts',
+                    startLine: 1,
+                    endLine: 100,
+                }, // maps to docs[0]: 30k chars (should be kept)
+                {
+                    type: 'image',
+                    name: 'image2.png',
+                    description: 'Second image',
+                    relativePath: 'images/image2.png',
+                    path: '/workspace/images/image2.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[1]: 66k chars (should be truncated)
+                {
+                    type: 'file',
+                    name: 'file2.ts',
+                    description: 'Second file',
+                    relativePath: 'src/file2.ts',
+                    path: '/workspace/src/file2.ts',
+                    startLine: 1,
+                    endLine: 200,
+                }, // maps to docs[1]: 40k chars (should be truncated)
+                {
+                    type: 'file',
+                    name: 'file3.ts',
+                    description: 'Third file',
+                    relativePath: 'src/file3.ts',
+                    path: '/workspace/src/file3.ts',
+                    startLine: 1,
+                    endLine: 300,
+                }, // maps to docs[2]: 50k chars (should be truncated)
+                {
+                    type: 'image',
+                    name: 'image3.png',
+                    description: 'Third image',
+                    relativePath: 'images/image3.png',
+                    path: '/workspace/images/image3.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[2]: 16.5k chars (should be kept)
+            ]
+
+            const result = chatController.truncateRequest(request, additionalContext)
+
+            // With 100k budget remaining after user message:
+            // 1. images[0] (33k) fits -> 67k remaining
+            // 2. docs[0] (30k) fits -> 37k remaining
+            // 3. images[1] (66k) doesn't fit -> skipped
+            // 4. docs[1] (40k) doesn't fit -> skipped
+            // 5. docs[2] (50k) doesn't fit -> skipped
+            // 6. images[2] (16.5k) fits in 37k remaining -> 20.5k remaining
+
+            // Should keep first image, first doc, and third image based on additionalContext order
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+
+            const keptImages = request.conversationState?.currentMessage?.userInputMessage?.images
+            const keptDoc =
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.[0]
+
+            assert.strictEqual(keptImages?.[0]?.source?.bytes?.length, 10_000_000) // images[0]
+            assert.strictEqual(keptImages?.[1]?.source?.bytes?.length, 5_000_000) // images[2]
+            assert.strictEqual(keptDoc?.relativeFilePath, 'file1.ts') // docs[0]
+            assert.strictEqual(keptDoc?.text, 'a'.repeat(30_000))
+
+            // Remaining budget should be 20.5k (100k - 33k - 30k - 16.5k)
+            assert.strictEqual(result, 500000 - 400000 - 33000 - 30000 - 16500)
         })
     })
 
@@ -2702,6 +2992,255 @@ ${' '.repeat(8)}}
         })
     })
 
+    describe('onListAvailableModels', () => {
+        let isCachedModelsValidStub: sinon.SinonStub
+        let getCachedModelsStub: sinon.SinonStub
+        let setCachedModelsStub: sinon.SinonStub
+        let getConnectionTypeStub: sinon.SinonStub
+        let getActiveProfileArnStub: sinon.SinonStub
+        let getCodewhispererServiceStub: sinon.SinonStub
+        let listAvailableModelsStub: sinon.SinonStub
+
+        beforeEach(() => {
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+
+            // Stub ChatDatabase methods
+            isCachedModelsValidStub = sinon.stub(ChatDatabase.prototype, 'isCachedModelsValid')
+            getCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'getCachedModels')
+            setCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'setCachedModels')
+
+            // Stub AmazonQTokenServiceManager methods
+            getConnectionTypeStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getConnectionType')
+            getActiveProfileArnStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getActiveProfileArn')
+            getCodewhispererServiceStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getCodewhispererService')
+
+            // Mock listAvailableModels method
+            listAvailableModelsStub = sinon.stub()
+            getCodewhispererServiceStub.returns({
+                listAvailableModels: listAvailableModelsStub,
+            })
+        })
+
+        afterEach(() => {
+            isCachedModelsValidStub.restore()
+            getCachedModelsStub.restore()
+            setCachedModelsStub.restore()
+            getConnectionTypeStub.restore()
+            getActiveProfileArnStub.restore()
+            getCodewhispererServiceStub.restore()
+        })
+
+        describe('ListAvailableModels Cache scenarios', () => {
+            it('should return cached models when cache is valid', async () => {
+                // Setup valid cache
+                isCachedModelsValidStub.returns(true)
+                const cachedData = {
+                    models: [
+                        { id: 'model1', name: 'Model 1' },
+                        { id: 'model2', name: 'Model 2' },
+                    ],
+                    defaultModelId: 'model1',
+                    timestamp: Date.now(),
+                }
+                getCachedModelsStub.returns(cachedData)
+
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.modelId = 'model1'
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify cached data is used
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.deepStrictEqual(result.models, cachedData.models)
+                assert.strictEqual(result.selectedModelId, 'model1')
+
+                // Verify API was not called
+                sinon.assert.notCalled(listAvailableModelsStub)
+                sinon.assert.notCalled(setCachedModelsStub)
+            })
+
+            it('should return cached models when cache is valid but has empty models array', async () => {
+                // Setup cache with empty models
+                isCachedModelsValidStub.returns(true)
+                const cachedData = {
+                    models: [],
+                    defaultModelId: undefined,
+                    timestamp: Date.now(),
+                }
+                getCachedModelsStub.returns(cachedData)
+
+                // Should fall back to API call since models array is empty
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-arn')
+                listAvailableModelsStub.resolves({
+                    models: {
+                        model1: { modelId: 'model1' },
+                        model2: { modelId: 'model2' },
+                    },
+                    defaultModel: { modelId: 'model1' },
+                })
+
+                await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify API was called due to empty cached models
+                sinon.assert.calledOnce(listAvailableModelsStub)
+                sinon.assert.calledOnce(setCachedModelsStub)
+            })
+
+            it('should return cached models when cache is valid but cachedData is null', async () => {
+                // Setup cache as valid but returns null
+                isCachedModelsValidStub.returns(true)
+                getCachedModelsStub.returns(null)
+
+                // Should fall back to API call
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-arn')
+                listAvailableModelsStub.resolves({
+                    models: {
+                        model1: { modelId: 'model1' },
+                    },
+                    defaultModel: { modelId: 'model1' },
+                })
+
+                await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify API was called
+                sinon.assert.calledOnce(listAvailableModelsStub)
+            })
+        })
+
+        describe('ListAvailableModels API call scenarios', () => {
+            beforeEach(() => {
+                // Setup invalid cache to force API call
+                isCachedModelsValidStub.returns(false)
+            })
+
+            it('should fetch models from API when cache is invalid', async () => {
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-profile-arn')
+
+                const mockApiResponse = {
+                    models: {
+                        'claude-3-sonnet': { modelId: 'claude-3-sonnet' },
+                        'claude-4-sonnet': { modelId: 'claude-4-sonnet' },
+                    },
+                    defaultModel: { modelId: 'claude-3-sonnet' },
+                }
+                listAvailableModelsStub.resolves(mockApiResponse)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify API call was made with correct parameters
+                sinon.assert.calledOnceWithExactly(listAvailableModelsStub, {
+                    origin: 'IDE',
+                    profileArn: 'test-profile-arn',
+                })
+
+                // Verify result structure
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.strictEqual(result.models.length, 2)
+                assert.deepStrictEqual(result.models, [
+                    { id: 'claude-3-sonnet', name: 'claude-3-sonnet' },
+                    { id: 'claude-4-sonnet', name: 'claude-4-sonnet' },
+                ])
+
+                // Verify cache was updated
+                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, 'claude-3-sonnet')
+            })
+
+            it('should fall back to hardcoded models when API call fails', async () => {
+                getConnectionTypeStub.returns('builderId')
+                listAvailableModelsStub.rejects(new Error('API Error'))
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify fallback to FALLBACK_MODEL_OPTIONS
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.strictEqual(result.models.length, 2) // FALLBACK_MODEL_OPTIONS length
+
+                // Verify cache was not updated due to error
+                sinon.assert.notCalled(setCachedModelsStub)
+            })
+
+            it('should handle API response with no defaultModel', async () => {
+                getConnectionTypeStub.returns('builderId')
+
+                const mockApiResponse = {
+                    models: {
+                        model1: { modelId: 'model1' },
+                    },
+                    defaultModel: undefined, // No default model
+                }
+                listAvailableModelsStub.resolves(mockApiResponse)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify cache was updated with undefined defaultModelId
+                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, undefined)
+            })
+        })
+
+        describe('Session and model selection scenarios', () => {
+            beforeEach(() => {
+                // Setup cache to avoid API calls in these tests
+                isCachedModelsValidStub.returns(true)
+                getCachedModelsStub.returns({
+                    models: [
+                        { id: 'model1', name: 'Model 1' },
+                        { id: 'model2', name: 'Model 2' },
+                    ],
+                    defaultModelId: 'model1',
+                    timestamp: Date.now(),
+                })
+            })
+
+            it('should return default model when session fails to load', async () => {
+                const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+                getSessionStub.returns({
+                    data: undefined,
+                    success: false,
+                    error: 'Session not found',
+                })
+
+                const result = await chatController.onListAvailableModels({ tabId: 'invalid-tab' })
+
+                assert.strictEqual(result.tabId, 'invalid-tab')
+                assert.strictEqual(result.selectedModelId, 'model1')
+
+                getSessionStub.restore()
+            })
+
+            it('should use defaultModelId from cache when session has no modelId', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.modelId = undefined
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                assert.strictEqual(result.selectedModelId, 'model1') // defaultModelId from cache
+                // Verify session modelId is updated
+                assert.strictEqual(session.modelId, 'model1')
+            })
+
+            it('should fall back to default model when session has no modelId and no defaultModelId in cache', async () => {
+                getCachedModelsStub.returns({
+                    models: [{ id: 'model1', name: 'Model 1' }],
+                    defaultModelId: undefined, // No default model
+                    timestamp: Date.now(),
+                })
+
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.modelId = undefined
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                assert.strictEqual(result.selectedModelId, 'claude-sonnet-4') // FALLBACK_MODEL_RECORD[DEFAULT_MODEL_ID].label
+                // Verify session modelId is updated
+                assert.strictEqual(session.modelId, 'claude-sonnet-4')
+            })
+        })
+    })
+
     describe('IAM Authentication', () => {
         let iamServiceManager: AmazonQIAMServiceManager
         let iamChatController: AgenticChatController
@@ -2830,6 +3369,90 @@ ${' '.repeat(8)}}
             sinon.assert.calledOnce(onManageSubscriptionSpy)
             const returnValue = await onManageSubscriptionSpy.returnValues[0]
             assert.strictEqual(returnValue, undefined)
+        })
+    })
+
+    describe('processToolUses', () => {
+        it('filters rule artifacts from additionalContext for CodeReview tool', async () => {
+            const mockAdditionalContext = [
+                {
+                    type: 'file',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/file.js',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule1.json',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule2.json',
+                },
+            ]
+
+            const toolUse = {
+                toolUseId: 'test-id',
+                name: 'codeReview',
+                input: { fileLevelArtifacts: [{ path: '/test/file.js' }] },
+                stop: true,
+            }
+
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.resolves({})
+
+            // Create a mock session with toolUseLookup
+            const mockSession = {
+                toolUseLookup: new Map(),
+                pairProgrammingMode: true,
+            } as any
+
+            // Create a minimal mock of AgenticChatResultStream
+            const mockChatResultStream = {
+                removeResultBlockAndUpdateUI: sinon.stub().resolves(),
+                writeResultBlock: sinon.stub().resolves(1),
+                overwriteResultBlock: sinon.stub().resolves(),
+                removeResultBlock: sinon.stub().resolves(),
+                getMessageBlockId: sinon.stub().returns(undefined),
+                hasMessage: sinon.stub().returns(false),
+                updateOngoingProgressResult: sinon.stub().resolves(),
+                getResult: sinon.stub().returns({ messageId: 'test', body: '' }),
+                setMessageIdToUpdateForTool: sinon.stub(),
+                getMessageIdToUpdateForTool: sinon.stub().returns(undefined),
+                addMessageOperation: sinon.stub(),
+                getMessageOperation: sinon.stub().returns(undefined),
+            }
+
+            // Call processToolUses directly
+            await chatController.processToolUses(
+                [toolUse],
+                mockChatResultStream as any,
+                mockSession,
+                'tabId',
+                mockCancellationToken,
+                mockAdditionalContext
+            )
+
+            // Verify runTool was called with ruleArtifacts
+            sinon.assert.calledOnce(runToolStub)
+            const toolInput = runToolStub.firstCall.args[1]
+            assert.ok(toolInput.ruleArtifacts)
+            assert.strictEqual(toolInput.ruleArtifacts.length, 2)
+            assert.strictEqual(toolInput.ruleArtifacts[0].path, '/test/rule1.json')
+            assert.strictEqual(toolInput.ruleArtifacts[1].path, '/test/rule2.json')
         })
     })
 })

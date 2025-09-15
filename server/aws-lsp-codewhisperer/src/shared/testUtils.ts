@@ -1,11 +1,11 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'
 import { StreamingClientServiceBase } from './streamingClientService'
 import { SessionData } from '../language-server/inline-completion/session/sessionManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
+import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -141,6 +141,18 @@ export const EXPECTED_RESULT = {
             range: undefined,
             references: undefined,
             mostRelevantMissingImports: undefined,
+        },
+    ],
+    partialResultToken: undefined,
+}
+
+export const EXPECTED_RESULT_EDITS = {
+    sessionId: EXPECTED_SESSION_ID,
+    items: [
+        {
+            itemId: EXPECTED_SUGGESTION[0].itemId,
+            insertText: EXPECTED_SUGGESTION[0].content,
+            isInlineEdit: true,
         },
     ],
     partialResultToken: undefined,

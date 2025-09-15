@@ -7,9 +7,13 @@ import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
 import { CancellationToken } from 'vscode-languageserver'
 import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
 // eslint-disable-next-line import/no-nodejs-modules
-import { isAbsolute, join } from 'path' // Safe to import on web since this is part of path-browserify
+import { isAbsolute, join, extname } from 'path' // Safe to import on web since this is part of path-browserify
 import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+// eslint-disable-next-line import/no-nodejs-modules
+import { existsSync, statSync } from 'fs'
+import { parseBaseCommands } from '../utils/commandParser'
+import { BashCommandEvent, ChatTelemetryEventName } from '../../../shared/telemetry/types'
 
 export enum CommandCategory {
     ReadOnly,
@@ -23,36 +27,12 @@ export const commandCategories = new Map<string, CommandCategory>([
     // ReadOnly commands
     ['ls', CommandCategory.ReadOnly],
     ['cat', CommandCategory.ReadOnly],
-    ['bat', CommandCategory.ReadOnly],
     ['pwd', CommandCategory.ReadOnly],
-    ['echo', CommandCategory.ReadOnly],
-    ['file', CommandCategory.ReadOnly],
-    ['less', CommandCategory.ReadOnly],
-    ['more', CommandCategory.ReadOnly],
-    ['tree', CommandCategory.ReadOnly],
-    ['find', CommandCategory.ReadOnly],
-    ['top', CommandCategory.ReadOnly],
-    ['htop', CommandCategory.ReadOnly],
-    ['ps', CommandCategory.ReadOnly],
-    ['df', CommandCategory.ReadOnly],
-    ['du', CommandCategory.ReadOnly],
-    ['free', CommandCategory.ReadOnly],
-    ['uname', CommandCategory.ReadOnly],
-    ['date', CommandCategory.ReadOnly],
-    ['whoami', CommandCategory.ReadOnly],
     ['which', CommandCategory.ReadOnly],
-    ['ping', CommandCategory.ReadOnly],
-    ['ifconfig', CommandCategory.ReadOnly],
-    ['ip', CommandCategory.ReadOnly],
-    ['netstat', CommandCategory.ReadOnly],
-    ['ss', CommandCategory.ReadOnly],
-    ['dig', CommandCategory.ReadOnly],
-    ['wc', CommandCategory.ReadOnly],
-    ['sort', CommandCategory.ReadOnly],
-    ['diff', CommandCategory.ReadOnly],
     ['head', CommandCategory.ReadOnly],
     ['tail', CommandCategory.ReadOnly],
-    ['grep', CommandCategory.ReadOnly],
+    ['dir', CommandCategory.ReadOnly],
+    ['type', CommandCategory.ReadOnly],
 
     // Mutable commands
     ['chmod', CommandCategory.Mutate],
@@ -79,6 +59,9 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['exec', CommandCategory.Mutate],
     ['eval', CommandCategory.Mutate],
     ['xargs', CommandCategory.Mutate],
+    ['echo', CommandCategory.Mutate],
+    ['grep', CommandCategory.Mutate],
+    ['find', CommandCategory.Mutate],
 
     // Destructive commands
     ['rm', CommandCategory.Destructive],
@@ -109,6 +92,9 @@ export const lineCount: number = 1024
 export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
 export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
+export const credentialFileWarningMessage =
+    'WARNING: Command involves credential files that require secure permissions:\n\n'
+export const binaryFileWarningMessage = 'WARNING: Command involves binary files that require secure permissions:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -146,9 +132,18 @@ export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
-    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
+    private readonly telemetry: Features['telemetry']
+    private readonly credentialsProvider: Features['credentialsProvider']
+    private readonly features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> &
+        Partial<Features>
+    constructor(
+        features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> & Partial<Features>
+    ) {
+        this.features = features
         this.logging = features.logging
         this.workspace = features.workspace
+        this.telemetry = features.telemetry
+        this.credentialsProvider = features.credentialsProvider
     }
 
     public async validate(input: ExecuteBashParams): Promise<void> {
@@ -240,6 +235,34 @@ export class ExecuteBash {
                         // Check if the path is already approved
                         if (approvedPaths && isPathApproved(fullPath, approvedPaths)) {
                             continue
+                        }
+
+                        // Check if this is a credential file that needs protection
+                        try {
+                            if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+                                // Check for credential files
+                                if (this.isLikelyCredentialFile(fullPath)) {
+                                    this.logging.info(`Detected credential file in command: ${fullPath}`)
+                                    return {
+                                        requiresAcceptance: true,
+                                        warning: credentialFileWarningMessage,
+                                        commandCategory: CommandCategory.Mutate,
+                                    }
+                                }
+
+                                // Check for binary files
+                                if (this.isLikelyBinaryFile(fullPath)) {
+                                    this.logging.info(`Detected binary file in command: ${fullPath}`)
+                                    return {
+                                        requiresAcceptance: true,
+                                        warning: binaryFileWarningMessage,
+                                        commandCategory: CommandCategory.Mutate,
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            // Ignore errors for files that don't exist or can't be accessed
+                            this.logging.debug(`Error checking file ${fullPath}: ${(err as Error).message}`)
                         }
 
                         const isInWorkspace = workspaceUtils.isInWorkspace(
@@ -352,15 +375,82 @@ export class ExecuteBash {
         }
     }
 
+    // Static patterns for faster lookups - defined once, used many times
+    private static readonly CREDENTIAL_PATTERNS = new Set([
+        'credential',
+        'secret',
+        'token',
+        'password',
+        'key',
+        'cert',
+        'auth',
+        '.aws',
+        '.ssh',
+        '.pgp',
+        '.gpg',
+        '.pem',
+        '.crt',
+        '.key',
+        '.p12',
+        '.pfx',
+        'config.json',
+        'settings.json',
+        '.env',
+        '.npmrc',
+        '.yarnrc',
+    ])
+
+    private static readonly BINARY_EXTENSIONS_WINDOWS = new Set(['.exe', '.dll', '.bat', '.cmd'])
+
+    /**
+     * Efficiently checks if a file is likely to contain credentials based on name or extension
+     * @param filePath Path to check
+     * @returns true if the file likely contains credentials
+     */
+    private isLikelyCredentialFile(filePath: string): boolean {
+        const fileName = filePath.toLowerCase()
+
+        // Fast check using Set for O(1) lookups instead of array iteration
+        for (const pattern of ExecuteBash.CREDENTIAL_PATTERNS) {
+            if (fileName.includes(pattern)) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Efficiently checks if a file is a binary executable
+     * @param filePath Path to check
+     * @returns true if the file is likely a binary executable
+     */
+    private isLikelyBinaryFile(filePath: string): boolean {
+        if (IS_WINDOWS_PLATFORM) {
+            const ext = extname(filePath).toLowerCase()
+            return ExecuteBash.BINARY_EXTENSIONS_WINDOWS.has(ext)
+        }
+
+        try {
+            // Check if file exists and is executable
+            const stats = statSync(filePath)
+            return stats.isFile() && (stats.mode & 0o111) !== 0 // Check if any execute bit is set
+        } catch (error) {
+            this.logging.debug(`Failed to check if file is binary: ${filePath}, error: ${(error as Error).message}`)
+            return false
+        }
+    }
+
     // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
+        // use absoluate file path
         const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
-            ? { shellName: 'cmd.exe', shellFlag: '/c' }
-            : { shellName: 'bash', shellFlag: '-c' }
+            ? { shellName: 'C:\\Windows\\System32\\cmd.exe', shellFlag: '/c' }
+            : { shellName: '/bin/bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
@@ -420,9 +510,43 @@ export class ExecuteBash {
                 }
             }
 
+            // Set up environment variables with AWS CLI identifier for CloudTrail auditability
+            const env = { ...process.env }
+
+            // Add Q Developer IDE identifier for AWS CLI commands
+            // Check if command contains 'aws ' anywhere (handles multi-command scenarios)
+            if (params.command.includes('aws ')) {
+                let extensionVersion = 'unknown'
+                try {
+                    const clientInfo = this.features?.lsp?.getClientInitializeParams()?.clientInfo
+                    const initOptions = this.features?.lsp?.getClientInitializeParams()?.initializationOptions
+                    extensionVersion =
+                        initOptions?.aws?.clientInfo?.extension?.version || clientInfo?.version || 'unknown'
+                } catch {
+                    extensionVersion = 'unknown'
+                }
+                const userAgentMetadata = `AmazonQ-For-IDE Version/${extensionVersion}`
+                this.logging.info(
+                    `AWS command detected: ${params.command}, setting AWS_EXECUTION_ENV to: ${userAgentMetadata}`
+                )
+
+                if (env.AWS_EXECUTION_ENV) {
+                    env.AWS_EXECUTION_ENV = env.AWS_EXECUTION_ENV.trim()
+                        ? `${env.AWS_EXECUTION_ENV} ${userAgentMetadata}`
+                        : userAgentMetadata
+                } else {
+                    env.AWS_EXECUTION_ENV = userAgentMetadata
+                }
+
+                this.logging.info(`Final AWS_EXECUTION_ENV value: ${env.AWS_EXECUTION_ENV}`)
+            } else {
+                this.logging.debug(`Non-AWS command: ${params.command}`)
+            }
+
             const childProcessOptions: ChildProcessOptions = {
                 spawnOptions: {
                     cwd: params.cwd,
+                    env,
                     stdio: ['pipe', 'pipe', 'pipe'],
                     windowsVerbatimArguments: IS_WINDOWS_PLATFORM, // if true, then arguments are passed exactly as provided. no quoting or escaping is done.
                 },
@@ -438,7 +562,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: true,
-                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
+                        content: chunk,
                         isFirst,
                     })
                     processQueue()
@@ -453,7 +577,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: false,
-                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
+                        content: chunk,
                         isFirst,
                     })
                     processQueue()
@@ -488,6 +612,7 @@ export class ExecuteBash {
                 })
             }
 
+            let success = false
             try {
                 const result = await this.childProcess.run()
 
@@ -500,7 +625,7 @@ export class ExecuteBash {
                 const exitStatus = result.exitCode ?? 0
                 const stdout = stdoutBuffer.join('\n')
                 const stderr = stderrBuffer.join('\n')
-                const success = exitStatus === 0 && !stderr
+                success = exitStatus === 0 && !stderr
                 const [stdoutTrunc, stdoutSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stdout,
                     maxToolResponseSize / 3
@@ -532,28 +657,29 @@ export class ExecuteBash {
                     reject(new Error(`Failed to execute command: ${err.message}`))
                 }
             } finally {
+                // Extract individual base commands for telemetry purposes
+                const args = split(params.command)
+                const baseCommands = parseBaseCommands(args)
+                baseCommands.forEach(command => {
+                    const metricPayload = {
+                        name: ChatTelemetryEventName.BashCommand,
+                        data: {
+                            credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                            result: cancellationToken?.isCancellationRequested
+                                ? 'Cancelled'
+                                : success
+                                  ? 'Succeeded'
+                                  : 'Failed',
+                            command: command,
+                        } as BashCommandEvent,
+                    }
+                    this.telemetry.emitMetric(metricPayload)
+                })
+
                 await writer?.close()
                 writer?.releaseLock()
             }
         })
-    }
-
-    /**
-     * Re‑creates the raw bytes from the received string (Buffer.from(text, 'binary')).
-     * Detects UTF‑16 LE by checking whether every odd byte in the first 32 bytes is 0x00.
-     * Decodes with buf.toString('utf16le') when the pattern matches, otherwise falls back to UTF‑8.
-     */
-    private static decodeWinUtf(raw: string): string {
-        const buffer = Buffer.from(raw, 'binary')
-
-        let utf16 = true
-        for (let i = 1, n = Math.min(buffer.length, 32); i < n; i += 2) {
-            if (buffer[i] !== 0x00) {
-                utf16 = false
-                break
-            }
-        }
-        return utf16 ? buffer.toString('utf16le') : buffer.toString('utf8')
     }
 
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {

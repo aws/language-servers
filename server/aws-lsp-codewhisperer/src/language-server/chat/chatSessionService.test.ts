@@ -8,6 +8,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import * as sharedUtils from '../../shared/utils'
 import { Utils } from 'vscode-uri'
+import { wrapErrorWithCode } from '../agenticChat/errors'
 
 describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
@@ -18,7 +19,7 @@ describe('Chat Session Service', () => {
 
     const mockRequestParams: SendMessageCommandInput = {
         conversationState: {
-            chatTriggerType: 'MANUAL',
+            chatTriggerType: ChatTriggerType.MANUAL,
             currentMessage: {
                 userInputMessage: {
                     content: 'hello',
@@ -41,7 +42,11 @@ describe('Chat Session Service', () => {
 
         abortStub = sinon.stub(AbortController.prototype, 'abort')
 
-        chatSessionService = new ChatSessionService(amazonQServiceManager)
+        const mockLsp = {
+            getClientInitializeParams: () => ({}),
+        }
+
+        chatSessionService = new ChatSessionService(amazonQServiceManager, mockLsp as any)
 
         // needed to identify the stubs as the actual class when checking 'instanceof' in generateAssistantResponse
         Object.setPrototypeOf(amazonQServiceManager, AmazonQTokenServiceManager.prototype)
@@ -394,6 +399,226 @@ describe('Chat Session Service', () => {
 
             // Restore the stub
             getOriginFromClientInfoStub.restore()
+        })
+    })
+
+    describe('Error handling for model capacity issues', () => {
+        let enabledModelSelectionStub: sinon.SinonStub
+
+        beforeEach(() => {
+            enabledModelSelectionStub = sinon.stub(sharedUtils, 'enabledModelSelection')
+        })
+
+        afterEach(() => {
+            enabledModelSelectionStub.restore()
+        })
+
+        describe('getChatResponse error handling', () => {
+            it('should handle HTTP 500 error with specific message when model selection is enabled', async () => {
+                enabledModelSelectionStub.returns(true)
+
+                const error = new Error(
+                    'Encountered unexpectedly high load when processing the request, please try again.'
+                ) as any
+                error.$metadata = { httpStatusCode: 500 }
+
+                codeWhispererStreamingClient.generateAssistantResponse.rejects(error)
+
+                const requestWithModelId = {
+                    conversationState: {
+                        chatTriggerType: ChatTriggerType.MANUAL,
+                        currentMessage: {
+                            userInputMessage: {
+                                content: 'hello',
+                                modelId: 'test-model-id',
+                            },
+                        },
+                    },
+                }
+
+                try {
+                    await chatSessionService.getChatResponse(requestWithModelId)
+                    assert.fail('Expected error to be thrown')
+                } catch (e: any) {
+                    assert.strictEqual(
+                        e.message,
+                        'The model you selected is temporarily unavailable. Please switch to a different model and try again.'
+                    )
+                }
+            })
+
+            it('should handle HTTP 500 error with specific message when model selection is disabled', async () => {
+                enabledModelSelectionStub.returns(false)
+
+                const error = new Error(
+                    'Encountered unexpectedly high load when processing the request, please try again.'
+                ) as any
+                error.$metadata = { httpStatusCode: 500 }
+
+                codeWhispererStreamingClient.generateAssistantResponse.rejects(error)
+
+                const requestWithModelId = {
+                    conversationState: {
+                        chatTriggerType: ChatTriggerType.MANUAL,
+                        currentMessage: {
+                            userInputMessage: {
+                                content: 'hello',
+                                modelId: 'test-model-id',
+                            },
+                        },
+                    },
+                }
+
+                try {
+                    await chatSessionService.getChatResponse(requestWithModelId)
+                    assert.fail('Expected error to be thrown')
+                } catch (e: any) {
+                    assert.strictEqual(e.message, 'I am experiencing high traffic, please try again shortly.')
+                }
+            })
+
+            it('should handle HTTP 429 error with INSUFFICIENT_MODEL_CAPACITY when model selection is enabled', async () => {
+                enabledModelSelectionStub.returns(true)
+
+                const error = new Error('Some error message') as any
+                error.$metadata = { httpStatusCode: 429 }
+                error.reason = 'INSUFFICIENT_MODEL_CAPACITY'
+
+                codeWhispererStreamingClient.generateAssistantResponse.rejects(error)
+
+                const requestWithModelId = {
+                    conversationState: {
+                        chatTriggerType: ChatTriggerType.MANUAL,
+                        currentMessage: {
+                            userInputMessage: {
+                                content: 'hello',
+                                modelId: 'test-model-id',
+                            },
+                        },
+                    },
+                }
+
+                try {
+                    await chatSessionService.getChatResponse(requestWithModelId)
+                    assert.fail('Expected error to be thrown')
+                } catch (e: any) {
+                    assert.strictEqual(
+                        e.message,
+                        'The model you selected is temporarily unavailable. Please switch to a different model and try again.'
+                    )
+                }
+            })
+
+            it('should handle HTTP 429 error with INSUFFICIENT_MODEL_CAPACITY when model selection is disabled', async () => {
+                enabledModelSelectionStub.returns(false)
+
+                const error = new Error('Some error message') as any
+                error.$metadata = { httpStatusCode: 429 }
+                error.reason = 'INSUFFICIENT_MODEL_CAPACITY'
+
+                codeWhispererStreamingClient.generateAssistantResponse.rejects(error)
+
+                const requestWithModelId = {
+                    conversationState: {
+                        chatTriggerType: ChatTriggerType.MANUAL,
+                        currentMessage: {
+                            userInputMessage: {
+                                content: 'hello',
+                                modelId: 'test-model-id',
+                            },
+                        },
+                    },
+                }
+
+                try {
+                    await chatSessionService.getChatResponse(requestWithModelId)
+                    assert.fail('Expected error to be thrown')
+                } catch (e: any) {
+                    assert.strictEqual(e.message, 'I am experiencing high traffic, please try again shortly.')
+                }
+            })
+        })
+
+        describe('IAM client error handling', () => {
+            let codeWhispererStreamingClientIAM: StubbedInstance<StreamingClientServiceIAM>
+            let amazonQServiceManagerIAM: StubbedInstance<AmazonQIAMServiceManager>
+            let chatSessionServiceIAM: ChatSessionService
+
+            beforeEach(() => {
+                codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+                amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+                amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
+
+                Object.setPrototypeOf(codeWhispererStreamingClientIAM, StreamingClientServiceIAM.prototype)
+                Object.setPrototypeOf(amazonQServiceManagerIAM, AmazonQIAMServiceManager.prototype)
+
+                const mockLsp = {
+                    getClientInitializeParams: () => ({}),
+                }
+                chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM, mockLsp as any)
+            })
+
+            it('should handle HTTP 500 error with specific message when model selection is enabled', async () => {
+                enabledModelSelectionStub.returns(true)
+
+                const error = new Error(
+                    'Encountered unexpectedly high load when processing the request, please try again.'
+                ) as any
+                error.$metadata = { httpStatusCode: 500 }
+
+                codeWhispererStreamingClientIAM.sendMessage.rejects(error)
+
+                const requestWithModelId = {
+                    conversationState: {
+                        chatTriggerType: ChatTriggerType.MANUAL,
+                        currentMessage: {
+                            userInputMessage: {
+                                content: 'hello',
+                                modelId: 'test-model-id',
+                            },
+                        },
+                    },
+                }
+
+                try {
+                    await chatSessionServiceIAM.getChatResponse(requestWithModelId)
+                    assert.fail('Expected error to be thrown')
+                } catch (e: any) {
+                    assert.strictEqual(
+                        e.message,
+                        'The model you selected is temporarily unavailable. Please switch to a different model and try again.'
+                    )
+                }
+            })
+
+            it('should handle HTTP 429 error with INSUFFICIENT_MODEL_CAPACITY when model selection is disabled', async () => {
+                enabledModelSelectionStub.returns(false)
+
+                const error = new Error('Some error message') as any
+                error.$metadata = { httpStatusCode: 429 }
+                error.reason = 'INSUFFICIENT_MODEL_CAPACITY'
+
+                codeWhispererStreamingClientIAM.sendMessage.rejects(error)
+
+                const requestWithModelId = {
+                    conversationState: {
+                        chatTriggerType: ChatTriggerType.MANUAL,
+                        currentMessage: {
+                            userInputMessage: {
+                                content: 'hello',
+                                modelId: 'test-model-id',
+                            },
+                        },
+                    },
+                }
+
+                try {
+                    await chatSessionServiceIAM.getChatResponse(requestWithModelId)
+                    assert.fail('Expected error to be thrown')
+                } catch (e: any) {
+                    assert.strictEqual(e.message, 'I am experiencing high traffic, please try again shortly.')
+                }
+            })
         })
     })
 })

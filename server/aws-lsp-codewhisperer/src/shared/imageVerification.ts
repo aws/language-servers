@@ -11,6 +11,8 @@ export interface ImageVerificationResult {
     errors: string[]
 }
 
+export const MAX_IMAGE_CONTEXT_COUNT = 20
+
 export interface ImageVerificationOptions {
     maxSizeBytes?: number
     maxDimension?: number
@@ -20,7 +22,7 @@ export interface ImageVerificationOptions {
 export const DEFAULT_IMAGE_VERIFICATION_OPTIONS: Required<ImageVerificationOptions> = {
     maxSizeBytes: 3.75 * 1024 * 1024, // 3.75MB
     maxDimension: 8000, // 8000px
-    supportedExtensions: ['jpeg', 'png', 'gif', 'webp'],
+    supportedExtensions: ['jpeg', 'jpg', 'png', 'gif', 'webp'],
 }
 
 /**

@@ -57,11 +57,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
             // TODO, check if try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(javaDependencyInfo)
-                this.compareAndUpdateDependencyMap(javaDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
-                    error => {
-                        this.logging.warn(`Error processing Java dependencies: ${error}`)
-                    }
-                )
+                this.compareAndUpdateDependencyMap(javaDependencyInfo.workspaceFolder, generatedDependencyMap)
                 // Log found dependencies
                 this.logging.log(
                     `Total Java dependencies found:  ${generatedDependencyMap.size} under ${javaDependencyInfo.pkgDir}`
@@ -92,10 +88,13 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 const callBackDependencyUpdate = async (events: string[]) => {
                     this.logging.log(`Change detected in ${dotClasspathPath}`)
                     const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
-                    await this.compareAndUpdateDependencyMap(
+                    const changedDependencyList = this.compareAndUpdateDependencyMap(
                         javaDependencyInfo.workspaceFolder,
-                        updatedDependencyMap,
-                        true
+                        updatedDependencyMap
+                    )
+                    await this.zipAndUploadDependenciesByChunk(
+                        changedDependencyList,
+                        javaDependencyInfo.workspaceFolder
                     )
                 }
                 const watcher = new DependencyWatcher(

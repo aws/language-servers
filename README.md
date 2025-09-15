@@ -1,5 +1,8 @@
 # Language Servers for AWS
 
+[![codecov](https://codecov.io/github/aws/language-servers/graph/badge.svg?token=ZSHpIVkG8S)](https://codecov.io/github/aws/language-servers)
+[![Integration Tests](https://github.com/aws/language-servers/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/aws/language-servers/actions/workflows/integration-tests.yml)
+
 Language servers for integration with IDEs and Editors, which implement the protocol (LSP extensions) defined in the [language-server-runtimes](https://github.com/aws/language-server-runtimes/tree/main/runtimes) repo.
 
 ## Where things go

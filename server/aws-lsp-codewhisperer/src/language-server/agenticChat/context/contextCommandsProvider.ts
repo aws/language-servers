@@ -3,7 +3,7 @@ import { FSWatcher, watch } from 'chokidar'
 import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
-import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
+import { getCodeSymbolDescription, getUserPromptsDirectory, promptFileExtension } from './contextUtils'
 import { ContextCommandItem } from 'local-indexing'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
@@ -148,7 +148,7 @@ export class ContextCommandsProvider implements Disposable {
 
         const imageCmdGroup: ContextCommand = {
             command: 'Image',
-            description: 'Add a image to context',
+            description: 'Add image to context',
             icon: 'image',
             placeholder: 'Select an image file',
         }
@@ -193,7 +193,7 @@ export class ContextCommandsProvider implements Disposable {
                 codeCmds.push({
                     ...baseItem,
                     command: item.symbol.name,
-                    description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line + 1}-${item.symbol.range.end.line + 1}`,
+                    description: getCodeSymbolDescription(item, true),
                     label: 'code',
                     icon: 'code-block',
                 })

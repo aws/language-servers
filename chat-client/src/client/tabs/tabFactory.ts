@@ -4,20 +4,21 @@ import {
     MynahIcons,
     MynahUIDataModel,
     QuickActionCommandGroup,
-    QuickActionCommandsHeader,
     TabBarMainAction,
 } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
-import { modelSelectionForRegion } from '../texts/modelSelection'
+import { modelSelection } from '../texts/modelSelection'
 
 export type DefaultTabData = MynahUIDataModel
 
 export const ExportTabBarButtonId = 'export'
 
 export const McpServerTabButtonId = 'mcp_init'
+
+export const ShowLogsTabBarButtonId = 'show_logs'
 
 export class TabFactory {
     private history: boolean = false
@@ -26,6 +27,8 @@ export class TabFactory {
     private mcp: boolean = false
     private modelSelectionEnabled: boolean = false
     private reroute: boolean = false
+    private codeReviewInChat: boolean = false
+    private showLogs: boolean = false
     initialTabId: string
 
     public static generateUniqueId() {
@@ -48,10 +51,7 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             promptInputOptions: this.agenticMode
-                ? [
-                      pairProgrammingPromptInput,
-                      ...(this.modelSelectionEnabled ? [modelSelectionForRegion['us-east-1']] : []),
-                  ]
+                ? [pairProgrammingPromptInput, ...(this.modelSelectionEnabled ? [modelSelection] : [])]
                 : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }
@@ -70,18 +70,19 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                        Ask me to explain, debug, or optimize your code. 
-                        You can enter \`/\` to see a list of quick actions.`,
+                          body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 200px 0 20px 0;">
+
+<div style="font-size: 24px; margin-bottom: 12px;"><strong>Amazon Q</strong></div>
+<div style="background: rgba(128, 128, 128, 0.15); border: 1px solid rgba(128, 128, 128, 0.25); border-radius: 8px; padding: 8px; margin: 4px 0; text-align: center;">
+<div style="font-size: 14px; margin-bottom: 4px;"><strong>Did you know?</strong></div>
+<div>${this.getRandomTip()}</div>
+</div>
+
+Select code & ask me to explain, debug or optimize it, or type \`/\` for quick actions
+
+</div>`,
+                          canBeVoted: false,
                       },
-                      ...(!this.agenticMode
-                          ? [
-                                {
-                                    type: ChatItemType.ANSWER,
-                                    followUp: this.getWelcomeBlock(),
-                                },
-                            ]
-                          : []),
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
@@ -101,6 +102,10 @@ export class TabFactory {
         this.export = true
     }
 
+    public enableShowLogs() {
+        this.showLogs = true
+    }
+
     public enableAgenticMode() {
         this.agenticMode = true
     }
@@ -117,8 +122,16 @@ export class TabFactory {
         this.reroute = true
     }
 
+    public enableCodeReviewInChat() {
+        this.codeReviewInChat = true
+    }
+
     public isRerouteEnabled(): boolean {
         return this.reroute
+    }
+
+    public isCodeReviewInChatEnabled(): boolean {
+        return this.codeReviewInChat
     }
 
     public getDefaultTabData(): DefaultTabData {
@@ -127,17 +140,6 @@ export class TabFactory {
             ...(this.quickActionCommands
                 ? {
                       quickActionCommands: this.quickActionCommands,
-                  }
-                : {}),
-            ...(this.reroute
-                ? {
-                      quickActionCommandsHeader: {
-                          status: 'warning',
-                          icon: MynahIcons.INFO,
-                          title: 'Q Developer agentic capabilities',
-                          description:
-                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, or /doc",
-                      } as QuickActionCommandsHeader,
                   }
                 : {}),
         }
@@ -162,6 +164,20 @@ export class TabFactory {
             } as ChatItem
         }
         return undefined
+    }
+
+    private getRandomTip(): string {
+        const hints = [
+            'You can now see logs with 1-Click!',
+            'MCP is available in Amazon Q!',
+            'Pinned context is always included in future chat messages',
+            'Create and add Saved Prompts using the @ context menu',
+            'Compact your conversation with /compact',
+            'Ask Q to review your code and see results in the code issues panel!',
+        ]
+
+        const randomIndex = Math.floor(Math.random() * hints.length)
+        return hints[randomIndex]
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
@@ -191,24 +207,14 @@ export class TabFactory {
             })
         }
 
-        return tabBarButtons.length ? tabBarButtons : undefined
-    }
-
-    // Legacy welcome messages block
-    private getWelcomeBlock() {
-        return {
-            text: 'Try Examples:',
-            options: [
-                {
-                    pillText: 'Explain selected code',
-                    prompt: 'Explain selected code',
-                    type: 'init-prompt',
-                },
-                {
-                    pillText: 'How can Amazon Q help me?',
-                    type: 'help',
-                },
-            ],
+        if (this.showLogs) {
+            tabBarButtons.push({
+                id: ShowLogsTabBarButtonId,
+                icon: MynahIcons.FILE,
+                description: 'Show logs',
+            })
         }
+
+        return tabBarButtons.length ? tabBarButtons : undefined
     }
 }

@@ -3,6 +3,7 @@ import * as path from 'path'
 import { sanitizeFilename } from '@aws/lsp-core/out/util/text'
 import { RelevantTextDocumentAddition } from './agenticChatTriggerContext'
 import { FileDetails, FileList } from '@aws/language-server-runtimes/server-interface'
+import { ContextCommandItem } from 'local-indexing'
 export interface ContextInfo {
     pinnedContextCount: {
         fileContextCount: number
@@ -225,4 +226,34 @@ export function mergeFileLists(fileList1: FileList, fileList2: FileList): FileLi
         filePaths: mergedFilePaths,
         details: mergedDetails,
     }
+}
+
+/**
+ * Generates a description string for a code symbol with optional line numbers.
+ *
+ * @param item - The ContextCommandItem containing symbol and workspace information
+ * @param includeLineNumbers - Whether to include line number range in the description
+ * @returns A formatted string containing the symbol kind, path and optionally line numbers,
+ *          or empty string if no symbol exists
+ * @example
+ * // Without line numbers:
+ * // "Function, myProject/src/utils.ts"
+ *
+ * // With line numbers:
+ * // "Function, myProject/src/utils.ts, L10-L20"
+ */
+export function getCodeSymbolDescription(item: ContextCommandItem, includeLineNumbers?: boolean): string {
+    const wsFolderName = path.basename(item.workspaceFolder)
+
+    if (item.symbol) {
+        const symbolKind = item.symbol.kind
+        const symbolPath = path.join(wsFolderName, item.relativePath)
+        const symbolLineNumbers = `L${item.symbol.range.start.line + 1}-${item.symbol.range.end.line + 1}`
+        const parts = [symbolKind, symbolPath]
+        if (includeLineNumbers) {
+            parts.push(symbolLineNumbers)
+        }
+        return parts.join(', ')
+    }
+    return ''
 }

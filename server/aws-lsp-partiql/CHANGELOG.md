@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.0.18](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.17...lsp-partiql/v0.0.18) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+## [0.0.17](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.16...lsp-partiql/v0.0.17) (2025-08-19)
+
+
+### Bug Fixes
+
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+## [0.0.16](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.15...lsp-partiql/v0.0.16) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+## [0.0.15](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.14...lsp-partiql/v0.0.15) (2025-07-17)
+
+
+### Bug Fixes
+
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
 ## [0.0.14](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.13...lsp-partiql/v0.0.14) (2025-06-26)
 
 

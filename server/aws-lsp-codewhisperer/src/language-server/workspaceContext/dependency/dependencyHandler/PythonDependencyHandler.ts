@@ -78,11 +78,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
             // TODO, check if the try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(pythonDependencyInfo)
-                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
-                    error => {
-                        this.logging.warn(`Error processing Python dependencies: ${error}`)
-                    }
-                )
+                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap)
                 // Log found dependencies
                 this.logging.log(
                     `Total Python dependencies found: ${generatedDependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
@@ -122,10 +118,13 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
                         }
-                        await this.compareAndUpdateDependencyMap(
+                        const changedDependencyList = this.compareAndUpdateDependencyMap(
                             pythonDependencyInfo.workspaceFolder,
-                            updatedDependencyMap,
-                            true
+                            updatedDependencyMap
+                        )
+                        await this.zipAndUploadDependenciesByChunk(
+                            changedDependencyList,
+                            pythonDependencyInfo.workspaceFolder
                         )
                     } // end of callback function
 

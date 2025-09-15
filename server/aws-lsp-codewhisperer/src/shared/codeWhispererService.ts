@@ -7,6 +7,10 @@ import {
     SDKInitializator,
     CancellationToken,
     CancellationTokenSource,
+    TextDocument,
+    Position,
+    WorkspaceFolder,
+    InlineCompletionWithReferencesParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -26,23 +30,63 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { getRelativePath } from '../language-server/workspaceContext/util'
+import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
+import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
+import { CodeWhispererSupplementalContext } from './models/model'
+import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
+import * as path from 'path'
+import {
+    CONTEXT_CHARACTERS_LIMIT,
+    FILE_URI_CHARS_LIMIT,
+    FILENAME_CHARS_LIMIT,
+} from '../language-server/inline-completion/constants'
+
+// Type guards for request classification
+export function isTokenRequest(request: BaseGenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
+    return 'editorState' in request || 'predictionTypes' in request || 'supplementalContexts' in request
+}
+
+export function isIAMRequest(request: BaseGenerateSuggestionsRequest): request is GenerateIAMSuggestionsRequest {
+    return !isTokenRequest(request)
+}
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
 }
 
-export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {
-    // TODO : This is broken due to Interface 'GenerateSuggestionsRequest' cannot simultaneously extend types 'GenerateCompletionsRequest' and 'GenerateRecommendationsRequest'.
-    //CodeWhispererSigv4Client.GenerateRecommendationsRequest {
-    maxResults: number
+// Base request interface with common fields - using union type for FileContext compatibility
+export interface BaseGenerateSuggestionsRequest {
+    fileContext: FileContext
+    maxResults?: number
+    nextToken?: string
 }
 
-export type FileContext = GenerateSuggestionsRequest['fileContext']
+// IAM-specific request interface that directly extends the SigV4 client request
+export interface GenerateIAMSuggestionsRequest extends CodeWhispererSigv4Client.GenerateRecommendationsRequest {}
+
+// Token-specific request interface that directly extends the Token client request
+export interface GenerateTokenSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {}
+
+// Union type for backward compatibility
+export type GenerateSuggestionsRequest = GenerateIAMSuggestionsRequest | GenerateTokenSuggestionsRequest
+
+// FileContext type that's compatible with both clients
+export type FileContext = {
+    fileUri?: string // Optional in both clients
+    filename: string
+    programmingLanguage: {
+        languageName: string
+    }
+    leftFileContent: string
+    rightFileContent: string
+}
 
 export interface ResponseContext {
     requestId: string
     codewhispererSessionId: string
     nextToken?: string
+    authType?: 'iam' | 'token'
 }
 
 export enum SuggestionType {
@@ -54,6 +98,49 @@ export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
     suggestionType?: SuggestionType
     responseContext: ResponseContext
+}
+
+export interface ClientFileContext {
+    leftFileContent: string
+    rightFileContent: string
+    filename: string
+    fileUri: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+}
+
+export function getFileContext(params: {
+    textDocument: TextDocument
+    position: Position
+    inferredLanguageId: CodewhispererLanguage
+    workspaceFolder: WorkspaceFolder | null | undefined
+}): ClientFileContext {
+    const left = params.textDocument.getText({
+        start: { line: 0, character: 0 },
+        end: params.position,
+    })
+    const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+    const right = params.textDocument.getText({
+        start: params.position,
+        end: params.textDocument.positionAt(params.textDocument.getText().length),
+    })
+    const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+    const relativeFilePath = params.workspaceFolder
+        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+        : path.basename(params.textDocument.uri)
+
+    return {
+        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
+        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
+        programmingLanguage: {
+            languageName: getRuntimeLanguage(params.inferredLanguageId),
+        },
+        leftFileContent: trimmedLeft,
+        rightFileContent: trimmedRight,
+    }
 }
 
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -84,7 +171,24 @@ export abstract class CodeWhispererServiceBase {
 
     abstract getCredentialsType(): CredentialsType
 
-    abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
+    abstract generateSuggestions(request: BaseGenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
+
+    abstract constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
+        config: { includeRecentEdits: boolean }
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    >
 
     constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
@@ -148,23 +252,59 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
-        // add cancellation check
-        // add error check
-        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-        const response = await this.client.generateRecommendations(request).promise()
-        const responseContext = {
+    async constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
+        config: { includeRecentEdits: boolean }
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    > {
+        return undefined
+    }
+
+    async generateSuggestions(request: BaseGenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        // Cast is now safe because GenerateIAMSuggestionsRequest extends GenerateRecommendationsRequest
+        const iamRequest = request as GenerateIAMSuggestionsRequest
+
+        // Add customization ARN if configured
+        if (this.customizationArn) {
+            ;(iamRequest as any).customizationArn = this.customizationArn
+        }
+
+        // Warn about unsupported features for IAM auth
+        if ('editorState' in request || 'predictionTypes' in request || 'supplementalContexts' in request) {
+            console.warn('Advanced features not supported - using basic completion')
+        }
+
+        const response = await this.client.generateRecommendations(iamRequest).promise()
+
+        return this.mapCodeWhispererApiResponseToSuggestion(response, {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
-        }
+            authType: 'iam' as const,
+        })
+    }
 
-        for (const recommendation of response?.recommendations ?? []) {
+    private mapCodeWhispererApiResponseToSuggestion(
+        apiResponse: CodeWhispererSigv4Client.GenerateRecommendationsResponse,
+        responseContext: ResponseContext
+    ): GenerateSuggestionsResponse {
+        for (const recommendation of apiResponse?.recommendations ?? []) {
             Object.assign(recommendation, { itemId: this.generateItemId() })
         }
 
         return {
-            suggestions: response.recommendations as Suggestion[],
+            suggestions: apiResponse.recommendations as Suggestion[],
             suggestionType: SuggestionType.COMPLETION,
             responseContext,
         }
@@ -204,6 +344,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             if (!creds?.token) {
                                 throw new Error('Authorization failed, bearer token is not set')
                             }
+                            if (credentialsProvider.getConnectionType() === 'external_idp') {
+                                httpRequest.headers['TokenType'] = 'EXTERNAL_IDP'
+                            }
+
                             httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                             httpRequest.headers['x-amzn-codewhisperer-optout'] =
                                 `${!this.shareCodeWhispererContentWithAWS}`
@@ -244,31 +388,157 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return 'bearer'
     }
 
+    async constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
+        config: { includeRecentEdits: boolean }
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    > {
+        const items: CodeWhispererTokenClient.SupplementalContext[] = []
+
+        const projectContext = await fetchSupplementalContext(
+            document,
+            position,
+            workspace,
+            logging,
+            cancellationToken,
+            opentabs
+        )
+        if (projectContext) {
+            items.push(
+                ...projectContext.supplementalContextItems.map(v => ({
+                    content: v.content,
+                    filePath: v.filePath,
+                }))
+            )
+        }
+
+        const recentEditsContext = config.includeRecentEdits
+            ? await recentEditTracker.generateEditBasedContext(document)
+            : undefined
+        if (recentEditsContext) {
+            items.push(
+                ...recentEditsContext.supplementalContextItems.map(item => ({
+                    content: item.content,
+                    filePath: item.filePath,
+                    type: 'PreviousEditorState',
+                    metadata: {
+                        previousEditorStateMetadata: {
+                            timeOffset: 1000,
+                        },
+                    },
+                }))
+            )
+        }
+
+        const merged: CodeWhispererSupplementalContext | undefined = recentEditsContext
+            ? {
+                  contentsLength: (projectContext?.contentsLength || 0) + (recentEditsContext?.contentsLength || 0),
+                  latency: Math.max(projectContext?.latency || 0, recentEditsContext?.latency || 0),
+                  isUtg: projectContext?.isUtg || false,
+                  isProcessTimeout: projectContext?.isProcessTimeout || false,
+                  strategy: recentEditsContext ? 'recentEdits' : projectContext?.strategy || 'Empty',
+                  supplementalContextItems: [
+                      ...(projectContext?.supplementalContextItems || []),
+                      ...(recentEditsContext?.supplementalContextItems || []),
+                  ],
+              }
+            : projectContext
+
+        return merged
+            ? {
+                  supContextData: merged,
+                  items: items,
+              }
+            : undefined
+    }
+
     private withProfileArn<T extends object>(request: T): T {
         if (!this.profileArn) return request
 
         return { ...request, profileArn: this.profileArn }
     }
 
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+    async generateSuggestions(request: BaseGenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        // Cast is now safe because GenerateTokenSuggestionsRequest extends GenerateCompletionsRequest
         // add cancellation check
         // add error check
-        if (this.customizationArn) request.customizationArn = this.customizationArn
-        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
-        this.logging.info(`GenerateCompletion response: 
-    "requestId": ${response.$response.requestId},
-    "responseCompletionCount": ${response.completions?.length ?? 0},
-    "responsePredictionCount": ${response.predictions?.length ?? 0},
-    "suggestionType": ${request.predictionTypes?.toString() ?? ''},
-    "filename": ${request.fileContext.filename},
-    "language": ${request.fileContext.programmingLanguage.languageName},
-    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0}`)
-        const responseContext = {
-            requestId: response?.$response?.requestId,
-            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
-            nextToken: response.nextToken,
+        let logstr = `GenerateCompletion activity:\n`
+        try {
+            const tokenRequest = request as GenerateTokenSuggestionsRequest
+
+            // Add customizationArn if available
+            if (this.customizationArn) {
+                tokenRequest.customizationArn = this.customizationArn
+            }
+
+            const beforeApiCall = performance.now()
+            let recentEditsLogStr = ''
+            const recentEdits = tokenRequest.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
+            if (recentEdits) {
+                if (recentEdits.length === 0) {
+                    recentEditsLogStr += `No recent edits`
+                } else {
+                    recentEditsLogStr += '\n'
+                    for (let i = 0; i < recentEdits.length; i++) {
+                        const e = recentEdits[i]
+                        recentEditsLogStr += `[recentEdits ${i}th]:\n`
+                        recentEditsLogStr += `${e.content}\n`
+                    }
+                }
+            }
+
+            logstr += `@@request metadata@@
+    "endpoint": ${this.codeWhispererEndpoint},
+    "predictionType": ${tokenRequest.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
+    "filename": ${tokenRequest.fileContext.filename},
+    "leftContextLength": ${request.fileContext.leftFileContent.length},
+    rightContextLength: ${request.fileContext.rightFileContent.length},
+    "language": ${tokenRequest.fileContext.programmingLanguage.languageName},
+    "supplementalContextCount": ${tokenRequest.supplementalContexts?.length ?? 0},
+    "request.nextToken": ${tokenRequest.nextToken},
+    "recentEdits": ${recentEditsLogStr}\n`
+
+            const response = await this.client.generateCompletions(this.withProfileArn(tokenRequest)).promise()
+
+            const responseContext = {
+                requestId: response?.$response?.requestId,
+                codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+                nextToken: response.nextToken,
+                // CRITICAL: Add service type for proper error handling
+                authType: 'token' as const,
+            }
+
+            const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+            const firstSuggestionLogstr = r.suggestions.length > 0 ? `\n${r.suggestions[0].content}` : 'No suggestion'
+
+            logstr += `@@response metadata@@
+    "requestId": ${responseContext.requestId},
+    "sessionId": ${responseContext.codewhispererSessionId},
+    "response.completions.length": ${response.completions?.length ?? 0},
+    "response.predictions.length": ${response.predictions?.length ?? 0},
+    "predictionType": ${tokenRequest.predictionTypes?.toString() ?? ''},
+    "latency": ${performance.now() - beforeApiCall},
+    "response.nextToken": ${response.nextToken},
+    "firstSuggestion": ${firstSuggestionLogstr}`
+
+            return r
+        } catch (e) {
+            logstr += `error: ${(e as Error).message}`
+            throw e
+        } finally {
+            this.logging.info(logstr)
         }
-        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
@@ -379,6 +649,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     /**
+     * @description Get profile details
+     */
+    async getProfile(request: { profileArn: string }) {
+        return this.client.getProfile(request).promise()
+    }
+
+    /**
      * @description Once scan completed successfully, send a request to get list of all the findings for the given scan.
      */
     async listCodeAnalysisFindings(
@@ -399,6 +676,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
     async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
         return this.client.listAvailableProfiles(request).promise()
+    }
+
+    /**
+     * @description Get list of available models
+     */
+    async listAvailableModels(request: CodeWhispererTokenClient.ListAvailableModelsRequest) {
+        return this.client.listAvailableModels(request).promise()
     }
 
     /**

@@ -107,6 +107,7 @@ describe('withAdapter', () => {
         // Set up tab factory
         tabFactory = {
             isRerouteEnabled: sinon.stub().returns(false),
+            isCodeReviewInChatEnabled: sinon.stub().returns(false),
         } as unknown as TabFactory
 
         // Create the enhanced props

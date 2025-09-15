@@ -1,6 +1,6 @@
 import assert = require('assert')
 import { FileContext } from '../../../shared/codeWhispererService'
-import { autoTrigger, triggerType } from './autoTrigger'
+import { autoTrigger, getAutoTriggerType, triggerType } from './autoTrigger'
 
 describe('Auto Trigger', async () => {
     const createBasicFileContext = (left: string = '', right: string = ''): FileContext => ({
@@ -103,7 +103,61 @@ describe('Auto Trigger', async () => {
             assert.equal(trigger, 'Classifier')
         })
     })
+    describe('getAutoTriggerType', () => {
+        const createContentChange = (text: string) => [{ text }]
 
+        it('should return undefined for multi-line changes', () => {
+            const changes = [{ text: 'line1\n' }, { text: 'line2' }]
+            assert.strictEqual(getAutoTriggerType(changes), undefined)
+        })
+
+        it('should return undefined for empty changes', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('')), undefined)
+        })
+
+        it('should return "Enter" for newline changes', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('\n')), 'Enter')
+            assert.strictEqual(getAutoTriggerType(createContentChange('\r\n')), 'Enter')
+            assert.strictEqual(getAutoTriggerType(createContentChange('\n    ')), 'Enter')
+            const changes = [{ text: '\n   ' }, { text: '' }]
+            assert.strictEqual(getAutoTriggerType(changes), 'Enter')
+        })
+
+        it('should return undefined for tab changes', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('    ')), undefined)
+            assert.strictEqual(getAutoTriggerType(createContentChange('        ')), undefined)
+        })
+
+        it('should return "SpecialCharacters" for special character changes', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('(')), 'SpecialCharacters')
+            assert.strictEqual(getAutoTriggerType(createContentChange('()')), 'SpecialCharacters')
+            assert.strictEqual(getAutoTriggerType(createContentChange('[')), 'SpecialCharacters')
+            assert.strictEqual(getAutoTriggerType(createContentChange('[]')), 'SpecialCharacters')
+            assert.strictEqual(getAutoTriggerType(createContentChange('{')), 'SpecialCharacters')
+            assert.strictEqual(getAutoTriggerType(createContentChange('{}')), 'SpecialCharacters')
+            assert.strictEqual(getAutoTriggerType(createContentChange(':')), 'SpecialCharacters')
+        })
+
+        it('should return "Classifier" for single character changes', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('a')), 'Classifier')
+            assert.strictEqual(getAutoTriggerType(createContentChange('1')), 'Classifier')
+            assert.strictEqual(getAutoTriggerType(createContentChange('.')), 'Classifier')
+        })
+
+        it('should return undefined for single line reformat', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('  ')), undefined)
+            assert.strictEqual(getAutoTriggerType(createContentChange('   ')), undefined)
+        })
+
+        it('should return undefined for multi-character non-special changes', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('abc')), undefined)
+            assert.strictEqual(getAutoTriggerType(createContentChange('123')), undefined)
+        })
+
+        it('should return undefined for multi-line input', () => {
+            assert.strictEqual(getAutoTriggerType(createContentChange('line1\nline2')), undefined)
+        })
+    })
     describe('Right Context should trigger validation', () => {
         it('should not trigger when there is immediate right context in VSCode', () => {
             const params = createBasicParams({
