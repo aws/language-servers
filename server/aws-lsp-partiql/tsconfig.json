@@ -1,0 +1,10 @@
+{
+    "extends": "../../tsconfig.packages.json",
+    "compilerOptions": {
+        "rootDir": "./src",
+        "outDir": "./out",
+        "allowJs": true,
+        "esModuleInterop": true
+    },
+    "include": ["src"]
+}

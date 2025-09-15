@@ -1,0 +1,38 @@
+{
+    "bootstrap-sha": "ea570718da2b32b552b4308de1b4b3c2ee444b2b",
+    "last-release-sha": "307f5a961ebcaa0dfd86edca85a8374f797163ed",
+    "bump-minor-pre-major": true,
+    "bump-patch-for-minor-pre-major": true,
+    "always-link-local": false,
+    "separate-pull-requests": false,
+    "group-pull-request-title-pattern": "chore(release): release packages from branch ${branch}",
+    "pull-request-footer": "This PR was generated with [Release Please](https://github.com/googleapis/release-please) bot. When you are ready to release these changes, merge this PR.\n\n**Blocking GitHub Checks Issue:** if GitHub checks do not run, close and immediately re-open this PR manually.",
+    "plugins": ["node-workspace"],
+    "tag-separator": "/",
+    "include-v-in-tag": true,
+    "draft-pull-request": true,
+    "packages": {
+        "chat-client": {
+            "component": "chat-client"
+        },
+        "core/aws-lsp-core": {
+            "component": "lsp-core"
+        },
+        "server/aws-lsp-antlr4": {
+            "component": "lsp-antlr4"
+        },
+        "server/aws-lsp-codewhisperer": {
+            "component": "lsp-codewhisperer"
+        },
+        "server/aws-lsp-json": {
+            "component": "lsp-json"
+        },
+        "server/aws-lsp-partiql": {
+            "component": "lsp-partiql"
+        },
+        "server/aws-lsp-yaml": {
+            "component": "lsp-yaml"
+        }
+    },
+    "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

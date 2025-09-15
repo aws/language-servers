@@ -7,6 +7,7 @@ module.exports = {
     extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
     rules: {
         semi: ['error', 'never'],
+        'no-constant-condition': ['error', { checkLoops: false }],
         '@typescript-eslint/no-unused-vars': 0,
         '@typescript-eslint/no-explicit-any': 0,
         '@typescript-eslint/explicit-module-boundary-types': 0,

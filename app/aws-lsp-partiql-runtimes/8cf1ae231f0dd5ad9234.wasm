@@ -1,0 +1,1 @@
+Empty no-op file to have a file called `partiql_playground_bg.wasm` when doing import checks. This file is not used by the PartiQL LSP server, the WASM binary is used from a base64 string in the js bundle.

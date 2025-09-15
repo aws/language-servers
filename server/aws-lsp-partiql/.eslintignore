@@ -1,0 +1,8 @@
+# automatically generated files from wasm-pack
+/src/partiql-parser-wasm/**/*.*
+# automatically generated files from tree-sitter
+/src/tree-sitter-wasm/**/*.*
+# automatically generated files from antlr
+/src/antlr-generated
+# antlr grammar files
+/src/antlr-grammar

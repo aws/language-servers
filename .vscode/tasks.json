@@ -2,6 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "compile",
             "type": "npm",
             "script": "compile",
             "group": "build",
@@ -25,12 +26,6 @@
                 "reveal": "never"
             },
             "problemMatcher": ["$tsc-watch"]
-        },
-        {
-            "label": "pkgCompress",
-            "type": "shell",
-            "command": "pkg --compress GZip --no-bytecode --out-path dist .",
-            "problemMatcher": []
         }
     ]
 }

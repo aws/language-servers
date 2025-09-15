@@ -1,3 +1,5 @@
+import { Readable } from 'stream'
+
 export function shouldWaitForEncryptionKey(): boolean {
     return process.argv.some(arg => arg === '--pre-init-encryption')
 }
@@ -27,6 +29,53 @@ export type EncryptionInitialization = {
     key: string
 }
 
+/**
+ * Read from the given stream, stopping after the first newline (\n).
+ * Return the string consumed from the stream.
+ */
+function readLine(stream: Readable): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        let contents = ''
+
+        // Fires when the stream has contents that can be read
+        const onStreamIsReadable = () => {
+            while (true) {
+                const byteRead: Buffer = process.stdin.read(1)
+                if (byteRead == null) {
+                    // wait for more content to arrive on the stream
+                    break
+                }
+
+                const nextChar = byteRead.toString('utf-8')
+                contents += nextChar
+
+                if (nextChar == '\n') {
+                    // Stop reading this stream, we have read a line from it
+                    stream.removeListener('readable', onStreamIsReadable)
+                    resolve(contents)
+                    break
+                }
+            }
+        }
+
+        stream.on('readable', onStreamIsReadable)
+    })
+}
+
+/**
+ * Reads a line from the stream and deserializes it to EncryptionInitialization
+ */
+export async function readEncryptionInitialization(stream: Readable): Promise<EncryptionInitialization> {
+    const json = await readLine(stream)
+    const init = JSON.parse(json) as EncryptionInitialization
+
+    validateEncryptionDetails(init)
+    return init
+}
+
+/**
+ * Throws an error if the given object is not valid
+ */
 export function validateEncryptionDetails(encryptionDetails: EncryptionInitialization) {
     if (encryptionDetails.version !== '1.0') {
         throw new Error(`Unsupported initialization version: ${encryptionDetails.version}`)

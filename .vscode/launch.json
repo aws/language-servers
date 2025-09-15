@@ -7,7 +7,8 @@
             "type": "node",
             "request": "attach",
             "port": 6012, // Hard defined in the vscode client activation.ts
-            "outFiles": ["${workspaceFolder}/out/src/server/**/*.js", "${workspaceFolder}/out/src/service/**/*.js"],
+            "outFiles": ["${workspaceFolder}/**/out/**/*.js"],
+            "skipFiles": ["<node_internals>/**", "${workspaceFolder}/**/node_modules/**/*.js"],
             "restart": {
                 "maxAttempts": 10,
                 "delay": 1000
@@ -21,9 +22,9 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-buildspec-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
             "name": "CloudFormation Server",
@@ -33,22 +34,110 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-binary/out/index.js"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-cloudformation-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
-            "name": "CodeWhisperer Server",
+            "name": "YAML Server",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-binary/out/index.js",
-                "ENABLE_INLINE_COMPLETION": "true"
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-yaml-runtimes/out/index.js"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
+        },
+        {
+            "name": "JSON Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-json-runtimes/out/index.js"
+            },
+            "preLaunchTask": "compile"
+        },
+        {
+            "name": "PartiQL Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-partiql-runtimes/build/aws-lsp-partiql-binary.js"
+            },
+            "preLaunchTask": "compile"
+        },
+        {
+            "name": "CodeWhisperer Server Token",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_ENCRYPTION": "false",
+                "ENABLE_TOKEN_PROVIDER": "true",
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true",
+                "ENABLE_CUSTOMIZATIONS": "true",
+                "ENABLE_AMAZON_Q_PROFILES": "false",
+                "ENABLE_AWS_Q_SECTION": "true",
+                "ENABLE_AGENTIC_UI_MODE": "false",
+                "ENABLE_MODEL_SELECTION": "false"
+                // "HTTPS_PROXY": "http://127.0.0.1:8888",
+                // "AWS_CA_BUNDLE": "/path/to/cert.pem"
+            }
+            // "preLaunchTask": "compile"
+        },
+        {
+            "name": "CodeWhisperer Agentic Server Token",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/agent-standalone.js",
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_ENCRYPTION": "false",
+                "ENABLE_TOKEN_PROVIDER": "true",
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true",
+                "ENABLE_CUSTOMIZATIONS": "true",
+                "ENABLE_AMAZON_Q_PROFILES": "false",
+                "ENABLE_CUSTOMIZATIONS_WITH_METADATA": "false",
+                "ENABLE_AWS_Q_SECTION": "true",
+                "ENABLE_AGENTIC_UI_MODE": "true",
+                "ENABLE_MODEL_SELECTION": "true"
+                // "HTTPS_PROXY": "http://127.0.0.1:8888",
+                // "AWS_CA_BUNDLE": "/path/to/cert.pem"
+            }
+            // "preLaunchTask": "compile"
+        },
+        {
+            "name": "CodeWhisperer Server IAM",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-codewhisperer-runtimes/out/iam-standalone.js",
+                "ENABLE_INLINE_COMPLETION": "true",
+                "ENABLE_IAM_PROVIDER": "true",
+                "ENABLE_CHAT": "true"
+                // "HTTPS_PROXY": "http://127.0.0.1:8888",
+            }
+            // "preLaunchTask": "compile"
         },
         {
             "name": "S3 Server (with Credentials support)",
@@ -58,34 +147,90 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode"],
             "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
             "env": {
-                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-binary/out/index.js",
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-s3-runtimes/out/index.js",
                 "ENABLE_IAM_PROVIDER": "true"
             },
-            "preLaunchTask": "npm: compile"
+            "preLaunchTask": "compile"
         },
         {
-            "type": "node",
+            "name": "Hello World Server",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "outFiles": ["${workspaceFolder}/client/vscode/out/**/*.js"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/hello-world-lsp-runtimes/out/standalone.js",
+                "ENABLE_CUSTOM_COMMANDS": "true",
+                "ENABLE_CHAT": "true"
+            },
+            "preLaunchTask": "compile"
+        },
+        {
+            "name": "Identity Server + VSCode Extension",
+            "type": "extensionHost",
             "request": "launch",
             "preLaunchTask": "watch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/standalone.js",
+                "ENABLE_IDENTITY": "true",
+                "ENABLE_TOKEN_PROVIDER": "true"
+            },
+            "outFiles": [
+                "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/**/*.js",
+                "${workspaceFolder}/server/aws-lsp-identity/out/**/*.js"
+            ],
+            "skipFiles": ["<node_internals>/**", "${workspaceFolder}/**/node_modules/**/*.js"],
+            "autoAttachChildProcesses": true
+        },
+        {
+            "name": "Notification Server + VSCode Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "preLaunchTask": "watch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
+            "env": {
+                "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/standalone.js",
+                "ENABLE_NOTIFICATION": "true",
+                "ENABLE_TOKEN_PROVIDER": "true"
+            },
+            "outFiles": [
+                "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/**/*.js",
+                "${workspaceFolder}/server/aws-lsp-notification/out/**/*.js"
+            ],
+            "skipFiles": ["<node_internals>/**", "${workspaceFolder}/**/node_modules/**/*.js"],
+            "autoAttachChildProcesses": true
+        },
+        {
             "name": "Unit Tests",
-            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/unit/**/*.js"],
-            "cwd": "${workspaceRoot}"
-        },
-        {
             "type": "node",
             "request": "launch",
             "preLaunchTask": "watch",
-            "name": "Unit Tests (Current File)",
-            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["${workspaceRoot}/out/test/unit/**/${fileBasenameNoExtension}.js"],
-            "cwd": "${workspaceRoot}"
+            "program": "${workspaceFolder}/node_modules/.bin/mocha",
+            "args": ["--forbid-only=false", "--forbid-pending=false", "./**/out/**/*.test.js"],
+            "outFiles": ["${workspaceFolder}/**/out/**/*.(m|c|)js", "!**/node_modules/**"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Unit Tests (current tab)",
+            "type": "node",
+            "request": "launch",
+            "preLaunchTask": "watch",
+            "program": "${workspaceFolder}/node_modules/.bin/mocha",
+            "args": ["--forbid-only=false", "--forbid-pending=false", "./**/out/**/${fileBasenameNoExtension}.js"],
+            "outFiles": ["${workspaceFolder}/**/out/**/*.(m|c|)js", "!**/node_modules/**"],
+            "console": "integratedTerminal"
         }
     ],
     "compounds": [
         {
             "name": "Launch as VSCode Extension + Debugging",
-            "configurations": ["Debug BuildSpec Server in VSCode", "Attach to AWS Documents Language Server"]
+            "configurations": ["CodeWhisperer Agentic Server Token", "Attach to AWS Documents Language Server"]
         }
     ]
 }

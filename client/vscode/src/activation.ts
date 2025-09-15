@@ -5,16 +5,27 @@
 
 import * as cp from 'child_process'
 import * as path from 'path'
+import * as os from 'os'
 
-import { ExtensionContext, workspace } from 'vscode'
+import { ExtensionContext, env, version } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
+import { registerChat } from './chatActivation'
 import {
     configureCredentialsCapabilities,
+    encryptionKey,
+    registerBearerTokenProviderSupport,
     registerIamCredentialsProviderSupport,
     writeEncryptionInit,
 } from './credentialsActivation'
 import { registerInlineCompletion } from './inlineCompletionActivation'
+import { registerLogCommand, registerTransformCommand } from './sampleCommandActivation'
+import { randomUUID } from 'crypto'
+import { registerIdentity } from './identityActivation'
+import { registerNotification } from './notificationActivation'
+import { registerQProfileSelection } from './selectQProfileActivation'
+import { registerAwsQSection } from './awsQSectionActivation'
+import { AWSInitializationOptions } from '@aws/language-server-runtimes/protocol'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -49,11 +60,10 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
      * set envvar ENABLE_TOKEN_PROVIDER to "true" if this extension is expected to provide bearer tokens
      */
     const enableIamProvider = process.env.ENABLE_IAM_PROVIDER === 'true'
-    // enableBearerTokenProvider is not used yet
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
-    const enableEncryptionInit = enableIamProvider || enableBearerTokenProvider
+    const enableEncryptionInit = process.env.ENABLE_ENCRYPTION === 'true'
 
-    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--preserve-symlinks'] }
+    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used
@@ -62,12 +72,20 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
     }
 
+    const scriptOptions = []
     if (enableEncryptionInit) {
         // If the host is going to encrypt credentials,
         // receive the encryption key over stdin before starting the language server.
-        debugOptions.execArgv.push('--stdio')
-        debugOptions.execArgv.push('--pre-init-encryption')
-        const child = cp.spawn('node', [serverModule, ...debugOptions.execArgv])
+        scriptOptions.push('--stdio')
+        // Used by the proof of concept language servers (we can remove this one in the future,
+        // after all language servers are based on the language-server-runtime).
+        scriptOptions.push('--pre-init-encryption')
+        // Used by the aws-language-server-runtime based servers
+        scriptOptions.push('--set-credentials-encryption-key')
+
+        // debugOptions are node process arguments and scriptOptions are script arguments
+        const child = cp.spawn('node', [...debugOptions.execArgv, serverModule, ...scriptOptions])
+
         writeEncryptionInit(child.stdin)
 
         serverOptions = () => Promise.resolve(child)
@@ -75,39 +93,92 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
 
     // Options to control the language client
     const clientOptions: LanguageClientOptions = {
-        // Register the server for json documents
-        documentSelector: [
-            // yaml/json is illustrative of static filetype handling language servers
-            { scheme: 'file', language: 'yaml' },
-            { scheme: 'untitled', language: 'yaml' },
-            { scheme: 'file', language: 'json' },
-            { scheme: 'untitled', language: 'json' },
-            // typescript is illustrative of code-handling language servers
-            { scheme: 'file', language: 'typescript' },
-            { scheme: 'untitled', language: 'typescript' },
-        ],
-        initializationOptions: {},
-        synchronize: {
-            fileEvents: workspace.createFileSystemWatcher('**/*.{json,yml,yaml,ts}'),
+        documentSelector: [{ scheme: 'file', language: '*' }],
+        initializationOptions: {
+            handledSchemaProtocols: ['file', 'untitled'],
+            logLevel: 'debug',
+            aws: {
+                clientInfo: {
+                    name: env.appName,
+                    version: version,
+                    extension: {
+                        name: 'Sample Extension for VSCode',
+                        version: '0.0.1',
+                    },
+                    clientId: randomUUID(),
+                },
+                awsClientCapabilities: {
+                    q: {
+                        developerProfiles: process.env.ENABLE_AMAZON_Q_PROFILES === 'true',
+                        customizationsWithMetadata: process.env.ENABLE_CUSTOMIZATIONS_WITH_METADATA === 'true',
+                    },
+                    window: {
+                        notifications: true,
+                        showSaveFileDialog: true,
+                    },
+                },
+            } as AWSInitializationOptions,
         },
     }
 
-    if (enableIamProvider) {
-        configureCredentialsCapabilities(clientOptions)
-    }
+    configureCredentialsCapabilities(clientOptions, enableIamProvider, enableBearerTokenProvider)
 
     // Create the language client and start the client.
     const client = new LanguageClient('awsDocuments', 'AWS Documents Language Server', serverOptions, clientOptions)
 
     if (enableIamProvider) {
-        await registerIamCredentialsProviderSupport(client, extensionContext)
+        await registerIamCredentialsProviderSupport(client, extensionContext, enableEncryptionInit)
+    }
+
+    if (enableBearerTokenProvider) {
+        await registerBearerTokenProviderSupport(client, extensionContext, enableEncryptionInit)
     }
 
     if (enableInlineCompletion) {
         registerInlineCompletion(client)
     }
 
-    client.start()
+    const enableCustomCommands = process.env.ENABLE_CUSTOM_COMMANDS === 'true'
+    if (enableCustomCommands) {
+        await registerLogCommand(client, extensionContext)
+        await registerTransformCommand(client, extensionContext)
+    }
+
+    // Activate chat server after LSP initialize handshake is done
+    const enableChat = process.env.ENABLE_CHAT === 'true'
+    const agenticMode = process.env.ENABLE_AGENTIC_UI_MODE === 'true'
+    const modelSelectionEnabled = process.env.ENABLE_MODEL_SELECTION === 'true'
+    const osPlatform = os.platform()
+    if (enableChat) {
+        registerChat(
+            client,
+            extensionContext.extensionUri,
+            enableEncryptionInit ? encryptionKey : undefined,
+            agenticMode,
+            modelSelectionEnabled,
+            osPlatform
+        )
+    }
+
+    const enableAwsQSection = process.env.ENABLE_AWS_Q_SECTION === 'true'
+    if (enableAwsQSection) {
+        registerAwsQSection(client)
+    }
+
+    const enableIdentity = process.env.ENABLE_IDENTITY === 'true'
+    if (enableIdentity) {
+        await registerIdentity(client)
+    }
+
+    const enableNotification = process.env.ENABLE_NOTIFICATION === 'true'
+    if (enableNotification) {
+        await registerNotification(client)
+    }
+
+    const enableAmazonQProfiles = process.env.ENABLE_AMAZON_Q_PROFILES === 'true'
+    if (enableAmazonQProfiles) {
+        await registerQProfileSelection(client)
+    }
 
     return client
 }

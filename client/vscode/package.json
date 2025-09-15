@@ -17,22 +17,201 @@
     "main": "./out/extension.js",
     "activationEvents": [
         "onLanguage:yaml",
-        "onLanguage:typescript"
+        "onLanguage:json",
+        "onLanguage:typescript",
+        "onLanguage:javascript",
+        "onLanguage:java",
+        "onLanguage:python",
+        "onLanguage:partiql",
+        "onLanguage:csharp",
+        "onCommand:aws.sample-vscode-ext-amazonq.accept"
     ],
     "contributes": {
         "commands": [
             {
                 "command": "awslsp.selectProfile",
-                "title": "AWS LSP - Choose credentials profile"
+                "title": "AWS LSP - Choose credentials profile, resolve, and send to LSP Server"
             },
             {
                 "command": "awslsp.clearProfile",
-                "title": "AWS LSP - Don't use any credentials"
+                "title": "AWS LSP - Clear credentials from LSP Server"
+            },
+            {
+                "command": "awslsp.resolveBearerToken.BuilderID",
+                "title": "AWS LSP - Obtain bearer token and send to LSP Server - BuilderID"
+            },
+            {
+                "command": "awslsp.resolveBearerToken.IDC",
+                "title": "AWS LSP - Obtain bearer token and send to LSP Server - Identity Center"
+            },
+            {
+                "command": "awslsp.clearBearerToken",
+                "title": "AWS LSP - Clear bearer token from LSP Server"
+            },
+            {
+                "command": "helloWorld.log",
+                "title": "Hello World LSP - Log Command"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.explainCode",
+                "title": "Explain",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.refactorCode",
+                "title": "Refactor",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.fixCode",
+                "title": "Fix",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.optimizeCode",
+                "title": "Optimize",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.sendToPrompt",
+                "title": "Send to Prompt",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.sendInlineChat",
+                "title": "Send request to inline chat",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.openTab",
+                "title": "Open tab",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.invokeInlineCompletion",
+                "title": "Manual trigger inline code completions",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.getAwsQSection",
+                "title": "Get entire AWS Q section",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.getCustomizations",
+                "title": "Get customizations",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.selectProfile",
+                "title": "Select an (available) Amazon Q IDC profile",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileInvalid",
+                "title": "Update Amazon Q IDC Profile (Invalid)"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.updateProfileNull",
+                "title": "Send Amazon Q IDC Null Profile (reset)"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.getDeveloperProfiles",
+                "title": "Get developer profiles",
+                "category": "Test Amazon Q Extension"
+            },
+            {
+                "command": "aws.qNetTransform.startTransform",
+                "title": "Start Transform"
+            },
+            {
+                "command": "aws.aws-lsp-identity.test",
+                "title": "Test Command",
+                "category": "Identity"
+            },
+            {
+                "command": "aws.aws-lsp-notification.test",
+                "title": "Test Command",
+                "category": "Notification"
+            }
+        ],
+        "menus": {
+            "amazonqEditorContextSubmenu": [
+                {
+                    "command": "aws.sample-vscode-ext-amazonq.explainCode",
+                    "group": "cw_chat@1"
+                },
+                {
+                    "command": "aws.sample-vscode-ext-amazonq.refactorCode",
+                    "group": "cw_chat@2"
+                },
+                {
+                    "command": "aws.sample-vscode-ext-amazonq.fixCode",
+                    "group": "cw_chat@3"
+                },
+                {
+                    "command": "aws.sample-vscode-ext-amazonq.optimizeCode",
+                    "group": "cw_chat@4"
+                },
+                {
+                    "command": "aws.sample-vscode-ext-amazonq.sendToPrompt",
+                    "group": "cw_chat@5"
+                }
+            ],
+            "editor/context": [
+                {
+                    "submenu": "amazonqEditorContextSubmenu",
+                    "group": "cw_chat"
+                }
+            ]
+        },
+        "keybindings": [
+            {
+                "command": "aws.sample-vscode-ext-amazonq.explainCode",
+                "win": "win+alt+e",
+                "mac": "cmd+alt+e",
+                "linux": "meta+alt+e"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.refactorCode",
+                "win": "win+alt+u",
+                "mac": "cmd+alt+u",
+                "linux": "meta+alt+u"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.fixCode",
+                "win": "win+alt+y",
+                "mac": "cmd+alt+y",
+                "linux": "meta+alt+y"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.optimizeCode",
+                "win": "win+alt+a",
+                "mac": "cmd+alt+a",
+                "linux": "meta+alt+a"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.sendToPrompt",
+                "key": "win+alt+q",
+                "mac": "cmd+alt+q",
+                "linux": "meta+alt+q"
+            },
+            {
+                "command": "aws.sample-vscode-ext-amazonq.invokeInlineCompletion",
+                "key": "alt+c",
+                "mac": "alt+c",
+                "linux": "alt+c"
+            }
+        ],
+        "submenus": [
+            {
+                "label": "Test Amazon Q Extension",
+                "id": "amazonqEditorContextSubmenu"
             }
         ],
         "configuration": {
             "type": "object",
-            "title": "AWS Documents Language Server",
+            "title": "AWS Language Servers Test Extension",
             "properties": {
                 "awsDocuments.maxNumberOfProblems": {
                     "scope": "resource",
@@ -50,20 +229,134 @@
                     ],
                     "default": "off",
                     "description": "Traces the communication between VS Code and the language server."
+                },
+                "aws.q.customization": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "The selected Q customization"
+                },
+                "aws.q.inlineSuggestions.extraContext": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "Extra context for Q Inline Suggestions"
+                },
+                "aws.q.inlineChat.extraContext": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "Extra context for Q Inline Chat"
+                },
+                "aws.q.optOutTelemetry": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Opt Out from Q Telemetry (optOutTelemetry)"
+                },
+                "aws.codeWhisperer.includeSuggestionsWithCodeReferences": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Incluse suggestions with Code References"
+                },
+                "aws.codeWhisperer.shareCodeWhispererContentWithAWS": {
+                    "scope": "resource",
+                    "type": "boolean",
+                    "description": "Share CodeWhisperer content with AWS"
+                },
+                "amazonQ.workspaceContext": {
+                    "scope": "window",
+                    "type": "boolean",
+                    "description": "Allow Amazon Q to create remote workspace for quality improvements",
+                    "default": "true"
                 }
             }
+        },
+        "languages": [
+            {
+                "id": "partiql",
+                "extensions": [
+                    ".pql"
+                ],
+                "aliases": [
+                    "PartiQL",
+                    "partiql"
+                ]
+            },
+            {
+                "id": "lua",
+                "aliases": [
+                    "lua",
+                    "Lua"
+                ],
+                "extensions": [
+                    ".lua",
+                    ".wlua"
+                ]
+            },
+            {
+                "id": "systemverilog",
+                "aliases": [
+                    "SystemVerilog",
+                    "systemverilog"
+                ],
+                "extensions": [
+                    ".sv",
+                    ".svh",
+                    ".vh"
+                ]
+            },
+            {
+                "id": "terraform",
+                "aliases": [
+                    "Terraform",
+                    "terraform"
+                ],
+                "extensions": [
+                    ".tf",
+                    ".hcl"
+                ]
+            },
+            {
+                "id": "vue",
+                "aliases": [
+                    "vue",
+                    "Vue"
+                ],
+                "extensions": [
+                    ".vue"
+                ]
+            }
+        ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "amazonq",
+                    "title": "Amazon Q Chat Container",
+                    "icon": "resources/amazonq-logo.svg"
+                }
+            ]
+        },
+        "views": {
+            "amazonq": [
+                {
+                    "type": "webview",
+                    "id": "amazonq.chat",
+                    "name": "Amazon Q Chat"
+                }
+            ]
         }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
-        "compile": "tsc -b"
+        "compile": "tsc -b && npm run compile:chat-client",
+        "compile:chat-client": "npm run compile --prefix ../../chat-client && shx cp -R ../../chat-client/build ."
     },
     "devDependencies": {
-        "@aws-sdk/credential-providers": "^3.360.0",
-        "@aws-sdk/types": "^3.357.0",
-        "@types/vscode": "^1.78.1",
-        "jose": "^4.14.4",
-        "typescript": "^5.1.3",
-        "vscode-languageclient": "^8.1.0"
+        "@aws-sdk/credential-providers": "^3.731.1",
+        "@aws-sdk/types": "^3.734.0",
+        "@aws/chat-client-ui-types": "^0.1.56",
+        "@aws/language-server-runtimes": "^0.2.128",
+        "@types/uuid": "^9.0.8",
+        "@types/vscode": "^1.98.0",
+        "jose": "^5.2.4",
+        "typescript": "^5.5.3",
+        "vscode-languageclient": "^9.0.1"
     }
 }
