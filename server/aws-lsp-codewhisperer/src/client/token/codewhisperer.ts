@@ -1,6 +1,6 @@
 import { CodeWhispererRuntimeClient, CodeWhispererRuntimeClientConfig } from '@amzn/codewhisperer-runtime'
-import { SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
-import { HttpResponse } from '@smithy/types'
+import { SDKInitializator, Logging, CredentialsProvider } from '@aws/language-server-runtimes/server-interface'
+import { HttpResponse, HttpRequest } from '@smithy/types'
 
 export interface CodeWhispererTokenClientConfigurationOptions extends CodeWhispererRuntimeClientConfig {
     // Add any custom options if needed
@@ -9,7 +9,9 @@ export interface CodeWhispererTokenClientConfigurationOptions extends CodeWhispe
 export function createCodeWhispererTokenClient(
     options: CodeWhispererTokenClientConfigurationOptions,
     sdkInitializator: SDKInitializator,
-    logging: Logging
+    logging: Logging,
+    credentialsProvider: CredentialsProvider,
+    shareCodeWhispererContentWithAWS: boolean
 ): CodeWhispererRuntimeClient {
     logging.log(
         `Passing client for class CodeWhispererRuntimeClient to sdkInitializator (v3) for additional setup (e.g. proxy)`
@@ -18,6 +20,21 @@ export function createCodeWhispererTokenClient(
     const client = sdkInitializator(CodeWhispererRuntimeClient, {
         ...options,
     })
+
+    // Add middleware for custom headers
+    client.middlewareStack.add(
+        next => async args => {
+            const request = args.request as HttpRequest
+            request.headers['x-amzn-codewhisperer-optout'] = `${!shareCodeWhispererContentWithAWS}`
+
+            if (credentialsProvider.getConnectionType() === 'external_idp') {
+                request.headers['TokenType'] = 'EXTERNAL_IDP'
+            }
+
+            return next(args)
+        },
+        { step: 'build', priority: 'high' }
+    )
 
     // Add middleware to capture HTTP headers
     client.middlewareStack.add(

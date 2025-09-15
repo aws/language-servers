@@ -367,7 +367,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             token: tokenProvider,
             ...(customUserAgent && { customUserAgent }),
         }
-        this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
+        this.client = createCodeWhispererTokenClient(
+            options,
+            sdkInitializator,
+            logging,
+            credentialsProvider,
+            this.shareCodeWhispererContentWithAWS
+        )
     }
 
     getCredentialsType(): CredentialsType {
