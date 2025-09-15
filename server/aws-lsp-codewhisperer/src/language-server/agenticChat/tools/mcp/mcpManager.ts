@@ -40,6 +40,7 @@ import { URI } from 'vscode-uri'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
+import { AgentPermissionManager } from './agentPermissionManager'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -65,6 +66,7 @@ export class McpManager {
     private toolNameMapping: Map<string, { serverName: string; toolName: string }>
     private serverNameMapping: Map<string, string>
     private agentConfig!: AgentConfig
+    private permissionManager!: AgentPermissionManager
 
     private constructor(
         private agentPaths: string[],
@@ -177,6 +179,7 @@ export class McpManager {
 
         // Extract agent config and other data
         this.agentConfig = result.agentConfig
+        this.permissionManager = new AgentPermissionManager(this.agentConfig)
         this.mcpServers = result.servers
         this.serverNameMapping = result.serverNameMapping
 
@@ -539,22 +542,7 @@ export class McpManager {
 
         // Get unsanitized server name for prefix
         const unsanitizedServerName = this.serverNameMapping.get(server) || server
-
-        // Check if the server is enabled as a whole (@server)
-        const serverPrefix = `@${unsanitizedServerName}`
-        const isWholeServerEnabled = this.agentConfig.tools.includes(serverPrefix)
-
-        // Check if the specific tool is enabled
-        const toolId = `${serverPrefix}/${tool}`
-        const isSpecificToolEnabled = this.agentConfig.tools.includes(toolId)
-
-        // If server is enabled as a whole, all tools are enabled
-        if (isWholeServerEnabled) {
-            return false
-        }
-
-        // Otherwise, check if this specific tool is enabled
-        return !isSpecificToolEnabled
+        return !this.permissionManager.isToolEnabled(server === 'builtIn' ? 'builtIn' : unsanitizedServerName, tool)
     }
 
     /**
@@ -569,42 +557,8 @@ export class McpManager {
      * Returns tool permission type for a given tool.
      */
     public getToolPerm(server: string, tool: string): McpPermissionType {
-        // For built-in tools, check directly without prefix
-        if (server === 'builtIn') {
-            return this.agentConfig.allowedTools.includes(tool) ? McpPermissionType.alwaysAllow : McpPermissionType.ask
-        }
-
-        // Get unsanitized server name for prefix
         const unsanitizedServerName = this.serverNameMapping.get(server) || server
-
-        // Check if the server is enabled as a whole (@server)
-        const serverPrefix = `@${unsanitizedServerName}`
-        const isWholeServerEnabled = this.agentConfig.tools.includes(serverPrefix)
-
-        // Check if the specific tool is enabled
-        const toolId = `${serverPrefix}/${tool}`
-        const isSpecificToolEnabled = this.agentConfig.tools.includes(toolId)
-
-        // If the tool is not enabled, return deny
-        if (!isWholeServerEnabled && !isSpecificToolEnabled) {
-            return McpPermissionType.deny
-        }
-
-        // If server is enabled as a whole, check if the server itself is in allowedTools
-        if (isWholeServerEnabled) {
-            // If server is in allowedTools, all tools are alwaysAllow
-            if (this.agentConfig.allowedTools.includes(serverPrefix)) {
-                return McpPermissionType.alwaysAllow
-            }
-
-            // Otherwise, check if specific tool is in allowedTools
-            return this.agentConfig.allowedTools.includes(toolId)
-                ? McpPermissionType.alwaysAllow
-                : McpPermissionType.ask
-        }
-
-        // For specific tools, check if it's in allowedTools
-        return this.agentConfig.allowedTools.includes(toolId) ? McpPermissionType.alwaysAllow : McpPermissionType.ask
+        return this.permissionManager.getToolPermission(server === 'builtIn' ? 'builtIn' : unsanitizedServerName, tool)
     }
 
     /**
@@ -1005,99 +959,13 @@ export class McpManager {
 
             const serverPrefix = `@${unsanitizedServerName}`
 
-            // Track tools that should be enabled
-            const toolsToEnable = new Set<string>()
-            const toolsToAlwaysAllow = new Set<string>()
-
-            // Check if server is enabled as a whole
-            const isWholeServerEnabled = this.agentConfig.tools.includes(serverPrefix)
-
-            // Process each tool permission
+            // Process each tool permission using the permission manager
             for (const [toolName, permission] of Object.entries(perm.toolPerms || {})) {
-                const toolId = `${serverPrefix}/${toolName}`
-
-                if (permission === McpPermissionType.deny) {
-                    // For deny: if server is enabled as a whole, we need to switch to individual tools
-                    if (isWholeServerEnabled) {
-                        // Get all tools for this server
-                        const serverTools = this.mcpTools.filter(t => t.serverName === serverName)
-
-                        // Remove server prefix from tools
-                        this.agentConfig.tools = this.agentConfig.tools.filter(t => t !== serverPrefix)
-
-                        // Add all tools except the denied one
-                        for (const t of serverTools) {
-                            if (t.toolName !== toolName) {
-                                const tid = `${serverPrefix}/${t.toolName}`
-                                if (!this.agentConfig.tools.includes(tid)) {
-                                    this.agentConfig.tools.push(tid)
-                                }
-                                toolsToEnable.add(tid)
-                            }
-                        }
-                    } else {
-                        // Just remove the specific tool
-                        this.agentConfig.tools = this.agentConfig.tools.filter(t => t !== toolId)
-                    }
-
-                    // Always remove from allowedTools
-                    this.agentConfig.allowedTools = this.agentConfig.allowedTools.filter(t => t !== toolId)
-                } else {
-                    // For ask or alwaysAllow: add to tools
-                    toolsToEnable.add(toolId)
-
-                    // For alwaysAllow: also add to allowedTools
-                    if (permission === McpPermissionType.alwaysAllow) {
-                        toolsToAlwaysAllow.add(toolId)
-                    } else {
-                        // For ask: remove from allowedTools if present
-                        this.agentConfig.allowedTools = this.agentConfig.allowedTools.filter(t => t !== toolId)
-                    }
-                }
+                this.permissionManager.setToolPermission(unsanitizedServerName, toolName, permission)
             }
 
-            // If all tools are enabled, use @serverName instead of individual tools
-            const allTools = this.mcpTools.filter(t => t.serverName === serverName).map(t => t.toolName)
-
-            // Check if all tools are enabled, considering both:
-            // 1. The server might already be enabled as a whole (isWholeServerEnabled)
-            // 2. All tools might be individually enabled in toolsToEnable
-            const allToolsEnabled =
-                allTools.length > 0 &&
-                // If server is already enabled as a whole and no tools are being denied
-                ((isWholeServerEnabled && !Object.values(perm.toolPerms || {}).includes(McpPermissionType.deny)) ||
-                    // Or if all tools are individually enabled
-                    allTools.every(
-                        toolName =>
-                            toolsToEnable.has(`${serverPrefix}/${toolName}`) ||
-                            !Object.keys(perm.toolPerms || {}).includes(toolName)
-                    ))
-
-            // Update tools list
-            if (allToolsEnabled) {
-                // Remove individual tool entries
-                this.agentConfig.tools = this.agentConfig.tools.filter(t => !t.startsWith(`${serverPrefix}/`))
-                // Add server prefix if not already there
-                if (!this.agentConfig.tools.includes(serverPrefix)) {
-                    this.agentConfig.tools.push(serverPrefix)
-                }
-            } else {
-                // Remove server prefix if present
-                this.agentConfig.tools = this.agentConfig.tools.filter(t => t !== serverPrefix)
-                // Add individual tools
-                for (const toolId of toolsToEnable) {
-                    if (!this.agentConfig.tools.includes(toolId)) {
-                        this.agentConfig.tools.push(toolId)
-                    }
-                }
-            }
-
-            // Update allowedTools list
-            for (const toolId of toolsToAlwaysAllow) {
-                if (!this.agentConfig.allowedTools.includes(toolId)) {
-                    this.agentConfig.allowedTools.push(toolId)
-                }
-            }
+            // Update the agent config from the permission manager
+            this.agentConfig = this.permissionManager.getAgentConfig()
 
             // Update mcpServerPermissions map immediately to reflect changes
             this.mcpServerPermissions.set(serverName, {
