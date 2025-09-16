@@ -543,20 +543,37 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
     private mapCodeWhispererApiResponseToSuggestion(
         apiResponse: GenerateCompletionsResponse,
+        request: GenerateTokenSuggestionsRequest,
         responseContext: ResponseContext
     ): GenerateSuggestionsResponse {
-        if (apiResponse?.predictions && apiResponse.predictions.length > 0) {
-            const suggestionType = apiResponse.predictions[0].edit ? SuggestionType.EDIT : SuggestionType.COMPLETION
-            const predictionType = suggestionType === SuggestionType.COMPLETION ? 'completion' : 'edit'
+        // "Predictions" will be returned if clients speicifed predictionType in the generateCompletion request, otherwise "Completions" will be returned for the backward compatibility
+        if (apiResponse?.predictions) {
+            // Infer suggestion type from the actual suggestions if any, otherwise use client specified prediction tyoe
+            if (apiResponse.predictions.length > 0) {
+                const suggestionType = apiResponse.predictions[0].edit ? SuggestionType.EDIT : SuggestionType.COMPLETION
+                const predictionType = suggestionType === SuggestionType.COMPLETION ? 'completion' : 'edit'
 
-            return {
-                suggestions: apiResponse.predictions.map(prediction => ({
-                    content: prediction[predictionType]?.content ?? '',
-                    references: prediction[predictionType]?.references ?? [],
-                    itemId: this.generateItemId(),
-                })),
-                suggestionType,
-                responseContext,
+                return {
+                    suggestions: apiResponse.predictions.map(prediction => ({
+                        content: prediction[predictionType]?.content ?? '',
+                        references: prediction[predictionType]?.references ?? [],
+                        itemId: this.generateItemId(),
+                    })),
+                    suggestionType,
+                    responseContext,
+                }
+            } else if (apiResponse.predictions.length === 0) {
+                const requestPredictionType = request.predictionTypes
+                const suggestionType =
+                    requestPredictionType && requestPredictionType.includes('EDITS')
+                        ? SuggestionType.EDIT
+                        : SuggestionType.COMPLETION
+
+                return {
+                    suggestions: [],
+                    suggestionType: suggestionType,
+                    responseContext,
+                }
             }
         }
 
