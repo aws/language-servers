@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/aws/language-servers/compare/chat-client/v0.1.35...chat-client/v0.1.36) (2025-09-16)
+
+
+### Bug Fixes
+
+* migration from /agents ux ([#2248](https://github.com/aws/language-servers/issues/2248)) ([debeb41](https://github.com/aws/language-servers/commit/debeb414fd0d4d873af2f36cde0ebbeab16d16a4))
+
 ## [0.1.35](https://github.com/aws/language-servers/compare/chat-client/v0.1.34...chat-client/v0.1.35) (2025-09-09)
 
 
