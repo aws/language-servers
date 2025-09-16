@@ -427,6 +427,7 @@ export const CodewhispererServerFactory =
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
                 session.suggestionType = suggestionResponse.suggestionType
+                session.predictionType = 'COMPLETION'
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
