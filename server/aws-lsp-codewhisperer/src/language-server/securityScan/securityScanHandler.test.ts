@@ -1,6 +1,5 @@
 import { Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
-import { HttpResponse } from 'aws-sdk'
 import got from 'got'
 import * as Sinon from 'sinon'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
@@ -45,7 +44,7 @@ const mocked$Response = {
         requestId: '',
         redirectCount: 0,
         retryCount: 0,
-        httpResponse: new HttpResponse(),
+        httpResponse: {},
     },
 }
 

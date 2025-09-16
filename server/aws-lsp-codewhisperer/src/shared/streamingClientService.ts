@@ -15,7 +15,6 @@ import {
 import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
-import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
@@ -188,13 +187,13 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
 
         // Create a credential provider that fetches fresh credentials on each request
         const iamCredentialProvider: AwsCredentialIdentityProvider = async (): Promise<AwsCredentialIdentity> => {
-            const creds = (await credentialsProvider.getCredentials('iam')) as Credentials
+            const creds = (await credentialsProvider.getCredentials('iam')) as AwsCredentialIdentity
             logging.log(`Fetching new IAM credentials`)
             return {
                 accessKeyId: creds.accessKeyId,
                 secretAccessKey: creds.secretAccessKey,
                 sessionToken: creds.sessionToken,
-                expiration: creds.expireTime ? new Date(creds.expireTime) : new Date(), // Force refresh on each request if creds do not have expiration time
+                expiration: creds.expiration ?? new Date(), // Force refresh on each request if creds do not have expiration time
             }
         }
 

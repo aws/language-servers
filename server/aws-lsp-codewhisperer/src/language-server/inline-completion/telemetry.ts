@@ -1,9 +1,9 @@
 import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
-import { AWSError } from 'aws-sdk'
+import { ServiceException } from '@smithy/smithy-client'
 import { CodeWhispererSession, UserTriggerDecision } from './session/sessionManager'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
-import { getCompletionType, isAwsError } from '../../shared/utils'
+import { getCompletionType, isServiceException, getErrorId } from '../../shared/utils'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { SuggestionType } from '../../shared/codeWhispererService'
 
@@ -47,10 +47,10 @@ export const emitServiceInvocationTelemetry = (
 export const emitServiceInvocationFailure = (
     telemetry: Telemetry,
     session: CodeWhispererSession,
-    error: Error | AWSError
+    error: Error | ServiceException
 ) => {
     const duration = new Date().getTime() - session.startTime
-    const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
+    const codewhispererRequestId = isServiceException(error) ? error.$metadata.requestId : undefined
 
     const data: CodeWhispererServiceInvocationEvent = {
         codewhispererRequestId: codewhispererRequestId,
@@ -80,8 +80,8 @@ export const emitServiceInvocationFailure = (
         data,
         errorData: {
             reason: error.name || 'UnknownError',
-            errorCode: isAwsError(error) ? error.code : undefined,
-            httpStatusCode: isAwsError(error) ? error.statusCode : undefined,
+            errorCode: getErrorId(error),
+            httpStatusCode: isServiceException(error) ? error.$metadata.httpStatusCode : undefined,
         },
     })
 }

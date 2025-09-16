@@ -10,7 +10,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { AWSError } from 'aws-sdk'
+import { ServiceException } from '@smithy/smithy-client'
 import sinon, { StubbedInstance } from 'ts-sinon'
 import { CodeWhispererServer, CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
 import {
@@ -1774,7 +1774,7 @@ describe('CodeWhisperer Server', () => {
                 },
                 errorData: {
                     reason: 'TestError',
-                    errorCode: undefined,
+                    errorCode: 'TestError',
                     httpStatusCode: undefined,
                 },
             }
@@ -1826,13 +1826,16 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
 
-        it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
-            const error: AWSError = new Error('Fake Error') as AWSError
-            error.name = 'TestAWSError'
-            error.code = 'TestErrorStatusCode'
-            error.statusCode = 500
-            error.time = new Date()
-            error.requestId = 'failed-request-id'
+        it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with ServiceException error type', async () => {
+            const error = new ServiceException({
+                name: 'TestServiceException',
+                $fault: 'client',
+                $metadata: {
+                    httpStatusCode: 500,
+                    requestId: 'failed-request-id',
+                },
+                message: 'Fake Error',
+            })
 
             service.generateSuggestions.callsFake(_request => {
                 clock.tick(1000)
@@ -1859,7 +1862,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    reason: 'CodeWhisperer Invocation Exception: TestAWSError',
+                    reason: 'CodeWhisperer Invocation Exception: TestServiceException',
                     duration: 1000,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
@@ -1875,8 +1878,8 @@ describe('CodeWhisperer Server', () => {
                     traceId: 'notSet',
                 },
                 errorData: {
-                    reason: 'TestAWSError',
-                    errorCode: 'TestErrorStatusCode',
+                    reason: 'TestServiceException',
+                    errorCode: 'TestServiceException',
                     httpStatusCode: 500,
                 },
             }
