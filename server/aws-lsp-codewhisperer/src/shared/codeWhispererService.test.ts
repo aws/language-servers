@@ -174,20 +174,17 @@ describe('CodeWhispererService', function () {
         beforeEach(function () {
             // Mock the createCodeWhispererSigv4Client function to avoid real client creation
             const mockClient = {
-                generateRecommendations: sandbox.stub().returns({
-                    promise: sandbox.stub().resolves({
-                        recommendations: [],
-                        $response: {
-                            requestId: 'test-request-id',
-                            httpResponse: {
-                                headers: { 'x-amzn-sessionid': 'test-session-id' },
-                            },
-                        },
-                    }),
+                send: sandbox.stub().resolves({
+                    recommendations: [],
+                    $metadata: {
+                        requestId: 'test-request-id',
+                    },
+                    $httpHeaders: {
+                        'x-amzn-sessionid': 'test-session-id',
+                    },
                 }),
-                setupRequestListeners: sandbox.stub(),
-                config: {
-                    update: sandbox.stub(),
+                middlewareStack: {
+                    add: sandbox.stub(),
                 },
             }
 
@@ -249,8 +246,8 @@ describe('CodeWhispererService', function () {
                 await service.generateSuggestions(mockRequest)
 
                 // Verify that the client was called with the customizationArn
-                const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
-                assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
+                const clientCall = (service.client.send as sinon.SinonStub).getCall(0)
+                assert.strictEqual(clientCall.args[0].input.customizationArn, 'test-arn')
             })
 
             it('should include serviceType in response', async function () {

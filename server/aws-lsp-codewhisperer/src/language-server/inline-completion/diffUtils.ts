@@ -137,7 +137,7 @@ export function generateDiffContexts(
  * @param unifiedDiff The unified diff content
  * @returns The modified code after applying the diff
  */
-export function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
+export function applyUnifiedDiff(docText: string, unifiedDiff: string = ''): string {
     try {
         // First try the standard diff package
         try {

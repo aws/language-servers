@@ -316,9 +316,9 @@ export function isBool(value: unknown): value is boolean {
 }
 
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
-    const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
+    const nonBlankLines = suggestion.content?.split('\n').filter(line => line.trim() !== '').length
 
-    return nonBlankLines > 1 ? 'Block' : 'Line'
+    return nonBlankLines && nonBlankLines > 1 ? 'Block' : 'Line'
 }
 
 export function enabledModelSelection(params: InitializeParams | undefined): boolean {
@@ -450,7 +450,7 @@ export function getUnmodifiedAcceptedTokens(origin: string, after: string) {
     return Math.max(origin.length, after.length) - distance(origin, after)
 }
 
-export function getEndPositionForAcceptedSuggestion(content: string, startPosition: Position): Position {
+export function getEndPositionForAcceptedSuggestion(content: string = '', startPosition: Position): Position {
     const insertedLines = content.split('\n')
     const numberOfInsertedLines = insertedLines.length
 

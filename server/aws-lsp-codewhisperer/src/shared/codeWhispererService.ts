@@ -13,11 +13,10 @@ import {
     InlineCompletionWithReferencesParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
-import { PromiseResult } from 'aws-sdk/lib/request'
-import { Request } from 'aws-sdk/lib/core'
+import { AwsCredentialIdentity } from '@aws-sdk/types'
 import { v4 as uuidv4 } from 'uuid'
 import {
+    CodeWhispererSigv4Client,
     CodeWhispererSigv4ClientConfigurationOptions,
     createCodeWhispererSigv4Client,
 } from '../client/sigv4/codewhisperer'
@@ -26,7 +25,6 @@ import {
     createCodeWhispererTokenClient,
     CodeWhispererTokenClient,
 } from '../client/token/codewhisperer'
-import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import { getErrorId } from './utils'
 import { getRelativePath } from '../language-server/workspaceContext/util'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
@@ -84,6 +82,12 @@ import {
     SupplementalContext,
     SupplementalContextType,
 } from '@amzn/codewhisperer-runtime'
+import {
+    GenerateRecommendationsCommand,
+    GenerateRecommendationsRequest,
+    GenerateRecommendationsResponse,
+    Recommendation,
+} from '@amzn/codewhisperer'
 
 // Type guards for request classification
 export function isTokenRequest(request: GenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
@@ -94,12 +98,12 @@ export function isIAMRequest(request: GenerateSuggestionsRequest): request is Ge
     return !isTokenRequest(request)
 }
 
-export interface Suggestion extends Omit<Completion, 'content'>, CodeWhispererSigv4Client.Recommendation {
+export interface Suggestion extends Completion, Recommendation {
     itemId: string
 }
 
 // IAM-specific request interface that directly extends the SigV4 client request
-export interface GenerateIAMSuggestionsRequest extends CodeWhispererSigv4Client.GenerateRecommendationsRequest {}
+export interface GenerateIAMSuggestionsRequest extends GenerateRecommendationsRequest {}
 
 // Token-specific request interface that directly extends the Token client request
 export interface GenerateTokenSuggestionsRequest extends GenerateCompletionsRequest {}
@@ -119,7 +123,7 @@ export type FileContext = {
 }
 
 export interface ResponseContext {
-    requestId: string
+    requestId: string | undefined
     codewhispererSessionId: string
     nextToken?: string
     authType?: 'iam' | 'token'
@@ -254,19 +258,21 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         const options: CodeWhispererSigv4ClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
-            ]),
+            credentials: async () => {
+                const creds = credentialsProvider.getCredentials('iam') as AwsCredentialIdentity
+                return {
+                    accessKeyId: creds.accessKeyId,
+                    secretAccessKey: creds.secretAccessKey,
+                    sessionToken: creds.sessionToken,
+                }
+            },
         }
-        this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
-        // Avoid overwriting any existing client listeners
-        const clientRequestListeners = this.client.setupRequestListeners
-        this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
-            if (clientRequestListeners) {
-                clientRequestListeners.call(this.client, request)
-            }
-            request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-        }
+        this.client = createCodeWhispererSigv4Client(
+            options,
+            sdkInitializator,
+            logging,
+            this.shareCodeWhispererContentWithAWS
+        )
     }
 
     getCredentialsType(): CredentialsType {
@@ -306,18 +312,18 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             console.warn('Advanced features not supported - using basic completion')
         }
 
-        const response = await this.client.generateRecommendations(iamRequest).promise()
+        const response = await this.client.send(new GenerateRecommendationsCommand(iamRequest))
 
         return this.mapCodeWhispererApiResponseToSuggestion(response, {
-            requestId: response?.$response?.requestId,
-            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+            requestId: response?.$metadata?.requestId ?? 'unknown',
+            codewhispererSessionId: (response as any)?.$httpHeaders?.['x-amzn-sessionid'] ?? 'unknown',
             nextToken: response.nextToken,
             authType: 'iam' as const,
         })
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
-        apiResponse: CodeWhispererSigv4Client.GenerateRecommendationsResponse,
+        apiResponse: GenerateRecommendationsResponse,
         responseContext: ResponseContext
     ): GenerateSuggestionsResponse {
         for (const recommendation of apiResponse?.recommendations ?? []) {

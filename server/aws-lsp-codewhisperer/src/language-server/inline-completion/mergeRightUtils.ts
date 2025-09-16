@@ -40,7 +40,7 @@ export function getPrefixOverlapLastIndex(targetString: string, searchString: st
 
 export function truncateOverlapWithRightContext(
     rightFileContent: string,
-    suggestion: string,
+    suggestion: string = '',
     userEdit?: string
 ): string {
     const trimmedSuggestion = suggestion.trim()

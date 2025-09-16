@@ -386,7 +386,7 @@ export class EditCompletionHandler {
                 .map(suggestion => {
                     // Check if this suggestion is similar to a previously rejected edit
                     const isSimilarToRejected = this.rejectedEditTracker.isSimilarToRejected(
-                        suggestion.content,
+                        suggestion.content ?? '',
                         textDocument?.uri || ''
                     )
 
@@ -405,7 +405,7 @@ export class EditCompletionHandler {
                     }
 
                     return {
-                        insertText: suggestion.content,
+                        insertText: suggestion.content ?? '',
                         isInlineEdit: true,
                         itemId: suggestion.itemId,
                     }

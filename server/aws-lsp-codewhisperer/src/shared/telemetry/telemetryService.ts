@@ -245,9 +245,9 @@ export class TelemetryService {
         }
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
-            acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''
+            acceptedSuggestion === undefined || acceptedSuggestion.content?.trim() === ''
                 ? 0
-                : acceptedSuggestion.content.split('\n').length
+                : acceptedSuggestion.content?.split('\n').length
         const referenceCount =
             acceptedSuggestion === undefined
                 ? 0
