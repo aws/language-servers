@@ -519,7 +519,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 authType: 'token' as const,
             }
 
-            const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+            const r = this.mapCodeWhispererApiResponseToSuggestion(
+                response,
+                tokenRequest.predictionTypes,
+                responseContext
+            )
             const firstSuggestionLogstr = r.suggestions.length > 0 ? `\n${r.suggestions[0].content}` : 'No suggestion'
 
             logstr += `@@response metadata@@
@@ -543,7 +547,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
     private mapCodeWhispererApiResponseToSuggestion(
         apiResponse: GenerateCompletionsResponse,
-        request: GenerateTokenSuggestionsRequest,
+        requestPredictionType: CodeWhispererTokenClient.PredictionTypes | undefined,
         responseContext: ResponseContext
     ): GenerateSuggestionsResponse {
         // "Predictions" will be returned if clients speicifed predictionType in the generateCompletion request, otherwise "Completions" will be returned for the backward compatibility
@@ -563,7 +567,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     responseContext,
                 }
             } else if (apiResponse.predictions.length === 0) {
-                const requestPredictionType = request.predictionTypes
                 const suggestionType =
                     requestPredictionType && requestPredictionType.includes('EDITS')
                         ? SuggestionType.EDIT
