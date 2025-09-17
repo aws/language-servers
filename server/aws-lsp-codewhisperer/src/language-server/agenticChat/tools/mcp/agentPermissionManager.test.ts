@@ -19,7 +19,12 @@ describe('AgentPermissionManager', () => {
             tools: [],
             allowedTools: [],
         }
-        manager = new AgentPermissionManager(agentConfig)
+        manager = new AgentPermissionManager(
+            agentConfig,
+            undefined, // getAvailableTools
+            undefined, // getAllAvailableServers
+            undefined // getAllBuiltinTools
+        )
     })
 
     describe('matchesPattern', () => {
