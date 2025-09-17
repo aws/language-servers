@@ -1010,7 +1010,8 @@ export async function saveServerSpecificAgentConfig(
     serverConfig: any,
     serverTools: string[],
     serverAllowedTools: string[],
-    configPath: string
+    configPath: string,
+    isLegacyMcpServer: boolean = false
 ): Promise<void> {
     try {
         await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
@@ -1043,12 +1044,14 @@ export async function saveServerSpecificAgentConfig(
             tool => tool !== serverPrefix && !tool.startsWith(`${serverPrefix}/`)
         )
 
-        if (serverConfig === null) {
-            // Remove server entirely
-            delete existingConfig.mcpServers[serverName]
-        } else {
-            // Update or add server
-            existingConfig.mcpServers[serverName] = serverConfig
+        if (!isLegacyMcpServer) {
+            if (serverConfig === null) {
+                // Remove server entirely
+                delete existingConfig.mcpServers[serverName]
+            } else {
+                // Update or add server
+                existingConfig.mcpServers[serverName] = serverConfig
+            }
         }
 
         // Add new server tools
