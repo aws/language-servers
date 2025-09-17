@@ -6,7 +6,7 @@ import {
     WorkspaceMetadata,
     WorkspaceStatus,
 } from '@amzn/codewhisperer-runtime'
-import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
+import { Agent, CredentialsProvider, Logging, ToolClassification } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
 import {
     cleanUrl,
@@ -21,17 +21,20 @@ import { URI } from 'vscode-uri'
 import path = require('path')
 import { isAwsError, isServiceException } from '../../shared/utils'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
+import { SemanticSearch, SemanticSearchParams } from '../agenticChat/tools/workspaceContext/semanticSearch'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
     messageQueue: any[]
     webSocketClient?: WebSocketClient
     workspaceId?: string
+    environmentId?: string
 }
 
 type WorkspaceRoot = string
 
 export class WorkspaceFolderManager {
+    private agent: Agent
     private serviceManager: AmazonQTokenServiceManager
     private logging: Logging
     private artifactManager: ArtifactManager
@@ -56,10 +59,12 @@ export class WorkspaceFolderManager {
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
     private featureDisabled: boolean = false // Serve as a server-side control. If true, stop WCS features
+    private semanticSearchToolEnabled: boolean = false
     private isCheckingRemoteWorkspaceStatus: boolean = false
     private isArtifactUploadedToRemoteWorkspace: boolean = false
 
     static createInstance(
+        agent: Agent,
         serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
@@ -70,6 +75,7 @@ export class WorkspaceFolderManager {
     ): WorkspaceFolderManager {
         if (!this.instance) {
             this.instance = new WorkspaceFolderManager(
+                agent,
                 serviceManager,
                 logging,
                 artifactManager,
@@ -87,6 +93,7 @@ export class WorkspaceFolderManager {
     }
 
     private constructor(
+        agent: Agent,
         serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
@@ -95,6 +102,7 @@ export class WorkspaceFolderManager {
         credentialsProvider: CredentialsProvider,
         workspaceIdentifier: string
     ) {
+        this.agent = agent
         this.serviceManager = serviceManager
         this.logging = logging
         this.artifactManager = artifactManager
@@ -148,6 +156,10 @@ export class WorkspaceFolderManager {
 
     isFeatureDisabled(): boolean {
         return this.featureDisabled
+    }
+
+    setSemanticSearchToolStatus(semanticSearchToolEnabled: boolean): void {
+        this.semanticSearchToolEnabled = semanticSearchToolEnabled
     }
 
     getWorkspaceState(): WorkspaceState {
@@ -232,6 +244,7 @@ export class WorkspaceFolderManager {
         this.workspaceState.webSocketClient?.destroyClient()
         this.dependencyDiscoverer.dispose()
         this.artifactManager.dispose()
+        this.removeSemanticSearchTool()
     }
 
     /**
@@ -325,6 +338,10 @@ export class WorkspaceFolderManager {
         const webSocketClient = new WebSocketClient(websocketUrl, this.logging, this.credentialsProvider)
         this.workspaceState.remoteWorkspaceState = 'CONNECTED'
         this.workspaceState.webSocketClient = webSocketClient
+        this.workspaceState.environmentId = existingMetadata.environmentId
+        if (this.semanticSearchToolEnabled) {
+            this.registerSemanticSearchTool()
+        }
     }
 
     initializeWorkspaceStatusMonitor() {
@@ -445,6 +462,9 @@ export class WorkspaceFolderManager {
         try {
             if (IdleWorkspaceManager.isSessionIdle()) {
                 this.resetWebSocketClient()
+                if (this.semanticSearchToolEnabled) {
+                    this.removeSemanticSearchTool()
+                }
                 this.logging.log('Session is idle, skipping remote workspace status check')
                 return
             }
@@ -669,6 +689,32 @@ export class WorkspaceFolderManager {
         if (this.workspaceState.webSocketClient) {
             this.workspaceState.webSocketClient.destroyClient()
             this.workspaceState.webSocketClient = undefined
+        }
+    }
+
+    private registerSemanticSearchTool() {
+        const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
+        if (!existingTool) {
+            const semanticSearchTool = new SemanticSearch(
+                this.logging,
+                this.credentialsProvider,
+                this.serviceManager.getRegion() || 'us-east-1'
+            )
+            this.agent.addTool(
+                semanticSearchTool.getSpec(),
+                async (input: SemanticSearchParams) => {
+                    semanticSearchTool.validate(input)
+                    return await semanticSearchTool.invoke(input)
+                },
+                ToolClassification.BuiltIn
+            )
+        }
+    }
+
+    private removeSemanticSearchTool() {
+        const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
+        if (existingTool) {
+            this.agent.removeTool(SemanticSearch.toolName)
         }
     }
 
