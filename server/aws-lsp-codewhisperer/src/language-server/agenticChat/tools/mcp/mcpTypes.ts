@@ -78,7 +78,7 @@ export class AgentModel {
 
     static fromJson(doc: any): AgentModel {
         const cfg: AgentConfig = {
-            name: doc?.['name'] || 'amazon_q_default',
+            name: doc?.['name'] || 'q_ide_default',
             description: doc?.['description'] || 'Default agent configuration',
             prompt: doc?.['prompt'],
             model: doc?.['model'],
