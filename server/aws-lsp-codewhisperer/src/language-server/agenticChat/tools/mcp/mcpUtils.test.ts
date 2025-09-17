@@ -207,6 +207,7 @@ describe('loadAgentConfig', () => {
                 mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
                 getUserHomeDir: () => tmpDir,
             },
+            getAllWorkspaceFolders: () => [],
         }
         logger = { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} }
     })
@@ -697,7 +698,7 @@ describe('convertPersonaToAgent', () => {
 
         const result = convertPersonaToAgent(persona, mcpServers, mockAgent)
 
-        expect(result.name).to.equal('amazon_q_default')
+        expect(result.name).to.equal('q_ide_default')
         expect(result.mcpServers).to.have.property('testServer')
         expect(result.tools).to.include('@testServer')
         expect(result.tools).to.include('fs_read')
