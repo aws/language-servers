@@ -19,7 +19,7 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { URI } from 'vscode-uri'
 import path = require('path')
-import { isAwsError } from '../../shared/utils'
+import { isAwsError, isServiceException } from '../../shared/utils'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
 
 interface WorkspaceState {
@@ -794,8 +794,10 @@ export class WorkspaceFolderManager {
                 this.logging.log(`User's administrator opted out server-side workspace context`)
                 optOut = true
             }
-            if (isAwsError(e) && e.code === 'AccessDeniedException' && e.message.includes('Feature is not supported')) {
-                featureDisabled = true
+            if (isServiceException(e) && e.name === 'AccessDeniedException') {
+                if (e.message.includes('Feature is not supported')) {
+                    featureDisabled = true
+                }
             }
         }
         return { metadata, optOut, featureDisabled, error }
@@ -817,7 +819,7 @@ export class WorkspaceFolderManager {
             this.logging.warn(
                 `Error while creating workspace (${workspaceRoot}): ${e.message}. Error is ${e.retryable ? '' : 'not'} retryable}`
             )
-            if (isAwsError(e) && e.code === 'ServiceQuotaExceededException') {
+            if (isServiceException(e) && e.name === 'ServiceQuotaExceededException') {
                 isServiceQuotaExceeded = true
             }
             error = {

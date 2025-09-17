@@ -28,7 +28,7 @@ import {
     CompletionType,
     InlineChatUserDecision,
 } from '@amzn/codewhisperer-runtime'
-import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
+import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
     ChatConversationType,
     ChatHistoryActionEvent,
@@ -153,8 +153,8 @@ export class TelemetryService {
 
     private logSendTelemetryEventFailure(error: any) {
         let requestId: string | undefined
-        if (isAwsError(error)) {
-            requestId = error.requestId
+        if (isServiceException(error)) {
+            requestId = error.$metadata.requestId
         }
 
         this.logging.log(

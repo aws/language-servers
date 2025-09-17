@@ -14,7 +14,6 @@ import {
     CancellationToken,
     InlineCompletionWithReferencesParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {

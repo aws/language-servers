@@ -41,7 +41,7 @@ import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse }
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { getErrorId, getErrorMessage, isNullish, isObject, isServiceException } from '../../shared/utils'
 import { Metric } from '../../shared/telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
@@ -171,8 +171,11 @@ export class ChatController implements ChatHandlers {
             response = await session.sendMessage(requestInput)
             this.#log('Response for conversation id:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
-            if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
-                metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+            if (
+                isServiceException(err) ||
+                (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')
+            ) {
+                metric.setDimension('cwsprChatRepsonseCode', err.$metadata.httpStatusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
             }
 
@@ -289,7 +292,7 @@ export class ChatController implements ChatHandlers {
                 name: 'codewhisperer_inlineChatServiceInvocation',
                 result: 'Failed',
                 data: {
-                    codewhispererRequestId: isAwsError(err) ? err.requestId : undefined,
+                    codewhispererRequestId: isServiceException(err) ? err.$metadata.requestId : undefined,
                     codewhispererTriggerType: this.#inlineChatTriggerType,
                     duration: this.#inlineChatResponseLatency,
                     codewhispererLanguage: this.#inlineChatLanguage,
@@ -302,8 +305,8 @@ export class ChatController implements ChatHandlers {
                 },
                 errorData: {
                     reason: err instanceof Error ? err.name : 'UnknownError',
-                    errorCode: isAwsError(err) ? err.code : undefined,
-                    httpStatusCode: isAwsError(err) ? err.statusCode : undefined,
+                    errorCode: err instanceof Error ? getErrorId(err) : undefined,
+                    httpStatusCode: isServiceException(err) ? err.$metadata.httpStatusCode : undefined,
                 },
             })
 
@@ -370,8 +373,8 @@ export class ChatController implements ChatHandlers {
                 },
                 errorData: {
                     reason: err instanceof Error ? err.name : 'UnknownError',
-                    errorCode: isAwsError(err) ? err.code : undefined,
-                    httpStatusCode: isAwsError(err) ? err.statusCode : undefined,
+                    errorCode: err instanceof Error ? getErrorId(err) : undefined,
+                    httpStatusCode: isServiceException(err) ? err.$metadata.httpStatusCode : undefined,
                 },
             })
 
