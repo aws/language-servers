@@ -684,22 +684,7 @@ export function convertPersonaToAgent(
     mcpServers: Record<string, MCPServerConfig>,
     featureAgent: Agent
 ): AgentConfig {
-    const agent: AgentConfig = {
-        name: 'q_ide_default',
-        description: 'Default agent configuration',
-        prompt: '',
-        mcpServers: {},
-        tools: [],
-        toolAliases: {},
-        allowedTools: [],
-        toolsSettings: {},
-        resources: [],
-        hooks: {
-            agentSpawn: [],
-            userPromptSubmit: [],
-        },
-        useLegacyMcpJson: true,
-    }
+    const agent: AgentConfig = JSON.parse(DEFAULT_AGENT_RAW)
 
     // Include all servers from MCP config
     Object.entries(mcpServers).forEach(([name, config]) => {
@@ -1023,16 +1008,7 @@ export async function saveServerSpecificAgentConfig(
             existingConfig = JSON.parse(raw.toString())
         } catch {
             // If file doesn't exist, create minimal config
-            existingConfig = {
-                name: 'q_ide_default',
-                description: 'Agent configuration',
-                mcpServers: {},
-                tools: [],
-                allowedTools: [],
-                toolsSettings: {},
-                includedFiles: [],
-                resources: [],
-            }
+            existingConfig = JSON.parse(DEFAULT_AGENT_RAW)
         }
 
         // Remove existing server tools from arrays
