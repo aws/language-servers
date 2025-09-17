@@ -72,7 +72,7 @@ export class McpManager {
         private agentPaths: string[],
         private features: Pick<
             Features,
-            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime'
+            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime' | 'agent'
         >
     ) {
         this.mcpTools = []
@@ -89,7 +89,10 @@ export class McpManager {
 
     public static async init(
         agentPaths: string[],
-        features: Pick<Features, 'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime'>
+        features: Pick<
+            Features,
+            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime' | 'agent'
+        >
     ): Promise<McpManager> {
         if (!McpManager.#instance) {
             const mgr = new McpManager(agentPaths, features)
@@ -179,7 +182,12 @@ export class McpManager {
 
         // Extract agent config and other data
         this.agentConfig = result.agentConfig
-        this.permissionManager = new AgentPermissionManager(this.agentConfig)
+        this.permissionManager = new AgentPermissionManager(
+            this.agentConfig,
+            (serverName: string) => this.getAvailableToolsForServer(serverName),
+            () => this.getAllAvailableServerNames(),
+            () => this.getAllBuiltinToolNames()
+        )
         this.mcpServers = result.servers
         this.serverNameMapping = result.serverNameMapping
 
@@ -1086,6 +1094,31 @@ export class McpManager {
         const unsanitizedServerName = this.serverNameMapping.get(server) || server
         const toolId = `@${unsanitizedServerName}/${tool}`
         return !this.agentConfig.allowedTools.includes(toolId)
+    }
+
+    /**
+     * Get available tools for a specific server
+     */
+    private getAvailableToolsForServer(serverName: string): string[] {
+        return this.mcpTools.filter(tool => tool.serverName === serverName).map(tool => tool.toolName)
+    }
+
+    /**
+     * Get all available server names
+     */
+    private getAllAvailableServerNames(): string[] {
+        const serverNames = new Set<string>()
+        for (const tool of this.mcpTools) {
+            serverNames.add(tool.serverName)
+        }
+        return Array.from(serverNames)
+    }
+
+    /**
+     * Get all builtin tool names
+     */
+    private getAllBuiltinToolNames(): string[] {
+        return this.features.agent?.getBuiltInToolNames() || []
     }
 
     /**

@@ -348,6 +348,7 @@ export const McpToolsServer: Server = ({
                 telemetry,
                 credentialsProvider,
                 runtime,
+                agent,
             })
 
             McpManager.instance.clearToolNameMapping()
