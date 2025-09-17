@@ -147,7 +147,7 @@ export async function loadMcpServerConfigs(
 }
 
 const DEFAULT_AGENT_RAW = `{
-  "name": "amazon_q_default",
+  "name": "q_ide_default",
   "description": "Default agent configuration",
   "prompt": "",
   "mcpServers": {},
@@ -179,7 +179,7 @@ const DEFAULT_AGENT_RAW = `{
     "agentSpawn": [],
     "userPromptSubmit": []
   },
-  "useLegacyMcpJson": false
+  "useLegacyMcpJson": true
 }`
 
 const DEFAULT_PERSONA_RAW = `{
@@ -222,6 +222,7 @@ const DEFAULT_PERSONA_RAW = `{
  * - Load global first (if exists), then workspace files—workspace overrides.
  * - Combines functionality of loadMcpServerConfigs and loadPersonaPermissions
  * - Handles server configurations and permissions from the same agent file
+ * - Supports backwards compatibility with MCP config files when useLegacyMcpJson is true
  */
 export async function loadAgentConfig(
     workspace: Workspace,
@@ -240,13 +241,14 @@ export async function loadAgentConfig(
 
     // Create base agent config
     const agentConfig: AgentConfig = {
-        name: 'amazon_q_default',
+        name: 'q_ide_default',
         description: 'Agent configuration',
         mcpServers: {},
         tools: [],
         allowedTools: [],
         toolsSettings: {},
         resources: [],
+        useLegacyMcpJson: true, // Default to true for backwards compatibility
     }
 
     // Normalize paths
@@ -271,6 +273,9 @@ export async function loadAgentConfig(
         if (b === globalConfigPath) return -1
         return 0
     })
+
+    // Track useLegacyMcpJson value - workspace takes precedence over global
+    let useLegacyMcpJsonValue: boolean | undefined
 
     // Process each path like loadMcpServerConfigs
     for (const fsPath of sortedPaths) {
@@ -331,6 +336,17 @@ export async function loadAgentConfig(
         if (fsPath === globalConfigPath) {
             agentConfig.name = json.name || agentConfig.name
             agentConfig.description = json.description || agentConfig.description
+        }
+
+        // Track useLegacyMcpJson - workspace files take precedence
+        if (json.useLegacyMcpJson !== undefined) {
+            if (fsPath !== globalConfigPath) {
+                // Workspace file - always takes precedence
+                useLegacyMcpJsonValue = json.useLegacyMcpJson
+            } else if (useLegacyMcpJsonValue === undefined) {
+                // Global file - only use if no workspace value set
+                useLegacyMcpJsonValue = json.useLegacyMcpJson
+            }
         }
 
         // 4) Process permissions (tools and allowedTools)
@@ -460,8 +476,46 @@ export async function loadAgentConfig(
         }
     }
 
+    // Set final useLegacyMcpJson value - default to true if not specified anywhere
+    agentConfig.useLegacyMcpJson = useLegacyMcpJsonValue !== undefined ? useLegacyMcpJsonValue : true
+
+    // Load MCP config files if useLegacyMcpJson is true
+    if (agentConfig.useLegacyMcpJson) {
+        const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+        const mcpPaths = [...getWorkspaceMcpConfigPaths(wsUris), getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())]
+
+        const mcpResult = await loadMcpServerConfigs(workspace, logging, mcpPaths)
+
+        // MCP configs have precedence over agent configs
+        // Merge MCP servers into the result, overriding any from agent config
+        for (const [sanitizedName, mcpConfig] of mcpResult.servers) {
+            const originalName = mcpResult.serverNameMapping.get(sanitizedName)
+            if (originalName) {
+                servers.set(sanitizedName, mcpConfig)
+                serverNameMapping.set(sanitizedName, originalName)
+
+                // Add MCP server tools to agent config for permission management
+                const serverPrefix = `@${originalName}`
+                if (!agentConfig.tools.includes(serverPrefix)) {
+                    agentConfig.tools.push(serverPrefix)
+                }
+
+                logging.info(`Loaded MCP server '${originalName}' from legacy MCP config`)
+            }
+        }
+
+        // Merge MCP config errors
+        for (const [key, error] of mcpResult.errors) {
+            configErrors.set(`mcp_${key}`, error)
+        }
+
+        logging.info(`Loaded ${mcpResult.servers.size} servers from legacy MCP configs`)
+    }
+
     // Return the agent config, servers, server name mapping, and errors
-    logging.info(`Successfully processed ${uniquePaths.length} agent config files`)
+    logging.info(
+        `Successfully processed ${uniquePaths.length} agent config files and ${agentConfig.useLegacyMcpJson ? 'legacy MCP configs' : 'no legacy MCP configs'}`
+    )
     return {
         servers,
         serverNameMapping,
@@ -631,7 +685,7 @@ export function convertPersonaToAgent(
     featureAgent: Agent
 ): AgentConfig {
     const agent: AgentConfig = {
-        name: 'amazon_q_default',
+        name: 'q_ide_default',
         description: 'Default agent configuration',
         prompt: '',
         mcpServers: {},
@@ -644,7 +698,7 @@ export function convertPersonaToAgent(
             agentSpawn: [],
             userPromptSubmit: [],
         },
-        useLegacyMcpJson: false,
+        useLegacyMcpJson: true,
     }
 
     // Include all servers from MCP config
@@ -956,7 +1010,8 @@ export async function saveServerSpecificAgentConfig(
     serverConfig: any,
     serverTools: string[],
     serverAllowedTools: string[],
-    configPath: string
+    configPath: string,
+    isLegacyMcpServer: boolean = false
 ): Promise<void> {
     try {
         await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
@@ -969,7 +1024,7 @@ export async function saveServerSpecificAgentConfig(
         } catch {
             // If file doesn't exist, create minimal config
             existingConfig = {
-                name: 'amazon_q_default',
+                name: 'q_ide_default',
                 description: 'Agent configuration',
                 mcpServers: {},
                 tools: [],
@@ -989,16 +1044,19 @@ export async function saveServerSpecificAgentConfig(
             tool => tool !== serverPrefix && !tool.startsWith(`${serverPrefix}/`)
         )
 
-        if (serverConfig === null) {
-            // Remove server entirely
-            delete existingConfig.mcpServers[serverName]
-        } else {
-            // Update or add server
-            existingConfig.mcpServers[serverName] = serverConfig
-            // Add new server tools
-            existingConfig.tools.push(...serverTools)
-            existingConfig.allowedTools.push(...serverAllowedTools)
+        if (!isLegacyMcpServer) {
+            if (serverConfig === null) {
+                // Remove server entirely
+                delete existingConfig.mcpServers[serverName]
+            } else {
+                // Update or add server
+                existingConfig.mcpServers[serverName] = serverConfig
+            }
         }
+
+        // Add new server tools
+        existingConfig.tools.push(...serverTools)
+        existingConfig.allowedTools.push(...serverAllowedTools)
 
         await workspace.fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
         logging.info(`Saved server-specific agent config for ${serverName} to ${configPath}`)
@@ -1025,9 +1083,9 @@ export async function migrateAgentConfigToCLIFormat(
 
         let updated = false
 
-        // Rename default-agent to amazon_q_default
-        if (config.name === 'default-agent') {
-            config.name = 'amazon_q_default'
+        // Rename default-agent to q_ide_default
+        if (config.name !== 'q_ide_default') {
+            config.name = 'q_ide_default'
             updated = true
         }
 
@@ -1041,7 +1099,7 @@ export async function migrateAgentConfigToCLIFormat(
             updated = true
         }
         if (!config.hasOwnProperty('useLegacyMcpJson')) {
-            config.useLegacyMcpJson = false
+            config.useLegacyMcpJson = true
             updated = true
         }
 

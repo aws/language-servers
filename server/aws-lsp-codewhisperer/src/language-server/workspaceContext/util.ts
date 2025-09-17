@@ -29,6 +29,13 @@ export const findWorkspaceRootFolder = (
     return matchingFolder
 }
 
+/**
+ * Helper function to normalize relative path e.g : src/java/test.java to file:///src/java/test/java for workspace context
+ */
+export const normalizeFileUri = (fileUri: string): string => {
+    return fileUri.startsWith('file://') ? fileUri : `file://${fileUri.startsWith('/') ? fileUri : '/' + fileUri}`
+}
+
 export const cleanUrl = (s3Url: string): string => {
     return new URL(s3Url).origin + new URL(s3Url).pathname
 }
