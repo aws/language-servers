@@ -49,6 +49,17 @@ describe('McpEventHandler error handling', () => {
             },
             agent: {
                 getTools: sinon.stub().returns([]),
+                getBuiltInToolNames: sinon
+                    .stub()
+                    .returns([
+                        'fsRead',
+                        'fsWrite',
+                        'executeBash',
+                        'listDirectory',
+                        'fileSearch',
+                        'codeReview',
+                        'displayFindings',
+                    ]),
             },
             lsp: {},
             telemetry: {
