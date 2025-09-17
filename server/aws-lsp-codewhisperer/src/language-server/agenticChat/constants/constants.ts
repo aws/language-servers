@@ -15,6 +15,9 @@ export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100
 // LLM Constants
 export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 
+// MCP Constants
+export const MCP_TOOLS_CONTEXT_WINDOW_THRESHOLD = 0.2 // 20% of context window
+
 // Compaction
 export const COMPACTION_BODY = (threshold: number) =>
     `The context window is almost full (${threshold}%) and exceeding it will clear your history. Amazon Q can compact your history instead.`
