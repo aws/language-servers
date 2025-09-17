@@ -182,10 +182,6 @@ export class ArtifactManager {
                         //if can't generate hash then file copy failed previously
                         continue
                     }
-                    if (contentHash.length == 0) {
-                        //if can't generate hash then file copy failed previously
-                        continue
-                    }
                     const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
                     codeFiles.push({
                         contentMd5Hash: contentHash,
@@ -331,15 +327,6 @@ export class ArtifactManager {
         if (failedCopies.length > 0) {
             this.logging.log(`Files - ${failedCopies.join(',')} - could not be copied.`)
         }
-        this.logging.log(
-            `Files with extensions ${filteredExtensions.join(', ')} are not zipped, as they are not necessary for transformation`
-        )
-        this.logging.log(
-            `Files in directories ${filteredDirectories.join(', ')} are not zipped, as they are not necessary for transformation`
-        )
-        if (failedCopies.length > 0) {
-            this.logging.log(`Files - ${failedCopies.join(',')} - could not be copied.`)
-        }
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
@@ -439,8 +426,6 @@ export class ArtifactManager {
                 fs.copyFile(sourceFilePath, destFilePath, err => {
                     if (err) {
                         this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
-                        failedCopies.push(sourceFilePath)
-                        resolve()
                         failedCopies.push(sourceFilePath)
                         resolve()
                     } else {
