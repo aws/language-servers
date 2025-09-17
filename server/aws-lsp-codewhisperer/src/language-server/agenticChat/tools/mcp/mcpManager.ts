@@ -1003,7 +1003,8 @@ export class McpManager {
                     null, // Don't save server config to agent file for legacy servers
                     serverTools,
                     serverAllowedTools,
-                    agentPath
+                    agentPath,
+                    isLegacyMcpServer
                 )
             }
 
