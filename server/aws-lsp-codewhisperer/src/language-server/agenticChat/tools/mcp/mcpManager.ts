@@ -898,14 +898,14 @@ export class McpManager {
         this.mcpServers.clear()
         this.mcpServerStates.clear()
         this.agentConfig = {
-            name: 'amazon_q_default',
+            name: 'q_ide_default',
             description: 'Agent configuration',
             mcpServers: {},
             tools: [],
             allowedTools: [],
             toolsSettings: {},
-            includedFiles: [],
             resources: [],
+            useLegacyMcpJson: true,
         }
         if (!keepInstance) {
             McpManager.#instance = undefined
@@ -959,7 +959,10 @@ export class McpManager {
 
             const serverPrefix = `@${unsanitizedServerName}`
 
-            // Process each tool permission using the permission manager
+            // Check if this is a legacy MCP server (from MCP config file)
+            const isLegacyMcpServer = serverConfig.__configPath__?.endsWith('mcp.json')
+
+            // For agent config servers, use the permission manager
             for (const [toolName, permission] of Object.entries(perm.toolPerms || {})) {
                 this.permissionManager.setToolPermission(unsanitizedServerName, toolName, permission)
             }
@@ -967,26 +970,24 @@ export class McpManager {
             // Update the agent config from the permission manager
             this.agentConfig = this.permissionManager.getAgentConfig()
 
-            // Update mcpServerPermissions map immediately to reflect changes
-            this.mcpServerPermissions.set(serverName, {
-                enabled: perm.enabled,
-                toolPerms: perm.toolPerms || {},
-            })
+            if (isLegacyMcpServer) {
+                // For legacy MCP servers, save permissions to agent config file and update MCP config for enable/disable
+                const mcpConfigPath = serverConfig.__configPath__!
+                const agentPath = mcpConfigPath.replace(
+                    path.sep + 'mcp.json',
+                    path.sep + 'agents' + path.sep + 'default.json'
+                )
 
-            // Update server enabled/disabled state in agent config
-            if (this.agentConfig.mcpServers[unsanitizedServerName]) {
-                this.agentConfig.mcpServers[unsanitizedServerName].disabled = !perm.enabled
-            }
+                // Update MCP config for enable/disable
+                await this.mutateConfigFile(mcpConfigPath, (json: any) => {
+                    if (!json.mcpServers[unsanitizedServerName]) {
+                        json.mcpServers[unsanitizedServerName] = { ...serverConfig }
+                        delete json.mcpServers[unsanitizedServerName].__configPath__
+                    }
+                    json.mcpServers[unsanitizedServerName].disabled = !perm.enabled
+                })
 
-            // Also update the mcpServers map
-            if (serverConfig) {
-                serverConfig.disabled = !perm.enabled
-            }
-
-            // Save only server-specific changes to agent config
-            const agentPath = perm.__configPath__
-            if (agentPath) {
-                // Collect server-specific tools and allowedTools
+                // Use the same function but with corrected agent path
                 const serverPrefix = `@${unsanitizedServerName}`
                 const serverTools = this.agentConfig.tools.filter(
                     tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
@@ -999,11 +1000,54 @@ export class McpManager {
                     this.features.workspace,
                     this.features.logging,
                     unsanitizedServerName,
-                    this.agentConfig.mcpServers[unsanitizedServerName],
+                    null, // Don't save server config to agent file for legacy servers
                     serverTools,
                     serverAllowedTools,
                     agentPath
                 )
+            }
+
+            // Update mcpServerPermissions map immediately to reflect changes
+            this.mcpServerPermissions.set(serverName, {
+                enabled: perm.enabled,
+                toolPerms: perm.toolPerms || {},
+            })
+
+            // Update server enabled/disabled state (only for non-legacy servers)
+            if (!isLegacyMcpServer) {
+                if (this.agentConfig.mcpServers[unsanitizedServerName]) {
+                    this.agentConfig.mcpServers[unsanitizedServerName].disabled = !perm.enabled
+                }
+            }
+
+            // Always update the mcpServers map
+            if (serverConfig) {
+                serverConfig.disabled = !perm.enabled
+            }
+
+            // Save only server-specific changes to agent config (for non-legacy servers)
+            if (!isLegacyMcpServer) {
+                const agentPath = perm.__configPath__
+                if (agentPath) {
+                    // Collect server-specific tools and allowedTools
+                    const serverPrefix = `@${unsanitizedServerName}`
+                    const serverTools = this.agentConfig.tools.filter(
+                        tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                    )
+                    const serverAllowedTools = this.agentConfig.allowedTools.filter(
+                        tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                    )
+
+                    await saveServerSpecificAgentConfig(
+                        this.features.workspace,
+                        this.features.logging,
+                        unsanitizedServerName,
+                        this.agentConfig.mcpServers[unsanitizedServerName],
+                        serverTools,
+                        serverAllowedTools,
+                        agentPath
+                    )
+                }
             }
 
             // enable/disable server
