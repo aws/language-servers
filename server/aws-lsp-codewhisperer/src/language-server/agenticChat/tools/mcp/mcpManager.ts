@@ -40,6 +40,7 @@ import { URI } from 'vscode-uri'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
+import { AgentPermissionManager } from './agentPermissionManager'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -65,12 +66,13 @@ export class McpManager {
     private toolNameMapping: Map<string, { serverName: string; toolName: string }>
     private serverNameMapping: Map<string, string>
     private agentConfig!: AgentConfig
+    private permissionManager!: AgentPermissionManager
 
     private constructor(
         private agentPaths: string[],
         private features: Pick<
             Features,
-            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime'
+            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime' | 'agent'
         >
     ) {
         this.mcpTools = []
@@ -87,7 +89,10 @@ export class McpManager {
 
     public static async init(
         agentPaths: string[],
-        features: Pick<Features, 'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime'>
+        features: Pick<
+            Features,
+            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime' | 'agent'
+        >
     ): Promise<McpManager> {
         if (!McpManager.#instance) {
             const mgr = new McpManager(agentPaths, features)
@@ -177,6 +182,12 @@ export class McpManager {
 
         // Extract agent config and other data
         this.agentConfig = result.agentConfig
+        this.permissionManager = new AgentPermissionManager(
+            this.agentConfig,
+            (serverName: string) => this.getAvailableToolsForServer(serverName),
+            () => this.getAllAvailableServerNames(),
+            () => this.getAllBuiltinToolNames()
+        )
         this.mcpServers = result.servers
         this.serverNameMapping = result.serverNameMapping
 
@@ -539,22 +550,7 @@ export class McpManager {
 
         // Get unsanitized server name for prefix
         const unsanitizedServerName = this.serverNameMapping.get(server) || server
-
-        // Check if the server is enabled as a whole (@server)
-        const serverPrefix = `@${unsanitizedServerName}`
-        const isWholeServerEnabled = this.agentConfig.tools.includes(serverPrefix)
-
-        // Check if the specific tool is enabled
-        const toolId = `${serverPrefix}/${tool}`
-        const isSpecificToolEnabled = this.agentConfig.tools.includes(toolId)
-
-        // If server is enabled as a whole, all tools are enabled
-        if (isWholeServerEnabled) {
-            return false
-        }
-
-        // Otherwise, check if this specific tool is enabled
-        return !isSpecificToolEnabled
+        return !this.permissionManager.isToolEnabled(server === 'builtIn' ? 'builtIn' : unsanitizedServerName, tool)
     }
 
     /**
@@ -569,42 +565,8 @@ export class McpManager {
      * Returns tool permission type for a given tool.
      */
     public getToolPerm(server: string, tool: string): McpPermissionType {
-        // For built-in tools, check directly without prefix
-        if (server === 'builtIn') {
-            return this.agentConfig.allowedTools.includes(tool) ? McpPermissionType.alwaysAllow : McpPermissionType.ask
-        }
-
-        // Get unsanitized server name for prefix
         const unsanitizedServerName = this.serverNameMapping.get(server) || server
-
-        // Check if the server is enabled as a whole (@server)
-        const serverPrefix = `@${unsanitizedServerName}`
-        const isWholeServerEnabled = this.agentConfig.tools.includes(serverPrefix)
-
-        // Check if the specific tool is enabled
-        const toolId = `${serverPrefix}/${tool}`
-        const isSpecificToolEnabled = this.agentConfig.tools.includes(toolId)
-
-        // If the tool is not enabled, return deny
-        if (!isWholeServerEnabled && !isSpecificToolEnabled) {
-            return McpPermissionType.deny
-        }
-
-        // If server is enabled as a whole, check if the server itself is in allowedTools
-        if (isWholeServerEnabled) {
-            // If server is in allowedTools, all tools are alwaysAllow
-            if (this.agentConfig.allowedTools.includes(serverPrefix)) {
-                return McpPermissionType.alwaysAllow
-            }
-
-            // Otherwise, check if specific tool is in allowedTools
-            return this.agentConfig.allowedTools.includes(toolId)
-                ? McpPermissionType.alwaysAllow
-                : McpPermissionType.ask
-        }
-
-        // For specific tools, check if it's in allowedTools
-        return this.agentConfig.allowedTools.includes(toolId) ? McpPermissionType.alwaysAllow : McpPermissionType.ask
+        return this.permissionManager.getToolPermission(server === 'builtIn' ? 'builtIn' : unsanitizedServerName, tool)
     }
 
     /**
@@ -782,6 +744,24 @@ export class McpManager {
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServerStates.delete(serverName)
 
+        // Check if this is a legacy MCP server (from MCP config file)
+        const isLegacyMcpServer = cfg.__configPath__?.endsWith('mcp.json')
+        let agentPath: string | undefined
+
+        if (isLegacyMcpServer && unsanitizedName) {
+            // Remove from MCP config file
+            await this.mutateConfigFile(cfg.__configPath__, (json: any) => {
+                if (json.mcpServers && json.mcpServers[unsanitizedName]) {
+                    delete json.mcpServers[unsanitizedName]
+                }
+            })
+
+            agentPath = cfg.__configPath__.replace(
+                path.sep + 'mcp.json',
+                path.sep + 'agents' + path.sep + 'default.json'
+            )
+        }
+
         // Remove from agent config
         if (unsanitizedName && this.agentConfig) {
             // Remove server from mcpServers
@@ -821,7 +801,8 @@ export class McpManager {
                 null, // null indicates server should be removed
                 [],
                 [],
-                cfg.__configPath__
+                isLegacyMcpServer ? agentPath! : cfg.__configPath__,
+                isLegacyMcpServer
             )
         }
 
@@ -944,14 +925,14 @@ export class McpManager {
         this.mcpServers.clear()
         this.mcpServerStates.clear()
         this.agentConfig = {
-            name: 'amazon_q_default',
+            name: 'q_ide_default',
             description: 'Agent configuration',
             mcpServers: {},
             tools: [],
             allowedTools: [],
             toolsSettings: {},
-            includedFiles: [],
             resources: [],
+            useLegacyMcpJson: true,
         }
         if (!keepInstance) {
             McpManager.#instance = undefined
@@ -1005,120 +986,35 @@ export class McpManager {
 
             const serverPrefix = `@${unsanitizedServerName}`
 
-            // Track tools that should be enabled
-            const toolsToEnable = new Set<string>()
-            const toolsToAlwaysAllow = new Set<string>()
+            // Check if this is a legacy MCP server (from MCP config file)
+            const isLegacyMcpServer = serverConfig.__configPath__?.endsWith('mcp.json')
 
-            // Check if server is enabled as a whole
-            const isWholeServerEnabled = this.agentConfig.tools.includes(serverPrefix)
-
-            // Process each tool permission
+            // For agent config servers, use the permission manager
             for (const [toolName, permission] of Object.entries(perm.toolPerms || {})) {
-                const toolId = `${serverPrefix}/${toolName}`
+                this.permissionManager.setToolPermission(unsanitizedServerName, toolName, permission)
+            }
 
-                if (permission === McpPermissionType.deny) {
-                    // For deny: if server is enabled as a whole, we need to switch to individual tools
-                    if (isWholeServerEnabled) {
-                        // Get all tools for this server
-                        const serverTools = this.mcpTools.filter(t => t.serverName === serverName)
+            // Update the agent config from the permission manager
+            this.agentConfig = this.permissionManager.getAgentConfig()
 
-                        // Remove server prefix from tools
-                        this.agentConfig.tools = this.agentConfig.tools.filter(t => t !== serverPrefix)
+            if (isLegacyMcpServer) {
+                // For legacy MCP servers, save permissions to agent config file and update MCP config for enable/disable
+                const mcpConfigPath = serverConfig.__configPath__!
+                const agentPath = mcpConfigPath.replace(
+                    path.sep + 'mcp.json',
+                    path.sep + 'agents' + path.sep + 'default.json'
+                )
 
-                        // Add all tools except the denied one
-                        for (const t of serverTools) {
-                            if (t.toolName !== toolName) {
-                                const tid = `${serverPrefix}/${t.toolName}`
-                                if (!this.agentConfig.tools.includes(tid)) {
-                                    this.agentConfig.tools.push(tid)
-                                }
-                                toolsToEnable.add(tid)
-                            }
-                        }
-                    } else {
-                        // Just remove the specific tool
-                        this.agentConfig.tools = this.agentConfig.tools.filter(t => t !== toolId)
+                // Update MCP config for enable/disable
+                await this.mutateConfigFile(mcpConfigPath, (json: any) => {
+                    if (!json.mcpServers[unsanitizedServerName]) {
+                        json.mcpServers[unsanitizedServerName] = { ...serverConfig }
+                        delete json.mcpServers[unsanitizedServerName].__configPath__
                     }
+                    json.mcpServers[unsanitizedServerName].disabled = !perm.enabled
+                })
 
-                    // Always remove from allowedTools
-                    this.agentConfig.allowedTools = this.agentConfig.allowedTools.filter(t => t !== toolId)
-                } else {
-                    // For ask or alwaysAllow: add to tools
-                    toolsToEnable.add(toolId)
-
-                    // For alwaysAllow: also add to allowedTools
-                    if (permission === McpPermissionType.alwaysAllow) {
-                        toolsToAlwaysAllow.add(toolId)
-                    } else {
-                        // For ask: remove from allowedTools if present
-                        this.agentConfig.allowedTools = this.agentConfig.allowedTools.filter(t => t !== toolId)
-                    }
-                }
-            }
-
-            // If all tools are enabled, use @serverName instead of individual tools
-            const allTools = this.mcpTools.filter(t => t.serverName === serverName).map(t => t.toolName)
-
-            // Check if all tools are enabled, considering both:
-            // 1. The server might already be enabled as a whole (isWholeServerEnabled)
-            // 2. All tools might be individually enabled in toolsToEnable
-            const allToolsEnabled =
-                allTools.length > 0 &&
-                // If server is already enabled as a whole and no tools are being denied
-                ((isWholeServerEnabled && !Object.values(perm.toolPerms || {}).includes(McpPermissionType.deny)) ||
-                    // Or if all tools are individually enabled
-                    allTools.every(
-                        toolName =>
-                            toolsToEnable.has(`${serverPrefix}/${toolName}`) ||
-                            !Object.keys(perm.toolPerms || {}).includes(toolName)
-                    ))
-
-            // Update tools list
-            if (allToolsEnabled) {
-                // Remove individual tool entries
-                this.agentConfig.tools = this.agentConfig.tools.filter(t => !t.startsWith(`${serverPrefix}/`))
-                // Add server prefix if not already there
-                if (!this.agentConfig.tools.includes(serverPrefix)) {
-                    this.agentConfig.tools.push(serverPrefix)
-                }
-            } else {
-                // Remove server prefix if present
-                this.agentConfig.tools = this.agentConfig.tools.filter(t => t !== serverPrefix)
-                // Add individual tools
-                for (const toolId of toolsToEnable) {
-                    if (!this.agentConfig.tools.includes(toolId)) {
-                        this.agentConfig.tools.push(toolId)
-                    }
-                }
-            }
-
-            // Update allowedTools list
-            for (const toolId of toolsToAlwaysAllow) {
-                if (!this.agentConfig.allowedTools.includes(toolId)) {
-                    this.agentConfig.allowedTools.push(toolId)
-                }
-            }
-
-            // Update mcpServerPermissions map immediately to reflect changes
-            this.mcpServerPermissions.set(serverName, {
-                enabled: perm.enabled,
-                toolPerms: perm.toolPerms || {},
-            })
-
-            // Update server enabled/disabled state in agent config
-            if (this.agentConfig.mcpServers[unsanitizedServerName]) {
-                this.agentConfig.mcpServers[unsanitizedServerName].disabled = !perm.enabled
-            }
-
-            // Also update the mcpServers map
-            if (serverConfig) {
-                serverConfig.disabled = !perm.enabled
-            }
-
-            // Save only server-specific changes to agent config
-            const agentPath = perm.__configPath__
-            if (agentPath) {
-                // Collect server-specific tools and allowedTools
+                // Use the same function but with corrected agent path
                 const serverPrefix = `@${unsanitizedServerName}`
                 const serverTools = this.agentConfig.tools.filter(
                     tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
@@ -1131,11 +1027,55 @@ export class McpManager {
                     this.features.workspace,
                     this.features.logging,
                     unsanitizedServerName,
-                    this.agentConfig.mcpServers[unsanitizedServerName],
+                    null, // Don't save server config to agent file for legacy servers
                     serverTools,
                     serverAllowedTools,
-                    agentPath
+                    agentPath,
+                    isLegacyMcpServer
                 )
+            }
+
+            // Update mcpServerPermissions map immediately to reflect changes
+            this.mcpServerPermissions.set(serverName, {
+                enabled: perm.enabled,
+                toolPerms: perm.toolPerms || {},
+            })
+
+            // Update server enabled/disabled state (only for non-legacy servers)
+            if (!isLegacyMcpServer) {
+                if (this.agentConfig.mcpServers[unsanitizedServerName]) {
+                    this.agentConfig.mcpServers[unsanitizedServerName].disabled = !perm.enabled
+                }
+            }
+
+            // Always update the mcpServers map
+            if (serverConfig) {
+                serverConfig.disabled = !perm.enabled
+            }
+
+            // Save only server-specific changes to agent config (for non-legacy servers)
+            if (!isLegacyMcpServer) {
+                const agentPath = perm.__configPath__
+                if (agentPath) {
+                    // Collect server-specific tools and allowedTools
+                    const serverPrefix = `@${unsanitizedServerName}`
+                    const serverTools = this.agentConfig.tools.filter(
+                        tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                    )
+                    const serverAllowedTools = this.agentConfig.allowedTools.filter(
+                        tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                    )
+
+                    await saveServerSpecificAgentConfig(
+                        this.features.workspace,
+                        this.features.logging,
+                        unsanitizedServerName,
+                        this.agentConfig.mcpServers[unsanitizedServerName],
+                        serverTools,
+                        serverAllowedTools,
+                        agentPath
+                    )
+                }
             }
 
             // enable/disable server
@@ -1173,6 +1113,31 @@ export class McpManager {
         const unsanitizedServerName = this.serverNameMapping.get(server) || server
         const toolId = `@${unsanitizedServerName}/${tool}`
         return !this.agentConfig.allowedTools.includes(toolId)
+    }
+
+    /**
+     * Get available tools for a specific server
+     */
+    private getAvailableToolsForServer(serverName: string): string[] {
+        return this.mcpTools.filter(tool => tool.serverName === serverName).map(tool => tool.toolName)
+    }
+
+    /**
+     * Get all available server names
+     */
+    private getAllAvailableServerNames(): string[] {
+        const serverNames = new Set<string>()
+        for (const tool of this.mcpTools) {
+            serverNames.add(tool.serverName)
+        }
+        return Array.from(serverNames)
+    }
+
+    /**
+     * Get all builtin tool names
+     */
+    private getAllBuiltinToolNames(): string[] {
+        return this.features.agent?.getBuiltInToolNames() || []
     }
 
     /**

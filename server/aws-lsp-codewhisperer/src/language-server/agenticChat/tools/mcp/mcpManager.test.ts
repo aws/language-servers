@@ -28,7 +28,25 @@ const fakeWorkspace = {
     getUserHomeDir: () => '',
     getAllWorkspaceFolders: () => [{ uri: '/fake/workspace' }],
 }
-const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
+const features = {
+    logging: fakeLogging,
+    workspace: fakeWorkspace,
+    lsp: {},
+    telemetry: { emitMetric: () => {} },
+    credentialsProvider: { getConnectionMetadata: () => ({}) },
+    runtime: { serverInfo: { version: '1.0.0' } },
+    agent: {
+        getBuiltInToolNames: () => [
+            'fsRead',
+            'fsWrite',
+            'executeBash',
+            'listDirectory',
+            'fileSearch',
+            'codeReview',
+            'displayFindings',
+        ],
+    },
+} as any
 
 function stubAgentConfig(): sinon.SinonStub {
     return sinon.stub(mcpUtils, 'loadAgentConfig').resolves({

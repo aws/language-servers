@@ -12,7 +12,14 @@ import {
     Status,
 } from '@aws/language-server-runtimes/protocol'
 
-import { getGlobalAgentConfigPath, getWorkspaceAgentConfigPaths, sanitizeName, normalizePathFromUri } from './mcpUtils'
+import {
+    getGlobalAgentConfigPath,
+    getWorkspaceAgentConfigPaths,
+    sanitizeName,
+    normalizePathFromUri,
+    getWorkspaceMcpConfigPaths,
+    getGlobalMcpConfigPath,
+} from './mcpUtils'
 import {
     McpPermissionType,
     MCPServerConfig,
@@ -1472,13 +1479,15 @@ export class McpEventHandler {
             this.#features.logging.warn(`Failed to get user home directory: ${e}`)
         }
 
-        // Only watch agent config files
+        // Watch both agent config files and MCP config files
         const agentPaths = [
             ...getWorkspaceAgentConfigPaths(wsUris),
             ...(homeDir ? [getGlobalAgentConfigPath(homeDir)] : []),
         ]
 
-        const allPaths = [...agentPaths]
+        const mcpPaths = [...getWorkspaceMcpConfigPaths(wsUris), ...(homeDir ? [getGlobalMcpConfigPath(homeDir)] : [])]
+
+        const allPaths = [...agentPaths, ...mcpPaths]
 
         this.#fileWatcher.watchPaths(allPaths, () => {
             // Store the current programmatic state when the event is triggered
