@@ -3,7 +3,7 @@ import {
     AmazonQServiceServerIAM,
     AmazonQServiceServerToken,
     CodeWhispererSecurityScanServerTokenProxy,
-    CodeWhispererServerTokenProxy,
+    CodeWhispererServer,
     QAgenticChatServerProxy,
     QConfigurationServerTokenProxy,
     QLocalProjectContextServerProxy,
@@ -25,7 +25,7 @@ const version = versionJson.agenticChat
 const props = {
     version: version,
     servers: [
-        CodeWhispererServerTokenProxy,
+        CodeWhispererServer,
         CodeWhispererSecurityScanServerTokenProxy,
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,

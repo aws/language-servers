@@ -6,7 +6,6 @@ import {
     InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-    Position,
     Range,
     Server,
     TextDocument,
@@ -16,6 +15,10 @@ import {
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     FileContext,
+    BaseGenerateSuggestionsRequest,
+    CodeWhispererServiceToken,
+    GenerateIAMSuggestionsRequest,
+    GenerateTokenSuggestionsRequest,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
@@ -23,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
@@ -59,6 +62,7 @@ import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
+import { isUsingIAMAuth } from '../../shared/utils'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -102,7 +106,7 @@ const mergeSuggestionsWithRightContext = (
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: () => AmazonQBaseServiceManager): Server =>
+    (serviceManager: (credentialsProvider?: any) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -151,6 +155,13 @@ export const CodewhispererServerFactory =
                 logging.log(`Skip concurrent inline completion`)
                 return EMPTY_RESULT
             }
+
+            // Add this check to ensure service manager is initialized
+            if (!amazonQServiceManager) {
+                logging.log('Amazon Q Service Manager not initialized yet')
+                return EMPTY_RESULT
+            }
+
             isOnInlineCompletionHandlerInProgress = true
 
             try {
@@ -167,6 +178,10 @@ export const CodewhispererServerFactory =
                 const textDocument = await getTextDocument(params.textDocument.uri, workspace, logging)
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+                const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
+                logging.debug(
+                    `[INLINE_COMPLETION] Service ready - auth: ${authType}, partial token: ${!!params.partialResultToken}`
+                )
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
                     try {
@@ -362,11 +377,25 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    const generateCompletionReq = {
-                        ...requestContext,
-                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                    // Create the appropriate request based on service type
+                    let generateCompletionReq: BaseGenerateSuggestionsRequest
+
+                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                        const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
+                        generateCompletionReq = {
+                            ...tokenRequest,
+                            ...(workspaceId ? { workspaceId } : {}),
+                        }
+                    } else {
+                        const iamRequest = requestContext as GenerateIAMSuggestionsRequest
+                        generateCompletionReq = {
+                            ...iamRequest,
+                        }
                     }
+
                     try {
+                        const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
+                        logging.debug(`[INLINE_COMPLETION] API call - generateSuggestions (new session, ${authType})`)
                         const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
                         return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
                     } catch (error) {
@@ -524,6 +553,7 @@ export const CodewhispererServerFactory =
             session: CodeWhispererSession
         ): InlineCompletionListWithReferences => {
             logging.log('Recommendation failure: ' + error)
+
             emitServiceInvocationFailure(telemetry, session, error)
 
             // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
@@ -706,7 +736,7 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = serviceManager()
+            amazonQServiceManager = serviceManager(credentialsProvider)
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
@@ -874,6 +904,11 @@ export const CodewhispererServerFactory =
             logging.log('Amazon Q Inline Suggestion server has been shut down')
         }
     }
+
+// Dynamic service manager factory that detects auth type at runtime
+export const CodeWhispererServer = CodewhispererServerFactory((credentialsProvider?: any) => {
+    return isUsingIAMAuth(credentialsProvider) ? getOrThrowBaseIAMServiceManager() : getOrThrowBaseTokenServiceManager()
+})
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)

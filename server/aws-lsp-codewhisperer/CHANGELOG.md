@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.80](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.79...lsp-codewhisperer/v0.0.80) (2025-09-16)
+
+
+### Features
+
+* **amazonq:** semantic search tool integration ([#2283](https://github.com/aws/language-servers/issues/2283)) ([8eb3c34](https://github.com/aws/language-servers/commit/8eb3c340534f3c66fd9082a83b31e84a4d9348bb))
+* **amazonq:** support for wildcard permissions from agent config ([#2249](https://github.com/aws/language-servers/issues/2249)) ([2f6e86b](https://github.com/aws/language-servers/commit/2f6e86b0a676674744b962b0e335543c6c39e9e1))
+* support sending requests with the 'external_idp' type ([#2247](https://github.com/aws/language-servers/issues/2247)) ([4d3b938](https://github.com/aws/language-servers/commit/4d3b938b7e961def0db2a51fba57e8fe73ea0a01))
+
+
+### Bug Fixes
+
+* filetype filtering and consolidation of other filtering logic during artifact generation ([#2233](https://github.com/aws/language-servers/issues/2233)) ([a3e66f2](https://github.com/aws/language-servers/commit/a3e66f2d414060adde90cc7312f07c6359ae3246))
+
+## [0.0.79](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.78...lsp-codewhisperer/v0.0.79) (2025-09-10)
+
+
+### Features
+
+* feature to add iam inline suggestion support in codeWhispererservice ([#2223](https://github.com/aws/language-servers/issues/2223)) ([8e19f19](https://github.com/aws/language-servers/commit/8e19f19a71e63a1196f4cb67ded8360c8da8129e))
+
 ## [0.0.78](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.77...lsp-codewhisperer/v0.0.78) (2025-09-09)
 
 

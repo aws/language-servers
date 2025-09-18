@@ -236,10 +236,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities
                 ?.textDocument?.inlineCompletionWithReferences?.endpointOverride
 
-        // Connection type changed to 'builderId'
-
-        if (newConnectionType === 'builderId') {
-            this.log('Detected New connection type: builderId')
+        // Connection type changed to 'builderId' | 'external_idp'
+        // for now pretend External IdP is just a special case of Builder ID where the subscription has already been established
+        // and user does not need a profile
+        if (newConnectionType === 'builderId' || newConnectionType === 'external_idp') {
+            this.log(`Detected New connection type: ${newConnectionType}`)
             this.resetCodewhispererService()
 
             // For the builderId connection type regional endpoint discovery chain is:
@@ -247,12 +248,12 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             const clientParams = this.features.lsp.getClientInitializeParams()
 
             this.createCodewhispererServiceInstances(
-                'builderId',
+                newConnectionType,
                 clientParams?.initializationOptions?.aws?.region,
                 endpointOverride
             )
             this.state = 'INITIALIZED'
-            this.log('Initialized Amazon Q service with builderId connection')
+            this.log(`Initialized Amazon Q service with ${newConnectionType} connection`)
 
             // Emit auth success event
             ProfileStatusMonitor.emitAuthSuccess()
@@ -417,9 +418,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         const newRegion = newProfile.identityDetails.region
         if (oldRegion === newRegion) {
             this.log(`New profile is in the same region as old one, keeping exising service.`)
-            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${oldRegion}`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
+            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${newRegion}`)
 
             if (this.cachedCodewhispererService) {
                 this.cachedCodewhispererService.profileArn = newProfile.arn
@@ -506,7 +507,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     private createCodewhispererServiceInstances(
-        connectionType: 'builderId' | 'identityCenter',
+        connectionType: Exclude<SsoConnectionType, 'none'>,
         clientOrProfileRegion: string | undefined,
         endpointOverride: string | undefined
     ) {
