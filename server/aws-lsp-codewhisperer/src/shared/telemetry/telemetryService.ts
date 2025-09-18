@@ -256,7 +256,7 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
-        const isInlineEdit = session.suggestionType === SuggestionType.EDIT
+        const isInlineEdit = session.predictionType === SuggestionType.EDIT
 
         // RTS STE API
         const event: UserTriggerDecisionEvent = {
