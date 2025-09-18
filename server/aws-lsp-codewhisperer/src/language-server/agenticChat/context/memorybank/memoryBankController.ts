@@ -64,11 +64,11 @@ export class MemoryBankController {
             await this.cleanMemoryBankDirectory(workspaceFolderUri)
 
             // Step 2: Execute deterministic analysis (TF-IDF)
-            this.features.logging.info(`Memory Bank: running analysis for workspace: ${workspaceFolderUri}`)
+            this.features.logging.info(`Memory Bank: running analysis for workspace`)
             const analysisResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
 
             // Step 3: Make LLM call for file ranking
-            const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(analysisResults.formattedFilesString, 20)
+            const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(analysisResults.formattedFilesString, 10)
             const rankedFilesResponse = await llmCallFunction(rankingPrompt)
 
             // Step 4: Parse ranked files
@@ -108,7 +108,7 @@ export class MemoryBankController {
                 this.features.logging.warn(
                     `Memory Bank: failed to parse LLM ranking response, using TF-IDF fallback: ${error}`
                 )
-                rankedFilesList = analysisResults.rankedFilesList.slice(0, 20)
+                rankedFilesList = analysisResults.rankedFilesList.slice(0, 10)
             }
 
             this.features.logging.info(
@@ -169,14 +169,24 @@ export class MemoryBankController {
     ): Promise<Array<{ path: string; size: number }>> {
         try {
             // Recursively discover all source files
-            const sourceFiles = await this.discoverSourceFiles(workspaceFolderUri, extensions)
+            const workspaceFolders = this.features.workspace
+                .getAllWorkspaceFolders()
+                ?.map(({ uri }) => new URL(uri).pathname) ?? [workspaceFolderUri]
+
+            // Collect files from all workspace folders
+            let allSourceFiles: string[] = []
+
+            for (const folder of workspaceFolders) {
+                const sourceFiles = await this.discoverSourceFiles(folder, extensions)
+                allSourceFiles.push(...sourceFiles)
+            }
 
             // OPTIMIZATION: Parallel file size calculation with batching
             const batchSize = 10 // Process 10 files at a time
             const files: Array<{ path: string; size: number }> = []
 
-            for (let i = 0; i < sourceFiles.length; i += batchSize) {
-                const batch = sourceFiles.slice(i, i + batchSize)
+            for (let i = 0; i < allSourceFiles.length; i += batchSize) {
+                const batch = allSourceFiles.slice(i, i + batchSize)
                 const batchResults = await Promise.all(
                     batch.map(async filePath => ({
                         path: filePath,
@@ -396,7 +406,6 @@ export class MemoryBankController {
             // Step 1: Discover all source files
             // OPTIMIZATION: Prioritize common extensions first for faster discovery
             const extensions = [
-                // Most Common (check first for early termination)
                 '.ts',
                 '.js',
                 '.tsx',
@@ -409,116 +418,11 @@ export class MemoryBankController {
                 '.cs',
                 '.go',
                 '.rs',
-                // Web Technologies
-                '.vue',
-                '.svelte',
-                '.html',
-                '.css',
-                '.scss',
-                '.sass',
-                '.less',
-                // Backend Languages
-                '.scala',
-                '.kt',
-                '.kts',
-                '.groovy',
-                '.clj',
-                '.cljs',
-                '.fs',
-                '.vb',
                 '.php',
                 '.rb',
-                '.pl',
-                '.pm',
-                // Systems Programming
-                '.cc',
-                '.cxx',
-                '.c++',
-                '.hpp',
-                '.hxx',
-                '.h++',
-                '.zig',
-                '.nim',
-                '.d',
-                // Mobile Development
                 '.swift',
-                '.m',
-                '.mm',
-                '.dart',
-                // Functional Languages
-                '.hs',
-                '.lhs',
-                '.elm',
-                '.ml',
-                '.mli',
-                '.f90',
-                '.f95',
-                '.f03',
-                '.f08',
-                // JVM Languages
-                '.gradle',
-                '.sbt',
-                // Scripting Languages
-                '.sh',
-                '.bash',
-                '.zsh',
-                '.fish',
-                '.ps1',
-                '.bat',
-                '.cmd',
-                '.lua',
-                '.tcl',
-                '.awk',
-                '.sed',
-                // Data & Config Languages
-                '.sql',
-                '.graphql',
-                '.gql',
-                '.proto',
-                '.thrift',
-                '.yaml',
-                '.yml',
-                '.toml',
-                '.ini',
-                '.cfg',
-                '.conf',
-                '.json',
-                '.jsonc',
-                '.json5',
-                '.xml',
-                '.plist',
-                // Documentation & Markup
-                '.md',
-                '.mdx',
-                '.rst',
-                '.adoc',
-                '.tex',
-                '.org',
-                // Domain Specific
-                '.r',
-                '.R',
-                '.jl',
-                '.nb',
-                '.ipynb',
-                '.sol',
-                '.move',
-                '.cairo',
-                '.fe',
-                // Assembly & Low Level
-                '.asm',
-                '.s',
-                '.S',
-                '.nasm',
-                // Other Notable Languages
-                '.ex',
-                '.exs',
-                '.erl',
-                '.hrl',
-                '.cr',
-                '.v',
-                '.sv',
-                '.vhd',
-                '.vhdl',
+                '.kt',
+                '.scala',
             ]
 
             const discoveredFiles = await this.discoverAllSourceFiles(workspaceFolderUri, extensions)
@@ -529,8 +433,22 @@ export class MemoryBankController {
                 throw new Error('No source files found in workspace')
             }
 
+            // Limit files to prevent memory exhaustion on large projects
+            const MAX_FILES_FOR_ANALYSIS = 200
+            let filesToAnalyze: Array<{ path: string; size: number }>
+
+            if (discoveredFiles.length > MAX_FILES_FOR_ANALYSIS) {
+                const shuffled = [...discoveredFiles].sort(() => Math.random() - 0.5)
+                filesToAnalyze = shuffled.slice(0, MAX_FILES_FOR_ANALYSIS)
+                this.features.logging.info(
+                    `Memory Bank analysis: randomly selected ${filesToAnalyze.length} files (from ${discoveredFiles.length} discovered)`
+                )
+            } else {
+                filesToAnalyze = discoveredFiles
+            }
+
             // Step 2: Calculate lexical dissimilarity using TF-IDF
-            const filesWithDissimilarity = await this.calculateLexicalDissimilarity(discoveredFiles)
+            const filesWithDissimilarity = await this.calculateLexicalDissimilarity(filesToAnalyze)
 
             // Step 3: Sort by size
             filesWithDissimilarity.sort((a, b) => b.size - a.size)
@@ -541,11 +459,11 @@ export class MemoryBankController {
             // Step 5: Create fallback ranking (deterministic, for when LLM fails)
             const rankedFilesList = filesWithDissimilarity
                 .sort((a, b) => b.dissimilarity - a.dissimilarity)
-                .slice(0, 20)
+                .slice(0, 10)
                 .map(f => f.path)
 
             return {
-                discoveredFiles,
+                discoveredFiles: filesToAnalyze,
                 filesWithDissimilarity,
                 formattedFilesString,
                 rankedFilesList,
