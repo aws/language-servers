@@ -52,8 +52,10 @@ You MUST generate a complete Memory Bank for this project by analyzing the codeb
 - Even if you've analyzed this project before in this conversation, START FRESH
 - ALWAYS begin by exploring the project with listDirectory and readFile tools
 - This is REQUIRED even if you think you already know the project structure
-- List directories and read key files to understand the current state
-- This ensures documentation reflects the CURRENT codebase, not historical knowledge
+- Start with the root directory to understand if this is a multi-package workspace
+- Look for package directories, monorepo structure, or multiple components
+- Read key configuration files (package.json, README.md, etc.) to understand the project
+- This ensures documentation reflects the CURRENT complete codebase structure
 
 **CRITICAL MESSAGING AND TOOL USAGE POLICY:**
 - Send your own brief progress messages before using tools (e.g., "Creating product.md - project overview and capabilities...")
@@ -96,7 +98,7 @@ ${rankedFiles.map((file, i) => `${i + 1}. ${file}`).join('\n')}
 Create comprehensive development guidelines by:
 
 1. **Iterative File Analysis**:
-   - Process files in chunks of 4 using readFile tool
+   - Process files in chunks of 2 using readFile tool
    - Build guidelines iteratively, analyzing patterns across chunks
    - Each iteration should build upon previous findings
 
@@ -116,8 +118,8 @@ Create comprehensive development guidelines by:
    - Popular annotations
 
 **ITERATIVE PROCESSING INSTRUCTIONS:**
-- Process the ranked files in chunks of 4 files at a time using readFile tool
-- For each chunk, send: "Analyzing chunk X/Y - Processing 4 files..."
+- Process the ranked files in chunks of 2 files at a time using readFile tool
+- For each chunk, send: "Analyzing chunk X/Y - Processing 2 files..."
 - Analyze patterns in each chunk and build upon previous findings
 - Keep track of how many files exhibit each pattern (frequency analysis)
 - Build comprehensive guidelines.md iteratively through this process
