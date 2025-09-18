@@ -94,8 +94,6 @@ export class CodeWhispererSession {
 
     // Suggestion type specified by the clients, could be either "EDIT" or "COMPLETION"
     predictionType?: SuggestionType
-    // Suggestion type "actually" returned from the service, could be either "EDIT" or "COMPLETION"
-    suggestionType?: string
     // Track the most recent itemId for paginated Edit suggestions
 
     constructor(data: SessionData) {
