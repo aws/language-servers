@@ -33,7 +33,7 @@ import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT_COUNT } from '../../../shared/imageVerification'
-import { mergeFileLists } from './contextUtils'
+import { MemoryBankController } from './memorybank/memoryBankController'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -151,6 +151,31 @@ export class AdditionalContextProvider {
 
         // Filter rules based on user's rules preferences for current tab
         let rulesState = this.chatDb.getRules(tabId) || { folders: {}, rules: {} }
+
+        // Ensure memory bank files are active by default when first discovered
+        const memoryBankFiles = rulesFiles.filter(rule => rule.id?.includes('memory-bank'))
+        if (memoryBankFiles.length > 0) {
+            let needsUpdate = false
+
+            const memoryBankFolderName = 'memory-bank'
+            if (rulesState.folders[memoryBankFolderName] === undefined) {
+                rulesState.folders[memoryBankFolderName] = true
+                needsUpdate = true
+            }
+
+            memoryBankFiles.forEach(file => {
+                if (rulesState.rules[file.id] === undefined) {
+                    rulesState.rules[file.id] = true
+                    needsUpdate = true
+                }
+            })
+
+            if (needsUpdate) {
+                this.chatDb.setRules(tabId, rulesState)
+                this.features.logging.info(`Memory Bank files activated by default: ${memoryBankFiles.length} files`)
+            }
+        }
+
         return rulesFiles.filter(rule => {
             // If the rule has an explicit state in rulesState, use that value
             if (rulesState.rules[rule.id] !== undefined) {
@@ -199,7 +224,8 @@ export class AdditionalContextProvider {
     async getAdditionalContext(
         triggerContext: TriggerContext,
         tabId: string,
-        context?: ContextCommand[]
+        context?: ContextCommand[],
+        prompt?: string
     ): Promise<AdditionalContentEntryAddition[]> {
         triggerContext.contextInfo = getInitialContextInfo()
 
@@ -220,7 +246,33 @@ export class AdditionalContextProvider {
             : workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)[0]
 
         if (workspaceRules.length > 0) {
-            pinnedContextCommands.push(...workspaceRules)
+            // Check if this is a memory bank generation request
+            const isMemoryBankRequest = prompt
+                ? new MemoryBankController(this.features).isMemoryBankCreationRequest(prompt)
+                : false
+
+            let rulesToInclude = workspaceRules
+
+            if (isMemoryBankRequest) {
+                // Exclude memory bank files from context when regenerating memory bank
+                const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
+                rulesToInclude = workspaceRules.filter(rule => !rule.id?.includes('memory-bank'))
+
+                if (memoryBankFiles.length > 0) {
+                    this.features.logging.info(
+                        `Memory Bank regeneration: excluding ${memoryBankFiles.length} existing files from context`
+                    )
+                }
+            } else {
+                // Normal behavior: include all workspace rules (including memory bank files)
+                const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
+                if (memoryBankFiles.length > 0) {
+                    this.features.logging.info(`Including ${memoryBankFiles.length} memory bank files in chat context`)
+                }
+            }
+
+            // Add the filtered rules to pinned context
+            pinnedContextCommands.push(...rulesToInclude)
         }
 
         // Merge pinned context with context added to prompt, avoiding duplicates
@@ -675,7 +727,12 @@ export class AdditionalContextProvider {
                 if (dirPath === '.') {
                     folderName = undefined
                 } else {
-                    folderName = dirPath
+                    // Special handling for memory bank files
+                    if (dirPath === '.amazonq/rules/memory-bank') {
+                        folderName = 'memory-bank'
+                    } else {
+                        folderName = dirPath
+                    }
                 }
             } else {
                 // In multi-workspace: include workspace folder name for all files
