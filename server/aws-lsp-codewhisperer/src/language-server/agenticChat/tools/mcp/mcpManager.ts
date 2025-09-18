@@ -744,6 +744,24 @@ export class McpManager {
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServerStates.delete(serverName)
 
+        // Check if this is a legacy MCP server (from MCP config file)
+        const isLegacyMcpServer = cfg.__configPath__?.endsWith('mcp.json')
+        let agentPath: string | undefined
+
+        if (isLegacyMcpServer && unsanitizedName) {
+            // Remove from MCP config file
+            await this.mutateConfigFile(cfg.__configPath__, (json: any) => {
+                if (json.mcpServers && json.mcpServers[unsanitizedName]) {
+                    delete json.mcpServers[unsanitizedName]
+                }
+            })
+
+            agentPath = cfg.__configPath__.replace(
+                path.sep + 'mcp.json',
+                path.sep + 'agents' + path.sep + 'default.json'
+            )
+        }
+
         // Remove from agent config
         if (unsanitizedName && this.agentConfig) {
             // Remove server from mcpServers
@@ -783,7 +801,8 @@ export class McpManager {
                 null, // null indicates server should be removed
                 [],
                 [],
-                cfg.__configPath__
+                isLegacyMcpServer ? agentPath! : cfg.__configPath__,
+                isLegacyMcpServer
             )
         }
 
