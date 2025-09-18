@@ -177,7 +177,7 @@ export class CodeWhispererSession {
         if (
             this.state === 'CLOSED' ||
             this.state === 'DISCARD' ||
-            (this.completionSessionResult && this.suggestionType === SuggestionType.COMPLETION)
+            (this.completionSessionResult && this.predictionType === SuggestionType.COMPLETION)
         ) {
             return
         }
