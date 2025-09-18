@@ -107,14 +107,20 @@ export async function loadMcpServerConfigs(
                 configErrors.set(`${name}_timeout`, errorMsg)
             }
             const cfg: MCPServerConfig = {
-                url: entry.url,
-                headers: typeof entry.headers === 'object' && entry.headers !== null ? entry.headers : undefined,
-                command: entry.command,
-                args: Array.isArray(entry.args) ? entry.args.map(String) : [],
-                env: typeof entry.env === 'object' && entry.env !== null ? entry.env : {},
+                command: (entry as any).command,
+                url: (entry as any).url,
+                args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
+                env: typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
+                headers:
+                    typeof (entry as any).headers === 'object' && (entry as any).headers !== null
+                        ? (entry as any).headers
+                        : undefined,
                 initializationTimeout:
-                    typeof entry.initializationTimeout === 'number' ? entry.initializationTimeout : undefined,
-                timeout: typeof entry.timeout === 'number' ? entry.timeout : undefined,
+                    typeof (entry as any).initializationTimeout === 'number'
+                        ? (entry as any).initializationTimeout
+                        : undefined,
+                timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
+                disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
                 __configPath__: fsPath,
             }
 
@@ -1074,10 +1080,6 @@ export async function migrateAgentConfigToCLIFormat(
             config.toolAliases = {}
             updated = true
         }
-        if (!config.hasOwnProperty('useLegacyMcpJson')) {
-            config.useLegacyMcpJson = true
-            updated = true
-        }
 
         // Remove deprecated fields
         if (config.hasOwnProperty('version')) {
@@ -1115,6 +1117,9 @@ export async function migrateAgentConfigToCLIFormat(
                 updated = true
             }
         }
+
+        config.useLegacyMcpJson = true
+        updated = true
 
         if (updated) {
             await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
