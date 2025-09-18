@@ -16,6 +16,7 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
+    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -341,7 +342,7 @@ export class EditCompletionHandler {
             session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
             session.timeToFirstRecommendation = new Date().getTime() - session.startTime
             session.suggestionType = suggestionResponse.suggestionType
-            session.predictionType = 'EDIT'
+            session.predictionType = SuggestionType.EDIT
         } else {
             session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
         }

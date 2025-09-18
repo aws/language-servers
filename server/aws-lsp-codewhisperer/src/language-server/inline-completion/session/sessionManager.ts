@@ -93,7 +93,7 @@ export class CodeWhispererSession {
     codewhispererSuggestionImportCount: number = 0
 
     // Suggestion type specified by the clients, could be either "EDIT" or "COMPLETION"
-    predictionType?: string
+    predictionType?: SuggestionType
     // Suggestion type "actually" returned from the service, could be either "EDIT" or "COMPLETION"
     suggestionType?: string
     // Track the most recent itemId for paginated Edit suggestions
