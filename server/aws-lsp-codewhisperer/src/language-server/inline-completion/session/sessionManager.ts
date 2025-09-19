@@ -91,7 +91,9 @@ export class CodeWhispererSession {
     customizationArn?: string
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
-    suggestionType?: string
+
+    // Suggestion type specified by the clients, could be either "EDIT" or "COMPLETION"
+    predictionType?: SuggestionType
     // Track the most recent itemId for paginated Edit suggestions
 
     constructor(data: SessionData) {
@@ -175,7 +177,7 @@ export class CodeWhispererSession {
         if (
             this.state === 'CLOSED' ||
             this.state === 'DISCARD' ||
-            (this.completionSessionResult && this.suggestionType === SuggestionType.COMPLETION)
+            (this.completionSessionResult && this.predictionType === SuggestionType.COMPLETION)
         ) {
             return
         }
