@@ -436,7 +436,7 @@ describe('CodeReview', () => {
             const ruleArtifacts = [{ path: '/test/rule.json' }]
 
             // Mock countZipFiles to return only rule artifacts count
-            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns(1)
+            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns([1, new Set<string>(['/test/rule.json'])])
 
             try {
                 await (codeReview as any).prepareFilesAndFoldersForUpload(
@@ -462,7 +462,9 @@ describe('CodeReview', () => {
             }
             sandbox.stub(JSZip.prototype, 'file').callsFake(mockZip.file)
             sandbox.stub(JSZip.prototype, 'generateAsync').callsFake(mockZip.generateAsync)
-            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns(3)
+            sandbox
+                .stub(CodeReviewUtils, 'countZipFiles')
+                .returns([3, new Set<string>(['/test/file.js', '/test/path1/rule.json', '/test/path2/rule.json'])])
             sandbox.stub(require('crypto'), 'randomUUID').returns('test-uuid-123')
 
             await (codeReview as any).prepareFilesAndFoldersForUpload(
