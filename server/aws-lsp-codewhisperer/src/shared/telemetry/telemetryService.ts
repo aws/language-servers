@@ -22,7 +22,6 @@ import {
     ChatAddMessageEvent,
     UserIntent,
     InlineChatEvent,
-    AgenticChatEventStatus,
     IdeDiagnostic,
     UserModificationEvent,
     CompletionType,
@@ -203,6 +202,7 @@ export class TelemetryService {
         streakLength?: number
     ) {
         session.decisionMadeTimestamp = performance.now()
+        // Toolkit telemetry API
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
@@ -258,8 +258,9 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
-        const isInlineEdit = session.suggestionType === SuggestionType.EDIT
+        const isInlineEdit = session.predictionType === SuggestionType.EDIT
 
+        // RTS STE API
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
             requestId: session.responseContext?.requestId || '',
@@ -289,7 +290,7 @@ export class TelemetryService {
             addedIdeDiagnostics: addedIdeDiagnostics,
             removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength ?? 0,
-            suggestionType: isInlineEdit ? 'EDITS' : 'COMPLETIONS',
+            suggestionType: session.predictionType,
         }
         this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent with:
             "requestId": ${event.requestId}

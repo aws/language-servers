@@ -157,7 +157,7 @@ export const emitUserTriggerDecisionTelemetry = async (
     // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
     // Completions show multiple suggestions together, so aggregate all states
     const userTriggerDecision =
-        session.suggestionType === SuggestionType.EDIT
+        session.predictionType === SuggestionType.EDIT
             ? session.getUserTriggerDecision(itemId)
             : session.getAggregatedUserTriggerDecision()
 
