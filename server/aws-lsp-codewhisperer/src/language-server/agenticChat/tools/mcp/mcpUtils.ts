@@ -634,7 +634,10 @@ export async function loadPersonaPermissions(
 
 /** Given an array of workspace diretory, return each workspace persona config location */
 export function getWorkspacePersonaConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'personas', 'default.json'))
+    return wsUris.map(uri => {
+        const fsPath = normalizePathFromUri(uri)
+        return path.join(fsPath, '.amazonq', 'personas', 'default.json')
+    })
 }
 
 /** Given a user's home directory, return the global persona config location */
@@ -644,7 +647,10 @@ export function getGlobalPersonaConfigPath(home: string): string {
 
 /** Given an array of workspace diretory, return each workspace agent config location */
 export function getWorkspaceAgentConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'agents', 'default.json'))
+    return wsUris.map(uri => {
+        const fsPath = normalizePathFromUri(uri)
+        return path.join(fsPath, '.amazonq', 'agents', 'default.json')
+    })
 }
 
 /** Given a user's home directory, return the global agent config location */
@@ -654,7 +660,10 @@ export function getGlobalAgentConfigPath(home: string): string {
 
 /** Given an array of workspace diretory, return each workspace mcp config location */
 export function getWorkspaceMcpConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'mcp.json'))
+    return wsUris.map(uri => {
+        const fsPath = normalizePathFromUri(uri)
+        return path.join(fsPath, '.amazonq', 'mcp.json')
+    })
 }
 
 /** Given a user's home directory, return the global mcp config location */
