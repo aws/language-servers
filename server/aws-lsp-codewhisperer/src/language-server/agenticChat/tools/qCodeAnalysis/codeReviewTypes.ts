@@ -31,6 +31,7 @@ export type PrepareAndUploadArtifactsResult = {
     programmingLanguages: Set<string>
     numberOfFilesInCustomerCodeZip: number
     codeDiffFiles: Set<string>
+    filePathsInZip: Set<string>
 }
 
 export type StartCodeAnalysisResult = {
