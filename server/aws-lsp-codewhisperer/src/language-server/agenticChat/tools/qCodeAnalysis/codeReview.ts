@@ -118,9 +118,18 @@ export class CodeReview {
                 setup.isFullReviewRequest = true
                 this.overrideDiffScan = true
             }
-            const reviewMessage = setup.isFullReviewRequest
-                ? `Reviewing the entire code in ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
-                : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
+
+            let reviewMessage: string
+            if (nonRuleFiles == 1) {
+                reviewMessage = setup.isFullReviewRequest
+                    ? `Reviewing the code in ${path.basename(uploadResult.filePathsInZip.values().next().value as string)}...`
+                    : `Reviewing uncommitted changes in ${path.basename(uploadResult.filePathsInZip.values().next().value as string)}...`
+            } else {
+                reviewMessage = setup.isFullReviewRequest
+                    ? `Reviewing the code in ${nonRuleFiles} files}...`
+                    : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} files}...`
+            }
+
             await chatStreamWriter?.write(reviewMessage)
 
             // 4. Wait for scan to complete
@@ -223,6 +232,7 @@ export class CodeReview {
             programmingLanguages,
             numberOfFilesInCustomerCodeZip,
             codeDiffFiles,
+            filePathsInZip,
         } = await this.prepareFilesAndFoldersForUpload(
             setup.fileArtifacts,
             setup.folderArtifacts,
@@ -275,6 +285,7 @@ export class CodeReview {
             programmingLanguages: programmingLanguages,
             numberOfFilesInCustomerCodeZip,
             codeDiffFiles,
+            filePathsInZip,
         }
     }
 
@@ -588,6 +599,7 @@ export class CodeReview {
         programmingLanguages: Set<string>
         numberOfFilesInCustomerCodeZip: number
         codeDiffFiles: Set<string>
+        filePathsInZip: Set<string>
     }> {
         try {
             this.logging.info(
@@ -606,7 +618,7 @@ export class CodeReview {
                 !isFullReviewRequest
             )
 
-            let numberOfFilesInCustomerCodeZip = CodeReviewUtils.countZipFiles(customerCodeZip)
+            let [numberOfFilesInCustomerCodeZip, filePathsInZip] = CodeReviewUtils.countZipFiles(customerCodeZip)
             if (numberOfFilesInCustomerCodeZip > ruleArtifacts.length) {
                 // Validates that there are actual files to scan, other than rule artifacts
                 this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
@@ -649,6 +661,7 @@ export class CodeReview {
                 programmingLanguages,
                 numberOfFilesInCustomerCodeZip,
                 codeDiffFiles,
+                filePathsInZip,
             }
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
