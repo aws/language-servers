@@ -426,7 +426,7 @@ export const CodewhispererServerFactory =
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
-                session.suggestionType = suggestionResponse.suggestionType
+                session.predictionType = SuggestionType.COMPLETION
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
@@ -454,7 +454,7 @@ export const CodewhispererServerFactory =
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
             if (
-                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                session.predictionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
                 (session.state === 'CLOSED' || session.state === 'DISCARD')
             ) {
                 return EMPTY_RESULT
@@ -640,7 +640,7 @@ export const CodewhispererServerFactory =
             let deletedLengthForEdits = 0
             if (acceptedSuggestion) {
                 codePercentageTracker.countSuccess(session.language)
-                if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
+                if (session.predictionType === SuggestionType.EDIT && acceptedSuggestion.content) {
                     // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
                     // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
                     const { addedLines, deletedLines } = getAddedAndDeletedLines(acceptedSuggestion.content)
