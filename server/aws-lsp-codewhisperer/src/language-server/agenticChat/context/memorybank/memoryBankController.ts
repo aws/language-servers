@@ -433,18 +433,26 @@ export class MemoryBankController {
                 throw new Error('No source files found in workspace')
             }
 
+            // Filter out very large files to prevent conversation overflow
+            const MAX_FILE_SIZE_FOR_MEMORY_BANK = 20000 // 20KB limit
+            const reasonableSizedFiles = discoveredFiles.filter(file => file.size <= MAX_FILE_SIZE_FOR_MEMORY_BANK)
+
+            this.features.logging.debug(
+                `Memory Bank analysis: filtered ${discoveredFiles.length - reasonableSizedFiles.length} files over ${MAX_FILE_SIZE_FOR_MEMORY_BANK} characters`
+            )
+
             // Limit files to prevent memory exhaustion on large projects
             const MAX_FILES_FOR_ANALYSIS = 200
             let filesToAnalyze: Array<{ path: string; size: number }>
 
-            if (discoveredFiles.length > MAX_FILES_FOR_ANALYSIS) {
-                const shuffled = [...discoveredFiles].sort(() => Math.random() - 0.5)
+            if (reasonableSizedFiles.length > MAX_FILES_FOR_ANALYSIS) {
+                const shuffled = [...reasonableSizedFiles].sort(() => Math.random() - 0.5)
                 filesToAnalyze = shuffled.slice(0, MAX_FILES_FOR_ANALYSIS)
                 this.features.logging.info(
-                    `Memory Bank analysis: randomly selected ${filesToAnalyze.length} files (from ${discoveredFiles.length} discovered)`
+                    `Memory Bank analysis: randomly selected ${filesToAnalyze.length} files (from ${reasonableSizedFiles.length} reasonable-sized files) to prevent memory issues`
                 )
             } else {
-                filesToAnalyze = discoveredFiles
+                filesToAnalyze = reasonableSizedFiles
             }
 
             // Step 2: Calculate lexical dissimilarity using TF-IDF
