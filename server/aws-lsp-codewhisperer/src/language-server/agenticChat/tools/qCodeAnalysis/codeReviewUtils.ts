@@ -209,15 +209,17 @@ export class CodeReviewUtils {
      * @param zip JSZip instance
      * @returns number of files in zip
      */
-    public static countZipFiles(zip: JSZip): number {
+    public static countZipFiles(zip: JSZip): [number, Set<string>] {
         let count = 0
+        let filePaths: Set<string> = new Set()
         Object.keys(zip.files).forEach(filePath => {
             let item = zip.files[filePath]
             if (!item.dir) {
                 count += 1
+                filePaths.add(filePath)
             }
         })
-        return count
+        return [count, filePaths]
     }
 
     /**
