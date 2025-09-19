@@ -115,8 +115,8 @@ export class MemoryBankController {
                 `Memory Bank: using ${rankedFilesList.length} files for documentation generation`
             )
 
-            // Step 5: Create the comprehensive prompt with ranked files
-            const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList)
+            // Step 5: Create the comprehensive prompt with ranked files and workspace path
+            const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList, workspaceFolderUri)
             return finalPrompt
         } catch (error) {
             this.features.logging.error(`Memory Bank preparation failed: ${error}`)

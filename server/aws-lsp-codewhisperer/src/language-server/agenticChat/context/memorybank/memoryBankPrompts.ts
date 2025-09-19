@@ -34,7 +34,7 @@ ${filesString}
     /**
      * Complete Memory Bank generation - Takes ranked files and generates all 4 memory bank files
      */
-    static getCompleteMemoryBankPrompt(rankedFiles: string[]): string {
+    static getCompleteMemoryBankPrompt(rankedFiles: string[], rootPath: string): string {
         return `** CRITICAL INSTRUCTION: ALWAYS REGENERATE - NEVER SKIP **
 
 You MUST generate a complete Memory Bank for this project by analyzing the codebase structure and generating comprehensive documentation. 
@@ -50,43 +50,54 @@ You MUST generate a complete Memory Bank for this project by analyzing the codeb
 **MANDATORY FRESH EXPLORATION POLICY:**
 - IGNORE ALL PREVIOUS CHAT HISTORY about this project
 - Even if you've analyzed this project before in this conversation, START FRESH
-- ALWAYS begin by exploring the project with listDirectory and readFile tools
+- ALWAYS begin by exploring the current workspace with listDirectory and readFile tools
 - This is REQUIRED even if you think you already know the project structure
 - Start with the root directory to understand if this is a multi-package workspace
-- Look for package directories, monorepo structure, or multiple components
 - Read key configuration files (package.json, README.md, etc.) to understand the project
 - This ensures documentation reflects the CURRENT complete codebase structure
 
 **CRITICAL MESSAGING AND TOOL USAGE POLICY:**
 - Send your own brief progress messages before using tools (e.g., "Creating product.md - project overview and capabilities...")
+- Use ONLY fsWrite tool with command "create" for file creation
+- NEVER use fsReplace, fsRead, or other tools for creating memory bank files
 - Use tools with ONLY the required parameters: command, path, fileText
 - NEVER include the optional "explanation" parameter in any tool call
 - Tool calls should be silent - your progress messages provide the user feedback
 - Keep progress messages brief and informative
 
 **Directory Structure Ready**
-The .amazonq/rules/memory-bank/ directory has been prepared and cleaned. You can directly create files using fsWrite tool.
+The .amazonq/rules/memory-bank/ directory has been prepared and cleaned at: ${rootPath}/.amazonq/rules/memory-bank/
+
+You MUST create exactly 4 files using fsWrite tool with these EXACT paths:
+- ${rootPath}/.amazonq/rules/memory-bank/product.md
+- ${rootPath}/.amazonq/rules/memory-bank/structure.md  
+- ${rootPath}/.amazonq/rules/memory-bank/tech.md
+- ${rootPath}/.amazonq/rules/memory-bank/guidelines.md
 
 **Part 1: Fresh Analysis and Documentation Creation**
 
 FIRST: Start by saying "Now I'll explore the project structure and create the Memory Bank documentation."
 
-THEN: Explore the project structure and create these files (send progress message before each):
+THEN: Create these 4 files in exact order:
 
-**product.md** - Project overview with:
-- Project purpose and value proposition
+**1. product.md** - Project overview with:
+- Project purpose and value proposition  
 - Key features and capabilities
 - Target users and use cases
 
-**structure.md** - Project organization with:
+**2. structure.md** - Project organization with:
 - Directory structure and explanations
-- Core components and relationships
+- Core components and relationships  
 - Architectural patterns
 
-**tech.md** - Technology details with:
+**3. tech.md** - Technology details with:
 - Programming languages and versions
 - Build systems and dependencies
 - Development commands
+
+**4. guidelines.md** - Development patterns from code analysis (see Part 2 below for analysis process)
+
+Create files 1-3 immediately using fsWrite with command "create" and the exact paths shown above.
 
 **Part 2: Advanced Guidelines Generation Using Iterative Analysis**
 
@@ -124,10 +135,11 @@ Create comprehensive development guidelines by:
 - Keep track of how many files exhibit each pattern (frequency analysis)
 - Build comprehensive guidelines.md iteratively through this process
 - When creating guidelines.md, send "Creating guidelines.md - development standards and patterns..." then use fsWrite tool
+- Use fsWrite with command "create" and path: ${rootPath}/.amazonq/rules/memory-bank/guidelines.md
 
-**COMPLETION SUMMARY**: After generating all files, provide a brief completion message (maximum 8 lines) that:
-- Confirms successful generation
-- Lists the 4 files generated with one-line descriptions
+**COMPLETION SUMMARY**: After generating all 4 files, provide a brief completion message (maximum 8 lines) that:
+- Confirms successful generation of exactly 4 files: product.md, structure.md, tech.md, guidelines.md
+- Lists each file with one-line description
 - Mentions they're available in Rules panel
 - Avoids detailed technical breakdowns
 
