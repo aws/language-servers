@@ -6,6 +6,7 @@ import { MynahDetailedList } from './history'
 
 export const ContextRule = {
     CreateRuleId: 'create-rule',
+    CreateMemoryBankId: 'create-memory-bank',
     CancelButtonId: 'cancel-create-rule',
     SubmitButtonId: 'submit-create-rule',
     RuleNameFieldId: 'rule-name',
@@ -68,10 +69,27 @@ export class RulesList {
                     ],
                     `Create a rule`
                 )
+            } else if (item.id === ContextRule.CreateMemoryBankId) {
+                this.rulesList?.close()
+                this.handleMemoryBankCreation()
             } else {
                 this.messager.onRuleClick({ tabId: this.tabId, type: 'rule', id: item.id })
             }
         }
+    }
+
+    private handleMemoryBankCreation = () => {
+        // Close the rules list first
+        this.rulesList?.close()
+
+        // Use the current tab, the tabId should be the same as the one used for the rules list
+        this.messager.onChatPrompt({
+            prompt: {
+                prompt: 'Generate a Memory Bank for this project',
+                escapedPrompt: 'Generate a Memory Bank for this project',
+            },
+            tabId: this.tabId,
+        })
     }
 
     showLoading(tabId: string) {
@@ -156,6 +174,24 @@ const createRuleListItem: DetailedListItem = {
     id: ContextRule.CreateRuleId,
 }
 
+function createMemoryBankListItem(rules: RulesFolder[]): DetailedListItem {
+    // Handles button text changes between "Generation" and "Regenerate"
+    const memoryBankFiles = ['product', 'structure', 'tech', 'guidelines']
+
+    const memoryBankFolder = rules.find(folder => folder.folderName === 'memory-bank')
+
+    const hasMemoryBankFiles =
+        memoryBankFolder && memoryBankFolder.rules.some(rule => memoryBankFiles.includes(rule.name))
+
+    const buttonText = hasMemoryBankFiles ? 'Regenerate Memory Bank' : 'Generate Memory Bank'
+
+    return {
+        description: buttonText,
+        icon: MynahIcons.FOLDER,
+        id: ContextRule.CreateMemoryBankId,
+    }
+}
+
 export function convertRulesListToDetailedListGroup(rules: RulesFolder[]): DetailedListItemGroup[] {
     return rules
         .map(
@@ -179,7 +215,10 @@ export function convertRulesListToDetailedListGroup(rules: RulesFolder[]): Detai
                     })),
                 }) as DetailedListItemGroup
         )
-        .concat({ children: [createRuleListItem] })
+        .concat({
+            groupName: 'Actions',
+            children: [createMemoryBankListItem(rules), createRuleListItem],
+        })
 }
 
 function convertRuleStatusToIcon(status: boolean | 'indeterminate'): MynahIcons | undefined {
