@@ -5,6 +5,7 @@
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { MemoryBankPrompts } from './memoryBankPrompts'
+import { normalizePathFromUri } from '../../tools/mcp/mcpUtils'
 
 const MEMORY_BANK_DIRECTORY = '.amazonq/rules/memory-bank'
 const MEMORY_BANK_FILES = {
@@ -60,6 +61,8 @@ export class MemoryBankController {
         llmCallFunction: (prompt: string) => Promise<string>
     ): Promise<string> {
         try {
+            this.features.logging.info(`Memory Bank: Starting pre-processing for workspace: "${workspaceFolderUri}"`)
+
             // Step 1: Clean directory
             await this.cleanMemoryBankDirectory(workspaceFolderUri)
 
@@ -116,7 +119,11 @@ export class MemoryBankController {
             )
 
             // Step 5: Create the comprehensive prompt with ranked files and workspace path
-            const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList, workspaceFolderUri)
+            const normalizedWorkspacePath = normalizePathFromUri(workspaceFolderUri, this.features.logging)
+
+            this.features.logging.info(`Memory Bank: Generating final prompt with path: "${normalizedWorkspacePath}"`)
+            const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList, normalizedWorkspacePath)
+            this.features.logging.info(`Memory Bank: Final prompt generated : ${finalPrompt})`)
             return finalPrompt
         } catch (error) {
             this.features.logging.error(`Memory Bank preparation failed: ${error}`)
@@ -144,7 +151,7 @@ export class MemoryBankController {
                     }
                 } catch (error) {
                     // Ignore errors when removing files that don't exist
-                    this.features.logging.debug(`Could not remove ${fileName}: ${error}`)
+                    this.features.logging.info(`Could not remove ${fileName}: ${error}`)
                 }
             }
 
@@ -169,17 +176,22 @@ export class MemoryBankController {
     ): Promise<Array<{ path: string; size: number }>> {
         try {
             // Recursively discover all source files
-            const workspaceFolders = this.features.workspace
-                .getAllWorkspaceFolders()
-                ?.map(({ uri }) => new URL(uri).pathname) ?? [workspaceFolderUri]
+            const allWorkspaceFolders = this.features.workspace.getAllWorkspaceFolders()
+
+            const workspaceFolders = allWorkspaceFolders?.map(({ uri }) => {
+                return normalizePathFromUri(uri, this.features.logging)
+            }) ?? [normalizePathFromUri(workspaceFolderUri, this.features.logging)]
 
             // Collect files from all workspace folders
             let allSourceFiles: string[] = []
 
             for (const folder of workspaceFolders) {
                 const sourceFiles = await this.discoverSourceFiles(folder, extensions)
+                this.features.logging.info(`Found ${sourceFiles.length} files in "${folder}"`)
                 allSourceFiles.push(...sourceFiles)
             }
+
+            this.features.logging.info(`Total files discovered: ${allSourceFiles.length}`)
 
             // OPTIMIZATION: Parallel file size calculation with batching
             const batchSize = 10 // Process 10 files at a time
@@ -500,7 +512,6 @@ export class MemoryBankController {
      */
     private async discoverSourceFiles(workspaceFolderUri: string, extensions: string[]): Promise<string[]> {
         const sourceFiles: string[] = []
-
         const traverseDirectory = async (dirPath: string): Promise<void> => {
             try {
                 const entries = await this.features.workspace.fs.readdir(dirPath)
@@ -524,11 +535,12 @@ export class MemoryBankController {
                     }
                 }
             } catch (error) {
-                this.features.logging.debug(`Could not read directory ${dirPath}: ${error}`)
+                this.features.logging.error(`Could not read directory ${dirPath}: ${error}`)
             }
         }
 
         await traverseDirectory(workspaceFolderUri)
+
         return sourceFiles
     }
 
