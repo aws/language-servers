@@ -123,7 +123,6 @@ export class MemoryBankController {
 
             this.features.logging.info(`Memory Bank: Generating final prompt with path: "${normalizedWorkspacePath}"`)
             const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList, normalizedWorkspacePath)
-            this.features.logging.info(`Memory Bank: Final prompt generated : ${finalPrompt})`)
             return finalPrompt
         } catch (error) {
             this.features.logging.error(`Memory Bank preparation failed: ${error}`)
@@ -136,7 +135,8 @@ export class MemoryBankController {
      */
     async cleanMemoryBankDirectory(workspaceFolderUri: string): Promise<void> {
         try {
-            const memoryBankPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}`
+            const normalizedWorkspacePath = normalizePathFromUri(workspaceFolderUri, this.features.logging)
+            const memoryBankPath = `${normalizedWorkspacePath}/${MEMORY_BANK_DIRECTORY}`
 
             // Remove all existing memory bank files to ensure clean recreation
             const filesToRemove = ['product.md', 'structure.md', 'tech.md', 'guidelines.md']
@@ -151,7 +151,7 @@ export class MemoryBankController {
                     }
                 } catch (error) {
                     // Ignore errors when removing files that don't exist
-                    this.features.logging.info(`Could not remove ${fileName}: ${error}`)
+                    this.features.logging.error(`Could not remove ${fileName}: ${error}`)
                 }
             }
 
@@ -439,8 +439,6 @@ export class MemoryBankController {
 
             const discoveredFiles = await this.discoverAllSourceFiles(workspaceFolderUri, extensions)
 
-            this.features.logging.info(`Memory Bank analysis: discovered ${discoveredFiles.length} source files`)
-
             if (discoveredFiles.length === 0) {
                 throw new Error('No source files found in workspace')
             }
@@ -461,7 +459,7 @@ export class MemoryBankController {
                 const shuffled = [...reasonableSizedFiles].sort(() => Math.random() - 0.5)
                 filesToAnalyze = shuffled.slice(0, MAX_FILES_FOR_ANALYSIS)
                 this.features.logging.info(
-                    `Memory Bank analysis: randomly selected ${filesToAnalyze.length} files (from ${reasonableSizedFiles.length} reasonable-sized files) to prevent memory issues`
+                    `Memory Bank analysis: randomly selected ${filesToAnalyze.length} files (from ${reasonableSizedFiles.length} reasonable-sized files for ranking)`
                 )
             } else {
                 filesToAnalyze = reasonableSizedFiles
@@ -757,23 +755,36 @@ export class MemoryBankController {
      */
     async memoryBankExists(workspaceFolderUri: string): Promise<boolean> {
         try {
-            const memoryBankPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}`
+            const normalizedWorkspacePath = normalizePathFromUri(workspaceFolderUri, this.features.logging)
+            const memoryBankPath = `${normalizedWorkspacePath}/${MEMORY_BANK_DIRECTORY}`
+
+            this.features.logging.info(`Memory Bank: Checking existence at path: "${memoryBankPath}"`)
+
             const exists = await this.features.workspace.fs.exists(memoryBankPath)
             if (!exists) {
+                this.features.logging.info(`Memory Bank: Directory does not exist: "${memoryBankPath}"`)
                 return false
             }
 
             // Check if at least one memory bank file exists
             const files = Object.values(MEMORY_BANK_FILES)
+            let foundFiles = 0
             for (const file of files) {
                 const filePath = `${memoryBankPath}/${file}`
                 const fileExists = await this.features.workspace.fs.exists(filePath)
                 if (fileExists) {
-                    return true
+                    foundFiles++
                 }
             }
 
-            return false
+            const hasFiles = foundFiles > 0
+            if (hasFiles) {
+                this.features.logging.info(`Memory Bank: Found ${foundFiles} existing memory bank files`)
+            } else {
+                this.features.logging.info(`Memory Bank: No existing memory bank files found`)
+            }
+
+            return hasFiles
         } catch (error) {
             this.features.logging.error(`Error checking memory bank existence: ${error}`)
             return false
