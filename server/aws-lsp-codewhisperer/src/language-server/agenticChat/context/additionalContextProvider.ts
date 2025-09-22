@@ -172,7 +172,6 @@ export class AdditionalContextProvider {
 
             if (needsUpdate) {
                 this.chatDb.setRules(tabId, rulesState)
-                this.features.logging.info(`Memory Bank files activated by default: ${memoryBankFiles.length} files`)
             }
         }
 
@@ -260,7 +259,7 @@ export class AdditionalContextProvider {
 
                 if (memoryBankFiles.length > 0) {
                     this.features.logging.info(
-                        `Memory Bank regeneration: excluding ${memoryBankFiles.length} existing files from context`
+                        `Memory Bank: excluding ${memoryBankFiles.length} existing memory bank files from context`
                     )
                 }
             } else {
