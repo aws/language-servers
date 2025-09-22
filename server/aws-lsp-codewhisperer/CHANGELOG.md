@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.81](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.80...lsp-codewhisperer/v0.0.81) (2025-09-19)
+
+
+### Bug Fixes
+
+* **amazonq:** fix for delete mcp for mcp config, disable and create corresponding agent file ([#2298](https://github.com/aws/language-servers/issues/2298)) ([8641860](https://github.com/aws/language-servers/commit/8641860295c4e089d09154fa5411c305f2f4ecce))
+* **amazonq:** fix for legacy mcp permission consistentcy and config update ([#2300](https://github.com/aws/language-servers/issues/2300)) ([c8aa7bd](https://github.com/aws/language-servers/commit/c8aa7bd3e9d39ed327972bbc950ad72e8e401581))
+* **amazonq:** fix for mcp permissions read/write inconsistencies ([#2296](https://github.com/aws/language-servers/issues/2296)) ([c7a9a8e](https://github.com/aws/language-servers/commit/c7a9a8e1ba5c1a284d661e683dd46133860a1d3d))
+* **amazonq:** fix to add filewatcher for mcp config files ([#2295](https://github.com/aws/language-servers/issues/2295)) ([fcee77c](https://github.com/aws/language-servers/commit/fcee77c1b06e69f9096d8e98a0cfcc42d7fddb01))
+* **amazonq:** fix to normlize workspace paths in windows ([#2306](https://github.com/aws/language-servers/issues/2306)) ([fab073c](https://github.com/aws/language-servers/commit/fab073c855109b15005bfd880894471c35652ffc))
+* **amazonq:** improve messaging for code review ([#2303](https://github.com/aws/language-servers/issues/2303)) ([60bc68d](https://github.com/aws/language-servers/commit/60bc68d1d4d2ce8a0373be6ce7551e961fc2cdb8))
+* **amazonq:** support mcp config files for backwards compatbility ([#2292](https://github.com/aws/language-servers/issues/2292)) ([41c99af](https://github.com/aws/language-servers/commit/41c99af02b3f415e39898f11c3c21ac530f9c406))
+* inline UTD empty cases dont differentiate Edit and Completion ([#2287](https://github.com/aws/language-servers/issues/2287)) ([84e2c8c](https://github.com/aws/language-servers/commit/84e2c8c12f5d828192a302fa11483063d33b059c))
+* inline UTD telemetry empty cases dont differentiate Edit and Completion ([#2288](https://github.com/aws/language-servers/issues/2288)) ([d207b6e](https://github.com/aws/language-servers/commit/d207b6e9dfded650c6f65c675ee45c52f8222571))
+* quick fix for repeated logging from squashed commit ([#2291](https://github.com/aws/language-servers/issues/2291)) ([36f3eed](https://github.com/aws/language-servers/commit/36f3eedd1cad3fca4fc48792ba40b6470f733bfa))
+
+
+### Reverts
+
+* inline UTD telemetry empty cases dont differentiate Edit and Completion ([#2288](https://github.com/aws/language-servers/issues/2288)) ([#2297](https://github.com/aws/language-servers/issues/2297)) ([eb081e6](https://github.com/aws/language-servers/commit/eb081e6bc6bef4182ab89e295bff97c4e828096b))
+
 ## [0.0.80](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.79...lsp-codewhisperer/v0.0.80) (2025-09-16)
 
 
