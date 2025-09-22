@@ -90,7 +90,7 @@ export interface ResponseContext {
 }
 
 export enum SuggestionType {
-    EDIT = 'EDITs',
+    EDIT = 'EDITS',
     COMPLETION = 'COMPLETIONS',
 }
 
