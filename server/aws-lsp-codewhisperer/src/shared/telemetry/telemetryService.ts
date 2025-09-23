@@ -572,6 +572,7 @@ export class TelemetryService {
             experimentName?: string
             userVariation?: string
             errorMessage?: string
+            errorCode?: string
         }>
     ) {
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
@@ -626,6 +627,7 @@ export class TelemetryService {
                     experimentName: additionalParams.experimentName,
                     userVariation: additionalParams.userVariation,
                     errorMessage: additionalParams.errorMessage,
+                    errorCode: additionalParams.errorCode,
                 },
             })
         }
