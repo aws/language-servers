@@ -3479,7 +3479,8 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage)
+        const errorCode = err.code ?? ''
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
