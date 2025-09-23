@@ -130,8 +130,8 @@ export interface ResponseContext {
 }
 
 export enum SuggestionType {
-    EDIT = 'EDIT',
-    COMPLETION = 'COMPLETION',
+    EDIT = 'EDITS',
+    COMPLETION = 'COMPLETIONS',
 }
 
 export interface GenerateSuggestionsResponse {
