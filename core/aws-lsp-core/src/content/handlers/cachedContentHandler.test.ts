@@ -43,7 +43,7 @@ describe('Test CachedContentHandler', async () => {
 
     beforeEach(async () => {
         mockfs({
-            '//cache': {
+            'cache': {
                 cachedUris: {
                     metadata: '{}',
                 },
@@ -54,7 +54,7 @@ describe('Test CachedContentHandler', async () => {
         timeProviderStub = stub(new TimeProvider())
         timeProviderStub.currentMilliseconds.returns(currentTimeMs)
 
-        cacheRepository = new UriCacheRepository('//cache', timeProviderStub)
+        cacheRepository = new UriCacheRepository('cache', timeProviderStub)
         sut = new CachedContentHandler({
             cacheRepository,
             timeProvider: timeProviderStub,
