@@ -199,7 +199,7 @@ export class TelemetryService {
         removedIdeDiagnostics?: IdeDiagnostic[],
         streakLength?: number
     ) {
-        session.decisionMadeTimestamp = performance.now()
+        session.decisionMadeTimestamp = Date.now()
         // Toolkit telemetry API
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {

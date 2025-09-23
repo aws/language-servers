@@ -25,6 +25,7 @@ interface CachedSuggestion extends Suggestion {
 
 export interface SessionData {
     document: TextDocument
+    startPreprocessTimestamp: number
     startPosition: Position
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -112,7 +113,7 @@ export class CodeWhispererSession {
         this.supplementalMetadata = data.supplementalMetadata
         this._state = 'REQUESTING'
 
-        this.startTime = new Date().getTime()
+        this.startTime = data.startPreprocessTimestamp
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -147,7 +148,7 @@ export class CodeWhispererSession {
             }
         }
 
-        this.closeTime = new Date().getTime()
+        this.closeTime = Date.now()
 
         this.state = 'CLOSED'
     }
@@ -162,7 +163,7 @@ export class CodeWhispererSession {
             this.suggestionsStates.set(suggestion.itemId, 'Discard')
         }
 
-        this.closeTime = new Date().getTime()
+        this.closeTime = Date.now()
 
         this.state = 'DISCARD'
     }
