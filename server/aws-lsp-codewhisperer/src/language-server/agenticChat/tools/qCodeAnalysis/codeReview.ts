@@ -44,7 +44,7 @@ export class CodeReview {
     private static readonly POLLING_INTERVAL_MS = 10000 // 10 seconds
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
-    private static readonly MAX_FINDINGS_COUNT = 40
+    private static readonly MAX_FINDINGS_COUNT = 30
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
