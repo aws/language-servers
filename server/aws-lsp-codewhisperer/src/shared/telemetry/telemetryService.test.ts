@@ -860,6 +860,7 @@ describe('TelemetryService', () => {
                     cwsprChatPinnedFolderContextCount: undefined,
                     cwsprChatPinnedPromptContextCount: undefined,
                     errorMessage: undefined,
+                    errorCode: undefined,
                 },
             })
         })
