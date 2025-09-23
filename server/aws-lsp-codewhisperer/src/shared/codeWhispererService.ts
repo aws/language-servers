@@ -234,7 +234,46 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
             credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
+                () => {
+                    const credentials = new Credentials({
+                        accessKeyId: '',
+                        secretAccessKey: '',
+                        sessionToken: '',
+                    })
+
+                    credentials.get = callback => {
+                        logging.info('CodeWhispererServiceIAM: Attempting to get credentials')
+
+                        Promise.resolve(credentialsProvider.getCredentials('iam'))
+                            .then((creds: any) => {
+                                logging.info('CodeWhispererServiceIAM: Successfully got credentials')
+
+                                credentials.accessKeyId = creds.accessKeyId as string
+                                credentials.secretAccessKey = creds.secretAccessKey as string
+                                credentials.sessionToken = creds.sessionToken as string
+                                credentials.expireTime = creds.expireTime as Date
+                                callback()
+                            })
+                            .catch(err => {
+                                logging.error(`CodeWhispererServiceIAM: Failed to get credentials: ${err.message}`)
+                                callback(err)
+                            })
+                    }
+
+                    credentials.needsRefresh = () => {
+                        return (
+                            !credentials.accessKeyId ||
+                            !credentials.secretAccessKey ||
+                            (credentials.expireTime && credentials.expireTime.getTime() - Date.now() < 60000)
+                        ) // 1 min buffer
+                    }
+
+                    credentials.refresh = callback => {
+                        credentials.get(callback)
+                    }
+
+                    return credentials
+                },
             ]),
         }
         this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
