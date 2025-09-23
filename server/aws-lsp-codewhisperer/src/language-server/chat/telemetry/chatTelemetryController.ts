@@ -298,7 +298,8 @@ export class ChatTelemetryController {
         tabId: string,
         metric: Partial<CombinedConversationEvent>,
         result?: string,
-        errorMessage?: string
+        errorMessage?: string,
+        errorCode?: string
     ) {
         const conversationId = this.getConversationId(tabId)
         // Store the customization value associated with the message
@@ -355,6 +356,7 @@ export class ChatTelemetryController {
                 experimentName: metric.experimentName,
                 userVariation: metric.userVariation,
                 errorMessage: errorMessage,
+                errorCode: errorCode,
             }
         )
     }
