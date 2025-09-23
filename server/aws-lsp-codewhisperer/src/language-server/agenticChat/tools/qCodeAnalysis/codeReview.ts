@@ -126,8 +126,8 @@ export class CodeReview {
                     : `Reviewing uncommitted changes in ${path.basename(uploadResult.filePathsInZip.values().next().value as string)}...`
             } else {
                 reviewMessage = setup.isFullReviewRequest
-                    ? `Reviewing the code in ${nonRuleFiles} files}...`
-                    : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} files}...`
+                    ? `Reviewing the code in ${nonRuleFiles} files...`
+                    : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} files...`
             }
 
             await chatStreamWriter?.write(reviewMessage)
