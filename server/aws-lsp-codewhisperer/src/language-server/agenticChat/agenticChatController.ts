@@ -231,6 +231,7 @@ import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import escapeHTML = require('escape-html')
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
+import { MemoryBankController } from './context/memorybank/memoryBankController'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -267,6 +268,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
+    #memoryBankController: MemoryBankController
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
@@ -370,6 +372,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
+        this.#memoryBankController = MemoryBankController.getInstance(features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -835,6 +838,93 @@ export class AgenticChatController implements ChatHandlers {
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
+        // Memory Bank Creation Flow - Delegate to MemoryBankController
+        if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
+            this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
+
+            // Store original prompt to prevent data loss on failure
+            const originalPrompt = params.prompt.prompt
+
+            try {
+                const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+                const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
+
+                if (!workspaceUri) {
+                    throw new Error('No workspace folder found for Memory Bank creation')
+                }
+
+                // Check if memory bank already exists to provide appropriate user feedback
+                const memoryBankExists = await this.#memoryBankController.memoryBankExists(workspaceUri)
+                const actionType = memoryBankExists ? 'Regenerating' : 'Generating'
+                this.#features.logging.info(`${actionType} Memory Bank for workspace: ${workspaceUri}`)
+
+                const resultStream = this.#getChatResultStream(params.partialResultToken)
+                await resultStream.writeResultBlock({
+                    body: `Preparing to analyze your project...`,
+                    type: 'answer',
+                    messageId: crypto.randomUUID(),
+                })
+
+                const comprehensivePrompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
+                    workspaceUri,
+                    async (prompt: string) => {
+                        // Direct LLM call for ranking - no agentic loop
+                        try {
+                            if (!this.#serviceManager) {
+                                throw new Error('amazonQServiceManager is not initialized')
+                            }
+
+                            const client = this.#serviceManager.getStreamingClient()
+                            const requestInput: SendMessageCommandInput = {
+                                conversationState: {
+                                    chatTriggerType: ChatTriggerType.MANUAL,
+                                    currentMessage: {
+                                        userInputMessage: {
+                                            content: prompt,
+                                        },
+                                    },
+                                },
+                            }
+
+                            const response = await client.sendMessage(requestInput)
+
+                            let responseContent = ''
+                            const maxResponseSize = 50000 // 50KB limit
+
+                            if (response.sendMessageResponse) {
+                                for await (const chatEvent of response.sendMessageResponse) {
+                                    if (chatEvent.assistantResponseEvent?.content) {
+                                        responseContent += chatEvent.assistantResponseEvent.content
+                                        if (responseContent.length > maxResponseSize) {
+                                            this.#features.logging.warn('LLM response exceeded size limit, truncating')
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+
+                            return responseContent.trim()
+                        } catch (error) {
+                            this.#features.logging.error(`Memory Bank LLM ranking failed: ${error}`)
+                            return '' // Empty string triggers TF-IDF fallback
+                        }
+                    }
+                )
+
+                // Only update prompt if we got a valid comprehensive prompt
+                if (comprehensivePrompt && comprehensivePrompt.trim().length > 0) {
+                    params.prompt.prompt = comprehensivePrompt
+                } else {
+                    this.#features.logging.warn('Empty comprehensive prompt received, using original prompt')
+                    params.prompt.prompt = originalPrompt
+                }
+            } catch (error) {
+                this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
+                // Restore original prompt to ensure no data loss
+                params.prompt.prompt = originalPrompt
+            }
+        }
+
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
@@ -911,7 +1001,8 @@ export class AgenticChatController implements ChatHandlers {
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 params.tabId,
-                params.context
+                params.context,
+                params.prompt.prompt
             )
             // Add active file to context list if it's not already there
             const activeFile =
