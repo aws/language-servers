@@ -430,6 +430,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 this.cachedStreamingClient.profileArn = newProfile.arn
             }
 
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
+
             return
         }
 
