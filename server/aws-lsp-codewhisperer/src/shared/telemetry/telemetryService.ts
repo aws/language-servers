@@ -179,7 +179,8 @@ export class TelemetryService {
             if (this.modelId !== undefined) {
                 request.modelId = this.modelId
             }
-            await this.getService().sendTelemetryEvent(request)
+            const r = await this.getService().sendTelemetryEvent(request)
+            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$response.requestId}`)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
         }
@@ -199,7 +200,7 @@ export class TelemetryService {
         removedIdeDiagnostics?: IdeDiagnostic[],
         streakLength?: number
     ) {
-        session.decisionMadeTimestamp = performance.now()
+        session.decisionMadeTimestamp = Date.now()
         // Toolkit telemetry API
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
@@ -269,9 +270,7 @@ export class TelemetryService {
             completionType:
                 session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
             suggestionState: this.getSuggestionState(userTriggerDecision),
-            recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
-                ? session.firstCompletionDisplayLatency
-                : 0,
+            recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency ?? 0,
             timestamp: new Date(Date.now()),
             triggerToResponseLatencyMilliseconds: session.timeToFirstRecommendation,
             suggestionReferenceCount: referenceCount,
@@ -286,14 +285,16 @@ export class TelemetryService {
             streakLength: streakLength ?? 0,
             suggestionType: session.predictionType,
         }
-        this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent with:
+        this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent:
             "requestId": ${event.requestId}
             "suggestionState": ${event.suggestionState}
             "acceptedCharacterCount": ${event.acceptedCharacterCount}
             "addedCharacterCount": ${event.addedCharacterCount}
             "deletedCharacterCount": ${event.deletedCharacterCount}
-            "streakLength": ${event.streakLength}
-            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}
+            "streakLength": ${event.streakLength},
+            "preprocessLatency": ${session.preprocessLatency},
+            "triggerToResponseLatencyMilliseconds: ${event.triggerToResponseLatencyMilliseconds}",
+            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds},
             "suggestionType": ${event.suggestionType}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
