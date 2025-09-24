@@ -222,6 +222,8 @@ export const CodewhispererServerFactory =
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
 
+                    const startPreprocessTimestamp = Date.now()
+
                     // For Jupyter Notebook in VSC, the language server does not have access to
                     // its internal states including current active cell index, etc
                     // we rely on VSC to calculate file context
@@ -253,7 +255,7 @@ export const CodewhispererServerFactory =
                     const previousSession = completionSessionManager.getPreviousSession()
                     // Only refer to decisions in the past 2 mins
                     const previousDecisionForClassifier =
-                        previousSession && performance.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
+                        previousSession && Date.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
                             ? previousSession.getAggregatedUserTriggerDecision()
                             : undefined
                     let ideCategory: string | undefined = ''
@@ -354,6 +356,7 @@ export const CodewhispererServerFactory =
 
                     const newSession = completionSessionManager.createSession({
                         document: textDocument,
+                        startPreprocessTimestamp: startPreprocessTimestamp,
                         startPosition: params.position,
                         triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
                         language: fileContext.programmingLanguage.languageName as CodewhispererLanguage,
@@ -422,7 +425,7 @@ export const CodewhispererServerFactory =
                 session.suggestions = suggestionResponse.suggestions
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-                session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+                session.setTimeToFirstRecommendation()
                 session.predictionType = SuggestionType.COMPLETION
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
@@ -840,9 +843,9 @@ export const CodewhispererServerFactory =
 
             // Record last user modification time for any document
             if (lastUserModificationTime) {
-                timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
+                timeSinceLastUserModification = Date.now() - lastUserModificationTime
             }
-            lastUserModificationTime = new Date().getTime()
+            lastUserModificationTime = Date.now()
 
             documentChangedListener.onDocumentChanged(p)
             editCompletionHandler.documentChanged()

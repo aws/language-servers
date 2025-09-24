@@ -1479,6 +1479,7 @@ describe('CodeWhisperer Server', () => {
 
         const sessionData: SessionData = {
             document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
+            startPreprocessTimestamp: 0,
             startPosition: { line: 0, character: 0 },
             triggerType: 'OnDemand',
             language: 'csharp',
