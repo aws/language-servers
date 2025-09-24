@@ -26,6 +26,7 @@ import {
     UserModificationEvent,
     CompletionType,
     InlineChatUserDecision,
+    AgenticChatEventStatus,
 } from '@amzn/codewhisperer-runtime'
 import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
@@ -182,7 +183,7 @@ export class TelemetryService {
                 request.modelId = this.modelId
             }
             const r = await this.getService().sendTelemetryEvent(request)
-            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$response.requestId}`)
+            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$metadata.requestId}`)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
         }
