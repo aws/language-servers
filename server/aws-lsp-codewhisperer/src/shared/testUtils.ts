@@ -251,6 +251,7 @@ export const EMPTY_RESULT = { items: [], sessionId: '' }
 
 export const SAMPLE_SESSION_DATA: SessionData = {
     document: SOME_FILE,
+    startPreprocessTimestamp: 0,
     startPosition: {
         line: 0,
         character: 0,
@@ -270,6 +271,7 @@ export const SAMPLE_SESSION_DATA: SessionData = {
 
 export const SAMPLE_SESSION_DATA_WITH_EXTRA_LEFT_CONTENT: SessionData = {
     document: SOME_INCOMPLETE_FILE,
+    startPreprocessTimestamp: 0,
     startPosition: {
         line: 1,
         character: 0,
