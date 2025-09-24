@@ -39,6 +39,9 @@ describe('MynahUI', () => {
     const requestId = '1234'
 
     beforeEach(() => {
+        // Use fake timers to control setTimeout calls in Node.js 24
+        sinon.useFakeTimers()
+        
         outboundChatApi = {
             sendChatPrompt: sinon.stub(),
             sendQuickActionCommand: sinon.stub(),
