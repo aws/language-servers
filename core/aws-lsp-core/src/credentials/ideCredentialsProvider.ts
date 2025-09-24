@@ -92,6 +92,11 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         if (credentials.secretAccessKey === undefined) {
             throw new Error('Missing property: secretAccessKey')
         }
+
+        // Normalize expiration field from v2 to v3 format
+        if (credentials.expireTime && !credentials.expiration) {
+            credentials.expiration = credentials.expireTime
+        }
     }
 
     private registerBearerTokenPushHandlers(): void {
