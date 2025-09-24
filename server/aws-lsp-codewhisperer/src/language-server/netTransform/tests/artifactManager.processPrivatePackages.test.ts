@@ -66,13 +66,13 @@ describe('ArtifactManager - processPrivatePackages', () => {
             Id: 'test-package',
             Versions: [],
             IsPrivatePackage: true,
-            NetCompatibleAssemblyRelativePath: 'path/to/assembly.dll',
-            NetCompatibleAssemblyPath: 'full/path/to/assembly.dll',
+            NetCompatibleAssemblyRelativePath: 'path/to/test-package.dll',
+            NetCompatibleAssemblyPath: 'full/path/to/test-package.dll',
             NetCompatiblePackageVersion: '2.0.0',
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
-        sampleExternalReference.RelativePath = 'some/path/test-package/more/path/assembly.dll'
+        sampleExternalReference.RelativePath = 'some/path/test-package/more/path/test-package.dll'
 
         await artifactManager.processPrivatePackages(
             sampleStartTransformRequest,
@@ -83,7 +83,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(copyFileCalled).to.be.true
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
         expect(sampleArtifactReference.netCompatibleRelativePath).to.equal(
-            path.join('references', 'thirdpartypackages', 'path/to/assembly.dll').toLowerCase()
+            path.join('references', 'thirdpartypackages', 'path/to/test-package.dll').toLowerCase()
         )
         expect(sampleArtifactReference.netCompatibleVersion).to.equal('2.0.0')
     })
@@ -98,14 +98,14 @@ describe('ArtifactManager - processPrivatePackages', () => {
         const nonPrivatePackage = {
             Id: 'test-package',
             IsPrivatePackage: false,
-            NetCompatibleAssemblyRelativePath: 'path/to/assembly.dll',
-            NetCompatibleAssemblyPath: 'full/path/to/assembly.dll',
+            NetCompatibleAssemblyRelativePath: 'path/to/test-package.dll',
+            NetCompatibleAssemblyPath: 'full/path/to/test-package.dll',
             NetCompatiblePackageVersion: '1.0.0',
             Versions: [],
         }
 
         sampleStartTransformRequest.PackageReferences = [nonPrivatePackage]
-        sampleExternalReference.RelativePath = 'some/path/test-package/more/path/assembly.dll'
+        sampleExternalReference.RelativePath = 'some/path/test-package/more/path/test-package.dll'
 
         artifactManager.processPrivatePackages(
             sampleStartTransformRequest,
@@ -129,14 +129,14 @@ describe('ArtifactManager - processPrivatePackages', () => {
         const privatePackage = {
             Id: 'test-package',
             IsPrivatePackage: true,
-            NetCompatibleAssemblyRelativePath: 'path/to/testpackage.dll',
-            NetCompatibleAssemblyPath: 'full/path/to/testpackage.dll',
+            NetCompatibleAssemblyRelativePath: 'path/to/test-package.dll',
+            NetCompatibleAssemblyPath: 'full/path/to/test-package.dll',
             NetCompatiblePackageVersion: '1.0.0',
             Versions: [],
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
-        sampleExternalReference.RelativePath = 'some/path/different-package/more/path/assembly.dll'
+        sampleExternalReference.RelativePath = 'some/path/different-package/more/path/test-package2.dll'
 
         artifactManager.processPrivatePackages(
             sampleStartTransformRequest,
@@ -197,5 +197,36 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
         expect(sampleArtifactReference.packageId).to.equal('PNMAC.Core')
         expect(sampleArtifactReference.netCompatibleVersion).to.equal('5.4.1')
+    })
+
+    it('should mark as third party package but not copy when paths are null', async () => {
+        let copyFileCalled = false
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            copyFileCalled = true
+            return Promise.resolve()
+        }
+
+        const privatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: true,
+            NetCompatibleAssemblyRelativePath: undefined,
+            NetCompatibleAssemblyPath: undefined,
+            NetCompatiblePackageVersion: undefined,
+        }
+
+        sampleStartTransformRequest.PackageReferences = [privatePackage]
+        sampleExternalReference.RelativePath = 'some/path/test-package/more/test-package.dll'
+
+        await artifactManager.processPrivatePackages(
+            sampleStartTransformRequest,
+            sampleExternalReference,
+            sampleArtifactReference
+        )
+
+        expect(copyFileCalled).to.be.false
+        expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
+        expect(sampleArtifactReference.netCompatibleRelativePath).to.be.undefined
+        expect(sampleArtifactReference.netCompatibleVersion).to.be.undefined
     })
 })

@@ -269,17 +269,10 @@ export class ArtifactManager {
         if (!request.PackageReferences) {
             return
         }
-        var thirdPartyPackage = request.PackageReferences.find(p => {
-            if (!p.IsPrivatePackage) {
-                return false
-            }
-            const compatibleFilePath = p.NetCompatibleAssemblyPath?.toLowerCase() || ''
-            if (compatibleFilePath == '') {
-                return false
-            }
-            const dllPath = path.basename(compatibleFilePath)
-            return dllPath && p.IsPrivatePackage && reference.RelativePath.includes(dllPath)
-        })
+        var thirdPartyPackage = request.PackageReferences.find(
+            // should be toLower because we to lower case the reference paths
+            p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id.concat('.dll').toLowerCase())
+        )
         if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
             artifactReference.packageId = thirdPartyPackage.Id
