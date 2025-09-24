@@ -26,47 +26,6 @@ describe('IdeCredentialsProvider', function () {
     })
 
     describe('validateIamCredentialsFields', function () {
-        it('normalizes expireTime to expiration field', function () {
-            const expireTime = new Date('2025-01-01')
-            const credentials: IamCredentials & { expireTime?: Date } = {
-                accessKeyId: 'key',
-                secretAccessKey: 'secret',
-                expireTime,
-            }
-
-            provider['validateIamCredentialsFields'](credentials)
-
-            assert.strictEqual(credentials.expiration, expireTime)
-        })
-
-        it('keeps existing expiration field unchanged', function () {
-            const expiration = new Date('2025-01-01')
-            const credentials: IamCredentials = {
-                accessKeyId: 'key',
-                secretAccessKey: 'secret',
-                expiration,
-            }
-
-            provider['validateIamCredentialsFields'](credentials)
-
-            assert.strictEqual(credentials.expiration, expiration)
-        })
-
-        it('does not overwrite expiration when both fields exist', function () {
-            const expiration = new Date('2025-01-01')
-            const expireTime = new Date('2024-01-01')
-            const credentials: IamCredentials & { expireTime?: Date } = {
-                accessKeyId: 'key',
-                secretAccessKey: 'secret',
-                expiration,
-                expireTime,
-            }
-
-            provider['validateIamCredentialsFields'](credentials)
-
-            assert.strictEqual(credentials.expiration, expiration)
-        })
-
         it('throws error when accessKeyId is missing', function () {
             const credentials = {
                 secretAccessKey: 'secret',

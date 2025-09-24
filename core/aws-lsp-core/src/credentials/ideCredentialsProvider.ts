@@ -58,7 +58,15 @@ export class IdeCredentialsProvider implements CredentialsProvider {
             credentialsProtocolMethodNames.iamCredentialsUpdate,
             async (request: UpdateCredentialsRequest) => {
                 try {
-                    const iamCredentials = await this.decodeCredentialsRequestToken<IamCredentials>(request)
+                    const rawCredentials = await this.decodeCredentialsRequestToken<
+                        IamCredentials & { expireTime?: Date }
+                    >(request)
+
+                    // Normalize legacy expireTime field to standard expiration field
+                    const iamCredentials: IamCredentials = {
+                        ...rawCredentials,
+                        expiration: rawCredentials.expiration || rawCredentials.expireTime,
+                    }
 
                     this.validateIamCredentialsFields(iamCredentials)
 
@@ -91,11 +99,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         }
         if (credentials.secretAccessKey === undefined) {
             throw new Error('Missing property: secretAccessKey')
-        }
-
-        // Normalize expiration field from v2 to v3 format
-        if (credentials.expireTime && !credentials.expiration) {
-            credentials.expiration = credentials.expireTime
         }
     }
 
