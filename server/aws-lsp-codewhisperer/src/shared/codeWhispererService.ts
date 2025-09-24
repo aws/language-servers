@@ -90,8 +90,8 @@ export interface ResponseContext {
 }
 
 export enum SuggestionType {
-    EDIT = 'EDIT',
-    COMPLETION = 'COMPLETION',
+    EDIT = 'EDITS',
+    COMPLETION = 'COMPLETIONS',
 }
 
 export interface GenerateSuggestionsResponse {
@@ -344,6 +344,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             if (!creds?.token) {
                                 throw new Error('Authorization failed, bearer token is not set')
                             }
+                            if (credentialsProvider.getConnectionType() === 'external_idp') {
+                                httpRequest.headers['TokenType'] = 'EXTERNAL_IDP'
+                            }
+
                             httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                             httpRequest.headers['x-amzn-codewhisperer-optout'] =
                                 `${!this.shareCodeWhispererContentWithAWS}`
@@ -478,7 +482,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 tokenRequest.customizationArn = this.customizationArn
             }
 
-            const beforeApiCall = performance.now()
+            const beforeApiCall = Date.now()
             let recentEditsLogStr = ''
             const recentEdits = tokenRequest.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
             if (recentEdits) {
@@ -524,7 +528,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "response.completions.length": ${response.completions?.length ?? 0},
     "response.predictions.length": ${response.predictions?.length ?? 0},
     "predictionType": ${tokenRequest.predictionTypes?.toString() ?? ''},
-    "latency": ${performance.now() - beforeApiCall},
+    "latency": ${Date.now() - beforeApiCall},
     "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
 

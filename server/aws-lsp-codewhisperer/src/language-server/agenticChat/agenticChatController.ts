@@ -230,6 +230,8 @@ import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import escapeHTML = require('escape-html')
+import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
+import { MemoryBankController } from './context/memorybank/memoryBankController'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -266,6 +268,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
+    #memoryBankController: MemoryBankController
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
@@ -369,6 +372,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
+        this.#memoryBankController = MemoryBankController.getInstance(features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -832,6 +836,93 @@ export class AgenticChatController implements ChatHandlers {
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
+        // Memory Bank Creation Flow - Delegate to MemoryBankController
+        if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
+            this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
+
+            // Store original prompt to prevent data loss on failure
+            const originalPrompt = params.prompt.prompt
+
+            try {
+                const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+                const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
+
+                if (!workspaceUri) {
+                    throw new Error('No workspace folder found for Memory Bank creation')
+                }
+
+                // Check if memory bank already exists to provide appropriate user feedback
+                const memoryBankExists = await this.#memoryBankController.memoryBankExists(workspaceUri)
+                const actionType = memoryBankExists ? 'Regenerating' : 'Generating'
+                this.#features.logging.info(`${actionType} Memory Bank for workspace: ${workspaceUri}`)
+
+                const resultStream = this.#getChatResultStream(params.partialResultToken)
+                await resultStream.writeResultBlock({
+                    body: `Preparing to analyze your project...`,
+                    type: 'answer',
+                    messageId: crypto.randomUUID(),
+                })
+
+                const comprehensivePrompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
+                    workspaceUri,
+                    async (prompt: string) => {
+                        // Direct LLM call for ranking - no agentic loop
+                        try {
+                            if (!this.#serviceManager) {
+                                throw new Error('amazonQServiceManager is not initialized')
+                            }
+
+                            const client = this.#serviceManager.getStreamingClient()
+                            const requestInput: SendMessageCommandInput = {
+                                conversationState: {
+                                    chatTriggerType: ChatTriggerType.MANUAL,
+                                    currentMessage: {
+                                        userInputMessage: {
+                                            content: prompt,
+                                        },
+                                    },
+                                },
+                            }
+
+                            const response = await client.sendMessage(requestInput)
+
+                            let responseContent = ''
+                            const maxResponseSize = 50000 // 50KB limit
+
+                            if (response.sendMessageResponse) {
+                                for await (const chatEvent of response.sendMessageResponse) {
+                                    if (chatEvent.assistantResponseEvent?.content) {
+                                        responseContent += chatEvent.assistantResponseEvent.content
+                                        if (responseContent.length > maxResponseSize) {
+                                            this.#features.logging.warn('LLM response exceeded size limit, truncating')
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+
+                            return responseContent.trim()
+                        } catch (error) {
+                            this.#features.logging.error(`Memory Bank LLM ranking failed: ${error}`)
+                            return '' // Empty string triggers TF-IDF fallback
+                        }
+                    }
+                )
+
+                // Only update prompt if we got a valid comprehensive prompt
+                if (comprehensivePrompt && comprehensivePrompt.trim().length > 0) {
+                    params.prompt.prompt = comprehensivePrompt
+                } else {
+                    this.#features.logging.warn('Empty comprehensive prompt received, using original prompt')
+                    params.prompt.prompt = originalPrompt
+                }
+            } catch (error) {
+                this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
+                // Restore original prompt to ensure no data loss
+                params.prompt.prompt = originalPrompt
+            }
+        }
+
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
@@ -908,7 +999,8 @@ export class AgenticChatController implements ChatHandlers {
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 params.tabId,
-                params.context
+                params.context,
+                params.prompt.prompt
             )
             // Add active file to context list if it's not already there
             const activeFile =
@@ -1906,7 +1998,9 @@ export class AgenticChatController implements ChatHandlers {
                     }
                     case CodeReview.toolName:
                     case DisplayFindings.toolName:
-                        // no need to write tool message for CodeReview or DisplayFindings
+                    // no need to write tool message for CodeReview or DisplayFindings
+                    case SemanticSearch.toolName:
+                        // For internal A/B we don't need tool message
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
@@ -2122,6 +2216,9 @@ export class AgenticChatController implements ChatHandlers {
                                 body: JSON.stringify(displayFindingsResult.output.content),
                             })
                         }
+                        break
+                    case SemanticSearch.toolName:
+                        await this.#handleSemanticSearchToolResult(toolUse, result, session, chatResultStream)
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -3382,7 +3479,8 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage)
+        const errorCode = err.code ?? ''
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
@@ -4648,6 +4746,64 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
+    async #handleSemanticSearchToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        // Early return if toolUseId is undefined
+        if (!toolUse.toolUseId) {
+            this.#log(`Cannot handle semantic search tool result: missing toolUseId`)
+            return
+        }
+
+        // Format the tool result and input as JSON strings
+        const toolInput = JSON.stringify(toolUse.input, null, 2)
+        const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+
+        const toolResultCard: ChatMessage = {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            summary: {
+                content: {
+                    header: {
+                        icon: 'tools',
+                        body: `${SemanticSearch.toolName}`,
+                        fileList: undefined,
+                    },
+                },
+                collapsedContent: [
+                    {
+                        header: {
+                            body: 'Parameters',
+                        },
+                        body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                    },
+                    {
+                        header: {
+                            body: 'Result',
+                        },
+                        body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                    },
+                ],
+            },
+        }
+
+        // Get the stored blockId for this tool use
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+        const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+
+        if (cachedButtonBlockId !== undefined) {
+            // Update the existing card with the results
+            await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+        } else {
+            // Fallback to creating a new card
+            this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+            await chatResultStream.writeResultBlock(toolResultCard)
+        }
+    }
+
     scheduleABTestingFetching(userContext: UserContext | undefined) {
         if (!userContext) {
             return
@@ -4671,8 +4827,8 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(
-                        feature => feature.feature === 'MaestroWorkspaceContext'
+                    const feature = result.featureEvaluations?.find(feature =>
+                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
                     if (feature) {
                         this.#abTestingAllocation = {

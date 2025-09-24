@@ -249,14 +249,16 @@ describe('CodeReviewUtils', () => {
                 },
             } as unknown as JSZip
 
-            const count = CodeReviewUtils.countZipFiles(mockZip)
+            const [count, files] = CodeReviewUtils.countZipFiles(mockZip)
             expect(count).to.equal(3)
+            expect(files).to.deep.equal(new Set(['file1.js', 'dir1/file2.ts', 'dir2/file3.py']))
         })
 
         it('should return 0 for empty zip', () => {
             const mockZip = { files: {} } as unknown as JSZip
-            const count = CodeReviewUtils.countZipFiles(mockZip)
+            const [count, files] = CodeReviewUtils.countZipFiles(mockZip)
             expect(count).to.equal(0)
+            expect(files).to.deep.equal(new Set())
         })
     })
 

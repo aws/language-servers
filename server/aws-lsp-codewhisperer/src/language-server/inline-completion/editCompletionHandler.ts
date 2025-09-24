@@ -16,6 +16,7 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
+    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -127,6 +128,7 @@ export class EditCompletionHandler {
 
         // Not ideally to rely on a state, should improve it and simply make it a debounced API
         this.isInProgress = true
+        const startPreprocessTimestamp = Date.now()
 
         if (params.partialResultToken && currentSession) {
             // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
@@ -137,6 +139,7 @@ export class EditCompletionHandler {
             const newSession = this.sessionManager.createSession({
                 document: textDocument,
                 startPosition: params.position,
+                startPreprocessTimestamp: startPreprocessTimestamp,
                 triggerType: 'AutoTrigger',
                 language: currentSession.language,
                 requestContext: currentSession.requestContext,
@@ -173,6 +176,7 @@ export class EditCompletionHandler {
                     this.isWaiting = true
                     const result = await this._invoke(
                         params,
+                        startPreprocessTimestamp,
                         token,
                         textDocument,
                         inferredLanguageId,
@@ -204,6 +208,7 @@ export class EditCompletionHandler {
 
     async _invoke(
         params: InlineCompletionWithReferencesParams,
+        startPreprocessTimestamp: number,
         token: CancellationToken,
         textDocument: TextDocument,
         inferredLanguageId: CodewhispererLanguage,
@@ -297,6 +302,7 @@ export class EditCompletionHandler {
 
         const newSession = this.sessionManager.createSession({
             document: textDocument,
+            startPreprocessTimestamp: startPreprocessTimestamp,
             startPosition: params.position,
             triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
             language: fileContext.programmingLanguage.languageName,
@@ -339,8 +345,8 @@ export class EditCompletionHandler {
             session.suggestions = suggestionResponse.suggestions
             session.responseContext = suggestionResponse.responseContext
             session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-            session.timeToFirstRecommendation = new Date().getTime() - session.startTime
-            session.suggestionType = suggestionResponse.suggestionType
+            session.setTimeToFirstRecommendation()
+            session.predictionType = SuggestionType.EDIT
         } else {
             session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
         }

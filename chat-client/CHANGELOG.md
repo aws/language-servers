@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.37](https://github.com/aws/language-servers/compare/chat-client/v0.1.36...chat-client/v0.1.37) (2025-09-24)
+
+
+### Features
+
+* memory bank support ([#2314](https://github.com/aws/language-servers/issues/2314)) ([0e215fc](https://github.com/aws/language-servers/commit/0e215fc0e475b4c40a8237492371716982d4d532))
+
+## [0.1.36](https://github.com/aws/language-servers/compare/chat-client/v0.1.35...chat-client/v0.1.36) (2025-09-16)
+
+
+### Bug Fixes
+
+* migration from /agents ux ([#2248](https://github.com/aws/language-servers/issues/2248)) ([debeb41](https://github.com/aws/language-servers/commit/debeb414fd0d4d873af2f36cde0ebbeab16d16a4))
+
 ## [0.1.35](https://github.com/aws/language-servers/compare/chat-client/v0.1.34...chat-client/v0.1.35) (2025-09-09)
 
 
