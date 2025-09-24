@@ -137,7 +137,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase, MaxOverallCharacters, ToolResultValidationError } from './tools/chatDb/chatDb'
+import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -187,6 +187,8 @@ import {
     DEFAULT_WINDOW_REJECT_SHORTCUT,
     DEFAULT_MACOS_STOP_SHORTCUT,
     DEFAULT_WINDOW_STOP_SHORTCUT,
+    COMPACTION_CHARACTER_THRESHOLD,
+    MAX_OVERALL_CHARACTERS,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -1179,8 +1181,7 @@ export class AgenticChatController implements ChatHandlers {
      * Runs the compaction, making requests and processing tool uses until completion
      */
     #shouldCompact(currentRequestCount: number): boolean {
-        // 80% of 570K limit
-        if (currentRequestCount > 456_000) {
+        if (currentRequestCount > COMPACTION_CHARACTER_THRESHOLD) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
@@ -1225,7 +1226,7 @@ export class AgenticChatController implements ChatHandlers {
             //  Get and process the messages from history DB to maintain invariants for service requests
             try {
                 const { history: historyMessages, historyCount: historyCharCount } =
-                    this.#chatHistoryDb.fixAndGetHistory(tabId, conversationIdentifier ?? '', currentMessage, [])
+                    this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, [])
                 messages = historyMessages
                 characterCount = historyCharCount
             } catch (err) {
@@ -1403,12 +1404,7 @@ export class AgenticChatController implements ChatHandlers {
                         history: historyMessages,
                         historyCount: historyCharacterCount,
                         currentCount: currentInputCount,
-                    } = this.#chatHistoryDb.fixAndGetHistory(
-                        tabId,
-                        conversationId,
-                        currentMessage,
-                        pinnedContextMessages
-                    )
+                    } = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
                     messages = historyMessages
                     currentRequestCount = currentInputCount + historyCharacterCount
                     this.#debug(`Request total character count: ${currentRequestCount}`)
@@ -2779,7 +2775,7 @@ export class AgenticChatController implements ChatHandlers {
             body: COMPACTION_HEADER_BODY,
             buttons,
         } as any
-        const body = COMPACTION_BODY(Math.round((characterCount / MaxOverallCharacters) * 100))
+        const body = COMPACTION_BODY(Math.round((characterCount / MAX_OVERALL_CHARACTERS) * 100))
         return {
             type: 'tool',
             messageId,
