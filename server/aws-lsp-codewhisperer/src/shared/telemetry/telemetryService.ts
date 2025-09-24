@@ -179,7 +179,8 @@ export class TelemetryService {
             if (this.modelId !== undefined) {
                 request.modelId = this.modelId
             }
-            await this.getService().sendTelemetryEvent(request)
+            const r = await this.getService().sendTelemetryEvent(request)
+            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$response.requestId}`)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
         }
@@ -290,9 +291,10 @@ export class TelemetryService {
             "acceptedCharacterCount": ${event.acceptedCharacterCount}
             "addedCharacterCount": ${event.addedCharacterCount}
             "deletedCharacterCount": ${event.deletedCharacterCount}
-            "streakLength": ${event.streakLength}
+            "streakLength": ${event.streakLength},
+            "preprocessLatency": ${session.preprocessLatency},
+            "triggerToResponseLatencyMilliseconds: ${event.triggerToResponseLatencyMilliseconds}",
             "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds},
-            "triggerToResponseLatencyMilliseconds: ${event.triggerToResponseLatencyMilliseconds}"
             "suggestionType": ${event.suggestionType}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,

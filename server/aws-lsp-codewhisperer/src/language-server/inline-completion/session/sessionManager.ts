@@ -43,6 +43,13 @@ export class CodeWhispererSession {
     id: string
     document: TextDocument
     startTime: number
+    private _endPreprocessTimestamp: number
+    get endPreprocessTimestamp() {
+        return this._endPreprocessTimestamp
+    }
+    get preprocessLatency() {
+        return this.endPreprocessTimestamp - this.startTime
+    }
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
     private _state: SessionState
@@ -120,6 +127,8 @@ export class CodeWhispererSession {
         this.supplementalMetadata = data.supplementalMetadata
         this._state = 'REQUESTING'
         this.startTime = data.startPreprocessTimestamp
+        // Current implementation is the session will be created when preprocess is done
+        this._endPreprocessTimestamp = Date.now()
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
