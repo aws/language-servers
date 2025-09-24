@@ -251,7 +251,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
                                 credentials.accessKeyId = creds.accessKeyId as string
                                 credentials.secretAccessKey = creds.secretAccessKey as string
                                 credentials.sessionToken = creds.sessionToken as string
-                                credentials.expireTime = creds.expireTime as Date
+                                credentials.expireTime = creds.expiration as Date
                                 callback()
                             })
                             .catch(err => {
