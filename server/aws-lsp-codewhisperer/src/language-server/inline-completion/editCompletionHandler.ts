@@ -345,7 +345,7 @@ export class EditCompletionHandler {
             session.suggestions = suggestionResponse.suggestions
             session.responseContext = suggestionResponse.responseContext
             session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-            session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+            session.setTimeToFirstRecommendation()
             session.predictionType = SuggestionType.EDIT
         } else {
             session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]

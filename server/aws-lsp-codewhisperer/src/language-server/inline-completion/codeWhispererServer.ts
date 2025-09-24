@@ -428,7 +428,7 @@ export const CodewhispererServerFactory =
                 session.suggestions = suggestionResponse.suggestions
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-                session.timeToFirstRecommendation = Date.now() - session.startTime
+                session.setTimeToFirstRecommendation()
                 session.predictionType = SuggestionType.COMPLETION
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
@@ -846,9 +846,9 @@ export const CodewhispererServerFactory =
 
             // Record last user modification time for any document
             if (lastUserModificationTime) {
-                timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
+                timeSinceLastUserModification = Date.now() - lastUserModificationTime
             }
-            lastUserModificationTime = new Date().getTime()
+            lastUserModificationTime = Date.now()
 
             documentChangedListener.onDocumentChanged(p)
             editCompletionHandler.documentChanged()

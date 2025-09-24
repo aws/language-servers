@@ -78,7 +78,14 @@ export class CodeWhispererSession {
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     supplementalMetadata?: CodeWhispererSupplementalContext
-    timeToFirstRecommendation: number = 0
+    private _timeToFirstRecommendation: number = 0
+    get timeToFirstRecommendation() {
+        return this._timeToFirstRecommendation
+    }
+    setTimeToFirstRecommendation() {
+        this._timeToFirstRecommendation = Date.now() - this.startTime
+    }
+
     credentialStartUrl?: string
     completionSessionResult?: {
         [itemId: string]: InlineCompletionStates
@@ -112,7 +119,6 @@ export class CodeWhispererSession {
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
         this._state = 'REQUESTING'
-
         this.startTime = data.startPreprocessTimestamp
     }
 
@@ -168,6 +174,7 @@ export class CodeWhispererSession {
         this.state = 'DISCARD'
     }
 
+    // Should use epoch time for firstCompletionDisplayLatency, totalSessionDisplayTime
     setClientResultData(
         completionSessionResult: { [itemId: string]: InlineCompletionStates },
         firstCompletionDisplayLatency?: number,
