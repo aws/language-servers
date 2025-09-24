@@ -521,7 +521,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 tokenRequest.customizationArn = this.customizationArn
             }
 
-            const beforeApiCall = performance.now()
+            const beforeApiCall = Date.now()
             let recentEditsLogStr = ''
             const recentEdits = tokenRequest.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
             if (recentEdits) {
@@ -567,7 +567,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "response.completions.length": ${response.completions?.length ?? 0},
     "response.predictions.length": ${response.predictions?.length ?? 0},
     "predictionType": ${tokenRequest.predictionTypes?.toString() ?? ''},
-    "latency": ${performance.now() - beforeApiCall},
+    "latency": ${Date.now() - beforeApiCall},
     "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
 
