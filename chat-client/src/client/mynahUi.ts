@@ -304,11 +304,13 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
             loadingChat: true,
             cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
+            modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
         })
     } else {
         mynahUi.updateStore(tabId, {
             loadingChat: true,
             promptInputDisabledState: true,
+            modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
         })
     }
 
@@ -953,6 +955,17 @@ export const createMynahUi = (
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
 
+        // Update modified files title when fileList is present
+        if (fileList && fileList.filePaths) {
+            const fileCount = fileList.filePaths.length
+            mynahUi.updateStore(tabId, {
+                modifiedFilesTitle:
+                    fileCount > 0
+                        ? uiComponentsTexts.modifiedFilesCount.replace('{count}', fileCount.toString())
+                        : uiComponentsTexts.modifiedFilesNone,
+            })
+        }
+
         if (chatResult.contextList !== undefined) {
             header = contextListToHeader(chatResult.contextList)
         }
@@ -1070,6 +1083,13 @@ export const createMynahUi = (
             cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
         })
+
+        // Set default title if no files were modified
+        if (!fileList || !fileList.filePaths || fileList.filePaths.length === 0) {
+            mynahUi.updateStore(tabId, {
+                modifiedFilesTitle: uiComponentsTexts.modifiedFilesNone,
+            })
+        }
     }
 
     // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
@@ -1818,6 +1838,9 @@ export const uiComponentsTexts = {
     spinnerText: 'Working...',
     macStopButtonShortcut: '&#8679; &#8984; &#9003;',
     windowStopButtonShortcut: 'Ctrl + &#8679; + &#9003;',
+    modifiedFilesWorking: 'Working...',
+    modifiedFilesNone: 'No files modified!',
+    modifiedFilesCount: '({count}) files modified!',
 }
 
 const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
