@@ -25,9 +25,20 @@ describe('McpTool', () => {
         },
         telemetry: { record: () => {}, emitMetric: () => {} },
         runtime: { serverInfo: { version: '1.0.0' } },
+        agent: {
+            getBuiltInToolNames: () => [
+                'fsRead',
+                'fsWrite',
+                'executeBash',
+                'listDirectory',
+                'fileSearch',
+                'codeReview',
+                'displayFindings',
+            ],
+        },
     } as unknown as Pick<
         import('@aws/language-server-runtimes/server-interface/server').Features,
-        'logging' | 'workspace' | 'lsp' | 'credentialsProvider' | 'telemetry' | 'runtime'
+        'logging' | 'workspace' | 'lsp' | 'credentialsProvider' | 'telemetry' | 'runtime' | 'agent'
     >
 
     const definition: McpToolDefinition = {

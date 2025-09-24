@@ -12,7 +12,14 @@ import {
     Status,
 } from '@aws/language-server-runtimes/protocol'
 
-import { getGlobalAgentConfigPath, getWorkspaceAgentConfigPaths, sanitizeName, normalizePathFromUri } from './mcpUtils'
+import {
+    getGlobalAgentConfigPath,
+    getWorkspaceAgentConfigPaths,
+    sanitizeName,
+    normalizePathFromUri,
+    getWorkspaceMcpConfigPaths,
+    getGlobalMcpConfigPath,
+} from './mcpUtils'
 import {
     McpPermissionType,
     MCPServerConfig,
@@ -782,8 +789,11 @@ export class McpEventHandler {
         try {
             if (isEditMode && originalServerName) {
                 const serverToRemove = this.#serverNameBeforeUpdate || originalServerName
+                const serverConfig = McpManager.instance.getAllServerConfigs().get(serverToRemove)
+                const isLegacyMcpServer = serverConfig?.__configPath__?.endsWith('mcp.json') ?? false
+                const configPath = isLegacyMcpServer ? await this.#getMcpConfigPath(isGlobal) : agentPath
                 await McpManager.instance.removeServer(serverToRemove)
-                await McpManager.instance.addServer(serverName, config, agentPath)
+                await McpManager.instance.addServer(serverName, config, configPath, isLegacyMcpServer)
             } else {
                 // Create new server
                 await McpManager.instance.addServer(serverName, config, agentPath)
@@ -1260,7 +1270,9 @@ export class McpEventHandler {
                     numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
                     scope:
                         serverConfig.__configPath__ ===
-                        getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                            getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir()) ||
+                        serverConfig.__configPath__ ===
+                            getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
                             ? 'global'
                             : 'workspace',
                     transportType: transportType,
@@ -1289,12 +1301,13 @@ export class McpEventHandler {
             ([name, _]) => !mcpManager.isServerDisabled(name)
         )
 
-        // Get the global agent path
+        // Get the global paths
         const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        const globalMcpPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
 
         // Count global vs project servers
         const globalServers = Array.from(serverConfigs.entries()).filter(
-            ([_, config]) => config.__configPath__ === globalAgentPath
+            ([_, config]) => config.__configPath__ === globalAgentPath || config.__configPath__ === globalMcpPath
         ).length
         const projectServers = serverConfigs.size - globalServers
 
@@ -1332,7 +1345,10 @@ export class McpEventHandler {
                 url: transportType === TransportType.HTTP ? config.url : undefined,
                 enabled: enabled,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
-                scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
+                scope:
+                    config.__configPath__ === globalAgentPath || config.__configPath__ === globalMcpPath
+                        ? 'global'
+                        : 'workspace',
                 transportType: transportType,
                 languageServerVersion: this.#features.runtime.serverInfo.version,
             })
@@ -1404,6 +1420,37 @@ export class McpEventHandler {
     }
 
     /**
+     * Gets the appropriate MCP config path, checking workspace path first if it exists
+     * @returns The MCP config path to use (workspace if exists, otherwise global)
+     */
+    async #getMcpConfigPath(isGlobal: boolean = true): Promise<string> {
+        const globalMcpPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        if (isGlobal) {
+            return globalMcpPath
+        }
+        // Get workspace folders and check for workspace MCP path
+        const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            const workspacePaths = workspaceFolders.map(folder => folder.uri)
+            const workspaceMcpPaths = getWorkspaceMcpConfigPaths(workspacePaths)
+
+            if (Array.isArray(workspaceMcpPaths) && workspaceMcpPaths.length > 0) {
+                try {
+                    // Convert URI format to filesystem path if needed using the utility function
+                    const mcpPath = normalizePathFromUri(workspaceMcpPaths[0], this.#features.logging)
+
+                    return mcpPath
+                } catch (e) {
+                    this.#features.logging.warn(`Failed to check if workspace MCP path exists: ${e}`)
+                }
+            }
+        }
+
+        // Return global path if workspace path doesn't exist or there was an error
+        return globalMcpPath
+    }
+
+    /**
      * Processes permission updates from the UI
      */
     async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
@@ -1472,13 +1519,15 @@ export class McpEventHandler {
             this.#features.logging.warn(`Failed to get user home directory: ${e}`)
         }
 
-        // Only watch agent config files
+        // Watch both agent config files and MCP config files
         const agentPaths = [
             ...getWorkspaceAgentConfigPaths(wsUris),
             ...(homeDir ? [getGlobalAgentConfigPath(homeDir)] : []),
         ]
 
-        const allPaths = [...agentPaths]
+        const mcpPaths = [...getWorkspaceMcpConfigPaths(wsUris), ...(homeDir ? [getGlobalMcpConfigPath(homeDir)] : [])]
+
+        const allPaths = [...agentPaths, ...mcpPaths]
 
         this.#fileWatcher.watchPaths(allPaths, () => {
             // Store the current programmatic state when the event is triggered
