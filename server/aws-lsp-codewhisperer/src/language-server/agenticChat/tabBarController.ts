@@ -313,10 +313,17 @@ export class TabBarController {
      * When IDE is opened, restore chats that were previously open in IDE for the current workspace.
      */
     async loadChats() {
-        if (this.#loadedChats) {
+        const isJupyterLab = this.isJupyterLabEnvironment()
+
+        // For non-JupyterLab environments, prevent multiple loads
+        if (!isJupyterLab && this.#loadedChats) {
             return
         }
-        this.#loadedChats = true
+
+        if (!isJupyterLab) {
+            this.#loadedChats = true
+        }
+
         const openConversations = this.#chatHistoryDb.getOpenTabs()
         if (openConversations) {
             for (const conversation of openConversations) {
@@ -330,6 +337,13 @@ export class TabBarController {
                 result: 'Succeeded',
             })
         }
+    }
+
+    /**
+     * Determines if the environment is JupyterLab.
+     */
+    private isJupyterLabEnvironment(): boolean {
+        return process.env.JUPYTER_LAB === 'true'
     }
 
     public static enableChatExport(params?: InitializeParams) {
