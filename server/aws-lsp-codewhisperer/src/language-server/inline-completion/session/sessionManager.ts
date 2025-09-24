@@ -25,6 +25,7 @@ interface CachedSuggestion extends Suggestion {
 
 export interface SessionData {
     document: TextDocument
+    startPreprocessTimestamp: number
     startPosition: Position
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -42,6 +43,13 @@ export class CodeWhispererSession {
     id: string
     document: TextDocument
     startTime: number
+    private _endPreprocessTimestamp: number
+    get endPreprocessTimestamp() {
+        return this._endPreprocessTimestamp
+    }
+    get preprocessLatency() {
+        return this.endPreprocessTimestamp - this.startTime
+    }
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
     private _state: SessionState
@@ -77,7 +85,14 @@ export class CodeWhispererSession {
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     supplementalMetadata?: CodeWhispererSupplementalContext
-    timeToFirstRecommendation: number = 0
+    private _timeToFirstRecommendation: number = 0
+    get timeToFirstRecommendation() {
+        return this._timeToFirstRecommendation
+    }
+    setTimeToFirstRecommendation() {
+        this._timeToFirstRecommendation = Date.now() - this.startTime
+    }
+
     credentialStartUrl?: string
     completionSessionResult?: {
         [itemId: string]: InlineCompletionStates
@@ -111,8 +126,9 @@ export class CodeWhispererSession {
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
         this._state = 'REQUESTING'
-
-        this.startTime = new Date().getTime()
+        this.startTime = data.startPreprocessTimestamp
+        // Current implementation is the session will be created when preprocess is done
+        this._endPreprocessTimestamp = Date.now()
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -147,7 +163,7 @@ export class CodeWhispererSession {
             }
         }
 
-        this.closeTime = new Date().getTime()
+        this.closeTime = Date.now()
 
         this.state = 'CLOSED'
     }
@@ -162,11 +178,12 @@ export class CodeWhispererSession {
             this.suggestionsStates.set(suggestion.itemId, 'Discard')
         }
 
-        this.closeTime = new Date().getTime()
+        this.closeTime = Date.now()
 
         this.state = 'DISCARD'
     }
 
+    // Should use epoch time for firstCompletionDisplayLatency, totalSessionDisplayTime
     setClientResultData(
         completionSessionResult: { [itemId: string]: InlineCompletionStates },
         firstCompletionDisplayLatency?: number,
