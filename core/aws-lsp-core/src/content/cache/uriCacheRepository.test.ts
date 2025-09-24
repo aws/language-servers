@@ -20,7 +20,7 @@ describe('Test UriCacheRepository', async () => {
 
     beforeEach(async () => {
         mockfs({
-            'cache': {
+            cache: {
                 cachedUris: {
                     metadata: '{}',
                 },

@@ -43,7 +43,7 @@ describe('Test CachedContentHandler', async () => {
 
     beforeEach(async () => {
         mockfs({
-            'cache': {
+            cache: {
                 cachedUris: {
                     metadata: '{}',
                 },
