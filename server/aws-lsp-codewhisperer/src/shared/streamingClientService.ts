@@ -203,7 +203,7 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
                 accessKeyId: creds.accessKeyId,
                 secretAccessKey: creds.secretAccessKey,
                 sessionToken: creds.sessionToken,
-                expiration: creds.expiration ? creds.expiration : new Date(), // Force refresh if expiration field is not available
+                expiration: creds.expiration ? new Date(creds.expiration) : new Date(), // Force refresh if expiration field is not available
             }
         }
 
