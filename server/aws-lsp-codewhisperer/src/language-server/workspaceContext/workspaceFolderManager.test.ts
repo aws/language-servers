@@ -9,7 +9,6 @@ import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { ListWorkspaceMetadataResponse, WorkspaceStatus } from '@amzn/codewhisperer-runtime'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
 import { ServiceException } from '@smithy/smithy-client'
-import { AWSError } from 'aws-sdk'
 import { SemanticSearch } from '../agenticChat/tools/workspaceContext/semanticSearch'
 
 describe('WorkspaceFolderManager', () => {
@@ -459,14 +458,14 @@ describe('WorkspaceFolderManager', () => {
             sinon.stub(IdleWorkspaceManager, 'isSessionIdle').returns(false)
 
             // Mock listWorkspaceMetadata to throw AccessDeniedException with feature not supported
-            const mockError: AWSError = {
+            const mockError = new ServiceException({
                 name: 'AccessDeniedException',
                 message: 'Feature is not supported',
-                code: 'AccessDeniedException',
-                time: new Date(),
-                retryable: false,
-                statusCode: 403,
-            }
+                $fault: 'client',
+                $metadata: {
+                    httpStatusCode: 403,
+                },
+            })
 
             mockCodeWhispererService.listWorkspaceMetadata.rejects(mockError)
 
