@@ -39,9 +39,6 @@ describe('MynahUI', () => {
     const requestId = '1234'
 
     beforeEach(() => {
-        // Use fake timers to control setTimeout calls in Node.js 24
-        sinon.useFakeTimers()
-
         outboundChatApi = {
             sendChatPrompt: sinon.stub(),
             sendQuickActionCommand: sinon.stub(),
@@ -252,6 +249,9 @@ describe('MynahUI', () => {
         it('should create a new tab if none exits', () => {
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
+            // Stub handleChatPrompt to prevent async setTimeout calls
+            const handleChatPromptStub = sinon.stub(require('./mynahUi'), 'handleChatPrompt')
+
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = ''
@@ -261,6 +261,7 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
+            handleChatPromptStub.restore()
         })
 
         it('should create a new tab if current tab is loading', function (done) {
