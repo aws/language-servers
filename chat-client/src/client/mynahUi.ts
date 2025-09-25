@@ -305,12 +305,14 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
             cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
             modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
+            modifiedFilesVisible: true,
         })
     } else {
         mynahUi.updateStore(tabId, {
             loadingChat: true,
             promptInputDisabledState: true,
             modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
+            modifiedFilesVisible: true,
         })
     }
 
@@ -819,11 +821,15 @@ export const createMynahUi = (
                 store: {
                     ...tabFactory.createTab(disclaimerCardActive),
                     chatItems: tabFactory.getChatItems(true, programmingModeCardActive),
+                    modifiedFilesVisible: false,
                 },
             },
         },
         defaults: {
-            store: tabFactory.createTab(false),
+            store: {
+                ...tabFactory.createTab(false),
+                modifiedFilesVisible: false,
+            },
         },
         config: {
             maxTabs: 10,
@@ -871,6 +877,7 @@ export const createMynahUi = (
         const tabId = mynahUi.updateStore('', {
             ...tabFactory.createTab(disclaimerCardActive),
             tabMetadata: { openTabKey: openTab ? true : false },
+            modifiedFilesVisible: false,
         })
         if (tabId === undefined) {
             mynahUi.notify({
@@ -956,14 +963,18 @@ export const createMynahUi = (
         const buttons = toMynahButtons(chatResult.buttons)
 
         // Update modified files title when fileList is present
-        if (fileList && fileList.filePaths) {
-            const fileCount = fileList.filePaths.length
-            mynahUi.updateStore(tabId, {
-                modifiedFilesTitle:
-                    fileCount > 0
-                        ? uiComponentsTexts.modifiedFilesCount.replace('{count}', fileCount.toString())
-                        : uiComponentsTexts.modifiedFilesNone,
-            })
+        if (fileList && fileList.filePaths && fileList.details) {
+            // Count files that actually have modifications (have changes data)
+            const modifiedFilesCount = fileList.filePaths.filter(filePath => {
+                const details = fileList.details?.[filePath]
+                return details?.changes != null
+            }).length
+
+            if (modifiedFilesCount > 0) {
+                mynahUi.updateStore(tabId, {
+                    modifiedFilesTitle: `(${modifiedFilesCount}) files modified!`,
+                })
+            }
         }
 
         if (chatResult.contextList !== undefined) {
@@ -1084,10 +1095,20 @@ export const createMynahUi = (
             promptInputDisabledState: false,
         })
 
-        // Set default title if no files were modified
-        if (!fileList || !fileList.filePaths || fileList.filePaths.length === 0) {
+        // Set default title if no files were actually modified
+        const modifiedFilesCount =
+            fileList?.filePaths?.filter(filePath => {
+                const details = fileList.details?.[filePath]
+                return details?.changes != null
+            }).length || 0
+
+        if (modifiedFilesCount === 0) {
             mynahUi.updateStore(tabId, {
                 modifiedFilesTitle: uiComponentsTexts.modifiedFilesNone,
+            })
+        } else {
+            mynahUi.updateStore(tabId, {
+                modifiedFilesTitle: `(${modifiedFilesCount}) files modified!`,
             })
         }
     }
