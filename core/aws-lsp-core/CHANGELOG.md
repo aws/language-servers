@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.16](https://github.com/aws/language-servers/compare/lsp-core/v0.0.15...lsp-core/v0.0.16) (2025-09-25)
+
+
+### Bug Fixes
+
+* **amazonq:** handle IAM credentials expiration field to be aws sdk versions compatible and add refresh logic to codewhisperer IAM client ([#2349](https://github.com/aws/language-servers/issues/2349)) ([5eb3768](https://github.com/aws/language-servers/commit/5eb3768bf020d61d0ade767d62e13839048146e4))
+
 ## [0.0.15](https://github.com/aws/language-servers/compare/lsp-core/v0.0.14...lsp-core/v0.0.15) (2025-09-09)
 
 
