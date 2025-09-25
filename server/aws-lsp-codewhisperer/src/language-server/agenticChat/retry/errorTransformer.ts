@@ -32,10 +32,32 @@ export class QErrorTransformer {
     }
 
     private extractResponseBody(error: any): string | null {
+        return (
+            this.extractTextFromBody(error.cause?.$metadata?.body) ||
+            this.extractTextFromBody(error.$metadata?.body) ||
+            this.extractTextFromBody(error.cause?.body) ||
+            this.extractTextFromBody(error.body) ||
+            this.extractTextFromBody(error.response?.data) ||
+            this.extractTextFromBody(error.response?.body) ||
+            error.message ||
+            null
+        )
+    }
+
+    private extractTextFromBody(body: any): string | null {
         try {
-            if (error.cause?.$response?.body) return error.cause.$response.body
-            if (error.$response?.body) return error.$response.body
-            if (error.message) return error.message
+            if (typeof body === 'string') {
+                return body
+            }
+            if (body instanceof Uint8Array) {
+                return new TextDecoder('utf-8', { fatal: false }).decode(body)
+            }
+            if (body instanceof ArrayBuffer) {
+                return new TextDecoder('utf-8', { fatal: false }).decode(body)
+            }
+            if (typeof body === 'object' && body !== null) {
+                return JSON.stringify(body)
+            }
             return null
         } catch {
             return null
@@ -73,7 +95,12 @@ export class QErrorTransformer {
             )
         }
 
-        if (error?.name === 'AbortError' || error?.code === 'RequestAborted' || isRequestAbortedError(error)) {
+        if (
+            error?.name === 'AbortError' ||
+            error?.code === 'RequestAborted' ||
+            error?.name === 'RequestAborted' ||
+            isRequestAbortedError(error)
+        ) {
             return new AgenticChatError(
                 'Request aborted',
                 'RequestAborted',
@@ -83,6 +110,7 @@ export class QErrorTransformer {
         }
 
         if (
+            error?.name === 'InputTooLong' ||
             error?.code === 'InputTooLong' ||
             error?.message?.includes('input too long') ||
             isInputTooLongError(error)
@@ -138,12 +166,17 @@ export class QErrorTransformer {
         const statusCode = this.getStatusCode(error)
 
         // Check for AWS throttling patterns
-        if (statusCode === HTTP_STATUS_TOO_MANY_REQUESTS || error?.code === 'ThrottlingException') return true
+        if (
+            statusCode === HTTP_STATUS_TOO_MANY_REQUESTS ||
+            error?.name === 'ThrottlingException' ||
+            error?.code === 'ThrottlingException'
+        )
+            return true
 
         // Check for service overloaded errors (status 500 with specific messages)
         if (statusCode === HTTP_STATUS_INTERNAL_SERVER_ERROR) {
             // Check response body directly (not error message) to avoid conflict with model unavailability
-            const responseBody = error.cause?.$response?.body || error.$response?.body
+            const responseBody = error.cause?.$metadata?.body || error.$metadata?.body
             if (responseBody) {
                 const isOverloaded =
                     responseBody.includes(HIGH_LOAD_ERROR_MESSAGE) ||
@@ -168,14 +201,18 @@ export class QErrorTransformer {
 
     private getStatusCode(error: any): number | undefined {
         try {
-            // Enhanced extraction
+            // AWS SDK v3 metadata patterns
             if (error.cause?.$metadata?.httpStatusCode) return error.cause.$metadata.httpStatusCode
             if (error.$metadata?.httpStatusCode) return error.$metadata.httpStatusCode
+            // Direct status properties
             if (error.statusCode) return error.statusCode
-            if (error?.status) return error.status
-            if (error?.$response?.statusCode) return error.$response.statusCode
-            if (error?.cause?.$response?.statusCode) return error.cause.$response.statusCode
-            if (error?.response?.status) return error.response.status
+            if (error.status) return error.status
+            // Response object patterns
+            if (error.response?.status) return error.response.status
+            if (error.response?.statusCode) return error.response.statusCode
+            // Nested error patterns
+            if (error.cause?.statusCode) return error.cause.statusCode
+            if (error.cause?.status) return error.cause.status
             return undefined
         } catch {
             return undefined

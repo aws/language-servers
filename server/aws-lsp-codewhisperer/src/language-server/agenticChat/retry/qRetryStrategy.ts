@@ -1,13 +1,15 @@
-import { RetryStrategyV2, RetryToken } from '@aws-sdk/types'
+import { RetryToken, RetryErrorInfo, RetryErrorType } from '@aws-sdk/types'
+import { AdaptiveRetryStrategy } from '@smithy/util-retry'
+import { StandardRetryToken } from '@smithy/types'
 import { QRetryClassifier, RetryAction } from './retryClassifier'
 import { QDelayTrackingInterceptor } from './delayInterceptor'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { sanitizeLogInput } from '../../../shared/utils'
 
 /**
- * Custom retry strategy that integrates Q-specific retry classification and delay tracking
+ * Custom retry strategy that extends AWS SDK v3's AdaptiveRetryStrategy with Q-specific logic
  */
-export class QRetryStrategy implements RetryStrategyV2 {
+export class QRetryStrategy extends AdaptiveRetryStrategy {
     private retryClassifier: QRetryClassifier
     private delayInterceptor: QDelayTrackingInterceptor
     private maxAttempts: number
@@ -20,36 +22,33 @@ export class QRetryStrategy implements RetryStrategyV2 {
         maxAttempts: number = 3,
         logging?: Logging
     ) {
+        super(() => Promise.resolve(maxAttempts))
         this.retryClassifier = retryClassifier
         this.delayInterceptor = delayInterceptor
         this.maxAttempts = maxAttempts
         this.logging = logging
     }
 
-    async acquireInitialRetryToken(retryTokenScope: string): Promise<RetryToken> {
+    override async acquireInitialRetryToken(retryTokenScope: string): Promise<RetryToken> {
         this.attemptCount = 0
-        const sanitizedScope = sanitizeLogInput(retryTokenScope)
         this.logging?.log(
-            `QRetryStrategy: Initial retry token acquired for scope: ${sanitizedScope}, attempt count reset to 0`
+            `QRetryStrategy: Initial retry token acquired for scope: ${retryTokenScope}, attempt count reset to 0`
         )
-        return {
-            getRetryCount: () => 0,
-            getRetryDelay: () => 0,
-        }
+        // AdaptiveRetryStrategy returns StandardRetryToken, but interface expects RetryToken
+        return super.acquireInitialRetryToken(retryTokenScope)
     }
 
-    async refreshRetryTokenForRetry(
-        token: RetryToken,
-        errorInfo: { error?: any; errorType?: string }
-    ): Promise<RetryToken> {
+    override async refreshRetryTokenForRetry(token: RetryToken, errorInfo: RetryErrorInfo): Promise<RetryToken> {
         const currentAttempt = token.getRetryCount() + 1
         this.attemptCount = currentAttempt
 
-        const errorCode = sanitizeLogInput(errorInfo.error?.code || errorInfo.error?.name || 'Unknown')
+        const errorCode = sanitizeLogInput(
+            (errorInfo.error as any)?.name || (errorInfo.error as any)?.code || 'Unknown'
+        )
         this.logging?.log(`QRetryStrategy: Retry attempt ${currentAttempt} for error: ${errorCode}`)
 
         // Apply Q-specific retry classification
-        const context = { error: errorInfo.error, response: errorInfo.error?.response }
+        const context = { error: errorInfo.error, response: (errorInfo.error as any)?.$response }
         const action = this.retryClassifier.classifyRetry(context)
         this.logging?.log(`QRetryStrategy: Retry classification result: ${action}`)
 
@@ -59,31 +58,24 @@ export class QRetryStrategy implements RetryStrategyV2 {
             throw errorInfo.error
         }
 
-        // Check max attempts
-        if (currentAttempt >= this.maxAttempts) {
-            this.logging?.log(`QRetryStrategy: Max attempts (${this.maxAttempts}) reached, stopping retries`)
-            throw errorInfo.error
-        }
-
-        // Calculate delay with exponential backoff
-        const delay = Math.min(300 * Math.pow(2, currentAttempt), 10000)
-        this.logging?.log(`QRetryStrategy: Calculated delay: ${delay}ms for next attempt ${currentAttempt + 1}`)
-
         // Track delay for UI notifications - CALL BEFORE ATTEMPT
         this.delayInterceptor.beforeAttempt(currentAttempt + 1)
 
-        return {
-            getRetryCount: () => currentAttempt,
-            getRetryDelay: () => delay,
-        }
+        // Delegate to adaptive strategy for delay calculation and max attempts check
+        // AdaptiveRetryStrategy expects StandardRetryToken but we receive RetryToken
+        // The token from acquireInitialRetryToken is actually StandardRetryToken, so this cast is safe
+        return super.refreshRetryTokenForRetry(token as StandardRetryToken, errorInfo)
     }
 
-    async recordSuccess(token: RetryToken): Promise<void> {
+    override recordSuccess(token: RetryToken): void {
         try {
             this.logging?.log(`QRetryStrategy: Request succeeded after ${this.attemptCount + 1} total attempts`)
             // Reset delay tracking on success
             this.delayInterceptor.reset()
             this.attemptCount = 0
+            // Call parent to maintain adaptive strategy state
+            // Token is actually StandardRetryToken from AdaptiveRetryStrategy
+            super.recordSuccess(token as StandardRetryToken)
         } catch (error) {
             // Log but don't throw - success recording should not fail
             this.logging?.log(`QRetryStrategy: Warning - failed to reset state after success: ${error}`)

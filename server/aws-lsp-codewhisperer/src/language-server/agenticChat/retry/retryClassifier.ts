@@ -46,11 +46,17 @@ export class QRetryClassifier {
         const error = context.error
 
         // Handle non-retryable errors first (matching original + enhanced detection)
-        if (error?.name === 'AbortError' || error?.code === 'RequestAborted' || isRequestAbortedError(error)) {
+        if (
+            error?.name === 'AbortError' ||
+            error?.code === 'RequestAborted' ||
+            error?.name === 'RequestAborted' ||
+            isRequestAbortedError(error)
+        ) {
             return RetryAction.RetryForbidden
         }
 
         if (
+            error?.name === 'InputTooLong' ||
             error?.code === 'InputTooLong' ||
             error?.message?.includes('input too long') ||
             isInputTooLongError(error)
@@ -70,7 +76,7 @@ export class QRetryClassifier {
         }
 
         // Check for model capacity issues (from original)
-        const status = context.response?.status || context.error?.statusCode
+        const status = context.response?.status || context.error?.$metadata?.httpStatusCode
         if (status === 429 && error?.cause?.reason === INSUFFICIENT_MODEL_CAPACITY) {
             return RetryAction.ThrottlingError
         }
@@ -84,23 +90,39 @@ export class QRetryClassifier {
     }
 
     private extractResponseBody(context: InterceptorContext): string | null {
+        // Try context response first
+        const contextBody = this.extractTextFromBody(context.response?.body)
+        if (contextBody) return contextBody
+
+        // Fallback to error-based extraction
+        const error = context.error
+        return (
+            this.extractTextFromBody(error?.cause?.$metadata?.body) ||
+            this.extractTextFromBody(error?.$metadata?.body) ||
+            this.extractTextFromBody(error?.cause?.body) ||
+            this.extractTextFromBody(error?.body) ||
+            this.extractTextFromBody(error?.response?.data) ||
+            this.extractTextFromBody(error?.response?.body) ||
+            error?.message ||
+            null
+        )
+    }
+
+    private extractTextFromBody(body: any): string | null {
         try {
-            // Try multiple extraction strategies
-            if (context.response?.body) {
-                if (typeof context.response.body === 'string') {
-                    return context.response.body
-                }
-                if (context.response.body instanceof Uint8Array) {
-                    return new TextDecoder().decode(context.response.body)
-                }
+            if (typeof body === 'string') {
+                return body
             }
-
-            // Fallback to error-based extraction
-            const error = context.error
-            if (error?.cause?.$response?.body) return error.cause.$response.body
-            if (error?.$response?.body) return error.$response.body
-            if (error?.message) return error.message
-
+            if (body instanceof Uint8Array) {
+                const decoded = new TextDecoder('utf-8', { fatal: false }).decode(body)
+                return decoded || null
+            }
+            if (body instanceof ArrayBuffer) {
+                return new TextDecoder('utf-8', { fatal: false }).decode(body)
+            }
+            if (typeof body === 'object' && body !== null) {
+                return JSON.stringify(body)
+            }
             return null
         } catch {
             return null
@@ -114,7 +136,7 @@ export class QRetryClassifier {
     }
 
     private isServiceOverloadedError(context: InterceptorContext, bodyStr: string): boolean {
-        const status = context.response?.status || context.error?.status || context.error?.$response?.statusCode
+        const status = context.response?.status || context.error?.status || context.error?.$metadata?.httpStatusCode
 
         if (status !== HTTP_STATUS_INTERNAL_SERVER_ERROR) {
             return false

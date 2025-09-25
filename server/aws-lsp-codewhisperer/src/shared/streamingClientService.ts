@@ -109,7 +109,6 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             endpoint,
             token: tokenProvider,
             retryStrategy: retryStrategy,
-            retryMode: 'adaptive',
             requestHandler: new NodeHttpHandler({
                 requestTimeout: CLIENT_TIMEOUT_MS,
             }),
@@ -245,7 +244,6 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             endpoint: endpoint,
             credentials: iamCredentialProvider,
             retryStrategy: retryStrategy,
-            retryMode: 'adaptive',
         })
     }
 

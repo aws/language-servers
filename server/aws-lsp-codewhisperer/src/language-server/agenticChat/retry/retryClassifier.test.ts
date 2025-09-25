@@ -63,7 +63,7 @@ describe('QRetryClassifier', () => {
 
         it('should classify throttling for 429 status with model capacity', () => {
             const error = new Error('Model unavailable')
-            ;(error as any).statusCode = 429
+            ;(error as any).$metadata = { httpStatusCode: 429 }
             ;(error as any).cause = { reason: 'INSUFFICIENT_MODEL_CAPACITY' }
 
             const result = classifier.classifyRetry({ error })
@@ -93,14 +93,14 @@ describe('QRetryClassifier', () => {
             // Test different body extraction paths
             const context1 = {
                 error: {
-                    cause: { $response: { body: 'MONTHLY_REQUEST_COUNT' } },
+                    cause: { $metadata: { body: 'MONTHLY_REQUEST_COUNT' } },
                 },
             }
             expect(classifier.classifyRetry(context1)).to.equal(RetryAction.RetryForbidden)
 
             const context2 = {
                 error: {
-                    $response: { body: 'MONTHLY_REQUEST_COUNT' },
+                    $metadata: { body: 'MONTHLY_REQUEST_COUNT' },
                 },
             }
             expect(classifier.classifyRetry(context2)).to.equal(RetryAction.RetryForbidden)
@@ -128,22 +128,41 @@ describe('QRetryClassifier', () => {
             expect(result).to.equal('test body')
         })
 
-        it('should handle extraction errors gracefully', () => {
+        it('should extract body from ArrayBuffer', () => {
             const classifier = new QRetryClassifier()
+            const body = new TextEncoder().encode('test body').buffer
             const context = {
-                error: {
-                    cause: {
-                        $response: {
-                            get body() {
-                                throw new Error('Access denied')
-                            },
-                        },
-                    },
-                },
+                error: { body },
             }
 
             const result = (classifier as any).extractResponseBody(context)
 
+            expect(result).to.equal('test body')
+        })
+
+        it('should extract body from object', () => {
+            const classifier = new QRetryClassifier()
+            const body = { message: 'test' }
+            const context = {
+                error: { body },
+            }
+
+            const result = (classifier as any).extractResponseBody(context)
+
+            expect(result).to.equal('{"message":"test"}')
+        })
+
+        it('should handle extraction errors gracefully', () => {
+            const classifier = new QRetryClassifier()
+
+            // Test extractTextFromBody error handling
+            const bodyThatThrows = {
+                get toString() {
+                    throw new Error('Access denied')
+                },
+            }
+
+            const result = (classifier as any).extractTextFromBody(bodyThatThrows)
             expect(result).to.be.null
         })
     })
@@ -156,6 +175,35 @@ describe('QRetryClassifier', () => {
         it('should return correct priority', () => {
             expect(classifier.priority().value).to.equal(100)
             expect(QRetryClassifier.priority().value).to.equal(100)
+        })
+    })
+
+    describe('isMonthlyLimitError', () => {
+        it('should log debug messages for monthly limit detection', () => {
+            const classifierWithLogging = new QRetryClassifier(mockLogging)
+
+            const result = (classifierWithLogging as any).isMonthlyLimitError('MONTHLY_REQUEST_COUNT exceeded')
+
+            expect(result).to.be.true
+            expect(mockLogging.debug.called).to.be.true
+        })
+    })
+
+    describe('isServiceOverloadedError', () => {
+        it('should log debug messages for service overloaded detection', () => {
+            const classifierWithLogging = new QRetryClassifier(mockLogging)
+            const context = {
+                error: { $metadata: { httpStatusCode: 500 } },
+                response: { status: 500 },
+            }
+
+            const result = (classifierWithLogging as any).isServiceOverloadedError(
+                context,
+                'Encountered unexpectedly high load when processing the request, please try again.'
+            )
+
+            expect(result).to.be.true
+            expect(mockLogging.debug.called).to.be.true
         })
     })
 })

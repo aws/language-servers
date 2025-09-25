@@ -5,7 +5,8 @@ import {
     Position,
     SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
-import { AWSError, Credentials } from 'aws-sdk'
+import { AwsCredentialIdentity } from '@aws-sdk/types'
+
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
@@ -33,13 +34,13 @@ import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
 
-export function isAwsError(error: unknown): error is AWSError {
+export function isAwsError(error: unknown): error is ServiceException {
     if (error === undefined) {
         return false
     }
 
-    // TODO: do SDK v3 errors have `.code` ?
-    return error instanceof Error && hasCode(error) && hasTime(error)
+    // AWS SDK v3 errors extend ServiceException
+    return error instanceof ServiceException || (error instanceof Error && '$metadata' in error)
 }
 
 export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
@@ -53,7 +54,7 @@ export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
     //     return true
     // }
 
-    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
+    if (e instanceof ThrottlingException || (isAwsError(e) && e.name === 'ThrottlingException')) {
         return true
     }
 
@@ -90,7 +91,7 @@ export function isUsageLimitError(e: unknown): e is ThrottlingException {
     return false
 }
 
-export function isQuotaExceededError(e: unknown): e is AWSError {
+export function isQuotaExceededError(e: unknown): e is ServiceException {
     if (!e) {
         return false
     }
@@ -102,7 +103,7 @@ export function isQuotaExceededError(e: unknown): e is AWSError {
 
     // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
     // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
-    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
+    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.name == 'ServiceQuotaExceededException')) {
         return true
     }
 
@@ -489,9 +490,6 @@ export function isStringOrNull(object: any): object is string | null {
 export function getHttpStatusCode(err: unknown): number | undefined {
     // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
 
-    if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
-        return err?.$response?.statusCode
-    }
     if (hasMetadata(err) && err.$metadata?.httpStatusCode !== undefined) {
         return err.$metadata?.httpStatusCode
     }
@@ -500,10 +498,6 @@ export function getHttpStatusCode(err: unknown): number | undefined {
     }
 
     return undefined
-}
-
-function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$response'> {
-    return typeof (error as { $response?: unknown })?.$response === 'object'
 }
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
