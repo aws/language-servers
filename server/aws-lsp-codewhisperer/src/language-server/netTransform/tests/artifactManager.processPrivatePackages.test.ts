@@ -10,7 +10,6 @@ describe('ArtifactManager - processPrivatePackages', () => {
     let workspace: StubbedInstance<Workspace>
     let artifactManager: ArtifactManager
     let sampleStartTransformRequest: StartTransformRequest
-    let sampleExternalReference: ExternalReference
     let sampleArtifactReference: References
     const mockedLogging = stubInterface<Logging>()
 
@@ -30,12 +29,6 @@ describe('ArtifactManager - processPrivatePackages', () => {
         // Setup initial test data
         sampleStartTransformRequest = EXAMPLE_REQUEST
 
-        sampleExternalReference = {
-            ProjectPath: '',
-            RelativePath: '',
-            AssemblyFullPath: '',
-            IncludedInArtifact: true,
-        }
         sampleArtifactReference = {
             includedInArtifact: true,
             relativePath: '',
@@ -45,11 +38,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
 
     it('should do nothing when PackageReferences is undefined', async () => {
         sampleStartTransformRequest.PackageReferences = undefined
-        artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(false)
         expect(sampleArtifactReference.netCompatibleRelativePath).to.equal(undefined)
         expect(sampleArtifactReference.netCompatibleVersion).to.equal(undefined)
@@ -72,13 +61,9 @@ describe('ArtifactManager - processPrivatePackages', () => {
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
-        sampleExternalReference.RelativePath = 'some/path/test-package/more/path/test-package.dll'
+        sampleArtifactReference.relativePath = 'some/path/test-package/more/path/test-package.dll'
 
-        await artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
         expect(copyFileCalled).to.be.true
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
@@ -105,13 +90,9 @@ describe('ArtifactManager - processPrivatePackages', () => {
         }
 
         sampleStartTransformRequest.PackageReferences = [nonPrivatePackage]
-        sampleExternalReference.RelativePath = 'some/path/test-package/more/path/test-package.dll'
+        sampleArtifactReference.relativePath = 'some/path/test-package/more/path/test-package.dll'
 
-        artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
         expect(copyFileCalled).to.be.false
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(false)
@@ -136,13 +117,9 @@ describe('ArtifactManager - processPrivatePackages', () => {
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
-        sampleExternalReference.RelativePath = 'some/path/different-package/more/path/test-package2.dll'
+        sampleArtifactReference.relativePath = 'some/path/different-package/more/path/test-package2.dll'
 
-        artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
         expect(copyFileCalled).to.be.false
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(false)
@@ -172,27 +149,18 @@ describe('ArtifactManager - processPrivatePackages', () => {
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage1, privatePackage2]
-        sampleExternalReference.RelativePath =
+        sampleArtifactReference.relativePath =
             'references/packages/pnmac.core.entityservice.2.2.0/lib/pnmac.core.entityservice.dll'
 
-        console.log('testing process private packages')
-        await artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
         expect(sampleArtifactReference.packageId).to.equal('PNMAC.Core.EntityService')
         expect(sampleArtifactReference.netCompatibleVersion).to.equal('4.1.0.4')
 
-        sampleExternalReference.RelativePath = 'references/packages/pnmac.core.2.30.0/lib/pnmac.core.dll'
+        sampleArtifactReference.relativePath = 'references/packages/pnmac.core.2.30.0/lib/pnmac.core.dll'
 
-        await artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)
         expect(sampleArtifactReference.packageId).to.equal('PNMAC.Core')
@@ -216,13 +184,9 @@ describe('ArtifactManager - processPrivatePackages', () => {
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
-        sampleExternalReference.RelativePath = 'some/path/test-package/more/test-package.dll'
+        sampleArtifactReference.relativePath = 'some/path/test-package/more/test-package.dll'
 
-        await artifactManager.processPrivatePackages(
-            sampleStartTransformRequest,
-            sampleExternalReference,
-            sampleArtifactReference
-        )
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
         expect(copyFileCalled).to.be.false
         expect(sampleArtifactReference.isThirdPartyPackage).to.equal(true)

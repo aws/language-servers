@@ -210,7 +210,7 @@ export class ArtifactManager {
                         relativePath: relativePath,
                         isThirdPartyPackage: false,
                     }
-                    await this.processPrivatePackages(request, reference, artifactReference)
+                    await this.processPrivatePackages(request, artifactReference)
                     references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
@@ -261,17 +261,13 @@ export class ArtifactManager {
         } as RequirementJson
     }
 
-    async processPrivatePackages(
-        request: StartTransformRequest,
-        reference: ExternalReference,
-        artifactReference: References
-    ): Promise<void> {
+    async processPrivatePackages(request: StartTransformRequest, artifactReference: References): Promise<void> {
         if (!request.PackageReferences) {
             return
         }
         var thirdPartyPackage = request.PackageReferences.find(
             // should be toLower because we to lower case the reference paths
-            p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id.concat('.dll').toLowerCase())
+            p => p.IsPrivatePackage && artifactReference.relativePath.includes(p.Id.concat('.dll').toLowerCase())
         )
         if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
