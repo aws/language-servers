@@ -1,6 +1,7 @@
 import { afterEach } from 'mocha'
 import * as sinon from 'sinon'
 import { assert } from 'sinon'
+import * as mynahUiModule from './mynahUi'
 import {
     createMynahUi,
     InboundChatApi,
@@ -250,7 +251,7 @@ describe('MynahUI', () => {
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
             // Stub handleChatPrompt to prevent async setTimeout calls
-            const handleChatPromptStub = sinon.stub(require('./mynahUi'), 'handleChatPrompt')
+            const handleChatPromptStub = sinon.stub(mynahUiModule, 'handleChatPrompt')
 
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
