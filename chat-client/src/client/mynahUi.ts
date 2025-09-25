@@ -962,17 +962,16 @@ export const createMynahUi = (
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
 
-        // Update modified files title when fileList is present
+        // Update modified lines counter when fileList is present
         if (fileList && fileList.filePaths && fileList.details) {
-            // Count files that actually have modifications (have changes data)
-            const modifiedFilesCount = fileList.filePaths.filter(filePath => {
+            const modifiedLinesCount = fileList.filePaths.reduce((total, filePath) => {
                 const details = fileList.details?.[filePath]
-                return details?.changes != null
-            }).length
+                return total + (details?.changes?.total || 0)
+            }, 0)
 
-            if (modifiedFilesCount > 0) {
+            if (modifiedLinesCount > 0) {
                 mynahUi.updateStore(tabId, {
-                    modifiedFilesTitle: `(${modifiedFilesCount}) files modified!`,
+                    modifiedFilesTitle: `(${modifiedLinesCount}) chnages made!`,
                 })
             }
         }
@@ -1095,22 +1094,34 @@ export const createMynahUi = (
             promptInputDisabledState: false,
         })
 
-        // Set default title if no files were actually modified
-        const modifiedFilesCount =
-            fileList?.filePaths?.filter(filePath => {
-                const details = fileList.details?.[filePath]
-                return details?.changes != null
-            }).length || 0
+        // Final update of modified lines counter and title
+        const tabStore = mynahUi.getTabData(tabId)?.getStore() || {}
+        const allChatItems = tabStore.chatItems || []
+        let modifiedLinesCount = 0
 
-        if (modifiedFilesCount === 0) {
-            mynahUi.updateStore(tabId, {
-                modifiedFilesTitle: uiComponentsTexts.modifiedFilesNone,
-            })
-        } else {
-            mynahUi.updateStore(tabId, {
-                modifiedFilesTitle: `(${modifiedFilesCount}) files modified!`,
-            })
-        }
+        allChatItems.forEach(chatItem => {
+            if (chatItem.type !== 'answer-stream' && chatItem.messageId != null) {
+                const fileList = chatItem.header?.fileList ?? chatItem.fileList
+
+                if (fileList?.filePaths != null) {
+                    fileList.filePaths.forEach(filePath => {
+                        const details = fileList.details?.[filePath]
+
+                        if (details?.changes != null) {
+                            const added = details.changes.added || 0
+                            const deleted = details.changes.deleted || 0
+                            const changesTotal = added + deleted
+                            modifiedLinesCount += changesTotal
+                        }
+                    })
+                }
+            }
+        })
+
+        mynahUi.updateStore(tabId, {
+            modifiedFilesTitle:
+                modifiedLinesCount > 0 ? `(${modifiedLinesCount}) changes made!` : uiComponentsTexts.modifiedFilesNone,
+        })
     }
 
     // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
