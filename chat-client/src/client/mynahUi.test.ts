@@ -260,7 +260,7 @@ describe('MynahUI', () => {
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
-            sinon.assert.calledThrice(updateStoreSpy)
+            sinon.assert.calledTwice(updateStoreSpy)
             handleChatPromptStub.restore()
         })
 
