@@ -12,7 +12,7 @@ import path = require('path')
 describe('Test UriCacheRepository', async () => {
     const sampleUri = URI.parse('https://aws.amazon.com/')
     const currentTimeMs = 1234
-    const metadataPath = '//cache/cachedUris/metadata'
+    const metadataPath = 'cache/cachedUris/metadata'
 
     let timeProviderStub: SinonStubbedInstance<TimeProvider>
 
@@ -20,7 +20,7 @@ describe('Test UriCacheRepository', async () => {
 
     beforeEach(async () => {
         mockfs({
-            '//cache': {
+            cache: {
                 cachedUris: {
                     metadata: '{}',
                 },
@@ -30,7 +30,7 @@ describe('Test UriCacheRepository', async () => {
         timeProviderStub = stub(new TimeProvider())
         timeProviderStub.currentMilliseconds.returns(currentTimeMs)
 
-        sut = new UriCacheRepository('//cache', timeProviderStub)
+        sut = new UriCacheRepository('cache', timeProviderStub)
     })
 
     afterEach(async () => {
@@ -89,7 +89,7 @@ describe('Test UriCacheRepository', async () => {
     })
 
     function getCachePath(uri: URI): string {
-        return path.join('//cache/cachedUris', getHash(uri))
+        return path.join('cache/cachedUris', getHash(uri))
     }
 
     function getHash(uri: URI): string {
