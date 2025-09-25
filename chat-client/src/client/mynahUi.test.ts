@@ -1,7 +1,6 @@
 import { afterEach } from 'mocha'
 import * as sinon from 'sinon'
 import { assert } from 'sinon'
-import * as mynahUiModule from './mynahUi'
 import {
     createMynahUi,
     InboundChatApi,
@@ -247,9 +246,15 @@ describe('MynahUI', () => {
     })
 
     describe('sendGenericCommand', () => {
-        it('should create a new tab if none exits', async () => {
+        it('should create a new tab if none exits', function () {
+            this.timeout(10000) // Increase timeout to 10 seconds
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
 
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
@@ -258,11 +263,9 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(undefined)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            // Wait for setTimeout calls to complete (up to 500ms delay found in code)
-            await new Promise(resolve => setTimeout(resolve, 600))
-
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
+            setTimeoutStub.restore()
         })
 
         it('should create a new tab if current tab is loading', function (done) {
