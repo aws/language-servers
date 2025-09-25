@@ -247,11 +247,9 @@ describe('MynahUI', () => {
     })
 
     describe('sendGenericCommand', () => {
-        it('should create a new tab if none exits', () => {
+        it('should create a new tab if none exits', async () => {
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
-            // Stub handleChatPrompt to prevent async setTimeout calls
-            const handleChatPromptStub = sinon.stub(mynahUiModule, 'handleChatPrompt')
 
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
@@ -260,9 +258,11 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(undefined)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
+            // Wait for setTimeout calls to complete (up to 500ms delay found in code)
+            await new Promise(resolve => setTimeout(resolve, 600))
+
             sinon.assert.calledOnceWithExactly(createTabStub, false)
-            sinon.assert.calledTwice(updateStoreSpy)
-            handleChatPromptStub.restore()
+            sinon.assert.calledThrice(updateStoreSpy)
         })
 
         it('should create a new tab if current tab is loading', function (done) {
