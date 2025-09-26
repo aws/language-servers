@@ -243,6 +243,18 @@ export class ChatTelemetryController {
         })
     }
 
+    public emitMidLoopCompaction(characters: number, iterationCount: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MidLoopCompaction,
+            data: {
+                characters,
+                iterationCount,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
     public emitToolUseSuggested(
         toolUse: ToolUse,
         conversationId: string,
