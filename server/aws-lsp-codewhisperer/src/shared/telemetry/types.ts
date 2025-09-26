@@ -207,6 +207,7 @@ export enum ChatTelemetryEventName {
     LoadHistory = 'amazonq_loadHistory',
     CompactHistory = 'amazonq_compactHistory',
     CompactNudge = 'amazonq_compactNudge',
+    MidLoopCompaction = 'amazonq_midLoopCompaction',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
@@ -233,6 +234,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
     [ChatTelemetryEventName.CompactHistory]: CompactHistoryEvent
     [ChatTelemetryEventName.CompactNudge]: CompactNudgeEvent
+    [ChatTelemetryEventName.MidLoopCompaction]: MidLoopCompactionEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
@@ -400,6 +402,13 @@ export type CompactHistoryEvent = {
 
 export type CompactNudgeEvent = {
     characters: number
+    credentialStartUrl?: string
+    languageServerVersion?: string
+}
+
+export type MidLoopCompactionEvent = {
+    characters: number
+    iterationCount: number
     credentialStartUrl?: string
     languageServerVersion?: string
 }

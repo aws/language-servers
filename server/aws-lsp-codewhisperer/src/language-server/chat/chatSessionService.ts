@@ -42,6 +42,7 @@ export class ChatSessionService {
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     public modelId: string | undefined
+    public compactionDeclined: boolean = false
     #lsp?: Features['lsp']
     #abortController?: AbortController
     #currentPromptId?: string
