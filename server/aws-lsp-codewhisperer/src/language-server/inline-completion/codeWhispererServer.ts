@@ -6,7 +6,6 @@ import {
     InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-    Position,
     Range,
     Server,
     TextDocument,
@@ -16,6 +15,10 @@ import {
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     FileContext,
+    BaseGenerateSuggestionsRequest,
+    CodeWhispererServiceToken,
+    GenerateIAMSuggestionsRequest,
+    GenerateTokenSuggestionsRequest,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
@@ -23,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
@@ -59,6 +62,7 @@ import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
+import { isUsingIAMAuth } from '../../shared/utils'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -102,7 +106,7 @@ const mergeSuggestionsWithRightContext = (
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: () => AmazonQBaseServiceManager): Server =>
+    (serviceManager: (credentialsProvider?: any) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -151,6 +155,13 @@ export const CodewhispererServerFactory =
                 logging.log(`Skip concurrent inline completion`)
                 return EMPTY_RESULT
             }
+
+            // Add this check to ensure service manager is initialized
+            if (!amazonQServiceManager) {
+                logging.log('Amazon Q Service Manager not initialized yet')
+                return EMPTY_RESULT
+            }
+
             isOnInlineCompletionHandlerInProgress = true
 
             try {
@@ -167,6 +178,10 @@ export const CodewhispererServerFactory =
                 const textDocument = await getTextDocument(params.textDocument.uri, workspace, logging)
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+                const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
+                logging.debug(
+                    `[INLINE_COMPLETION] Service ready - auth: ${authType}, partial token: ${!!params.partialResultToken}`
+                )
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
                     try {
@@ -210,6 +225,8 @@ export const CodewhispererServerFactory =
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
 
+                    const startPreprocessTimestamp = Date.now()
+
                     // For Jupyter Notebook in VSC, the language server does not have access to
                     // its internal states including current active cell index, etc
                     // we rely on VSC to calculate file context
@@ -239,7 +256,11 @@ export const CodewhispererServerFactory =
                         : undefined
 
                     const previousSession = completionSessionManager.getPreviousSession()
-                    const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
+                    // Only refer to decisions in the past 2 mins
+                    const previousDecisionForClassifier =
+                        previousSession && Date.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
+                            ? previousSession.getAggregatedUserTriggerDecision()
+                            : undefined
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
@@ -280,7 +301,7 @@ export const CodewhispererServerFactory =
                                 char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                                 ide: ideCategory ?? '',
                                 os: getNormalizeOsName(),
-                                previousDecision, // The last decision by the user on the previous invocation
+                                previousDecision: previousDecisionForClassifier, // The last decision by the user on the previous invocation
                                 triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                             },
                             logging
@@ -338,6 +359,7 @@ export const CodewhispererServerFactory =
 
                     const newSession = completionSessionManager.createSession({
                         document: textDocument,
+                        startPreprocessTimestamp: startPreprocessTimestamp,
                         startPosition: params.position,
                         triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
                         language: fileContext.programmingLanguage.languageName as CodewhispererLanguage,
@@ -358,11 +380,25 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    const generateCompletionReq = {
-                        ...requestContext,
-                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                    // Create the appropriate request based on service type
+                    let generateCompletionReq: BaseGenerateSuggestionsRequest
+
+                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                        const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
+                        generateCompletionReq = {
+                            ...tokenRequest,
+                            ...(workspaceId ? { workspaceId } : {}),
+                        }
+                    } else {
+                        const iamRequest = requestContext as GenerateIAMSuggestionsRequest
+                        generateCompletionReq = {
+                            ...iamRequest,
+                        }
                     }
+
                     try {
+                        const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
+                        logging.debug(`[INLINE_COMPLETION] API call - generateSuggestions (new session, ${authType})`)
                         const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
                         return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
                     } catch (error) {
@@ -392,8 +428,8 @@ export const CodewhispererServerFactory =
                 session.suggestions = suggestionResponse.suggestions
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-                session.timeToFirstRecommendation = new Date().getTime() - session.startTime
-                session.suggestionType = suggestionResponse.suggestionType
+                session.setTimeToFirstRecommendation()
+                session.predictionType = SuggestionType.COMPLETION
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
@@ -421,7 +457,7 @@ export const CodewhispererServerFactory =
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
             if (
-                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                session.predictionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
                 (session.state === 'CLOSED' || session.state === 'DISCARD')
             ) {
                 return EMPTY_RESULT
@@ -520,6 +556,7 @@ export const CodewhispererServerFactory =
             session: CodeWhispererSession
         ): InlineCompletionListWithReferences => {
             logging.log('Recommendation failure: ' + error)
+
             emitServiceInvocationFailure(telemetry, session, error)
 
             // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
@@ -606,7 +643,7 @@ export const CodewhispererServerFactory =
             let deletedLengthForEdits = 0
             if (acceptedSuggestion) {
                 codePercentageTracker.countSuccess(session.language)
-                if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
+                if (session.predictionType === SuggestionType.EDIT && acceptedSuggestion.content) {
                     // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
                     // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
                     const { addedLines, deletedLines } = getAddedAndDeletedLines(acceptedSuggestion.content)
@@ -702,7 +739,7 @@ export const CodewhispererServerFactory =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = serviceManager()
+            amazonQServiceManager = serviceManager(credentialsProvider)
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
@@ -809,9 +846,9 @@ export const CodewhispererServerFactory =
 
             // Record last user modification time for any document
             if (lastUserModificationTime) {
-                timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
+                timeSinceLastUserModification = Date.now() - lastUserModificationTime
             }
-            lastUserModificationTime = new Date().getTime()
+            lastUserModificationTime = Date.now()
 
             documentChangedListener.onDocumentChanged(p)
             editCompletionHandler.documentChanged()
@@ -870,6 +907,11 @@ export const CodewhispererServerFactory =
             logging.log('Amazon Q Inline Suggestion server has been shut down')
         }
     }
+
+// Dynamic service manager factory that detects auth type at runtime
+export const CodeWhispererServer = CodewhispererServerFactory((credentialsProvider?: any) => {
+    return isUsingIAMAuth(credentialsProvider) ? getOrThrowBaseIAMServiceManager() : getOrThrowBaseTokenServiceManager()
+})
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)

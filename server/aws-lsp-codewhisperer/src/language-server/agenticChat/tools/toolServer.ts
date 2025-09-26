@@ -11,7 +11,7 @@ import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
 import { CodeReview } from './qCodeAnalysis/codeReview'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalAgentConfigPath,
@@ -19,6 +19,8 @@ import {
     createNamespacedToolName,
     enabledMCP,
     migrateToAgentConfig,
+    migrateAgentConfigToCLIFormat,
+    normalizePathFromUri,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
@@ -27,6 +29,7 @@ import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
 import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { SERVICE_MANAGER_TIMEOUT_MS, SERVICE_MANAGER_POLL_INTERVAL_MS } from '../constants/constants'
+import { isUsingIAMAuth } from '../../../shared/utils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -125,15 +128,24 @@ export const QCodeAnalysisServer: Server = ({
             return
         }
 
-        // Create the CodeWhisperer client
-        const codeWhispererClient = new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            logging,
-            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
+        // Create the CodeWhisperer client for review tool based on iam auth check
+        const codeWhispererClient = isUsingIAMAuth()
+            ? new CodeWhispererServiceIAM(
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
+            : new CodeWhispererServiceToken(
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
 
         agent.addTool(
             {
@@ -210,7 +222,6 @@ export const McpToolsServer: Server = ({
     agent,
     telemetry,
     runtime,
-    sdkInitializator,
     chat,
 }) => {
     const registered: Record<string, string[]> = {}
@@ -321,6 +332,15 @@ export const McpToolsServer: Server = ({
 
             await migrateToAgentConfig(workspace, logging, agent)
 
+            // Migrate existing agent configs to CLI format
+            for (const agentPath of allAgentPaths) {
+                const normalizedAgentPath = normalizePathFromUri(agentPath)
+                const exists = await workspace.fs.exists(normalizedAgentPath).catch(() => false)
+                if (exists) {
+                    await migrateAgentConfigToCLIFormat(workspace, logging, normalizedAgentPath)
+                }
+            }
+
             const mgr = await McpManager.init(allAgentPaths, {
                 logging,
                 workspace,
@@ -328,6 +348,7 @@ export const McpToolsServer: Server = ({
                 telemetry,
                 credentialsProvider,
                 runtime,
+                agent,
             })
 
             McpManager.instance.clearToolNameMapping()
@@ -358,60 +379,51 @@ export const McpToolsServer: Server = ({
                 return
             }
 
-            if (sdkInitializator) {
-                profileStatusMonitor = new ProfileStatusMonitor(
-                    credentialsProvider,
-                    workspace,
-                    logging,
-                    sdkInitializator,
-                    removeAllMcpTools,
-                    async () => {
-                        logging.info('MCP enabled by profile status monitor')
-                        await initializeMcp()
-                    }
-                )
+            profileStatusMonitor = new ProfileStatusMonitor(logging, removeAllMcpTools, async () => {
+                logging.info('MCP enabled by profile status monitor')
+                await initializeMcp()
+            })
 
-                // Wait for profile ARN to be available before checking MCP state
-                const checkAndInitialize = async () => {
-                    await profileStatusMonitor!.checkInitialState()
-                    // Always initialize McpManager to handle UI requests
-                    await initializeMcp()
+            // Wait for profile ARN to be available before checking MCP state
+            const checkAndInitialize = async () => {
+                await profileStatusMonitor!.checkInitialState()
+                // Always initialize McpManager to handle UI requests
+                await initializeMcp()
 
-                    // Remove tools if MCP is disabled
-                    if (!ProfileStatusMonitor.getMcpState()) {
-                        removeAllMcpTools()
-                    }
-
-                    profileStatusMonitor!.start()
+                // Remove tools if MCP is disabled
+                if (!ProfileStatusMonitor.getMcpState()) {
+                    removeAllMcpTools()
                 }
 
-                // Check if service manager is ready
-                try {
-                    const serviceManager = AmazonQTokenServiceManager.getInstance()
-                    if (serviceManager.getState() === 'INITIALIZED') {
-                        await checkAndInitialize()
-                    } else {
-                        // Poll for service manager to be ready with 10s timeout
-                        const startTime = Date.now()
-                        const pollForReady = async () => {
-                            if (serviceManager.getState() === 'INITIALIZED') {
-                                await checkAndInitialize()
-                            } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
-                                setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
-                            } else {
-                                logging.warn('Service manager not ready after 10s, initializing MCP manager')
-                                await initializeMcp()
-                                profileStatusMonitor!.start()
-                            }
+                profileStatusMonitor!.start()
+            }
+
+            // Check if service manager is ready
+            try {
+                const serviceManager = AmazonQTokenServiceManager.getInstance()
+                if (serviceManager.getState() === 'INITIALIZED') {
+                    await checkAndInitialize()
+                } else {
+                    // Poll for service manager to be ready with 10s timeout
+                    const startTime = Date.now()
+                    const pollForReady = async () => {
+                        if (serviceManager.getState() === 'INITIALIZED') {
+                            await checkAndInitialize()
+                        } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
+                            setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
+                        } else {
+                            logging.warn('Service manager not ready after 10s, initializing MCP manager')
+                            await initializeMcp()
+                            profileStatusMonitor!.start()
                         }
-                        setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                     }
-                } catch (error) {
-                    // Service manager not initialized yet, always initialize McpManager
-                    logging.info('Service manager not ready, initializing MCP manager')
-                    await initializeMcp()
-                    profileStatusMonitor!.start()
+                    setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                 }
+            } catch (error) {
+                // Service manager not initialized yet, always initialize McpManager
+                logging.info('Service manager not ready, initializing MCP manager')
+                await initializeMcp()
+                profileStatusMonitor!.start()
             }
         } catch (error) {
             console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', error)

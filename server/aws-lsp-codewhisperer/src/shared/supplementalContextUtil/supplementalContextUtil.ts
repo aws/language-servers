@@ -30,7 +30,7 @@ export async function fetchSupplementalContext(
     cancellationToken: CancellationToken,
     openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
-    const timesBeforeFetching = performance.now()
+    const timesBeforeFetching = Date.now()
 
     const isUtg = unitTestIntentDetector.detectUnitTestIntent(document)
 
@@ -55,7 +55,7 @@ export async function fetchSupplementalContext(
                                 },
                             ],
                             contentsLength: srcContent.length,
-                            latency: performance.now() - timesBeforeFetching,
+                            latency: Date.now() - timesBeforeFetching,
                             strategy: 'NEW_UTG',
                         }
                     }
@@ -87,11 +87,28 @@ export async function fetchSupplementalContext(
                     (acc, curr) => acc + curr.content.length,
                     0
                 ),
-                latency: performance.now() - timesBeforeFetching,
+                latency: Date.now() - timesBeforeFetching,
                 strategy: supplementalContextValue.strategy,
             }
 
-            return truncateSupplementalContext(resBeforeTruncation)
+            const r = truncateSupplementalContext(resBeforeTruncation)
+
+            let logstr = `@@supplemental context@@
+\tisUtg: ${r.isUtg},
+\tisProcessTimeout: ${r.isProcessTimeout},
+\tcontents.length: ${r.contentsLength},
+\tlatency: ${r.latency},
+\tstrategy: ${r.strategy},
+`
+            r.supplementalContextItems.forEach((item, index) => {
+                logstr += `\tChunk [${index}th]:\n`
+                logstr += `\t\tPath: ${item.filePath}\n`
+                logstr += `\t\tLength: ${item.content.length}\n`
+                logstr += `\t\tScore: ${item.score}\n`
+            })
+            logging.info(logstr)
+
+            return r
         } else {
             return undefined
         }
@@ -102,7 +119,7 @@ export async function fetchSupplementalContext(
                 isProcessTimeout: true,
                 supplementalContextItems: [],
                 contentsLength: 0,
-                latency: performance.now() - timesBeforeFetching,
+                latency: Date.now() - timesBeforeFetching,
                 strategy: 'Empty',
             }
         } else {

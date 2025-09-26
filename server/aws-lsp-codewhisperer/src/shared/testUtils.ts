@@ -1,11 +1,11 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'
 import { StreamingClientServiceBase } from './streamingClientService'
 import { SessionData } from '../language-server/inline-completion/session/sessionManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
+import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -251,6 +251,7 @@ export const EMPTY_RESULT = { items: [], sessionId: '' }
 
 export const SAMPLE_SESSION_DATA: SessionData = {
     document: SOME_FILE,
+    startPreprocessTimestamp: 0,
     startPosition: {
         line: 0,
         character: 0,
@@ -270,6 +271,7 @@ export const SAMPLE_SESSION_DATA: SessionData = {
 
 export const SAMPLE_SESSION_DATA_WITH_EXTRA_LEFT_CONTENT: SessionData = {
     document: SOME_INCOMPLETE_FILE,
+    startPreprocessTimestamp: 0,
     startPosition: {
         line: 1,
         character: 0,
