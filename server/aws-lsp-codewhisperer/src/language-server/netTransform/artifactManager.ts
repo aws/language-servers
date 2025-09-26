@@ -230,8 +230,6 @@ export class ArtifactManager {
             for (const pkg of request.PackageReferences) {
                 if (!pkg.NetCompatiblePackageFilePath) {
                     continue
-                } else if (this.shouldFilterFile(pkg.NetCompatiblePackageFilePath)) {
-                    continue
                 }
                 try {
                     const packageRelativePath = this.normalizePackageFileRelativePath(pkg.NetCompatiblePackageFilePath)
