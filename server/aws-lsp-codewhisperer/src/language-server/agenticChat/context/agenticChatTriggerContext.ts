@@ -113,13 +113,15 @@ export class AgenticChatTriggerContext {
      * @param tools Optional Bedrock tools
      * @param modelId Optional model ID
      * @param origin Optional origin
+     * @param toolResults Optional tool results to include in compaction context
      * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
      */
     getCompactionChatCommandInput(
         profileArn?: string,
         tools: BedrockTools = [],
         modelId?: string,
-        origin?: Origin
+        origin?: Origin,
+        toolResults?: any[]
     ): ChatCommandInput {
         const data: ChatCommandInput = {
             conversationState: {
@@ -130,6 +132,7 @@ export class AgenticChatTriggerContext {
                         userInputMessageContext: {
                             tools,
                             envState: this.#mapPlatformToEnvState(process.platform),
+                            toolResults: toolResults,
                         },
                         userIntent: undefined,
                         origin: origin ? origin : 'IDE',
