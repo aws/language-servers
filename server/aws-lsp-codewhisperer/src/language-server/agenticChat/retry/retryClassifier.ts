@@ -6,6 +6,7 @@ import {
     SERVICE_UNAVAILABLE_EXCEPTION,
     HTTP_STATUS_INTERNAL_SERVER_ERROR,
     INSUFFICIENT_MODEL_CAPACITY,
+    CONTENT_LENGTH_EXCEEDS_THRESHOLD,
 } from '../constants/constants'
 
 export enum RetryAction {
@@ -55,29 +56,23 @@ export class QRetryClassifier {
             return RetryAction.RetryForbidden
         }
 
-        if (
-            error?.name === 'InputTooLong' ||
-            error?.code === 'InputTooLong' ||
-            error?.message?.includes('input too long') ||
-            isInputTooLongError(error)
-        ) {
+        if (error?.reason === CONTENT_LENGTH_EXCEEDS_THRESHOLD || isInputTooLongError(error)) {
+            return RetryAction.RetryForbidden
+        }
+
+        // Check for monthly limit error in error object
+        if (this.isMonthlyLimitError(error)) {
             return RetryAction.RetryForbidden
         }
 
         const bodyStr = this.extractResponseBody(context)
-        if (bodyStr) {
-            if (this.isMonthlyLimitError(bodyStr)) {
-                return RetryAction.RetryForbidden
-            }
-
-            if (this.isServiceOverloadedError(context, bodyStr)) {
-                return RetryAction.ThrottlingError
-            }
+        if (bodyStr && this.isServiceOverloadedError(context, bodyStr)) {
+            return RetryAction.ThrottlingError
         }
 
-        // Check for model capacity issues (from original)
+        // Check for model capacity issues
         const status = context.response?.status || context.error?.$metadata?.httpStatusCode
-        if (status === 429 && error?.cause?.reason === INSUFFICIENT_MODEL_CAPACITY) {
+        if (status === 429 && error?.reason === INSUFFICIENT_MODEL_CAPACITY) {
             return RetryAction.ThrottlingError
         }
 
@@ -97,13 +92,13 @@ export class QRetryClassifier {
         // Fallback to error-based extraction
         const error = context.error
         return (
+            error?.message ||
             this.extractTextFromBody(error?.cause?.$metadata?.body) ||
             this.extractTextFromBody(error?.$metadata?.body) ||
             this.extractTextFromBody(error?.cause?.body) ||
             this.extractTextFromBody(error?.body) ||
             this.extractTextFromBody(error?.response?.data) ||
             this.extractTextFromBody(error?.response?.body) ||
-            error?.message ||
             null
         )
     }
@@ -129,8 +124,8 @@ export class QRetryClassifier {
         }
     }
 
-    private isMonthlyLimitError(bodyStr: string): boolean {
-        const isMonthlyLimit = bodyStr.includes(MONTHLY_LIMIT_ERROR_MARKER)
+    private isMonthlyLimitError(error: any): boolean {
+        const isMonthlyLimit = error?.reason === MONTHLY_LIMIT_ERROR_MARKER
         this.logging?.debug(`QRetryClassifier: Monthly limit error detected: ${isMonthlyLimit}`)
         return isMonthlyLimit
     }

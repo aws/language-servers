@@ -93,6 +93,7 @@ export const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500
 
 // Error Messages
 export const MONTHLY_LIMIT_ERROR_MARKER = 'MONTHLY_REQUEST_COUNT'
+export const CONTENT_LENGTH_EXCEEDS_THRESHOLD = 'CONTENT_LENGTH_EXCEEDS_THRESHOLD'
 export const HIGH_LOAD_ERROR_MESSAGE =
     'Encountered unexpectedly high load when processing the request, please try again.'
 export const SERVICE_UNAVAILABLE_EXCEPTION = 'ServiceUnavailableException'

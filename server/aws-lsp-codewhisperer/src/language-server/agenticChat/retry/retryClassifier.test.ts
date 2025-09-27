@@ -26,7 +26,7 @@ describe('QRetryClassifier', () => {
 
         it('should forbid retry for input too long errors', () => {
             const error = new Error('input too long')
-            ;(error as any).code = 'InputTooLong'
+            ;(error as any).reason = 'CONTENT_LENGTH_EXCEEDS_THRESHOLD'
 
             const result = classifier.classifyRetry({ error })
 
@@ -34,8 +34,10 @@ describe('QRetryClassifier', () => {
         })
 
         it('should forbid retry for monthly limit errors', () => {
+            const error = new Error('Monthly limit exceeded')
+            ;(error as any).reason = 'MONTHLY_REQUEST_COUNT'
             const context = {
-                error: new Error('Monthly limit exceeded'),
+                error,
                 response: {
                     status: 400,
                     body: 'Error: MONTHLY_REQUEST_COUNT exceeded',
@@ -64,7 +66,7 @@ describe('QRetryClassifier', () => {
         it('should classify throttling for 429 status with model capacity', () => {
             const error = new Error('Model unavailable')
             ;(error as any).$metadata = { httpStatusCode: 429 }
-            ;(error as any).cause = { reason: 'INSUFFICIENT_MODEL_CAPACITY' }
+            ;(error as any).reason = 'INSUFFICIENT_MODEL_CAPACITY'
 
             const result = classifier.classifyRetry({ error })
 
@@ -90,27 +92,28 @@ describe('QRetryClassifier', () => {
         it('should extract response body from different error formats', () => {
             const classifier = new QRetryClassifier()
 
-            // Test different body extraction paths
+            // Test different body extraction paths - these should NOT trigger monthly limit errors
+            // since monthly limit detection now uses error.reason instead of body content
             const context1 = {
                 error: {
                     cause: { $metadata: { body: 'MONTHLY_REQUEST_COUNT' } },
                 },
             }
-            expect(classifier.classifyRetry(context1)).to.equal(RetryAction.RetryForbidden)
+            expect(classifier.classifyRetry(context1)).to.equal(RetryAction.NoActionIndicated)
 
             const context2 = {
                 error: {
                     $metadata: { body: 'MONTHLY_REQUEST_COUNT' },
                 },
             }
-            expect(classifier.classifyRetry(context2)).to.equal(RetryAction.RetryForbidden)
+            expect(classifier.classifyRetry(context2)).to.equal(RetryAction.NoActionIndicated)
 
             const context3 = {
                 error: {
                     message: 'MONTHLY_REQUEST_COUNT exceeded',
                 },
             }
-            expect(classifier.classifyRetry(context3)).to.equal(RetryAction.RetryForbidden)
+            expect(classifier.classifyRetry(context3)).to.equal(RetryAction.NoActionIndicated)
         })
     })
 
@@ -181,8 +184,9 @@ describe('QRetryClassifier', () => {
     describe('isMonthlyLimitError', () => {
         it('should log debug messages for monthly limit detection', () => {
             const classifierWithLogging = new QRetryClassifier(mockLogging)
+            const error = { reason: 'MONTHLY_REQUEST_COUNT' }
 
-            const result = (classifierWithLogging as any).isMonthlyLimitError('MONTHLY_REQUEST_COUNT exceeded')
+            const result = (classifierWithLogging as any).isMonthlyLimitError(error)
 
             expect(result).to.be.true
             expect(mockLogging.debug.called).to.be.true
