@@ -151,7 +151,7 @@ export class TelemetryService {
     private logSendTelemetryEventFailure(error: any) {
         let requestId: string | undefined
         if (isAwsError(error)) {
-            requestId = error.requestId
+            requestId = (error as any).requestId
         }
 
         this.logging.log(
