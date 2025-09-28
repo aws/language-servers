@@ -306,6 +306,8 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
             promptInputDisabledState: false,
             modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
             modifiedFilesVisible: true,
+            newConversation: true,
+            modifiedFilesList: null,
         })
     } else {
         mynahUi.updateStore(tabId, {
@@ -313,6 +315,7 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
             promptInputDisabledState: true,
             modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
             modifiedFilesVisible: true,
+            newConversation: true,
         })
     }
 
@@ -948,6 +951,12 @@ export const createMynahUi = (
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        console.log('[MynahUI] addChatResponse called:', {
+            agenticMode,
+            tabId,
+            isPartialResult,
+            chatResultKeys: Object.keys(chatResult),
+        })
         if (agenticMode) {
             agenticAddChatResponse(chatResult, tabId, isPartialResult)
         } else {
@@ -955,25 +964,71 @@ export const createMynahUi = (
         }
     }
 
+    // Store to accumulate files across multiple calls
+    const fileAccumulator = new Map<string, { files: Map<string, any>; totalChanges: number }>()
+
     // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
     const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        console.log('[MynahUI] agenticAddChatResponse called with chatResult:', chatResult)
         const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
 
-        // Update modified lines counter when fileList is present
-        if (fileList && fileList.filePaths && fileList.details) {
-            const modifiedLinesCount = fileList.filePaths.reduce((total, filePath) => {
-                const details = fileList.details?.[filePath]
-                return total + (details?.changes?.total || 0)
-            }, 0)
+        // Initialize accumulator for this tab if not exists
+        if (!fileAccumulator.has(tabId)) {
+            fileAccumulator.set(tabId, { files: new Map(), totalChanges: 0 })
+        }
+        const tabData = fileAccumulator.get(tabId)!
 
-            if (modifiedLinesCount > 0) {
-                mynahUi.updateStore(tabId, {
-                    modifiedFilesTitle: `(${modifiedLinesCount}) chnages made!`,
-                })
-            }
+        // Check for files in the same way as the previous implementation
+        const currentFileList = header?.fileList ?? fileList
+        if (
+            currentFileList &&
+            currentFileList.filePaths &&
+            currentFileList.filePaths.length > 0 &&
+            currentFileList.details
+        ) {
+            console.log('[MynahUI] Processing fileList:', JSON.stringify(currentFileList, null, 2))
+
+            // Accumulate files with changes
+            currentFileList.filePaths.forEach(filePath => {
+                const details = currentFileList.details?.[filePath]
+                const hasChanges = details?.changes && (details.changes.added || 0) + (details.changes.deleted || 0) > 0
+                console.log(
+                    '[MynahUI] Main fileList - Checking file:',
+                    filePath,
+                    'details:',
+                    JSON.stringify(details, null, 2),
+                    'hasChanges:',
+                    hasChanges
+                )
+
+                // Only include files with actual changes (not just read files)
+                if (hasChanges) {
+                    // Update existing or add new file
+                    if (tabData.files.has(filePath)) {
+                        const existing = tabData.files.get(filePath)
+                        tabData.totalChanges -= (existing.changes?.added || 0) + (existing.changes?.deleted || 0)
+                    }
+                    tabData.files.set(filePath, {
+                        ...details,
+                        data: {
+                            ...details.data,
+                            messageId: chatResult.messageId || '',
+                        },
+                    })
+                    tabData.totalChanges += (details.changes?.added || 0) + (details.changes?.deleted || 0)
+                    console.log(
+                        '[MynahUI] ✅ Accumulated modified file:',
+                        filePath,
+                        'changes:',
+                        (details.changes?.added || 0) + (details.changes?.deleted || 0),
+                        'total changes now:',
+                        tabData.totalChanges
+                    )
+                }
+            })
         }
 
         if (chatResult.contextList !== undefined) {
@@ -985,11 +1040,68 @@ export const createMynahUi = (
         const isPairProgrammingMode: boolean = getTabPairProgrammingMode(mynahUi, tabId)
 
         if (chatResult.additionalMessages?.length) {
+            console.log('[MynahUI] Processing additionalMessages:', chatResult.additionalMessages)
             mynahUi.updateStore(tabId, {
                 loadingChat: true,
                 cancelButtonWhenLoading: true,
             })
             chatResult.additionalMessages.forEach(am => {
+                console.log('[MynahUI] Processing additionalMessage:', am)
+                // Check for files in additionalMessages and accumulate them
+                const amFileList = am.header?.fileList ?? am.fileList
+                if (amFileList) {
+                    console.log('[MynahUI] Found fileList in additionalMessage:', JSON.stringify(amFileList, null, 2))
+                    const processedAmFileList = toMynahFileList(amFileList)
+                    console.log('[MynahUI] Processed amFileList:', processedAmFileList)
+                    if (
+                        processedAmFileList &&
+                        processedAmFileList.filePaths &&
+                        processedAmFileList.filePaths.length > 0 &&
+                        processedAmFileList.details
+                    ) {
+                        console.log('[MynahUI] amFileList has valid structure, accumulating files...')
+
+                        processedAmFileList.filePaths.forEach(filePath => {
+                            const details = processedAmFileList.details?.[filePath]
+                            const hasChanges =
+                                details?.changes && (details.changes.added || 0) + (details.changes.deleted || 0) > 0
+                            console.log(
+                                '[MynahUI] Checking file:',
+                                filePath,
+                                'details:',
+                                JSON.stringify(details, null, 2),
+                                'hasChanges:',
+                                hasChanges
+                            )
+
+                            // Only include files with actual changes (not just read files)
+                            if (hasChanges) {
+                                // Update existing or add new file
+                                if (tabData.files.has(filePath)) {
+                                    const existing = tabData.files.get(filePath)
+                                    tabData.totalChanges -=
+                                        (existing.changes?.added || 0) + (existing.changes?.deleted || 0)
+                                }
+                                tabData.files.set(filePath, {
+                                    ...details,
+                                    data: {
+                                        ...details.data,
+                                        messageId: am.messageId || '',
+                                    },
+                                })
+                                tabData.totalChanges += (details.changes?.added || 0) + (details.changes?.deleted || 0)
+                                console.log(
+                                    '[MynahUI] ✅ Accumulated modified file from additionalMessage:',
+                                    filePath,
+                                    'changes:',
+                                    (details.changes?.added || 0) + (details.changes?.deleted || 0),
+                                    'total changes now:',
+                                    tabData.totalChanges
+                                )
+                            }
+                        })
+                    }
+                }
                 const chatItem: ChatItem = {
                     messageId: am.messageId,
                     type:
@@ -1088,39 +1200,64 @@ export const createMynahUi = (
             // messageId excluded
         })
 
+        // Only update UI when streaming is complete (not partial result)
+        console.log(
+            '[MynahUI] Final check - isPartialResult:',
+            isPartialResult,
+            'totalChanges:',
+            tabData.totalChanges,
+            'files.size:',
+            tabData.files.size
+        )
+        if (!isPartialResult && tabData.files.size > 0) {
+            console.log('[MynahUI] ✅ Updating UI with', tabData.files.size, 'modified files')
+
+            // Convert accumulated files to the expected format
+            const filePaths = Array.from(tabData.files.keys())
+            const details: Record<string, any> = {}
+
+            // Add per-file undo buttons and collect file details
+            tabData.files.forEach((fileDetails, filePath) => {
+                details[filePath] = {
+                    ...fileDetails,
+                    actions: [{ id: 'undo-changes', text: 'Undo', status: 'clear', icon: 'undo' }],
+                }
+            })
+
+            const modifiedFilesList = {
+                fileTreeTitle: `Modified Files (${tabData.totalChanges} changes)`,
+                rootFolderTitle: '',
+                filePaths,
+                details,
+                flatList: true,
+                hideFileCount: false,
+                renderAsPills: true,
+            }
+
+            mynahUi.updateStore(tabId, {
+                modifiedFilesList,
+                modifiedFilesTitle: `${tabData.files.size} files modified`,
+                modifiedFilesVisible: true,
+                newConversation: false,
+            })
+
+            console.log('[MynahUI] ✅ UI updated successfully with', tabData.files.size, 'modified files')
+
+            // Clear accumulator after final update
+            fileAccumulator.delete(tabId)
+        } else {
+            console.log(
+                '[MynahUI] ❌ Skipping UI update - isPartialResult:',
+                isPartialResult,
+                'files.size:',
+                tabData.files.size
+            )
+        }
+
         mynahUi.updateStore(tabId, {
             loadingChat: false,
             cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
-        })
-
-        // Final update of modified lines counter and title
-        const tabStore = mynahUi.getTabData(tabId)?.getStore() || {}
-        const allChatItems = tabStore.chatItems || []
-        let modifiedLinesCount = 0
-
-        allChatItems.forEach(chatItem => {
-            if (chatItem.type !== 'answer-stream' && chatItem.messageId != null) {
-                const fileList = chatItem.header?.fileList ?? chatItem.fileList
-
-                if (fileList?.filePaths != null) {
-                    fileList.filePaths.forEach(filePath => {
-                        const details = fileList.details?.[filePath]
-
-                        if (details?.changes != null) {
-                            const added = details.changes.added || 0
-                            const deleted = details.changes.deleted || 0
-                            const changesTotal = added + deleted
-                            modifiedLinesCount += changesTotal
-                        }
-                    })
-                }
-            }
-        })
-
-        mynahUi.updateStore(tabId, {
-            modifiedFilesTitle:
-                modifiedLinesCount > 0 ? `(${modifiedLinesCount}) changes made!` : uiComponentsTexts.modifiedFilesNone,
         })
     }
 

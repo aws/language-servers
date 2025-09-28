@@ -48,6 +48,7 @@ export function toMynahFileList(fileList: ChatMessage['fileList']): ChatItemCont
                     visibleName:
                         filePath.split('/').filter(Boolean).pop() || filePath.split('/').slice(-2, -1)[0] || filePath,
                     clickable: true,
+                    changes: fileDetails.changes,
                     data: {
                         fullPath: fileDetails.fullPath || '',
                     },
