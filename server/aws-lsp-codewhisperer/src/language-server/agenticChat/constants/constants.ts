@@ -1,5 +1,3 @@
-import { BedrockModel } from './modelSelection'
-
 // Error message constants
 export const GENERIC_ERROR_MS = 'An unexpected error occurred, check the logs for more information.'
 export const OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG = 'output exceeds maximum character limit of'
@@ -16,6 +14,10 @@ export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100
 export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 
 // Compaction
+// Maximum number of characters per request used for compaction prompt
+// 200K tokens * 3.5 = 700K characters, intentionally overestimating with 3.5:1 ratio
+export const MAX_OVERALL_CHARACTERS = 700_000
+export const COMPACTION_CHARACTER_THRESHOLD = 0.7 * MAX_OVERALL_CHARACTERS
 export const COMPACTION_BODY = (threshold: number) =>
     `The context window is almost full (${threshold}%) and exceeding it will clear your history. Amazon Q can compact your history instead.`
 export const COMPACTION_HEADER_BODY = 'Compact chat history?'
