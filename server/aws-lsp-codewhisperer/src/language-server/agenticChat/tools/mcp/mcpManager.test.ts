@@ -28,7 +28,25 @@ const fakeWorkspace = {
     getUserHomeDir: () => '',
     getAllWorkspaceFolders: () => [{ uri: '/fake/workspace' }],
 }
-const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
+const features = {
+    logging: fakeLogging,
+    workspace: fakeWorkspace,
+    lsp: {},
+    telemetry: { emitMetric: () => {} },
+    credentialsProvider: { getConnectionMetadata: () => ({}) },
+    runtime: { serverInfo: { version: '1.0.0' } },
+    agent: {
+        getBuiltInToolNames: () => [
+            'fsRead',
+            'fsWrite',
+            'executeBash',
+            'listDirectory',
+            'fileSearch',
+            'codeReview',
+            'displayFindings',
+        ],
+    },
+} as any
 
 function stubAgentConfig(): sinon.SinonStub {
     return sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
@@ -37,7 +55,6 @@ function stubAgentConfig(): sinon.SinonStub {
         errors: new Map(),
         agentConfig: {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {},
             tools: [],
@@ -157,7 +174,6 @@ describe('callTool()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: disabledCfg },
                 tools: ['@s1'],
@@ -184,7 +200,6 @@ describe('callTool()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: enabledCfg },
                 tools: ['@s1'],
@@ -210,7 +225,6 @@ describe('callTool()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: timeoutCfg },
                 tools: ['@s1'],
@@ -239,12 +253,12 @@ describe('callTool()', () => {
 describe('addServer()', () => {
     let loadStub: sinon.SinonStub
     let initOneStub: sinon.SinonStub
-    let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         loadStub = stubAgentConfig()
         initOneStub = stubInitOneServer()
-        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -268,7 +282,7 @@ describe('addServer()', () => {
 
         await mgr.addServer('newS', newCfg, 'path.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('newS', sinon.match(newCfg))).to.be.true
     })
 
@@ -279,7 +293,6 @@ describe('addServer()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -301,14 +314,14 @@ describe('addServer()', () => {
 
         await mgr.addServer('httpSrv', httpCfg, 'http.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('httpSrv', sinon.match(httpCfg))).to.be.true
     })
 })
 
 describe('removeServer()', () => {
     let loadStub: sinon.SinonStub
-    let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
     let existsStub: sinon.SinonStub
     let readFileStub: sinon.SinonStub
     let writeFileStub: sinon.SinonStub
@@ -318,7 +331,7 @@ describe('removeServer()', () => {
 
     beforeEach(() => {
         loadStub = stubAgentConfig()
-        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
         existsStub = sinon.stub(fakeWorkspace.fs, 'exists').resolves(true)
         readFileStub = sinon
             .stub(fakeWorkspace.fs, 'readFile')
@@ -353,7 +366,6 @@ describe('removeServer()', () => {
         ;(mgr as any).serverNameMapping.set('x', 'x')
         ;(mgr as any).agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: { x: {} },
             tools: ['@x'],
@@ -364,11 +376,11 @@ describe('removeServer()', () => {
         }
 
         await mgr.removeServer('x')
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect((mgr as any).clients.has('x')).to.be.false
     })
 
-    it('removes server from all config files', async () => {
+    it('removes server from agent config', async () => {
         const mgr = await McpManager.init([], features)
         const dummy = new Client({ name: 'c', version: 'v' })
         ;(mgr as any).clients.set('x', dummy)
@@ -383,7 +395,6 @@ describe('removeServer()', () => {
         ;(mgr as any).serverNameMapping.set('x', 'x')
         ;(mgr as any).agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: { x: {} },
             tools: ['@x'],
@@ -395,14 +406,13 @@ describe('removeServer()', () => {
 
         await mgr.removeServer('x')
 
-        // Verify that writeFile was called for each config path (2 workspace + 1 global)
-        expect(writeFileStub.callCount).to.equal(3)
+        // Verify that saveServerSpecificAgentConfig was called
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
+        expect((mgr as any).clients.has('x')).to.be.false
 
-        // Verify the content of the writes (should have removed the server)
-        writeFileStub.getCalls().forEach(call => {
-            const content = JSON.parse(call.args[1])
-            expect(content.mcpServers).to.not.have.property('x')
-        })
+        // Verify server was removed from agent config
+        expect((mgr as any).agentConfig.mcpServers).to.not.have.property('x')
+        expect((mgr as any).agentConfig.tools).to.not.include('@x')
     })
 })
 
@@ -473,11 +483,11 @@ describe('mutateConfigFile()', () => {
 describe('updateServer()', () => {
     let loadStub: sinon.SinonStub
     let initOneStub: sinon.SinonStub
-    let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         initOneStub = stubInitOneServer()
-        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -502,7 +512,6 @@ describe('updateServer()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { u1: oldCfg },
                 tools: ['@u1'],
@@ -520,11 +529,11 @@ describe('updateServer()', () => {
 
         const closeStub = sinon.stub(fakeClient, 'close').resolves()
         initOneStub.resetHistory()
-        saveAgentConfigStub.resetHistory()
+        saveServerSpecificAgentConfigStub.resetHistory()
 
         await mgr.updateServer('u1', { timeout: 999 }, 'u.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(closeStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('u1', sinon.match.has('timeout', 999))).to.be.true
     })
@@ -545,7 +554,6 @@ describe('updateServer()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: oldCfg },
                 tools: ['@srv'],
@@ -560,11 +568,11 @@ describe('updateServer()', () => {
         const mgr = McpManager.instance
 
         initOneStub.resetHistory()
-        saveAgentConfigStub.resetHistory()
+        saveServerSpecificAgentConfigStub.resetHistory()
 
         await mgr.updateServer('srv', { command: undefined, url: 'https://new.host/mcp' }, 'z.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('srv', sinon.match({ url: 'https://new.host/mcp' }))).to.be.true
     })
 })
@@ -599,7 +607,6 @@ describe('requiresApproval()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s: cfg },
                 tools: ['@s'],
@@ -640,7 +647,6 @@ describe('getAllServerConfigs()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -688,7 +694,6 @@ describe('getServerState()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -730,7 +735,6 @@ describe('getAllServerStates()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -780,7 +784,6 @@ describe('getEnabledTools()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -798,7 +801,6 @@ describe('getEnabledTools()', () => {
         if (!(mgr as any).agentConfig) {
             ;(mgr as any).agentConfig = {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -829,7 +831,6 @@ describe('getEnabledTools()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: disabledCfg },
                 tools: ['@srv'],
@@ -867,7 +868,6 @@ describe('getAllToolsWithPermissions()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { s1: cfg },
                 tools: ['@s1'],
@@ -932,7 +932,6 @@ describe('isServerDisabled()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: disabledCfg },
                 tools: ['@srv'],
@@ -963,7 +962,6 @@ describe('isServerDisabled()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: enabledCfg },
                 tools: ['@srv'],
@@ -993,7 +991,6 @@ describe('isServerDisabled()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: undefinedCfg },
                 tools: ['@srv'],
@@ -1062,9 +1059,11 @@ describe('listServersAndTools()', () => {
 
 describe('updateServerPermission()', () => {
     let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -1090,7 +1089,6 @@ describe('updateServerPermission()', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { srv: cfg },
                 tools: ['@srv'],
@@ -1113,8 +1111,8 @@ describe('updateServerPermission()', () => {
             __configPath__: '/p',
         })
 
-        // Verify saveAgentConfig was called
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        // Verify saveServerSpecificAgentConfig was called
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
 
         // Verify the tool permission was updated
         expect(mgr.requiresApproval('srv', 'tool1')).to.be.false
@@ -1155,7 +1153,6 @@ describe('reinitializeMcpServers()', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: { srvA: cfg1 },
                     tools: ['@srvA'],
@@ -1172,7 +1169,6 @@ describe('reinitializeMcpServers()', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: { srvB: cfg2 },
                     tools: ['@srvB'],
@@ -1278,7 +1274,6 @@ describe('concurrent server initialization', () => {
         const serversMap = new Map(Object.entries(serverConfigs))
         const agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: Object.fromEntries(Object.entries(serverConfigs)),
             tools: Object.keys(serverConfigs).map(name => `@${name}`),
@@ -1423,7 +1418,6 @@ describe('McpManager error handling', () => {
             errors: mockErrors,
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -1451,7 +1445,6 @@ describe('McpManager error handling', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -1477,7 +1470,6 @@ describe('McpManager error handling', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -1520,7 +1512,6 @@ describe('McpManager error handling', () => {
                 errors: new Map([['file1.json', 'Initial error']]),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -1538,7 +1529,6 @@ describe('McpManager error handling', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],

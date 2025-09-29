@@ -3,6 +3,7 @@ name: Create agent-standalone bundles
 on:
     push:
         branches: [main, feature/*, release/agentic/*]
+    workflow_dispatch:
 
 jobs:
     build:

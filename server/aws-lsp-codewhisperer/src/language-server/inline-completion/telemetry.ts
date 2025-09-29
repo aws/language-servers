@@ -106,6 +106,36 @@ export const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: Cod
     })
 }
 
+export async function emitEmptyUserTriggerDecisionTelemetry(
+    telemetryService: TelemetryService,
+    session: CodeWhispererSession,
+    timeSinceLastUserModification?: number,
+    streakLength?: number
+) {
+    // Prevent reporting user decision if it was already sent
+    if (session.reportedUserDecision) {
+        return
+    }
+
+    // Non-blocking
+    emitAggregatedUserTriggerDecisionTelemetry(
+        telemetryService,
+        session,
+        'Empty',
+        timeSinceLastUserModification,
+        0,
+        0,
+        [],
+        [],
+        streakLength
+    )
+        .then()
+        .catch(e => {})
+        .finally(() => {
+            session.reportedUserDecision = true
+        })
+}
+
 export const emitUserTriggerDecisionTelemetry = async (
     telemetry: Telemetry,
     telemetryService: TelemetryService,
@@ -126,7 +156,7 @@ export const emitUserTriggerDecisionTelemetry = async (
     // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
     // Completions show multiple suggestions together, so aggregate all states
     const userTriggerDecision =
-        session.suggestionType === SuggestionType.EDIT
+        session.predictionType === SuggestionType.EDIT
             ? session.getUserTriggerDecision(itemId)
             : session.getAggregatedUserTriggerDecision()
 

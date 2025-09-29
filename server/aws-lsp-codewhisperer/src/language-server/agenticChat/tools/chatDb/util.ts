@@ -10,6 +10,7 @@ import {
     ConversationItem,
     ConversationItemGroup,
     IconType,
+    Model,
     ReferenceTrackerInformation,
 } from '@aws/language-server-runtimes/server-interface'
 import {
@@ -27,6 +28,7 @@ import { activeFileCmd } from '../../context/additionalContextProvider'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import * as crypto from 'crypto'
+import unescapeHTML = require('unescape-html')
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -84,6 +86,9 @@ export type Rules = {
 export type Settings = {
     modelId: string | undefined
     pairProgrammingMode?: boolean
+    cachedModels?: Model[]
+    cachedDefaultModelId?: string
+    modelCacheTimestamp?: number
 }
 
 export type Conversation = {
@@ -131,6 +136,14 @@ export type MessagesWithCharacterCount = {
     currentCount: number
 }
 
+export function isCachedValid(timestamp: number): boolean {
+    const currentTime = Date.now()
+    const cacheAge = currentTime - timestamp
+    const CACHE_TTL = 30 * 60 * 1000 // 30 minutes in milliseconds
+
+    return cacheAge < CACHE_TTL
+}
+
 /**
  * Converts Message to codewhisperer-streaming ChatMessage
  */
@@ -160,7 +173,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
 export function messageToChatMessage(msg: Message): ChatMessage[] {
     const chatMessages: ChatMessage[] = [
         {
-            body: msg.body,
+            body: unescapeHTML(msg.body),
             type: msg.type,
             codeReference: msg.codeReference,
             relatedContent:

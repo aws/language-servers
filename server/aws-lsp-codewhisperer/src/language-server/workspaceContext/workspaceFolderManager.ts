@@ -6,7 +6,7 @@ import {
     WorkspaceMetadata,
     WorkspaceStatus,
 } from '../../client/token/codewhispererbearertokenclient'
-import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
+import { Agent, CredentialsProvider, Logging, ToolClassification } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
 import {
     cleanUrl,
@@ -21,17 +21,20 @@ import { URI } from 'vscode-uri'
 import path = require('path')
 import { isAwsError } from '../../shared/utils'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
+import { SemanticSearch, SemanticSearchParams } from '../agenticChat/tools/workspaceContext/semanticSearch'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
     messageQueue: any[]
     webSocketClient?: WebSocketClient
     workspaceId?: string
+    environmentId?: string
 }
 
 type WorkspaceRoot = string
 
 export class WorkspaceFolderManager {
+    private agent: Agent
     private serviceManager: AmazonQTokenServiceManager
     private logging: Logging
     private artifactManager: ArtifactManager
@@ -55,10 +58,13 @@ export class WorkspaceFolderManager {
     private optOutMonitorInterval: NodeJS.Timeout | undefined
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
+    private featureDisabled: boolean = false // Serve as a server-side control. If true, stop WCS features
+    private semanticSearchToolEnabled: boolean = false
     private isCheckingRemoteWorkspaceStatus: boolean = false
     private isArtifactUploadedToRemoteWorkspace: boolean = false
 
     static createInstance(
+        agent: Agent,
         serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
@@ -69,6 +75,7 @@ export class WorkspaceFolderManager {
     ): WorkspaceFolderManager {
         if (!this.instance) {
             this.instance = new WorkspaceFolderManager(
+                agent,
                 serviceManager,
                 logging,
                 artifactManager,
@@ -86,6 +93,7 @@ export class WorkspaceFolderManager {
     }
 
     private constructor(
+        agent: Agent,
         serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
@@ -94,6 +102,7 @@ export class WorkspaceFolderManager {
         credentialsProvider: CredentialsProvider,
         workspaceIdentifier: string
     ) {
+        this.agent = agent
         this.serviceManager = serviceManager
         this.logging = logging
         this.artifactManager = artifactManager
@@ -139,8 +148,17 @@ export class WorkspaceFolderManager {
         return this.isOptedOut
     }
 
-    resetAdminOptOutStatus(): void {
+    resetAdminOptOutAndFeatureDisabledStatus(): void {
         this.isOptedOut = false
+        this.featureDisabled = false
+    }
+
+    isFeatureDisabled(): boolean {
+        return this.featureDisabled
+    }
+
+    setSemanticSearchToolStatus(semanticSearchToolEnabled: boolean): void {
+        this.semanticSearchToolEnabled = semanticSearchToolEnabled
     }
 
     getWorkspaceState(): WorkspaceState {
@@ -225,6 +243,7 @@ export class WorkspaceFolderManager {
         this.workspaceState.webSocketClient?.destroyClient()
         this.dependencyDiscoverer.dispose()
         this.artifactManager.dispose()
+        this.removeSemanticSearchTool()
     }
 
     /**
@@ -318,6 +337,10 @@ export class WorkspaceFolderManager {
         const webSocketClient = new WebSocketClient(websocketUrl, this.logging, this.credentialsProvider)
         this.workspaceState.remoteWorkspaceState = 'CONNECTED'
         this.workspaceState.webSocketClient = webSocketClient
+        this.workspaceState.environmentId = existingMetadata.environmentId
+        if (this.semanticSearchToolEnabled) {
+            this.registerSemanticSearchTool()
+        }
     }
 
     initializeWorkspaceStatusMonitor() {
@@ -326,6 +349,7 @@ export class WorkspaceFolderManager {
         // Reset workspace ID to force operations to wait for new remote workspace information
         this.resetRemoteWorkspaceId()
 
+        IdleWorkspaceManager.setSessionAsIdle()
         this.isArtifactUploadedToRemoteWorkspace = false
 
         // Set up message queue consumer
@@ -371,13 +395,22 @@ export class WorkspaceFolderManager {
                         return resolve(false)
                     }
 
-                    const { metadata, optOut } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
+                    const { metadata, optOut, featureDisabled } = await this.listWorkspaceMetadata(
+                        this.workspaceIdentifier
+                    )
 
                     if (optOut) {
                         this.logging.log(`User opted out during initial connection`)
                         this.isOptedOut = true
                         this.clearAllWorkspaceResources()
                         this.startOptOutMonitor()
+                        return resolve(false)
+                    }
+
+                    if (featureDisabled) {
+                        this.logging.log(`Feature disabled during initial connection`)
+                        this.featureDisabled = true
+                        this.clearAllWorkspaceResources()
                         return resolve(false)
                     }
 
@@ -427,6 +460,9 @@ export class WorkspaceFolderManager {
         try {
             if (IdleWorkspaceManager.isSessionIdle()) {
                 this.resetWebSocketClient()
+                if (this.semanticSearchToolEnabled) {
+                    this.removeSemanticSearchTool()
+                }
                 this.logging.log('Session is idle, skipping remote workspace status check')
                 return
             }
@@ -437,13 +473,22 @@ export class WorkspaceFolderManager {
             }
 
             this.logging.log(`Checking remote workspace status for workspace [${this.workspaceIdentifier}]`)
-            const { metadata, optOut, error } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
+            const { metadata, optOut, featureDisabled, error } = await this.listWorkspaceMetadata(
+                this.workspaceIdentifier
+            )
 
             if (optOut) {
                 this.logging.log('User opted out, clearing all resources and starting opt-out monitor')
                 this.isOptedOut = true
                 this.clearAllWorkspaceResources()
                 this.startOptOutMonitor()
+                return
+            }
+
+            if (featureDisabled) {
+                this.logging.log('Feature disabled, clearing all resources and stoping server-side indexing features')
+                this.featureDisabled = true
+                this.clearAllWorkspaceResources()
                 return
             }
 
@@ -528,7 +573,14 @@ export class WorkspaceFolderManager {
         if (this.optOutMonitorInterval === undefined) {
             const intervalId = setInterval(async () => {
                 try {
-                    const { optOut } = await this.listWorkspaceMetadata()
+                    const { optOut, featureDisabled } = await this.listWorkspaceMetadata()
+
+                    if (featureDisabled) {
+                        // Stop opt-out monitor when WCS feature is disabled from server-side
+                        this.featureDisabled = true
+                        clearInterval(intervalId)
+                        this.optOutMonitorInterval = undefined
+                    }
 
                     if (!optOut) {
                         this.isOptedOut = false
@@ -636,6 +688,32 @@ export class WorkspaceFolderManager {
         }
     }
 
+    private registerSemanticSearchTool() {
+        const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
+        if (!existingTool) {
+            const semanticSearchTool = new SemanticSearch(
+                this.logging,
+                this.credentialsProvider,
+                this.serviceManager.getRegion() || 'us-east-1'
+            )
+            this.agent.addTool(
+                semanticSearchTool.getSpec(),
+                async (input: SemanticSearchParams) => {
+                    semanticSearchTool.validate(input)
+                    return await semanticSearchTool.invoke(input)
+                },
+                ToolClassification.BuiltIn
+            )
+        }
+    }
+
+    private removeSemanticSearchTool() {
+        const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
+        if (existingTool) {
+            this.agent.removeTool(SemanticSearch.toolName)
+        }
+    }
+
     private async createNewWorkspace() {
         const createWorkspaceResult = await this.createWorkspace(this.workspaceIdentifier)
         const workspaceDetails = createWorkspaceResult.response
@@ -735,10 +813,12 @@ export class WorkspaceFolderManager {
     private async listWorkspaceMetadata(workspaceRoot?: WorkspaceRoot): Promise<{
         metadata: WorkspaceMetadata | undefined | null
         optOut: boolean
+        featureDisabled: boolean
         error: any
     }> {
         let metadata: WorkspaceMetadata | undefined | null
         let optOut = false
+        let featureDisabled = false
         let error: any
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
@@ -754,8 +834,11 @@ export class WorkspaceFolderManager {
                 this.logging.log(`User's administrator opted out server-side workspace context`)
                 optOut = true
             }
+            if (isAwsError(e) && e.code === 'AccessDeniedException' && e.message.includes('Feature is not supported')) {
+                featureDisabled = true
+            }
         }
-        return { metadata, optOut, error }
+        return { metadata, optOut, featureDisabled, error }
     }
 
     private async createWorkspace(workspaceRoot: WorkspaceRoot): Promise<{

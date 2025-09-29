@@ -49,6 +49,17 @@ describe('McpEventHandler error handling', () => {
             },
             agent: {
                 getTools: sinon.stub().returns([]),
+                getBuiltInToolNames: sinon
+                    .stub()
+                    .returns([
+                        'fsRead',
+                        'fsWrite',
+                        'executeBash',
+                        'listDirectory',
+                        'fileSearch',
+                        'codeReview',
+                        'displayFindings',
+                    ]),
             },
             lsp: {},
             telemetry: {
@@ -59,9 +70,7 @@ describe('McpEventHandler error handling', () => {
                 getConnectionMetadata: sinon.stub().returns({}),
             },
             runtime: {
-                serverInfo: {
-                    version: '1.0.0',
-                },
+                serverInfo: {},
             },
         }
 
@@ -100,7 +109,6 @@ describe('McpEventHandler error handling', () => {
             errors: mockErrors,
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -157,7 +165,6 @@ describe('McpEventHandler error handling', () => {
             errors: new Map([['errorServer', 'Missing command error']]),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { errorServer: { command: '' } },
                 tools: ['@errorServer'],
@@ -215,7 +222,6 @@ describe('McpEventHandler error handling', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -259,7 +265,6 @@ describe('McpEventHandler error handling', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -292,7 +297,6 @@ describe('McpEventHandler error handling', () => {
                 errors: mockErrors,
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -326,7 +330,6 @@ describe('McpEventHandler error handling', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],

@@ -11,7 +11,7 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.125",
+        "@aws/language-server-runtimes": "^0.2.129",
         "@aws/lsp-yaml": "*"
     },
     "devDependencies": {

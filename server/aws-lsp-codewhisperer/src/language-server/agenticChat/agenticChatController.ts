@@ -24,7 +24,6 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -67,8 +66,6 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
-} from '@aws/language-server-runtimes/protocol'
-import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
@@ -83,6 +80,7 @@ import {
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
+    Model,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -168,6 +166,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
+import { calculateModifiedLines } from './utils/fileModificationMetrics'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -180,7 +179,6 @@ import {
     OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
-    DEFAULT_MODEL_ID,
     COMPACTION_BODY,
     COMPACTION_HEADER_BODY,
     DEFAULT_MACOS_RUN_SHORTCUT,
@@ -222,15 +220,18 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
+import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_ID } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import escapeHTML = require('escape-html')
+import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
+import { MemoryBankController } from './context/memorybank/memoryBankController'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -267,6 +268,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
+    #memoryBankController: MemoryBankController
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
@@ -352,7 +354,7 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         })
-        this.#chatHistoryDb = new ChatDatabase(features)
+        this.#chatHistoryDb = ChatDatabase.getInstance(features)
         this.#tabBarController = new TabBarController(
             features,
             this.#chatHistoryDb,
@@ -370,6 +372,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
+        this.#memoryBankController = MemoryBankController.getInstance(features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -681,25 +684,133 @@ export class AgenticChatController implements ChatHandlers {
         return this.#mcpEventHandler.onMcpServerClick(params)
     }
 
-    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
+    /**
+     * Fetches available models either from cache or API
+     * If cache is valid (less than 5 minutes old), returns cached models
+     * If cache is invalid or empty, makes an API call and stores results in cache
+     * If the API throws errors (e.g., throttling), falls back to default models
+     */
+    async #fetchModelsWithCache(): Promise<{ models: Model[]; defaultModelId?: string; errorFromAPI: boolean }> {
+        let models: Model[] = []
+        let defaultModelId: string | undefined
+        let errorFromAPI = false
 
-        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-        const { data: session, success } = sessionResult
-        if (!success) {
-            return {
-                tabId: params.tabId,
-                models: models,
+        // Check if cache is valid (less than 5 minutes old)
+        if (this.#chatHistoryDb.isCachedModelsValid()) {
+            const cachedData = this.#chatHistoryDb.getCachedModels()
+            if (cachedData && cachedData.models && cachedData.models.length > 0) {
+                this.#log('Using cached models, last updated at:', new Date(cachedData.timestamp).toISOString())
+                return {
+                    models: cachedData.models,
+                    defaultModelId: cachedData.defaultModelId,
+                    errorFromAPI: false,
+                }
             }
         }
 
-        const savedModelId = this.#chatHistoryDb.getModelId()
-        const selectedModelId =
-            savedModelId && models.some(model => model.id === savedModelId)
-                ? savedModelId
-                : getLatestAvailableModel(region).id
+        // If cache is invalid or empty, make an API call
+        this.#log('Cache miss or expired, fetching models from API')
+        try {
+            const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const responseResult = await client.listAvailableModels({
+                origin: IDE,
+                profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
+                    ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+                    : undefined,
+            })
+
+            // Wait for the response to be completed before proceeding
+            this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
+            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+                id: modelId,
+                name: modelName ?? modelId,
+            }))
+            defaultModelId = responseResult.defaultModel?.modelId
+
+            // Cache the models with defaultModelId
+            this.#chatHistoryDb.setCachedModels(models, defaultModelId)
+        } catch (err) {
+            // In case of API throttling or other errors, fall back to hardcoded models
+            this.#log('Error fetching models from API, using fallback models:', fmtError(err))
+            errorFromAPI = true
+            models = FALLBACK_MODEL_OPTIONS
+        }
+
+        return {
+            models,
+            defaultModelId,
+            errorFromAPI,
+        }
+    }
+
+    /**
+     * This function handles the model selection process for the chat interface.
+     * It first attempts to retrieve models from cache or API, then determines the appropriate model to select
+     * based on the following priority:
+     * 1. When errors occur or session is invalid: Use the default model as a fallback
+     * 2. When user has previously selected a model: Use that model (or its mapped version if the model ID has changed)
+     * 3. When there's a default model from the API: Use the server-recommended default model
+     * 4. Last resort: Use the newest model defined in modelSelection constants
+     *
+     * This ensures users maintain consistent model selection across sessions while also handling
+     * API failures and model ID migrations gracefully.
+     */
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        // Get models from cache or API
+        const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
+
+        // Get the first fallback model option as default
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        // Handle error cases by returning default model
+        if (!success || errorFromAPI) {
+            return {
+                tabId: params.tabId,
+                models: models,
+                selectedModelId: DEFAULT_MODEL_ID,
+            }
+        }
+
+        // Determine selected model ID based on priority
+        let selectedModelId: string
+        let modelId = this.#chatHistoryDb.getModelId()
+
+        // Helper function to get model label from FALLBACK_MODEL_RECORD
+        const getModelLabel = (modelKey: string) =>
+            FALLBACK_MODEL_RECORD[modelKey as keyof typeof FALLBACK_MODEL_RECORD]?.label || modelKey
+
+        // Helper function to map enum model ID to API model ID
+        const getMappedModelId = (modelKey: string) =>
+            BEDROCK_MODEL_TO_MODEL_ID[modelKey as keyof typeof BEDROCK_MODEL_TO_MODEL_ID] || modelKey
+
+        // Determine selected model ID based on priority
+        if (modelId) {
+            const mappedModelId = getMappedModelId(modelId)
+
+            // Priority 1: Use mapped modelId if it exists in available models from backend
+            if (models.some(model => model.id === mappedModelId)) {
+                selectedModelId = mappedModelId
+            }
+            // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD and no backend models available
+            else if (models.length === 0 && modelId in FALLBACK_MODEL_RECORD) {
+                selectedModelId = getModelLabel(modelId)
+            }
+            // Priority 3: Fall back to default or system default
+            else {
+                selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
+            }
+        } else {
+            // No user-selected model - use API default or system default
+            selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
+        }
+
+        // Store the selected model in the session
         session.modelId = selectedModelId
+
         return {
             tabId: params.tabId,
             models: models,
@@ -724,6 +835,93 @@ export class AgenticChatController implements ChatHandlers {
         params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
 
         IdleWorkspaceManager.recordActivityTimestamp()
+
+        // Memory Bank Creation Flow - Delegate to MemoryBankController
+        if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
+            this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
+
+            // Store original prompt to prevent data loss on failure
+            const originalPrompt = params.prompt.prompt
+
+            try {
+                const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+                const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
+
+                if (!workspaceUri) {
+                    throw new Error('No workspace folder found for Memory Bank creation')
+                }
+
+                // Check if memory bank already exists to provide appropriate user feedback
+                const memoryBankExists = await this.#memoryBankController.memoryBankExists(workspaceUri)
+                const actionType = memoryBankExists ? 'Regenerating' : 'Generating'
+                this.#features.logging.info(`${actionType} Memory Bank for workspace: ${workspaceUri}`)
+
+                const resultStream = this.#getChatResultStream(params.partialResultToken)
+                await resultStream.writeResultBlock({
+                    body: `Preparing to analyze your project...`,
+                    type: 'answer',
+                    messageId: crypto.randomUUID(),
+                })
+
+                const comprehensivePrompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
+                    workspaceUri,
+                    async (prompt: string) => {
+                        // Direct LLM call for ranking - no agentic loop
+                        try {
+                            if (!this.#serviceManager) {
+                                throw new Error('amazonQServiceManager is not initialized')
+                            }
+
+                            const client = this.#serviceManager.getStreamingClient()
+                            const requestInput: SendMessageCommandInput = {
+                                conversationState: {
+                                    chatTriggerType: ChatTriggerType.MANUAL,
+                                    currentMessage: {
+                                        userInputMessage: {
+                                            content: prompt,
+                                        },
+                                    },
+                                },
+                            }
+
+                            const response = await client.sendMessage(requestInput)
+
+                            let responseContent = ''
+                            const maxResponseSize = 50000 // 50KB limit
+
+                            if (response.sendMessageResponse) {
+                                for await (const chatEvent of response.sendMessageResponse) {
+                                    if (chatEvent.assistantResponseEvent?.content) {
+                                        responseContent += chatEvent.assistantResponseEvent.content
+                                        if (responseContent.length > maxResponseSize) {
+                                            this.#features.logging.warn('LLM response exceeded size limit, truncating')
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+
+                            return responseContent.trim()
+                        } catch (error) {
+                            this.#features.logging.error(`Memory Bank LLM ranking failed: ${error}`)
+                            return '' // Empty string triggers TF-IDF fallback
+                        }
+                    }
+                )
+
+                // Only update prompt if we got a valid comprehensive prompt
+                if (comprehensivePrompt && comprehensivePrompt.trim().length > 0) {
+                    params.prompt.prompt = comprehensivePrompt
+                } else {
+                    this.#features.logging.warn('Empty comprehensive prompt received, using original prompt')
+                    params.prompt.prompt = originalPrompt
+                }
+            } catch (error) {
+                this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
+                // Restore original prompt to ensure no data loss
+                params.prompt.prompt = originalPrompt
+            }
+        }
 
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
@@ -801,7 +999,8 @@ export class AgenticChatController implements ChatHandlers {
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 params.tabId,
-                params.context
+                params.context,
+                params.prompt.prompt
             )
             // Add active file to context list if it's not already there
             const activeFile =
@@ -1256,7 +1455,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: currentMessage.userInputMessage?.content ?? '',
+                        body: escapeHTML(currentMessage.userInputMessage?.content ?? ''),
                         type: 'prompt' as any,
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
@@ -1799,7 +1998,9 @@ export class AgenticChatController implements ChatHandlers {
                     }
                     case CodeReview.toolName:
                     case DisplayFindings.toolName:
-                        // no need to write tool message for CodeReview or DisplayFindings
+                    // no need to write tool message for CodeReview or DisplayFindings
+                    case SemanticSearch.toolName:
+                        // For internal A/B we don't need tool message
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
@@ -1882,6 +2083,7 @@ export class AgenticChatController implements ChatHandlers {
                                 .filter(c => c.type === 'rule')
                                 .map(c => ({ path: c.path }))
                         }
+                        initialInput['modelId'] = session.modelId
                         toolUse.input = initialInput
                     } catch (e) {
                         this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
@@ -1970,6 +2172,17 @@ export class AgenticChatController implements ChatHandlers {
                             this.#abTestingAllocation?.experimentName,
                             this.#abTestingAllocation?.userVariation
                         )
+                        // Emit acceptedLineCount when write tool is used and code changes are accepted
+                        const acceptedLineCount = calculateModifiedLines(toolUse, doc?.getText())
+                        await this.#telemetryController.emitInteractWithMessageMetric(
+                            tabId,
+                            {
+                                cwsprChatMessageId: chatResult.messageId ?? toolUse.toolUseId,
+                                cwsprChatInteractionType: ChatInteractionType.AgenticCodeAccepted,
+                                codewhispererCustomizationArn: this.#customizationArn,
+                            },
+                            acceptedLineCount
+                        )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
@@ -2003,6 +2216,9 @@ export class AgenticChatController implements ChatHandlers {
                                 body: JSON.stringify(displayFindingsResult.output.content),
                             })
                         }
+                        break
+                    case SemanticSearch.toolName:
+                        await this.#handleSemanticSearchToolResult(toolUse, result, session, chatResultStream)
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -2084,6 +2300,50 @@ export class AgenticChatController implements ChatHandlers {
                         this.#abTestingAllocation?.userVariation,
                         'Failed'
                     )
+                }
+
+                // Handle MCP tool failures
+                const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                if (originalNames && toolUse.toolUseId) {
+                    const { toolName } = originalNames
+                    const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+                    const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+                    const customerFacingError = getCustomerFacingErrorMessage(err)
+
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        summary: {
+                            content: {
+                                header: {
+                                    icon: 'tools',
+                                    body: `${toolName}`,
+                                    status: {
+                                        status: 'error',
+                                        icon: 'cancel-circle',
+                                        text: 'Error',
+                                        description: customerFacingError,
+                                    },
+                                },
+                            },
+                            collapsedContent: [
+                                {
+                                    header: { body: 'Parameters' },
+                                    body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                                },
+                                {
+                                    header: { body: 'Error' },
+                                    body: customerFacingError,
+                                },
+                            ],
+                        },
+                    } as ChatResult
+
+                    if (cachedButtonBlockId !== undefined) {
+                        await chatResultStream.overwriteResultBlock(errorResult, cachedButtonBlockId)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
+                    }
                 }
 
                 // display fs write failure status in the UX of that file card
@@ -2457,7 +2717,7 @@ export class AgenticChatController implements ChatHandlers {
                                 status: {
                                     status: isAccept ? 'success' : 'error',
                                     icon: isAccept ? 'ok' : 'cancel',
-                                    text: isAccept ? 'Completed' : 'Rejected',
+                                    text: isAccept ? 'Accepted' : 'Rejected',
                                 },
                                 fileList: undefined,
                             },
@@ -2544,6 +2804,7 @@ export class AgenticChatController implements ChatHandlers {
         session.setDeferredToolExecution(messageId, deferred.resolve, deferred.reject)
         this.#log(`Prompting for compaction approval for messageId: ${messageId}`)
         await deferred.promise
+        session.removeDeferredToolExecution(messageId)
         // Note: we want to overwrite the button block because it already exists in the stream.
         await resultStream.overwriteResultBlock(this.#getUpdateCompactConfirmResult(messageId), promptBlockId)
     }
@@ -3208,7 +3469,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMsg(err)
+        const errorMessage = getErrorMsg(err) ?? GENERIC_ERROR_MS
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
@@ -3218,7 +3479,8 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
+        const errorCode = err.code ?? ''
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
@@ -3263,7 +3525,7 @@ export class AgenticChatController implements ChatHandlers {
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? GENERIC_ERROR_MS,
+                errorMessage,
                 agenticCodingMode
             )
         }
@@ -3580,25 +3842,6 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    /**
-     * @deprecated use aws/chat/listAvailableModels server request instead
-     */
-    #legacySetModelId(tabId: string, session: ChatSessionService) {
-        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
-        // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
-
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        if (region === 'eu-central-1') {
-            // Only 3.7 Sonnet is available in eu-central-1 for now
-            modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
-            // @ts-ignore
-            this.#features.chat.chatOptionsUpdate({ region })
-        }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
-        session.modelId = modelId
-    }
-
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
@@ -3611,11 +3854,14 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
         session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+        if (session) {
+            // Set the logging object on the session
+            session.setLogging(this.#features.logging)
+        }
 
         // Update the client with the initial pair programming mode
         this.#features.chat.chatOptionsUpdate({
@@ -3623,11 +3869,6 @@ export class AgenticChatController implements ChatHandlers {
             // Type assertion to support pairProgrammingMode
             ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
         } as ChatUpdateParams)
-
-        if (success && session) {
-            // Set the logging object on the session
-            session.setLogging(this.#features.logging)
-        }
         this.setPaidTierMode(params.tabId)
     }
 
@@ -4483,6 +4724,13 @@ export class AgenticChatController implements ChatHandlers {
                     await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
                 } else {
                     // Fallback to creating a new card
+                    if (toolResultCard.summary?.content?.header) {
+                        toolResultCard.summary.content.header.status = {
+                            status: 'success',
+                            icon: 'ok',
+                            text: 'Completed',
+                        }
+                    }
                     this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
                     await chatResultStream.writeResultBlock(toolResultCard)
                 }
@@ -4496,6 +4744,64 @@ export class AgenticChatController implements ChatHandlers {
             messageId: toolUse.toolUseId,
             body: toolResultMessage(toolUse, result),
         })
+    }
+
+    async #handleSemanticSearchToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        // Early return if toolUseId is undefined
+        if (!toolUse.toolUseId) {
+            this.#log(`Cannot handle semantic search tool result: missing toolUseId`)
+            return
+        }
+
+        // Format the tool result and input as JSON strings
+        const toolInput = JSON.stringify(toolUse.input, null, 2)
+        const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+
+        const toolResultCard: ChatMessage = {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            summary: {
+                content: {
+                    header: {
+                        icon: 'tools',
+                        body: `${SemanticSearch.toolName}`,
+                        fileList: undefined,
+                    },
+                },
+                collapsedContent: [
+                    {
+                        header: {
+                            body: 'Parameters',
+                        },
+                        body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                    },
+                    {
+                        header: {
+                            body: 'Result',
+                        },
+                        body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                    },
+                ],
+            },
+        }
+
+        // Get the stored blockId for this tool use
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+        const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+
+        if (cachedButtonBlockId !== undefined) {
+            // Update the existing card with the results
+            await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+        } else {
+            // Fallback to creating a new card
+            this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+            await chatResultStream.writeResultBlock(toolResultCard)
+        }
     }
 
     scheduleABTestingFetching(userContext: UserContext | undefined) {
@@ -4521,8 +4827,8 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(
-                        feature => feature.feature === 'MaestroWorkspaceContext'
+                    const feature = result.featureEvaluations?.find(feature =>
+                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
                     if (feature) {
                         this.#abTestingAllocation = {

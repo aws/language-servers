@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.1.37](https://github.com/aws/language-servers/compare/chat-client/v0.1.36...chat-client/v0.1.37) (2025-09-24)
+
+
+### Features
+
+* memory bank support ([#2314](https://github.com/aws/language-servers/issues/2314)) ([0e215fc](https://github.com/aws/language-servers/commit/0e215fc0e475b4c40a8237492371716982d4d532))
+
+## [0.1.36](https://github.com/aws/language-servers/compare/chat-client/v0.1.35...chat-client/v0.1.36) (2025-09-16)
+
+
+### Bug Fixes
+
+* migration from /agents ux ([#2248](https://github.com/aws/language-servers/issues/2248)) ([debeb41](https://github.com/aws/language-servers/commit/debeb414fd0d4d873af2f36cde0ebbeab16d16a4))
+
+## [0.1.35](https://github.com/aws/language-servers/compare/chat-client/v0.1.34...chat-client/v0.1.35) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+* **amazonq:** default to diff-based scans ([#2195](https://github.com/aws/language-servers/issues/2195)) ([da4c3db](https://github.com/aws/language-servers/commit/da4c3db5329bd50cfe249bf8c1d59afa9bcb0157))
+
+## [0.1.34](https://github.com/aws/language-servers/compare/chat-client/v0.1.33...chat-client/v0.1.34) (2025-08-27)
+
+
+### Features
+
+* Auto fetch models from listAvailableModels API ([#2171](https://github.com/aws/language-servers/issues/2171)) ([8600c52](https://github.com/aws/language-servers/commit/8600c524877abb459e9338399352446c0dcff6f0))
+
+
+### Bug Fixes
+
+* **amazonq:** disable typewriter animation ([#2160](https://github.com/aws/language-servers/issues/2160)) ([db45d01](https://github.com/aws/language-servers/commit/db45d01adba10e8a04d868e1062f899df4f5b7e4))
+
+## [0.1.33](https://github.com/aws/language-servers/compare/chat-client/v0.1.32...chat-client/v0.1.33) (2025-08-19)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+* **amazonq:** read tool ui revamp ([#2113](https://github.com/aws/language-servers/issues/2113)) ([#2121](https://github.com/aws/language-servers/issues/2121)) ([93cf229](https://github.com/aws/language-servers/commit/93cf229149ba60491f9f5763793db4a9f570b611))
+
+
+### Bug Fixes
+
+* fix for button text and remove profilearn caching ([#2137](https://github.com/aws/language-servers/issues/2137)) ([2a4171a](https://github.com/aws/language-servers/commit/2a4171a74c15c23c23c481060496162bcc9e6284))
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
 ## [0.1.32](https://github.com/aws/language-servers/compare/chat-client/v0.1.31...chat-client/v0.1.32) (2025-08-11)
 
 

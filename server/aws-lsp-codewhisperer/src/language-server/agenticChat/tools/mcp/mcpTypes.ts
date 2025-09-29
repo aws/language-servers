@@ -46,19 +46,26 @@ export interface MCPServerPermission {
 
 export interface AgentConfig {
     name: string // Required: Agent name
-    version: string // Required: Agent version (semver)
     description: string // Required: Agent description
+    prompt?: string // Optional: High-level context for the agent
     model?: string // Optional: Model that backs the agent
     tags?: string[] // Optional: Tags for categorization
     inputSchema?: any // Optional: Schema for agent inputs
     mcpServers: Record<string, MCPServerConfig> // Map of server name to server config
     tools: string[] // List of enabled tools
+    toolAliases?: Record<string, string> // Tool name remapping
     allowedTools: string[] // List of tools that don't require approval
     toolsSettings?: Record<string, any> // Tool-specific settings
-    includedFiles?: string[] // Files to include in context
-    createHooks?: string[] // Hooks to run at conversation start
-    promptHooks?: string[] // Hooks to run per prompt
-    resources?: string[] // Resources for the agent (prompts, files, etc.)
+    resources?: string[] // Resources for the agent (file:// paths)
+    hooks?: {
+        agentSpawn?: Array<{ command: string }>
+        userPromptSubmit?: Array<{ command: string }>
+    } // Commands run at specific trigger points
+    useLegacyMcpJson?: boolean // Whether to include legacy MCP configuration
+    // Legacy fields for backward compatibility
+    includedFiles?: string[] // Deprecated: use resources instead
+    createHooks?: string[] // Deprecated: use hooks.agentSpawn instead
+    promptHooks?: string[] // Deprecated: use hooks.userPromptSubmit instead
 }
 
 export interface PersonaConfig {
@@ -71,20 +78,24 @@ export class AgentModel {
 
     static fromJson(doc: any): AgentModel {
         const cfg: AgentConfig = {
-            name: doc?.['name'] || 'default-agent',
-            version: doc?.['version'] || '1.0.0',
+            name: doc?.['name'] || 'q_ide_default',
             description: doc?.['description'] || 'Default agent configuration',
+            prompt: doc?.['prompt'],
             model: doc?.['model'],
             tags: Array.isArray(doc?.['tags']) ? doc['tags'] : undefined,
             inputSchema: doc?.['inputSchema'],
             mcpServers: typeof doc?.['mcpServers'] === 'object' ? doc['mcpServers'] : {},
             tools: Array.isArray(doc?.['tools']) ? doc['tools'] : [],
+            toolAliases: typeof doc?.['toolAliases'] === 'object' ? doc['toolAliases'] : {},
             allowedTools: Array.isArray(doc?.['allowedTools']) ? doc['allowedTools'] : [],
             toolsSettings: typeof doc?.['toolsSettings'] === 'object' ? doc['toolsSettings'] : {},
+            resources: Array.isArray(doc?.['resources']) ? doc['resources'] : [],
+            hooks: typeof doc?.['hooks'] === 'object' ? doc['hooks'] : undefined,
+            useLegacyMcpJson: doc?.['useLegacyMcpJson'],
+            // Legacy fields
             includedFiles: Array.isArray(doc?.['includedFiles']) ? doc['includedFiles'] : [],
             createHooks: Array.isArray(doc?.['createHooks']) ? doc['createHooks'] : [],
             promptHooks: Array.isArray(doc?.['promptHooks']) ? doc['promptHooks'] : [],
-            resources: Array.isArray(doc?.['resources']) ? doc['resources'] : [],
         }
         return new AgentModel(cfg)
     }

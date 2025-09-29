@@ -3,7 +3,6 @@ import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import { ChokidarFileWatcher } from './chokidarFileWatcher'
 // eslint-disable-next-line import/no-nodejs-modules
-import * as path from 'path'
 import {
     DetailedListGroup,
     DetailedListItem,
@@ -14,12 +13,12 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 
 import {
-    getGlobalMcpConfigPath,
     getGlobalAgentConfigPath,
-    getWorkspaceMcpConfigPaths,
     getWorkspaceAgentConfigPaths,
     sanitizeName,
     normalizePathFromUri,
+    getWorkspaceMcpConfigPaths,
+    getGlobalMcpConfigPath,
 } from './mcpUtils'
 import {
     McpPermissionType,
@@ -29,7 +28,6 @@ import {
     McpServerStatus,
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
-import { URI } from 'vscode-uri'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 interface PermissionOption {
@@ -38,7 +36,13 @@ interface PermissionOption {
     description?: string
 }
 
+enum TransportType {
+    STDIO = 'stdio',
+    HTTP = 'http',
+}
+
 export class McpEventHandler {
+    private static readonly FILE_WATCH_DEBOUNCE_MS = 2000
     #features: Features
     #eventListenerRegistered: boolean
     #currentEditingServerName: string | undefined
@@ -51,6 +55,12 @@ export class McpEventHandler {
     #debounceTimer: NodeJS.Timeout | null = null
     #lastProgrammaticState: boolean = false
     #serverNameBeforeUpdate: string | undefined
+
+    #releaseProgrammaticAfterDebounce(padMs = 500) {
+        setTimeout(() => {
+            this.#isProgrammaticChange = false
+        }, McpEventHandler.FILE_WATCH_DEBOUNCE_MS + padMs)
+    }
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -393,7 +403,7 @@ export class McpEventHandler {
         const serverStatusError = this.#getServerStatusError(existingValues.name) || {}
 
         // Determine which transport is selected (default to stdio)
-        const selectedTransport = existingValues.transport || 'stdio'
+        const selectedTransport = existingValues.transport || TransportType.STDIO
 
         return {
             id: params.id,
@@ -432,14 +442,14 @@ export class McpEventHandler {
                         title: 'Transport',
                         mandatory: true,
                         options: [
-                            { label: 'stdio', value: 'stdio' },
-                            { label: 'http', value: 'http' },
+                            { label: TransportType.STDIO, value: TransportType.STDIO },
+                            { label: TransportType.HTTP, value: TransportType.HTTP },
                         ],
                         value: selectedTransport,
                     },
                 ]
 
-                if (selectedTransport === 'http') {
+                if (selectedTransport === TransportType.HTTP) {
                     return [
                         ...common,
                         {
@@ -603,8 +613,13 @@ export class McpEventHandler {
             errors.push('Either command or url is required')
         } else if (command && url) {
             errors.push('Provide either command OR url, not both')
-        } else if (transport && ((transport === 'stdio' && !command) || (transport !== 'stdio' && !url))) {
-            errors.push(`${transport === 'stdio' ? 'Command' : 'URL'} is required for ${transport} transport`)
+        } else if (
+            transport &&
+            ((transport === TransportType.STDIO && !command) || (transport !== TransportType.STDIO && !url))
+        ) {
+            errors.push(
+                `${transport === TransportType.STDIO ? 'Command' : 'URL'} is required for ${transport} transport`
+            )
         }
 
         if (values.timeout && values.timeout.trim() !== '') {
@@ -692,7 +707,7 @@ export class McpEventHandler {
         // stdio‑specific parsing
         let args: string[] = []
         let env: Record<string, string> = {}
-        if (selectedTransport === 'stdio') {
+        if (selectedTransport === TransportType.STDIO) {
             try {
                 args = (Array.isArray(params.optionsValues.args) ? params.optionsValues.args : [])
                     .map((item: any) =>
@@ -719,7 +734,7 @@ export class McpEventHandler {
 
         // http‑specific parsing
         let headers: Record<string, string> = {}
-        if (selectedTransport === 'http') {
+        if (selectedTransport === TransportType.HTTP) {
             try {
                 const raw = Array.isArray(params.optionsValues.headers) ? params.optionsValues.headers : []
                 headers = raw.reduce((acc: Record<string, string>, item: any) => {
@@ -743,7 +758,7 @@ export class McpEventHandler {
 
         // build final config (no transport field persisted)
         let config: MCPServerConfig
-        if (selectedTransport === 'http') {
+        if (selectedTransport === TransportType.HTTP) {
             config = {
                 url: params.optionsValues.url,
                 headers,
@@ -774,8 +789,11 @@ export class McpEventHandler {
         try {
             if (isEditMode && originalServerName) {
                 const serverToRemove = this.#serverNameBeforeUpdate || originalServerName
+                const serverConfig = McpManager.instance.getAllServerConfigs().get(serverToRemove)
+                const isLegacyMcpServer = serverConfig?.__configPath__?.endsWith('mcp.json') ?? false
+                const configPath = isLegacyMcpServer ? await this.#getMcpConfigPath(isGlobal) : agentPath
                 await McpManager.instance.removeServer(serverToRemove)
-                await McpManager.instance.addServer(serverName, config, agentPath)
+                await McpManager.instance.addServer(serverName, config, configPath, isLegacyMcpServer)
             } else {
                 // Create new server
                 await McpManager.instance.addServer(serverName, config, agentPath)
@@ -786,16 +804,17 @@ export class McpEventHandler {
         }
 
         this.#currentEditingServerName = undefined
+        this.#serverNameBeforeUpdate = undefined
 
         // need to check server state now, as there is possibility of error during server initialization
         const serverStatusError = this.#getServerStatusError(serverName)
 
         this.#telemetryController?.emitMCPServerInitializeEvent({
             source: isEditMode ? 'updateServer' : 'addServer',
-            command: selectedTransport === 'stdio' ? params.optionsValues.command : undefined,
-            url: selectedTransport === 'http' ? params.optionsValues.url : undefined,
+            command: selectedTransport === TransportType.STDIO ? params.optionsValues.command : undefined,
+            url: selectedTransport === TransportType.HTTP ? params.optionsValues.url : undefined,
             enabled: true,
-            numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+            numTools: McpManager.instance.getAllToolsWithPermissions(sanitizedServerName).length,
             scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
             transportType: selectedTransport,
             languageServerVersion: this.#features.runtime.serverInfo.version,
@@ -810,6 +829,7 @@ export class McpEventHandler {
 
             // Stay on add/edit page and show error to user
             // Keep isProgrammaticChange true during error handling to prevent file watcher triggers
+            this.#releaseProgrammaticAfterDebounce()
             if (isEditMode) {
                 params.id = 'edit-mcp'
                 params.title = sanitizedServerName
@@ -824,7 +844,7 @@ export class McpEventHandler {
                 this.#newlyAddedServers.delete(serverName)
             }
 
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
 
             // Go to tools permissions page
             return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
@@ -925,9 +945,10 @@ export class McpEventHandler {
             perm.__configPath__ = agentPath
             await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
+            this.#releaseProgrammaticAfterDebounce()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
         }
         return { id: params.id }
     }
@@ -951,9 +972,10 @@ export class McpEventHandler {
             perm.__configPath__ = agentPath
             await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
+            this.#releaseProgrammaticAfterDebounce()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
         }
 
         return { id: params.id }
@@ -973,11 +995,11 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
-
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         }
     }
@@ -1014,7 +1036,7 @@ export class McpEventHandler {
         }
 
         // Respect a user flip first; otherwise fall back to what the stored configuration implies.
-        const transport = params.optionsValues?.transport ?? (config.url ? 'http' : 'stdio')
+        const transport = params.optionsValues?.transport ?? (config.url ? TransportType.HTTP : TransportType.STDIO)
 
         // Convert stored structures to UI‑friendly lists
         const argsList = (config.args ?? []).map(a => ({ arg_key: a })) // for stdio
@@ -1090,8 +1112,9 @@ export class McpEventHandler {
 
         // Clean up transport-specific fields
         if (optionsValues) {
-            const transport = optionsValues.transport ?? 'stdio' // Maintain default to 'stdio'
-            const fieldsToDelete = transport === 'http' ? ['command', 'args', 'env_variables'] : ['url', 'headers']
+            const transport = optionsValues.transport ?? TransportType.STDIO // Maintain default to 'stdio'
+            const fieldsToDelete =
+                transport === TransportType.HTTP ? ['command', 'args', 'env_variables'] : ['url', 'headers']
 
             fieldsToDelete.forEach(field => delete optionsValues[field])
         }
@@ -1238,16 +1261,18 @@ export class McpEventHandler {
             const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
             if (serverConfig) {
                 // Emit server initialize event after permission change
-                const transportType = serverConfig.command ? 'stdio' : 'http'
+                const transportType = serverConfig.command?.trim() ? TransportType.STDIO : TransportType.HTTP
                 this.#telemetryController?.emitMCPServerInitializeEvent({
                     source: 'updatePermission',
-                    command: transportType === 'stdio' ? serverConfig.command : undefined,
-                    url: transportType === 'http' ? serverConfig.url : undefined,
+                    command: transportType === TransportType.STDIO ? serverConfig.command : undefined,
+                    url: transportType === TransportType.HTTP ? serverConfig.url : undefined,
                     enabled: true,
                     numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
                     scope:
                         serverConfig.__configPath__ ===
-                        getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                            getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir()) ||
+                        serverConfig.__configPath__ ===
+                            getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
                             ? 'global'
                             : 'workspace',
                     transportType: transportType,
@@ -1259,10 +1284,11 @@ export class McpEventHandler {
             this.#pendingPermissionConfig = undefined
 
             this.#features.logging.info(`Applied permission changes for server: ${serverName}`)
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         }
     }
@@ -1275,12 +1301,13 @@ export class McpEventHandler {
             ([name, _]) => !mcpManager.isServerDisabled(name)
         )
 
-        // Get the global agent path
+        // Get the global paths
         const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        const globalMcpPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
 
         // Count global vs project servers
         const globalServers = Array.from(serverConfigs.entries()).filter(
-            ([_, config]) => config.__configPath__ === globalAgentPath
+            ([_, config]) => config.__configPath__ === globalAgentPath || config.__configPath__ === globalMcpPath
         ).length
         const projectServers = serverConfigs.size - globalServers
 
@@ -1310,16 +1337,19 @@ export class McpEventHandler {
 
         // Emit server initialize events for all active servers
         for (const [serverName, config] of serverConfigs.entries()) {
-            const transportType = config.command ? 'stdio' : 'http'
+            const transportType = config.command ? TransportType.STDIO : TransportType.HTTP
             const enabled = !mcpManager.isServerDisabled(serverName)
             this.#telemetryController?.emitMCPServerInitializeEvent({
                 source: 'reload',
-                command: transportType === 'stdio' ? config.command : undefined,
-                url: transportType === 'http' ? config.url : undefined,
+                command: transportType === TransportType.STDIO ? config.command : undefined,
+                url: transportType === TransportType.HTTP ? config.url : undefined,
                 enabled: enabled,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
-                scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
-                transportType: 'stdio',
+                scope:
+                    config.__configPath__ === globalAgentPath || config.__configPath__ === globalMcpPath
+                        ? 'global'
+                        : 'workspace',
+                transportType: transportType,
                 languageServerVersion: this.#features.runtime.serverInfo.version,
             })
         }
@@ -1390,6 +1420,37 @@ export class McpEventHandler {
     }
 
     /**
+     * Gets the appropriate MCP config path, checking workspace path first if it exists
+     * @returns The MCP config path to use (workspace if exists, otherwise global)
+     */
+    async #getMcpConfigPath(isGlobal: boolean = true): Promise<string> {
+        const globalMcpPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        if (isGlobal) {
+            return globalMcpPath
+        }
+        // Get workspace folders and check for workspace MCP path
+        const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            const workspacePaths = workspaceFolders.map(folder => folder.uri)
+            const workspaceMcpPaths = getWorkspaceMcpConfigPaths(workspacePaths)
+
+            if (Array.isArray(workspaceMcpPaths) && workspaceMcpPaths.length > 0) {
+                try {
+                    // Convert URI format to filesystem path if needed using the utility function
+                    const mcpPath = normalizePathFromUri(workspaceMcpPaths[0], this.#features.logging)
+
+                    return mcpPath
+                } catch (e) {
+                    this.#features.logging.warn(`Failed to check if workspace MCP path exists: ${e}`)
+                }
+            }
+        }
+
+        // Return global path if workspace path doesn't exist or there was an error
+        return globalMcpPath
+    }
+
+    /**
      * Processes permission updates from the UI
      */
     async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
@@ -1427,7 +1488,8 @@ export class McpEventHandler {
      */
     #getServerStatusError(serverName: string): { title: string; icon: string; status: Status } | undefined {
         const serverStates = McpManager.instance.getAllServerStates()
-        const serverState = serverStates.get(serverName)
+        const key = serverName ? sanitizeName(serverName) : serverName
+        const serverState = key ? serverStates.get(key) : undefined
 
         if (!serverState) {
             return undefined
@@ -1457,13 +1519,15 @@ export class McpEventHandler {
             this.#features.logging.warn(`Failed to get user home directory: ${e}`)
         }
 
-        // Only watch agent config files
+        // Watch both agent config files and MCP config files
         const agentPaths = [
             ...getWorkspaceAgentConfigPaths(wsUris),
             ...(homeDir ? [getGlobalAgentConfigPath(homeDir)] : []),
         ]
 
-        const allPaths = [...agentPaths]
+        const mcpPaths = [...getWorkspaceMcpConfigPaths(wsUris), ...(homeDir ? [getGlobalMcpConfigPath(homeDir)] : [])]
+
+        const allPaths = [...agentPaths, ...mcpPaths]
 
         this.#fileWatcher.watchPaths(allPaths, () => {
             // Store the current programmatic state when the event is triggered
@@ -1491,11 +1555,10 @@ export class McpEventHandler {
                 if (!this.#lastProgrammaticState) {
                     await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
                 } else {
-                    this.#isProgrammaticChange = false
                     this.#features.logging.debug('Skipping refresh due to programmatic change')
                 }
                 this.#debounceTimer = null
-            }, 2000)
+            }, McpEventHandler.FILE_WATCH_DEBOUNCE_MS)
         })
     }
 

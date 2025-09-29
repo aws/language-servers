@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.0.15](https://github.com/aws/language-servers/compare/lsp-core/v0.0.14...lsp-core/v0.0.15) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+## [0.0.14](https://github.com/aws/language-servers/compare/lsp-core/v0.0.13...lsp-core/v0.0.14) (2025-08-19)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+
+
+### Bug Fixes
+
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
 ## [0.0.13](https://github.com/aws/language-servers/compare/lsp-core/v0.0.12...lsp-core/v0.0.13) (2025-08-04)
 
 
