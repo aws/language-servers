@@ -2101,6 +2101,28 @@ export class AgenticChatController implements ChatHandlers {
 
                 let toolResultContent: ToolResultContentBlock
 
+                if (toolUse.name === CodeReview.toolName) {
+                    // no need to write tool result for code review, this is handled by model via chat
+                    // Push result in message so that it is picked by IDE plugin to show in issues panel
+                    const codeReviewResult = result as InvokeOutput
+                    if (
+                        codeReviewResult?.output?.kind === 'json' &&
+                        codeReviewResult.output.success &&
+                        (codeReviewResult.output.content as any)?.findingsByFile
+                    ) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+                            body: (codeReviewResult.output.content as any).findingsByFile,
+                        })
+                        codeReviewResult.output.content = {
+                            codeReviewId: (codeReviewResult.output.content as any).codeReviewId,
+                            message: (codeReviewResult.output.content as any).message,
+                            findingsByFileSimplified: (codeReviewResult.output.content as any).findingsByFileSimplified,
+                        }
+                    }
+                }
+
                 if (typeof result === 'string') {
                     toolResultContent = { text: result }
                 } else if (Array.isArray(result)) {
@@ -2186,20 +2208,6 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
-                        // no need to write tool result for code review, this is handled by model via chat
-                        // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const codeReviewResult = result as InvokeOutput
-                        if (
-                            codeReviewResult?.output?.kind === 'json' &&
-                            codeReviewResult.output.success &&
-                            (codeReviewResult.output.content as any)?.findingsByFile
-                        ) {
-                            await chatResultStream.writeResultBlock({
-                                type: 'tool',
-                                messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
-                                body: (codeReviewResult.output.content as any).findingsByFile,
-                            })
-                        }
                         break
                     case DisplayFindings.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
