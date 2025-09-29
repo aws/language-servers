@@ -260,7 +260,7 @@ export class AgenticChatController implements ChatHandlers {
     #telemetryController: ChatTelemetryController
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
-    #modifiedFilesTracker: Map<string, Set<string>> = new Map() // tabId -> Set of file paths
+    #modifiedFilesTracker: Map<string, Set<string>> = new Map() // tabId -> Set of file pathsiedFilesTracker: Map<string, Set<string>> = new Map() // tabId -> Set of file paths
     #telemetryService: TelemetryService
     #serviceManager?: AmazonQBaseServiceManager
     #tabBarController: TabBarController
@@ -374,8 +374,36 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
+        const session = this.#chatSessionManagementService.getSession(tabId).data
         const filePaths = Array.from(modifiedFiles)
-        const fileList: FileList = {
+
+        // Create individual undo buttons for each file
+        const undoButtons = []
+        for (const filePath of filePaths) {
+            // Find the tool use that modified this file
+            for (const [toolUseId, toolUse] of session?.toolUseLookup.entries() || []) {
+                const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && input.path === filePath) {
+                    undoButtons.push({
+                        id: `${BUTTON_UNDO_CHANGES}-${toolUseId}`,
+                        text: `Undo ${path.basename(filePath)}`,
+                        status: 'clear',
+                    })
+                    break
+                }
+            }
+        }
+
+        // Add undo all button if there are multiple files
+        if (filePaths.length > 1 && session?.currentUndoAllId) {
+            undoButtons.push({
+                id: BUTTON_UNDO_ALL_CHANGES,
+                text: 'Undo all changes',
+                status: 'clear',
+            })
+        }
+
+        const fileList: FileList & { undoButtons?: Array<{ id: string; text: string; status?: string }> } = {
             filePaths,
             details: Object.fromEntries(
                 filePaths.map(filePath => [
@@ -383,10 +411,15 @@ export class AgenticChatController implements ChatHandlers {
                     {
                         description: filePath,
                         clickable: true,
+                        data: {
+                            messageId: session?.currentUndoAllId || 'modified-files-tracker',
+                            fullPath: filePath,
+                        },
                     },
                 ])
             ),
             rootFolderTitle: 'Modified Files',
+            undoButtons,
         }
 
         const count = modifiedFiles.size
@@ -500,8 +533,11 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
-        } else if (params.buttonId === BUTTON_UNDO_CHANGES) {
-            const toolUseId = params.messageId
+        } else if (params.buttonId === BUTTON_UNDO_CHANGES || params.buttonId.startsWith(`${BUTTON_UNDO_CHANGES}-`)) {
+            // Handle both regular undo buttons and individual file undo buttons from modified files tracker
+            const toolUseId = params.buttonId.startsWith(`${BUTTON_UNDO_CHANGES}-`)
+                ? params.buttonId.replace(`${BUTTON_UNDO_CHANGES}-`, '')
+                : params.messageId
             try {
                 await this.#undoFileChange(toolUseId, session.data, params.tabId)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
@@ -3776,6 +3812,37 @@ export class AgenticChatController implements ChatHandlers {
         const session = this.#chatSessionManagementService.getSession(params.tabId)
         const toolUseId = params.messageId
         const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
+
+        // Handle clicks from modified files tracker
+        if (params.messageId === 'modified-files-tracker' || !toolUse) {
+            // For modified files tracker, try to find the tool use that modified this file
+            const modifiedFiles = this.#modifiedFilesTracker.get(params.tabId)
+            if (modifiedFiles && modifiedFiles.has(params.fullPath || params.filePath)) {
+                // Find the tool use that modified this file
+                for (const [toolUseId, toolUse] of session.data?.toolUseLookup.entries() || []) {
+                    const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                    if (
+                        (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) &&
+                        input.path === (params.fullPath || params.filePath)
+                    ) {
+                        // Show diff for modified file
+                        this.#features.lsp.workspace.openFileDiff({
+                            originalFileUri: input.path,
+                            originalFileContent: toolUse.fileChange?.before,
+                            isDeleted: false,
+                            fileContent: toolUse.fileChange?.after,
+                        })
+                        return
+                    }
+                }
+            }
+            // If no tool use found, just open the file
+            const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
+            if (absolutePath) {
+                await this.#features.lsp.window.showDocument({ uri: URI.file(absolutePath).toString() })
+            }
+            return
+        }
 
         if (toolUse?.name === FS_WRITE || toolUse?.name === FS_REPLACE) {
             const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
