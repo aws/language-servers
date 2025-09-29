@@ -405,7 +405,33 @@ export const createMynahUi = (
             messager.onListAvailableModels({ tabId: tabFactory.initialTabId })
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
+            console.log('[LanguageServer] onFileClick called:', {
+                tabId,
+                filePath,
+                deleted,
+                messageId,
+                eventId,
+                fullPath: fileDetails?.data?.['fullPath'],
+                fileDetails,
+            })
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
+        },
+        onFileActionClick: (tabId, messageId, filePath, actionName, eventId) => {
+            console.log('[LanguageServer] onFileActionClick called:', {
+                tabId,
+                messageId,
+                filePath,
+                actionName,
+                eventId,
+            })
+            // Convert file action clicks to button clicks for language server compatibility
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId,
+                buttonId: actionName,
+            }
+            console.log('[LanguageServer] Converting to button click:', payload)
+            messager.onButtonClick(payload)
         },
         onTabAdd: (tabId: string) => {
             const defaultTabBarData = tabFactory.getDefaultTabData()
@@ -552,6 +578,13 @@ export const createMynahUi = (
             messager.onInfoLinkClick(payload)
         },
         onInBodyButtonClicked: (tabId, messageId, action, eventId) => {
+            console.log('[LanguageServer] onInBodyButtonClicked called:', {
+                tabId,
+                messageId,
+                actionId: action.id,
+                actionText: action.text,
+                eventId,
+            })
             if (action.id === disclaimerAcknowledgeButtonId) {
                 // Hide the legal disclaimer card
                 disclaimerCardActive = false
@@ -571,6 +604,7 @@ export const createMynahUi = (
                     messageId,
                     buttonId: action.id,
                 }
+                console.log('[LanguageServer] Sending button click to messager:', payload)
                 messager.onButtonClick(payload)
             }
             if (action.id === 'stop-shell-command') {
@@ -927,7 +961,7 @@ export const createMynahUi = (
                             description: fileDetails.description,
                             clickable: true,
                             data: {
-                                fullPath: fileDetails.fullPath || '',
+                                fullPath: fileDetails.fullPath || fileDetails.description || '',
                             },
                         },
                     ])
@@ -990,6 +1024,14 @@ export const createMynahUi = (
             currentFileList.details
         ) {
             console.log('[MynahUI] Processing fileList:', JSON.stringify(currentFileList, null, 2))
+            console.log(
+                '[MynahUI] 🔍 RAW chatResult.fileList before processing:',
+                JSON.stringify(chatResult.fileList, null, 2)
+            )
+            console.log(
+                '[MynahUI] 🔍 RAW chatResult.header?.fileList before processing:',
+                JSON.stringify(chatResult.header?.fileList, null, 2)
+            )
 
             // Accumulate files with changes
             currentFileList.filePaths.forEach(filePath => {
@@ -1001,7 +1043,9 @@ export const createMynahUi = (
                     'details:',
                     JSON.stringify(details, null, 2),
                     'hasChanges:',
-                    hasChanges
+                    hasChanges,
+                    'RAW details.data?.fullPath:',
+                    details?.data?.fullPath
                 )
 
                 // Only include files with actual changes (not just read files)
@@ -1011,13 +1055,25 @@ export const createMynahUi = (
                         const existing = tabData.files.get(filePath)
                         tabData.totalChanges -= (existing.changes?.added || 0) + (existing.changes?.deleted || 0)
                     }
-                    tabData.files.set(filePath, {
+                    const preservedFullPath = details.data?.fullPath || filePath
+                    console.log(
+                        '[MynahUI] 🔍 File accumulation - filePath:',
+                        filePath,
+                        'original fullPath:',
+                        details.data?.fullPath,
+                        'preserved fullPath:',
+                        preservedFullPath
+                    )
+                    const fileData = {
                         ...details,
+                        clickable: true, // Ensure files are clickable
                         data: {
-                            ...details.data,
+                            fullPath: preservedFullPath, // Preserve original fullPath from server
                             messageId: chatResult.messageId || '',
                         },
-                    })
+                    }
+                    console.log('[MynahUI] 🔍 Setting file data for', filePath, ':', JSON.stringify(fileData, null, 2))
+                    tabData.files.set(filePath, fileData)
                     tabData.totalChanges += (details.changes?.added || 0) + (details.changes?.deleted || 0)
                     console.log(
                         '[MynahUI] ✅ Accumulated modified file:',
@@ -1082,10 +1138,20 @@ export const createMynahUi = (
                                     tabData.totalChanges -=
                                         (existing.changes?.added || 0) + (existing.changes?.deleted || 0)
                                 }
+                                const preservedFullPath = details.data?.fullPath || filePath
+                                console.log(
+                                    '[MynahUI] 🔍 AdditionalMessage file accumulation - filePath:',
+                                    filePath,
+                                    'original fullPath:',
+                                    details.data?.fullPath,
+                                    'preserved fullPath:',
+                                    preservedFullPath
+                                )
                                 tabData.files.set(filePath, {
                                     ...details,
+                                    clickable: true, // Ensure files are clickable
                                     data: {
-                                        ...details.data,
+                                        fullPath: preservedFullPath, // Preserve original fullPath from server
                                         messageId: am.messageId || '',
                                     },
                                 })
@@ -1216,12 +1282,25 @@ export const createMynahUi = (
             const filePaths = Array.from(tabData.files.keys())
             const details: Record<string, any> = {}
 
+            const actions: Record<string, any> = {}
             // Add per-file undo buttons and collect file details
             tabData.files.forEach((fileDetails, filePath) => {
+                console.log(
+                    '[MynahUI] 🔍 Final file details for UI - filePath:',
+                    filePath,
+                    'fullPath:',
+                    fileDetails.data?.fullPath,
+                    'messageId:',
+                    fileDetails.data?.messageId
+                )
+                // Create a deep copy to ensure each file has its own data object
                 details[filePath] = {
                     ...fileDetails,
-                    actions: [{ id: 'undo-changes', text: 'Undo', status: 'clear', icon: 'undo' }],
+                    data: {
+                        ...fileDetails.data,
+                    },
                 }
+                actions[filePath] = [{ name: 'undo-changes', label: 'Undo', status: 'clear', icon: 'undo' }]
             })
 
             const modifiedFilesList = {
@@ -1229,10 +1308,29 @@ export const createMynahUi = (
                 rootFolderTitle: '',
                 filePaths,
                 details,
+                actions,
                 flatList: true,
                 hideFileCount: false,
                 renderAsPills: true,
+                undoButtons: [
+                    {
+                        id: 'undo-all-changes',
+                        text: 'Undo All',
+                        status: 'clear',
+                        icon: 'undo',
+                    },
+                ],
             }
+
+            console.log('[MynahUI] 🔍 Final modifiedFilesList structure:')
+            console.log('filePaths:', filePaths)
+            console.log('details keys:', Object.keys(details))
+            Object.keys(details).forEach(key => {
+                console.log(`details[${key}].data.fullPath:`, details[key]?.data?.fullPath)
+            })
+
+            console.log('[MynahUI] 🔍 About to update store with modifiedFilesList:')
+            console.log('modifiedFilesList.details:', JSON.stringify(modifiedFilesList.details, null, 2))
 
             mynahUi.updateStore(tabId, {
                 modifiedFilesList,

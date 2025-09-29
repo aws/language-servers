@@ -50,7 +50,7 @@ export function toMynahFileList(fileList: ChatMessage['fileList']): ChatItemCont
                     clickable: true,
                     changes: fileDetails.changes,
                     data: {
-                        fullPath: fileDetails.fullPath || '',
+                        fullPath: fileDetails.fullPath || fileDetails.description || '',
                     },
                 },
             ])
