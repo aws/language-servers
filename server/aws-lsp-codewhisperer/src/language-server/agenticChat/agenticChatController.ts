@@ -260,6 +260,7 @@ export class AgenticChatController implements ChatHandlers {
     #telemetryController: ChatTelemetryController
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
+    #modifiedFilesTracker: Map<string, Set<string>> = new Map() // tabId -> Set of file paths
     #telemetryService: TelemetryService
     #serviceManager?: AmazonQBaseServiceManager
     #tabBarController: TabBarController
@@ -333,6 +334,87 @@ export class AgenticChatController implements ChatHandlers {
      */
     #getMessageIdForCompact(messageId: string): string {
         return `${messageId}_compact`
+    }
+
+    /**
+     * Updates the modified files tracker when a file is modified
+     */
+    #updateModifiedFilesTracker(tabId: string, toolUse: ToolUse, document?: TextDocument): void {
+        if (toolUse.name !== FS_WRITE && toolUse.name !== FS_REPLACE) {
+            return
+        }
+
+        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+        if (!input.path) {
+            return
+        }
+
+        if (!this.#modifiedFilesTracker.has(tabId)) {
+            this.#modifiedFilesTracker.set(tabId, new Set())
+        }
+
+        this.#modifiedFilesTracker.get(tabId)!.add(input.path)
+        this.#sendModifiedFilesUpdate(tabId)
+    }
+
+    /**
+     * Sends modified files update to the UI
+     */
+    #sendModifiedFilesUpdate(tabId: string): void {
+        const modifiedFiles = this.#modifiedFilesTracker.get(tabId)
+        if (!modifiedFiles || modifiedFiles.size === 0) {
+            this.#features.chat.sendChatUpdate({
+                tabId,
+                modifiedFiles: {
+                    fileList: null,
+                    title: 'No files modified!',
+                    visible: true,
+                },
+            } as any)
+            return
+        }
+
+        const filePaths = Array.from(modifiedFiles)
+        const fileList: FileList = {
+            filePaths,
+            details: Object.fromEntries(
+                filePaths.map(filePath => [
+                    path.basename(filePath),
+                    {
+                        description: filePath,
+                        clickable: true,
+                    },
+                ])
+            ),
+            rootFolderTitle: 'Modified Files',
+        }
+
+        const count = modifiedFiles.size
+        const title = count === 1 ? '1 file modified!' : `${count} files modified!`
+
+        this.#features.chat.sendChatUpdate({
+            tabId,
+            modifiedFiles: {
+                fileList,
+                title,
+                visible: true,
+            },
+        } as any)
+    }
+
+    /**
+     * Clears modified files tracking for a tab
+     */
+    #clearModifiedFilesTracking(tabId: string): void {
+        this.#modifiedFilesTracker.delete(tabId)
+        this.#features.chat.sendChatUpdate({
+            tabId,
+            modifiedFiles: {
+                fileList: null,
+                title: 'No files modified!',
+                visible: true,
+            },
+        } as any)
     }
 
     constructor(
@@ -421,7 +503,7 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === BUTTON_UNDO_CHANGES) {
             const toolUseId = params.messageId
             try {
-                await this.#undoFileChange(toolUseId, session.data)
+                await this.#undoFileChange(toolUseId, session.data, params.tabId)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
                 this.#telemetryController.emitInteractWithAgenticChat(
                     'RejectDiff',
@@ -463,7 +545,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #undoFileChange(toolUseId: string, session: ChatSessionService | undefined): Promise<void> {
+    async #undoFileChange(toolUseId: string, session: ChatSessionService | undefined, tabId: string): Promise<void> {
         this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
         const toolUse = session?.toolUseLookup.get(toolUseId)
 
@@ -476,6 +558,15 @@ export class AgenticChatController implements ChatHandlers {
                 const filePath = URI.file(input.path).fsPath
                 return controller.updateIndexAndContextCommand([filePath], false)
             })
+        }
+
+        // Remove file from modified files tracker since it was undone
+        if (input?.path) {
+            const modifiedFiles = this.#modifiedFilesTracker.get(tabId)
+            if (modifiedFiles?.has(input.path)) {
+                modifiedFiles.delete(input.path)
+                this.#sendModifiedFilesUpdate(tabId)
+            }
         }
     }
 
@@ -542,6 +633,8 @@ export class AgenticChatController implements ChatHandlers {
         for (const messageId of [...toUndo].reverse()) {
             await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
         }
+        // Clear all modified files tracking after undoing all changes
+        this.#clearModifiedFilesTracking(tabId)
     }
 
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
@@ -873,6 +966,8 @@ export class AgenticChatController implements ChatHandlers {
                 // so we set it to random UUID per session, as other chat functionality
                 // depends on it
                 session.conversationId = uuid()
+                // Clear modified files tracking for new conversations
+                this.#clearModifiedFilesTracking(params.tabId)
             }
             const chatResultStream = this.#getChatResultStream(params.partialResultToken)
             token.onCancellationRequested(async () => {
@@ -2089,6 +2184,8 @@ export class AgenticChatController implements ChatHandlers {
                             },
                             acceptedLineCount
                         )
+                        // Update modified files tracker
+                        this.#updateModifiedFilesTracker(tabId, toolUse, doc)
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
@@ -3807,6 +3904,8 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.updateTabOpenState(params.tabId, false)
         this.#chatSessionManagementService.deleteSession(params.tabId)
         this.#telemetryController.removeConversation(params.tabId)
+        // Clean up modified files tracking
+        this.#modifiedFilesTracker.delete(params.tabId)
     }
 
     onQuickAction(params: QuickActionParams, _cancellationToken: CancellationToken) {
@@ -3823,6 +3922,8 @@ export class AgenticChatController implements ChatHandlers {
 
                 this.#telemetryController.removeConversation(params.tabId)
                 this.#chatHistoryDb.clearTab(params.tabId)
+                // Clear modified files tracking
+                this.#clearModifiedFilesTracking(params.tabId)
 
                 sessionResult.data?.clear()
 
