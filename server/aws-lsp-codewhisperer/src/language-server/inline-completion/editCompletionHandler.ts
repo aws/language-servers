@@ -16,6 +16,7 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
+    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -44,6 +45,8 @@ export class EditCompletionHandler {
     private isWaiting: boolean = false
     private hasDocumentChangedSinceInvocation: boolean = false
     private readonly streakTracker: StreakTracker
+
+    private isInProgress = false
 
     constructor(
         readonly logging: Logging,
@@ -89,6 +92,11 @@ export class EditCompletionHandler {
         params: InlineCompletionWithReferencesParams,
         token: CancellationToken
     ): Promise<InlineCompletionListWithReferences> {
+        if (this.isInProgress) {
+            this.logging.info(`editCompletionHandler is WIP, skip the request`)
+            return EMPTY_RESULT
+        }
+
         // On every new completion request close current inflight session.
         const currentSession = this.sessionManager.getCurrentSession()
         if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
@@ -118,6 +126,10 @@ export class EditCompletionHandler {
             return EMPTY_RESULT
         }
 
+        // Not ideally to rely on a state, should improve it and simply make it a debounced API
+        this.isInProgress = true
+        const startPreprocessTimestamp = Date.now()
+
         if (params.partialResultToken && currentSession) {
             // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
             if (currentSession && currentSession.state === 'ACTIVE') {
@@ -127,6 +139,7 @@ export class EditCompletionHandler {
             const newSession = this.sessionManager.createSession({
                 document: textDocument,
                 startPosition: params.position,
+                startPreprocessTimestamp: startPreprocessTimestamp,
                 triggerType: 'AutoTrigger',
                 language: currentSession.language,
                 requestContext: currentSession.requestContext,
@@ -152,15 +165,18 @@ export class EditCompletionHandler {
                 )
             } catch (error) {
                 return this.handleSuggestionsErrors(error as Error, currentSession)
+            } finally {
+                this.isInProgress = false
             }
         }
 
-        return new Promise(async resolve => {
+        return new Promise<InlineCompletionListWithReferences>(async resolve => {
             this.debounceTimeout = setTimeout(async () => {
                 try {
                     this.isWaiting = true
                     const result = await this._invoke(
                         params,
+                        startPreprocessTimestamp,
                         token,
                         textDocument,
                         inferredLanguageId,
@@ -185,11 +201,14 @@ export class EditCompletionHandler {
                     this.hasDocumentChangedSinceInvocation = false
                 }
             }, EDIT_DEBOUNCE_INTERVAL_MS)
+        }).finally(() => {
+            this.isInProgress = false
         })
     }
 
     async _invoke(
         params: InlineCompletionWithReferencesParams,
+        startPreprocessTimestamp: number,
         token: CancellationToken,
         textDocument: TextDocument,
         inferredLanguageId: CodewhispererLanguage,
@@ -283,6 +302,7 @@ export class EditCompletionHandler {
 
         const newSession = this.sessionManager.createSession({
             document: textDocument,
+            startPreprocessTimestamp: startPreprocessTimestamp,
             startPosition: params.position,
             triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
             language: fileContext.programmingLanguage.languageName,
@@ -325,8 +345,8 @@ export class EditCompletionHandler {
             session.suggestions = suggestionResponse.suggestions
             session.responseContext = suggestionResponse.responseContext
             session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
-            session.timeToFirstRecommendation = new Date().getTime() - session.startTime
-            session.suggestionType = suggestionResponse.suggestionType
+            session.setTimeToFirstRecommendation()
+            session.predictionType = SuggestionType.EDIT
         } else {
             session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
         }

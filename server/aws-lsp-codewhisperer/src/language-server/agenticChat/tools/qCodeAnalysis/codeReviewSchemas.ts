@@ -22,20 +22,20 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
         scopeOfReview: {
             type: <const>'string',
             description: [
-                'IMPORTANT: You must explicitly set the value of "scopeOfReview" based on user request analysis.',
+                'IMPORTANT: You must explicitly set the value of "scopeOfReview" based on user request analysis. Usually, CODE_DIFF_REVIEW will be the value that is used.',
                 '',
-                'Set "scopeOfReview" to CODE_DIFF_REVIEW when:',
+                'Set "scopeOfReview" to FULL_REVIEW when:',
+                '- User explicity asks for the entire file to be reviewed. Example: "Review my entire file.", "Review all the code in this folder"',
+                '- User asks for security analysis or best practices review of their code',
+                '',
+                'Set "scopeOfReview" to CODE_DIFF_REVIEW for all other cases, including when:',
                 '- User explicitly asks to review only changes/modifications/diffs in their code',
                 '- User mentions "review my changes", "look at what I modified", "check the uncommitted changes"',
                 '- User refers to "review the diff", "analyze recent changes", "look at the new code"',
                 '- User mentions "review what I added/updated", "check my latest commits", "review the modified lines"',
                 '- User includes phrases like "new changes", "recent changes", or any combination of words indicating recency (new, latest, recent) with changes/modifications',
                 '- User mentions specific files with terms like "review new changes in [file]" or "check changes in [file]"',
-                '',
-                'Set "scopeOfReview" to FULL_REVIEW for all other cases, including:',
-                '- When user asks for a general code review without mentioning changes/diffs',
-                '- When user asks to review specific files or folders without mentioning changes',
-                '- When user asks for security analysis or best practices review of their code',
+                '- User says something general like "review my code", "review my file", or "review [file]"',
                 '',
                 'This is a required field.',
             ].join('\n'),
@@ -113,6 +113,7 @@ export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
             })
         )
         .optional(),
+    modelId: z.string(),
 })
 
 /**

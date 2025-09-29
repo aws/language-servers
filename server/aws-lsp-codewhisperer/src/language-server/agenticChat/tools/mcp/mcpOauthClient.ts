@@ -9,7 +9,8 @@ import * as path from 'path'
 import { spawn } from 'child_process'
 import { URL, URLSearchParams } from 'url'
 import * as http from 'http'
-import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
+import * as os from 'os'
+import { Logger, Workspace, Lsp } from '@aws/language-server-runtimes/server-interface'
 
 interface Token {
     access_token: string
@@ -34,30 +35,73 @@ interface Registration {
 export class OAuthClient {
     private static logger: Logger
     private static workspace: Workspace
+    private static lsp: Lsp
 
-    public static initialize(ws: Workspace, logger: Logger): void {
+    public static initialize(ws: Workspace, logger: Logger, lsp: Lsp): void {
         this.workspace = ws
         this.logger = logger
+        this.lsp = lsp
     }
 
     /**
      * Return a valid Bearer token, reusing cache or refresh-token if possible,
-     * otherwise driving one interactive PKCE flow.
+     * otherwise (when interactive) driving one PKCE flow that may launch a browser.
      */
-    public static async getValidAccessToken(mcpBase: URL): Promise<string> {
+    public static async getValidAccessToken(
+        mcpBase: URL,
+        opts: { interactive?: boolean } = { interactive: false }
+    ): Promise<string | undefined> {
+        const interactive = opts?.interactive === true
         const key = this.computeKey(mcpBase)
         const regPath = path.join(this.cacheDir, `${key}.registration.json`)
         const tokPath = path.join(this.cacheDir, `${key}.token.json`)
 
+        // ===== Silent branch: try cached token, then refresh, never opens a browser =====
+        if (!interactive) {
+            // 1) cached access token
+            const cachedTok = await this.read<Token>(tokPath)
+            if (cachedTok) {
+                const expiry = cachedTok.obtained_at + cachedTok.expires_in * 1000
+                if (Date.now() < expiry) {
+                    this.logger.info(`OAuth: using still-valid cached token (silent)`)
+                    return cachedTok.access_token
+                }
+                this.logger.info(`OAuth: cached token expired → try refresh (silent)`)
+            }
+
+            // 2) refresh-token grant (if we have registration and refresh token)
+            const savedReg = await this.read<Registration>(regPath)
+            if (cachedTok?.refresh_token && savedReg) {
+                try {
+                    const meta = await this.discoverAS(mcpBase)
+                    const refreshed = await this.refreshGrant(meta, savedReg, mcpBase, cachedTok.refresh_token)
+                    if (refreshed) {
+                        await this.write(tokPath, refreshed)
+                        this.logger.info(`OAuth: refresh grant succeeded (silent)`)
+                        return refreshed.access_token
+                    }
+                    this.logger.info(`OAuth: refresh grant did not succeed (silent)`)
+                } catch (e) {
+                    this.logger.warn(`OAuth: silent refresh failed — ${e instanceof Error ? e.message : String(e)}`)
+                }
+            }
+
+            // 3) no token in silent mode → caller should surface auth-required UI
+            return undefined
+        }
+
+        // ===== Interactive branch: may open a browser (PKCE) =====
         // 1) Spin up (or reuse) loopback server + redirect URI
-        let server: http.Server, redirectUri: string
+        let server: http.Server | null = null
+        let redirectUri: string
         const savedReg = await this.read<Registration>(regPath)
         if (savedReg) {
             const port = Number(new URL(savedReg.redirect_uri).port)
+            const normalized = `http://127.0.0.1:${port}`
             server = http.createServer()
             try {
-                await this.listen(server, port)
-                redirectUri = savedReg.redirect_uri
+                await this.listen(server, port, '127.0.0.1')
+                redirectUri = normalized
                 this.logger.info(`OAuth: reusing redirect URI ${redirectUri}`)
             } catch (e: any) {
                 if (e.code === 'EADDRINUSE') {
@@ -75,7 +119,9 @@ export class OAuthClient {
                 }
             }
         } else {
-            ;({ server, redirectUri } = await this.buildCallbackServer())
+            const created = await this.buildCallbackServer()
+            server = created.server
+            redirectUri = created.redirectUri
             this.logger.info(`OAuth: new redirect URI ${redirectUri}`)
         }
 
@@ -85,7 +131,7 @@ export class OAuthClient {
             if (cached) {
                 const expiry = cached.obtained_at + cached.expires_in * 1000
                 if (Date.now() < expiry) {
-                    this.logger.info(`OAuth: using still‑valid cached token`)
+                    this.logger.info(`OAuth: using still-valid cached token`)
                     return cached.access_token
                 }
                 this.logger.info(`OAuth: cached token expired → try refresh`)
@@ -98,6 +144,7 @@ export class OAuthClient {
             } catch (e: any) {
                 throw new Error(`OAuth discovery failed: ${e?.message ?? String(e)}`)
             }
+
             // 4) Register (or reuse) a dynamic client
             const scopes = ['openid', 'offline_access']
             let reg: Registration
@@ -107,7 +154,7 @@ export class OAuthClient {
                 throw new Error(`OAuth client registration failed: ${e?.message ?? String(e)}`)
             }
 
-            // 5) Refresh‑token grant (one shot)
+            // 5) Refresh-token grant (one shot)
             const attemptedRefresh = !!cached?.refresh_token
             if (cached?.refresh_token) {
                 const refreshed = await this.refreshGrant(meta, reg, mcpBase, cached.refresh_token)
@@ -129,16 +176,18 @@ export class OAuthClient {
                 throw new Error(`OAuth authorization (PKCE) failed${suffix}: ${e?.message ?? String(e)}`)
             }
         } finally {
-            await new Promise<void>(res => server.close(() => res()))
+            if (server) {
+                await new Promise<void>(res => server!.close(() => res()))
+            }
         }
     }
 
     /** Spin up a one‑time HTTP listener on localhost:randomPort */
     private static async buildCallbackServer(): Promise<{ server: http.Server; redirectUri: string }> {
         const server = http.createServer()
-        await this.listen(server, 0)
+        await this.listen(server, 0, '127.0.0.1')
         const port = (server.address() as any).port as number
-        return { server, redirectUri: `http://localhost:${port}` }
+        return { server, redirectUri: `http://127.0.0.1:${port}` }
     }
 
     /** Discover OAuth endpoints by HEAD/WWW‑Authenticate, well‑known, or fallback */
@@ -288,6 +337,7 @@ export class OAuthClient {
         redirectUri: string,
         server: http.Server
     ): Promise<Token> {
+        const DEFAULT_PKCE_TIMEOUT_MS = 90_000
         // a) generate PKCE params
         const verifier = this.b64url(crypto.randomBytes(32))
         const challenge = this.b64url(crypto.createHash('sha256').update(verifier).digest())
@@ -306,27 +356,29 @@ export class OAuthClient {
             state: state,
         }).toString()
 
-        const opener =
-            process.platform === 'win32'
-                ? { cmd: 'cmd', args: ['/c', 'start', authz.toString()] }
-                : process.platform === 'darwin'
-                  ? { cmd: 'open', args: [authz.toString()] }
-                  : { cmd: 'xdg-open', args: [authz.toString()] }
-
-        void spawn(opener.cmd, opener.args, { detached: true, stdio: 'ignore' }).unref()
+        await this.lsp.window.showDocument({ uri: authz.toString(), external: true })
 
         // c) wait for code on our loopback
-        const { code, rxState, err } = await new Promise<{ code: string; rxState: string; err?: string }>(resolve => {
+        const waitForFlow = new Promise<{ code: string; rxState: string; err?: string; errDesc?: string }>(resolve => {
             server.on('request', (req, res) => {
                 const u = new URL(req.url || '/', redirectUri)
                 const c = u.searchParams.get('code') || ''
                 const s = u.searchParams.get('state') || ''
                 const e = u.searchParams.get('error') || undefined
+                const ed = u.searchParams.get('error_description') || undefined
                 res.writeHead(200, { 'content-type': 'text/html' }).end('<h2>You may close this tab.</h2>')
-                resolve({ code: c, rxState: s, err: e })
+                resolve({ code: c, rxState: s, err: e, errDesc: ed })
             })
         })
-        if (err) throw new Error(`Authorization error: ${err}`)
+        const { code, rxState, err, errDesc } = await Promise.race([
+            waitForFlow,
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('authorization_timed_out')), DEFAULT_PKCE_TIMEOUT_MS)
+            ),
+        ])
+        if (err) {
+            throw new Error(`Authorization error: ${err}${errDesc ? ` - ${errDesc}` : ''}`)
+        }
         if (!code || rxState !== state) throw new Error('Invalid authorization response (state mismatch)')
 
         // d) exchange code for token
@@ -393,12 +445,7 @@ export class OAuthClient {
     }
 
     /** Directory for caching registration + tokens */
-    private static readonly cacheDir = path.join(
-        process.env.HOME || process.env.USERPROFILE || '.',
-        '.aws',
-        'sso',
-        'cache'
-    )
+    private static readonly cacheDir = path.join(os.homedir(), '.aws', 'sso', 'cache')
 
     /**
      * Await server.listen() but reject if it emits 'error' (eg EADDRINUSE),

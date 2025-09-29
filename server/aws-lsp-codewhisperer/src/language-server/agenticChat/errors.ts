@@ -11,6 +11,7 @@ type AgenticChatErrorCode =
     | 'MCPServerInitTimeout' // mcp server failed to start within allowed time
     | 'MCPToolExecTimeout' // mcp tool call failed to complete within allowed time
     | 'MCPServerConnectionFailed' // mcp server failed to connect
+    | 'MCPServerAuthFailed' // mcp server failed to complete auth flow
     | 'RequestAborted' // request was aborted by the user
     | 'RequestThrottled' // request was aborted by the user
 

@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
+import { CodeWhispererServer, CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -55,6 +55,7 @@ import {
 import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import * as utils from '../../shared/utils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
@@ -107,6 +108,33 @@ describe('CodeWhisperer Server', () => {
             .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
+
+        // Stub the global service manager functions to ensure they return test service managers
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager'),
+                'getOrThrowBaseTokenServiceManager'
+            )
+            .callsFake(() => {
+                // Create a new test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Also stub the IAM service manager
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager'),
+                'getOrThrowBaseIAMServiceManager'
+            )
+            .callsFake(() => {
+                // Return the same test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Reset AmazonQTokenServiceManager singleton to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        AmazonQTokenServiceManager.resetInstance()
     })
 
     afterEach(() => {
@@ -115,6 +143,14 @@ describe('CodeWhisperer Server', () => {
         sandbox.restore()
         sinon.restore()
         SESSION_IDS_LOG = []
+
+        // Reset all service manager singletons to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        const AmazonQIAMServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager').AmazonQIAMServiceManager
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQIAMServiceManager.resetInstance()
     })
 
     describe('Recommendations', () => {
@@ -648,7 +684,8 @@ describe('CodeWhisperer Server', () => {
 
         it('handles partialResultToken in request', async () => {
             const manager = SessionManager.getInstance()
-            manager.createSession(SAMPLE_SESSION_DATA)
+            const session = manager.createSession(SAMPLE_SESSION_DATA)
+            manager.activateSession(session)
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1442,6 +1479,7 @@ describe('CodeWhisperer Server', () => {
 
         const sessionData: SessionData = {
             document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
+            startPreprocessTimestamp: 0,
             startPosition: { line: 0, character: 0 },
             triggerType: 'OnDemand',
             language: 'csharp',
@@ -2394,6 +2432,38 @@ describe('CodeWhisperer Server', () => {
             TestAmazonQServiceManager.resetInstance()
         })
     })
+
+    describe('IAM Error Handling', () => {
+        it('should handle IAM access denied errors', async () => {
+            const service = sinon.createStubInstance(
+                CodeWhispererServiceToken
+            ) as StubbedInstance<CodeWhispererServiceToken>
+            service.generateSuggestions.rejects(new Error('not authorized'))
+
+            const features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            TestAmazonQServiceManager.resetInstance()
+            const server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await startServer(features, server)
+            features.openDocument(SOME_FILE)
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EMPTY_RESULT)
+            TestAmazonQServiceManager.resetInstance()
+        })
+    })
+
     describe('getLanguageIdFromUri', () => {
         it('should return python for notebook cell URIs', () => {
             const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'
@@ -2439,6 +2509,50 @@ describe('CodeWhisperer Server', () => {
         it('should handle URIs without extensions', () => {
             const uri = 'file:///path/to/file'
             assert.strictEqual(getLanguageIdFromUri(uri), '')
+        })
+    })
+
+    describe('Dynamic Service Manager Selection', () => {
+        it('should use Token service manager when not using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(false)
+            const mockTokenService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockTokenService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            const server = CodeWhispererServer
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
+        })
+
+        it('should use IAM service manager when using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(true)
+            const mockIAMService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockIAMService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            const server = CodeWhispererServer
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
         })
     })
 })
