@@ -361,8 +361,11 @@ export class AgenticChatController implements ChatHandlers {
      * Sends modified files update to the UI
      */
     #sendModifiedFilesUpdate(tabId: string): void {
+        this.#features.logging.info(`[AgenticChatController] sendModifiedFilesUpdate called for tabId: ${tabId}`)
+
         const modifiedFiles = this.#modifiedFilesTracker.get(tabId)
         if (!modifiedFiles || modifiedFiles.size === 0) {
+            this.#features.logging.info(`[AgenticChatController] No modified files for tabId: ${tabId}`)
             this.#features.chat.sendChatUpdate({
                 tabId,
                 modifiedFiles: {
@@ -376,9 +379,12 @@ export class AgenticChatController implements ChatHandlers {
 
         const session = this.#chatSessionManagementService.getSession(tabId).data
         const filePaths = Array.from(modifiedFiles)
+        this.#features.logging.info(`[AgenticChatController] Modified files: ${JSON.stringify(filePaths)}`)
+
+        // Create undo buttons array that will be processed by mynahUi.ts
+        const undoButtons: any[] = []
 
         // Create individual undo buttons for each file
-        const undoButtons = []
         for (const filePath of filePaths) {
             // Find the tool use that modified this file
             for (const [toolUseId, toolUse] of session?.toolUseLookup.entries() || []) {
@@ -403,6 +409,10 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
 
+        this.#features.logging.info(
+            `[AgenticChatController] Created ${undoButtons.length} undo buttons: ${JSON.stringify(undoButtons.map(b => ({ id: b.id, text: b.text })))}`
+        )
+
         const fileList: FileList & { undoButtons?: Array<{ id: string; text: string; status?: string }> } = {
             filePaths,
             details: Object.fromEntries(
@@ -425,14 +435,33 @@ export class AgenticChatController implements ChatHandlers {
         const count = modifiedFiles.size
         const title = count === 1 ? '1 file modified!' : `${count} files modified!`
 
-        this.#features.chat.sendChatUpdate({
+        const updatePayload = {
             tabId,
             modifiedFiles: {
                 fileList,
                 title,
                 visible: true,
             },
-        } as any)
+        }
+
+        this.#features.logging.info(
+            `[AgenticChatController] Sending chat update with payload: ${JSON.stringify({
+                tabId,
+                modifiedFilesTitle: title,
+                fileListHasButtons: !!fileList.undoButtons,
+                buttonCount: fileList.undoButtons?.length || 0,
+            })}`
+        )
+
+        this.#features.logging.info(
+            `[AgenticChatController] Complete payload structure: ${JSON.stringify(updatePayload, null, 2)}`
+        )
+        this.#features.logging.info(
+            `[AgenticChatController] FileList undoButtons: ${JSON.stringify(fileList.undoButtons, null, 2)}`
+        )
+
+        this.#features.chat.sendChatUpdate(updatePayload as any)
+        this.#features.logging.info(`[AgenticChatController] sendChatUpdate called successfully`)
     }
 
     /**

@@ -958,6 +958,32 @@ export const createMynahUi = (
         return imageContextInPrompt + imageContextInPin
     }
 
+    const processUndoButtonsToFileActions = (undoButtons: any[], filePaths: string[]) => {
+        const fileActions: Record<string, any[]> = {}
+
+        for (const button of undoButtons) {
+            if (button.id && button.id.startsWith('undo-changes-') && button.id !== 'undo-all-changes') {
+                const match = button.text?.match(/Undo (.+)$/)
+                if (match) {
+                    const fileName = match[1]
+                    const filePath = filePaths.find(path => path.endsWith(fileName))
+                    if (filePath) {
+                        fileActions[filePath] = [
+                            {
+                                name: button.id,
+                                label: `Undo ${fileName}`,
+                                icon: 'undo',
+                                status: 'clear',
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+
+        return fileActions
+    }
+
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         if (agenticMode) {
             agenticAddChatResponse(chatResult, tabId, isPartialResult)
@@ -1271,6 +1297,21 @@ export const createMynahUi = (
     }
 
     const updateChat = (params: ChatUpdateParams) => {
+        console.log(
+            '[MynahUI] updateChat called with params:',
+            JSON.stringify(
+                {
+                    tabId: params.tabId,
+                    hasModifiedFiles: !!(params as any).modifiedFiles,
+                    hasPaidTierMode: !!(params as any).paidTierMode,
+                    hasData: !!params.data,
+                    hasState: !!params.state,
+                },
+                null,
+                2
+            )
+        )
+
         // HACK: Special field sent by `agenticChatController.ts:setPaidTierMode()`.
         if (onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string)) {
             return
@@ -1279,15 +1320,60 @@ export const createMynahUi = (
         // Handle modified files updates from AgenticChatController
         if ((params as any).modifiedFiles) {
             const modifiedFilesData = (params as any).modifiedFiles
+            console.log(
+                '[MynahUI] updateChat - Processing modified files:',
+                JSON.stringify(
+                    {
+                        tabId: params.tabId,
+                        hasFileList: !!modifiedFilesData.fileList,
+                        title: modifiedFilesData.title,
+                        visible: modifiedFilesData.visible,
+                        undoButtons:
+                            modifiedFilesData.fileList?.undoButtons?.map((b: any) => ({ id: b.id, text: b.text })) ||
+                            [],
+                    },
+                    null,
+                    2
+                )
+            )
+
+            const modifiedFilesList = modifiedFilesData.fileList
+                ? {
+                      ...modifiedFilesData.fileList,
+                      buttons:
+                          modifiedFilesData.fileList.undoButtons?.filter((b: any) => b.id === 'undo-all-changes') || [],
+                      actions: processUndoButtonsToFileActions(
+                          modifiedFilesData.fileList.undoButtons || [],
+                          modifiedFilesData.fileList.filePaths || []
+                      ),
+                  }
+                : null
+
+            console.log(
+                '[MynahUI] updateChat - Created modifiedFilesList:',
+                JSON.stringify(
+                    {
+                        hasModifiedFilesList: !!modifiedFilesList,
+                        buttonsCount: modifiedFilesList?.buttons?.length || 0,
+                        buttons: modifiedFilesList?.buttons?.map((b: any) => ({ id: b.id, text: b.text })) || [],
+                    },
+                    null,
+                    2
+                )
+            )
+
             mynahUi.updateStore(params.tabId, {
-                modifiedFilesList: modifiedFilesData.fileList,
+                modifiedFilesList,
                 modifiedFilesTitle: modifiedFilesData.title,
                 modifiedFilesVisible: modifiedFilesData.visible,
             })
+
+            console.log('[MynahUI] updateChat - Updated store with modified files data')
             return
         }
 
         const isChatLoading = params.state?.inProgress
+        console.log('[MynahUI] updateChat - Setting loading state:', { isChatLoading, agenticMode })
         mynahUi.updateStore(params.tabId, {
             loadingChat: isChatLoading,
             cancelButtonWhenLoading: agenticMode,
