@@ -473,11 +473,12 @@ export function categorizeUnifieddiffv2(unifiedDiff: string): 'addOnly' | 'delet
          *
          *
          **/
+        // TODO: should refine the logic here more, possibly find the first non-empty minus/plus if possible
         if (firstMinusIndex + 1 === firstPlusIndex) {
             const minus = relevantLines[firstMinusIndex].substring(1)
             const plus = relevantLines[firstPlusIndex].substring(1)
             const overlap = getPrefixSuffixOverlap(minus, plus)
-            if (overlap.length) {
+            if (overlap.length || (minus.trim().length === 0 && plus.trim().length === 0)) {
                 return 'addOnly'
             }
         }
