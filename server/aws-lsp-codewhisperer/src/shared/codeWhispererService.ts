@@ -259,11 +259,23 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
             credentials: async () => {
-                const creds = credentialsProvider.getCredentials('iam') as AwsCredentialIdentity
-                return {
-                    accessKeyId: creds.accessKeyId,
-                    secretAccessKey: creds.secretAccessKey,
-                    sessionToken: creds.sessionToken,
+                logging.info('CodeWhispererService IAM: Attempting to get credentials')
+
+                try {
+                    const creds = credentialsProvider.getCredentials('iam') as AwsCredentialIdentity
+                    logging.info('CodeWhispererService IAM: Successfully got credentials')
+
+                    return {
+                        accessKeyId: creds.accessKeyId,
+                        secretAccessKey: creds.secretAccessKey,
+                        sessionToken: creds.sessionToken,
+                        expiration: creds.expiration,
+                    }
+                } catch (err) {
+                    if (err instanceof Error) {
+                        logging.error(`CodeWhispererServiceIAM: Failed to get credentials: ${err.message}`)
+                    }
+                    throw err
                 }
             },
         }
