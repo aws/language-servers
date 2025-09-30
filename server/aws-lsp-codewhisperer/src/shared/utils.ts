@@ -610,11 +610,13 @@ export function getFileExtensionName(filepath: string): string {
  * @param input The input string to sanitize
  * @returns The sanitized string with dangerous characters removed
  */
-export function sanitizeInput(input: string): string {
+export function sanitizeInput(input: string, enableEscapingHTML: boolean = false): string {
     if (!input) {
         return input
     }
-    input = escapeHTML(input)
+    if (enableEscapingHTML) {
+        input = escapeHTML(input)
+    }
 
     // Remove Unicode tag characters (U+E0000-U+E007F) used in ASCII smuggling
     // Remove other invisible/control characters that could hide content

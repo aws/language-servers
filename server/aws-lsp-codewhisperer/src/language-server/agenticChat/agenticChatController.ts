@@ -833,7 +833,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '', true)
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
