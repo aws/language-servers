@@ -700,14 +700,33 @@ export class AgenticChatController implements ChatHandlers {
         if (!toUndo) {
             return
         }
-        // Undo all related files first (in reverse order)
-        for (const messageId of [...toUndo].reverse()) {
-            await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
-        }
-        // Then undo the original file (currentUndoAllId)
-        await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId: toolUseId, tabId })
+
+        // Collect all tool use IDs to undo (including the original)
+        const allToolUseIds = [...toUndo, toolUseId]
+
+        // Undo all files simultaneously
+        await Promise.all(
+            allToolUseIds.map(async messageId => {
+                try {
+                    await this.#undoFileChange(messageId, session, tabId)
+                    this.#updateUndoButtonAfterClick(tabId, messageId, session)
+                } catch (err: any) {
+                    this.#log(`Error undoing file change for ${messageId}: ${err.message}`)
+                }
+            })
+        )
+
         // Clear all modified files tracking after undoing all changes
         this.#clearModifiedFilesTracking(tabId)
+
+        this.#telemetryController.emitInteractWithAgenticChat(
+            'RejectDiff',
+            tabId,
+            session?.pairProgrammingMode,
+            session?.getConversationType(),
+            this.#abTestingAllocation?.experimentName,
+            this.#abTestingAllocation?.userVariation
+        )
     }
 
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
