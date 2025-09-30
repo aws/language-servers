@@ -377,7 +377,13 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        const session = this.#chatSessionManagementService.getSession(tabId).data
+        const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+        if (!sessionResult.success || !sessionResult.data) {
+            this.#features.logging.warn(`[AgenticChatController] No valid session for tabId: ${tabId}`)
+            return
+        }
+
+        const session = sessionResult.data
         const filePaths = Array.from(modifiedFiles)
         this.#features.logging.info(`[AgenticChatController] Modified files: ${JSON.stringify(filePaths)}`)
 
@@ -387,9 +393,9 @@ export class AgenticChatController implements ChatHandlers {
         // Create individual undo buttons for each file
         for (const filePath of filePaths) {
             // Find the tool use that modified this file
-            for (const [toolUseId, toolUse] of session?.toolUseLookup.entries() || []) {
+            for (const [toolUseId, toolUse] of session.toolUseLookup.entries() || []) {
                 const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
-                if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && input.path === filePath) {
+                if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && input?.path === filePath) {
                     undoButtons.push({
                         id: `${BUTTON_UNDO_CHANGES}-${toolUseId}`,
                         text: `Undo ${path.basename(filePath)}`,
@@ -400,18 +406,19 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
-        // Add undo all button only if we have a valid currentUndoAllId with multiple related tool uses
-        if (session?.currentUndoAllId) {
-            const undoAllToolUse = session.toolUseLookup.get(session.currentUndoAllId)
-            const relatedToolUses = undoAllToolUse?.relatedToolUses
-            if (relatedToolUses && relatedToolUses.size > 1) {
-                undoButtons.push({
-                    id: BUTTON_UNDO_ALL_CHANGES,
-                    text: 'Undo all changes',
-                    status: 'clear',
-                    messageId: `${session.currentUndoAllId}${SUFFIX_UNDOALL}`,
-                })
-            }
+        // Add undo all button only if we have multiple files or valid currentUndoAllId
+        if (
+            filePaths.length > 1 ||
+            (session.currentUndoAllId && session.toolUseLookup.get(session.currentUndoAllId)?.relatedToolUses?.size)
+        ) {
+            undoButtons.push({
+                id: BUTTON_UNDO_ALL_CHANGES,
+                text: 'Undo all changes',
+                status: 'clear',
+                messageId: session.currentUndoAllId
+                    ? `${session.currentUndoAllId}${SUFFIX_UNDOALL}`
+                    : 'modified-files-tracker',
+            })
         }
 
         this.#features.logging.info(
@@ -427,7 +434,7 @@ export class AgenticChatController implements ChatHandlers {
                         description: filePath,
                         clickable: true,
                         data: {
-                            messageId: session?.currentUndoAllId || 'modified-files-tracker',
+                            messageId: session.currentUndoAllId || 'modified-files-tracker',
                             fullPath: filePath,
                         },
                     },
@@ -449,24 +456,11 @@ export class AgenticChatController implements ChatHandlers {
             },
         }
 
-        this.#features.logging.info(
-            `[AgenticChatController] Sending chat update with payload: ${JSON.stringify({
-                tabId,
-                modifiedFilesTitle: title,
-                fileListHasButtons: !!fileList.undoButtons,
-                buttonCount: fileList.undoButtons?.length || 0,
-            })}`
-        )
-
-        this.#features.logging.info(
-            `[AgenticChatController] Complete payload structure: ${JSON.stringify(updatePayload, null, 2)}`
-        )
-        this.#features.logging.info(
-            `[AgenticChatController] FileList undoButtons: ${JSON.stringify(fileList.undoButtons, null, 2)}`
-        )
-
-        this.#features.chat.sendChatUpdate(updatePayload as any)
-        this.#features.logging.info(`[AgenticChatController] sendChatUpdate called successfully`)
+        // Ensure the update is sent asynchronously to avoid blocking
+        setTimeout(() => {
+            this.#features.chat.sendChatUpdate(updatePayload as any)
+            this.#features.logging.info(`[AgenticChatController] sendChatUpdate called successfully`)
+        }, 0)
     }
 
     /**
@@ -474,14 +468,17 @@ export class AgenticChatController implements ChatHandlers {
      */
     #clearModifiedFilesTracking(tabId: string): void {
         this.#modifiedFilesTracker.delete(tabId)
-        this.#features.chat.sendChatUpdate({
-            tabId,
-            modifiedFiles: {
-                fileList: null,
-                title: 'No files updated',
-                visible: true,
-            },
-        } as any)
+        // Send update asynchronously to prevent blocking
+        setTimeout(() => {
+            this.#features.chat.sendChatUpdate({
+                tabId,
+                modifiedFiles: {
+                    fileList: null,
+                    title: 'No files updated',
+                    visible: true,
+                },
+            } as any)
+        }, 0)
     }
 
     constructor(
@@ -619,24 +616,35 @@ export class AgenticChatController implements ChatHandlers {
         this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
         const toolUse = session?.toolUseLookup.get(toolUseId)
 
-        const input = toolUse?.input as unknown as FsWriteParams | FsReplaceParams
-        if (toolUse?.fileChange?.before) {
-            await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
+        if (!toolUse) {
+            this.#log(`No tool use found for toolUseId: ${toolUseId}`)
+            return
+        }
+
+        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+        if (!input || !input.path) {
+            this.#log(`No valid input or path found for toolUseId: ${toolUseId}`)
+            return
+        }
+
+        // Store the path to prevent undefined access later
+        const filePath = input.path
+
+        if (toolUse.fileChange?.before) {
+            await this.#features.workspace.fs.writeFile(filePath, toolUse.fileChange.before)
         } else {
-            await this.#features.workspace.fs.rm(input.path)
+            await this.#features.workspace.fs.rm(filePath)
             void LocalProjectContextController.getInstance().then(controller => {
-                const filePath = URI.file(input.path).fsPath
-                return controller.updateIndexAndContextCommand([filePath], false)
+                const fileUri = URI.file(filePath).fsPath
+                return controller.updateIndexAndContextCommand([fileUri], false)
             })
         }
 
         // Remove file from modified files tracker since it was undone
-        if (input?.path) {
-            const modifiedFiles = this.#modifiedFilesTracker.get(tabId)
-            if (modifiedFiles?.has(input.path)) {
-                modifiedFiles.delete(input.path)
-                this.#sendModifiedFilesUpdate(tabId)
-            }
+        const modifiedFiles = this.#modifiedFilesTracker.get(tabId)
+        if (modifiedFiles?.has(filePath)) {
+            modifiedFiles.delete(filePath)
+            this.#sendModifiedFilesUpdate(tabId)
         }
     }
 
