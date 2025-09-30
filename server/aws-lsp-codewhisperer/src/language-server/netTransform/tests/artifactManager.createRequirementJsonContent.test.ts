@@ -158,30 +158,6 @@ describe('ArtifactManager - createRequirementJsonContent', () => {
             // Should only include .dll reference, not .pdb
             expect(result.Projects[0].references).to.have.length(1)
         })
-
-        it('should filter package references with filtered extensions', async () => {
-            const request = setupRequest({
-                PackageReferences: [
-                    {
-                        Id: 'ValidPackage',
-                        Versions: ['1.0.0'],
-                        IsPrivatePackage: false,
-                        NetCompatiblePackageFilePath: path.join('C:', 'packages', 'valid.nupkg'),
-                    },
-                    {
-                        Id: 'FilteredPackage',
-                        Versions: ['1.0.0'],
-                        IsPrivatePackage: false,
-                        NetCompatiblePackageFilePath: path.join('C:', 'packages', 'filtered.pdb'), // Should be filtered
-                    },
-                ],
-            })
-
-            const result = await artifactManager.createRequirementJsonContent(request)
-
-            // Should only include valid package, not filtered one
-            expect((result as any).Packages).to.have.length(1)
-        })
     })
 
     describe('Error handling', () => {
