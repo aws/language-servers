@@ -65,15 +65,20 @@ export abstract class StreamingClientServiceBase {
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
     public profileArn?: string
+    private shareCodeWhispererContentWithAWS?: boolean
+
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
         logging: Logging,
         region: string,
         endpoint: string,
-        customUserAgent: string
+        customUserAgent: string,
+        shareCodeWhispererContentWithAWS?: boolean
     ) {
         super(region, endpoint)
+        this.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+
         const tokenProvider = async () => {
             const token = getBearerTokenFromProvider(credentialsProvider)
             // without setting expiration, the tokenProvider will only be called once
@@ -95,11 +100,15 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         })
 
         this.client.middlewareStack.add(
-            (next, context) => args => {
+            (next, context) => (args: any) => {
                 if (credentialsProvider.getConnectionType() === 'external_idp') {
-                    // @ts-ignore
                     args.request.headers['TokenType'] = 'EXTERNAL_IDP'
                 }
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                // Log headers for debugging
+                logging.debug(`StreamingClient headers: ${JSON.stringify(args.request.headers)}`)
                 return next(args)
             },
             {

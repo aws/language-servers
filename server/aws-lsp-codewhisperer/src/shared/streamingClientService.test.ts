@@ -113,6 +113,33 @@ describe('StreamingClientServiceToken', () => {
         sinon.assert.match(sendMessageStub.firstCall.firstArg, expectedRequest)
     })
 
+    it('creates client with shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceWithOptout = new StreamingClientServiceToken(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL,
+            'some-user-agent',
+            false
+        )
+
+        expect(streamingClientServiceWithOptout['shareCodeWhispererContentWithAWS']).to.equal(false)
+    })
+
+    it('creates client without shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceDefault = new StreamingClientServiceToken(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL,
+            'some-user-agent'
+        )
+
+        expect(streamingClientServiceDefault['shareCodeWhispererContentWithAWS']).to.be.undefined
+    })
+
     describe('generateAssistantResponse', () => {
         const MOCKED_GENERATE_RESPONSE_REQUEST = {
             conversationState: {

@@ -581,7 +581,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.features.logging,
             region,
             endpoint,
-            this.getCustomUserAgent()
+            this.getCustomUserAgent(),
+            this.configurationCache.getProperty('shareCodeWhispererContentWithAWS')
         )
         streamingClient.profileArn = this.activeIdcProfile?.arn
 
