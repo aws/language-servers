@@ -126,7 +126,6 @@ export function getFileContext(params: {
         start: params.position,
         end: params.textDocument.positionAt(params.textDocument.getText().length),
     })
-
     const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
 
     const relativeFilePath = params.workspaceFolder

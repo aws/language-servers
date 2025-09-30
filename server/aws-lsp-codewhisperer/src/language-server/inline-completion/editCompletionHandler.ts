@@ -320,6 +320,7 @@ export class EditCompletionHandler {
 
         try {
             const suggestionResponse = await this.codeWhispererService.generateSuggestions(generateCompletionReq)
+            // TODO: dev purpose to mock server response, remove it when PR is ready
             //             suggestionResponse.suggestions = [
             //                 {
             //                     content: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
@@ -415,17 +416,11 @@ export class EditCompletionHandler {
                         textDocument?.uri || ''
                     )
 
-                    // const editCategory = categorizeUnifieddiffv2(suggestion.content)
-                    // // If the given edit is "addOnly", we treat it as a pure Completion
-                    // const isInlineEdit = editCategory === 'addOnly' ? false : true
-                    // const s = isInlineEdit
-                    //     ? suggestion.content
-                    //     : truncateOverlapWithRightContext(
-                    //           session.requestContext.fileContext.rightFileContent,
-                    //           extractAdditions(suggestion.content)
-                    //       )
-
-                    const processedSuggestion = processEditSuggestion(suggestion.content)
+                    const processedSuggestion = processEditSuggestion(
+                        suggestion.content,
+                        session.startPosition,
+                        session.document
+                    )
                     const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
 
                     // TODO: if suggestion should be discard or empty, telemetry

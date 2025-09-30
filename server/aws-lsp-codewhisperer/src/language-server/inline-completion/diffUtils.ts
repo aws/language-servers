@@ -8,6 +8,7 @@ import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem 
 import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { getPrefixSuffixOverlap } from './mergeRightUtils'
 import { SuggestionType } from '../../shared/codeWhispererService'
+import { Position, Range, TextDocument } from '@aws/language-server-runtimes/protocol'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -386,13 +387,18 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
     return 'edit'
 }
 
-export function processEditSuggestion(unifiedDiff: string): { suggestionContent: string; type: SuggestionType } {
+export function processEditSuggestion(
+    unifiedDiff: string,
+    triggerPosition: Position,
+    document: TextDocument
+): { suggestionContent: string; type: SuggestionType } {
     const diffCategory = categorizeUnifieddiffv2(unifiedDiff)
     if (diffCategory === 'addOnly') {
         const udiff = readUdiff(unifiedDiff)
         const preprocessAdd = extractAdditions(unifiedDiff)
-        const deleted =
-            udiff.firstMinusIndex === -1 ? '' : udiff.linesWithoutHeaders[udiff.firstMinusIndex].substring(1)
+        const leftContextAtTriggerLine = document.getText(
+            Range.create(Position.create(triggerPosition.line, 0), triggerPosition)
+        )
         /**
          * SHOULD NOT remove the entire overlapping string, the way inline suggestion prefix matching work depends on where it triggers
          * For example (^ note where user triggers)
@@ -400,7 +406,7 @@ export function processEditSuggestion(unifiedDiff: string): { suggestionContent:
          *        ^
          * if LSP returns `g('foo')` instead of `.log()` the suggestion will be discarded because prefix doesnt match
          */
-        const processedAdd = removeOverlapCodeFromSuggestion(deleted, preprocessAdd)
+        const processedAdd = removeOverlapCodeFromSuggestion(leftContextAtTriggerLine, preprocessAdd)
         return {
             suggestionContent: processedAdd,
             type: SuggestionType.COMPLETION,
