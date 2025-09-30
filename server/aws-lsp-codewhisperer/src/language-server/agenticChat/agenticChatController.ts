@@ -3473,7 +3473,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMsg(err) ?? GENERIC_ERROR_MS
+        const errorMessage = (getErrorMsg(err) ?? GENERIC_ERROR_MS).replace(/[\r\n]+/g, ' ') // replace new lines with empty space
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
