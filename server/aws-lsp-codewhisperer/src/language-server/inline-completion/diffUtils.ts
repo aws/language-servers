@@ -393,6 +393,13 @@ export function processEditSuggestion(unifiedDiff: string): { suggestionContent:
         const preprocessAdd = extractAdditions(unifiedDiff)
         const deleted =
             udiff.firstMinusIndex === -1 ? '' : udiff.linesWithoutHeaders[udiff.firstMinusIndex].substring(1)
+        /**
+         * SHOULD NOT remove the entire overlapping string, the way inline suggestion prefix matching work depends on where it triggers
+         * For example (^ note where user triggers)
+         * console.lo
+         *        ^
+         * if LSP returns `g('foo')` instead of `.log()` the suggestion will be discarded because prefix doesnt match
+         */
         const processedAdd = removeOverlapCodeFromSuggestion(deleted, preprocessAdd)
         return {
             suggestionContent: processedAdd,
