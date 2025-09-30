@@ -391,7 +391,8 @@ export function processEditSuggestion(unifiedDiff: string): { suggestionContent:
     if (diffCategory === 'addOnly') {
         const udiff = readUdiff(unifiedDiff)
         const preprocessAdd = extractAdditions(unifiedDiff)
-        const deleted = udiff.linesWithoutHeaders[udiff.firstMinusIndex].substring(1)
+        const deleted =
+            udiff.firstMinusIndex === -1 ? '' : udiff.linesWithoutHeaders[udiff.firstMinusIndex].substring(1)
         const processedAdd = removeOverlapCodeFromSuggestion(deleted, preprocessAdd)
         return {
             suggestionContent: processedAdd,
@@ -436,19 +437,19 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
 export function categorizeUnifieddiffv2(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
     try {
         const d = readUdiff(unifiedDiff)
-        const firstMinus = d.firstMinusIndex
-        const firstPlus = d.firstPlusIndex
+        const firstMinusIndex = d.firstMinusIndex
+        const firstPlusIndex = d.firstPlusIndex
         const relevantLines = d.linesWithoutHeaders
 
-        if (firstMinus === -1 && firstPlus === -1) {
+        if (firstMinusIndex === -1 && firstPlusIndex === -1) {
             return 'edit'
         }
 
-        if (firstMinus === -1 && firstPlus !== -1) {
+        if (firstMinusIndex === -1 && firstPlusIndex !== -1) {
             return 'addOnly'
         }
 
-        if (firstMinus !== -1 && firstPlus === -1) {
+        if (firstMinusIndex !== -1 && firstPlusIndex === -1) {
             return 'deleteOnly'
         }
 
@@ -472,9 +473,9 @@ export function categorizeUnifieddiffv2(unifiedDiff: string): 'addOnly' | 'delet
          *
          *
          **/
-        if (firstMinus + 1 === firstPlus) {
-            const minus = relevantLines[firstMinus].substring(1)
-            const plus = relevantLines[firstPlus].substring(1)
+        if (firstMinusIndex + 1 === firstPlusIndex) {
+            const minus = relevantLines[firstMinusIndex].substring(1)
+            const plus = relevantLines[firstPlusIndex].substring(1)
             const overlap = getPrefixSuffixOverlap(minus, plus)
             if (overlap.length) {
                 return 'addOnly'
