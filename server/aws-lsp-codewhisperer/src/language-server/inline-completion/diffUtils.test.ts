@@ -156,9 +156,15 @@ describe('extractAdditions', function () {
     })
 })
 
-describe('categorizeUnifieddiffv2', function () {
-    it('t0', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+describe('categorizeUnifieddiffv2 should return correct type (addOnly, edit, deleteOnly)', function () {
+    interface Case {
+        udiff: string
+    }
+
+    describe('addOnly', function () {
+        const addOnlyCases: Case[] = [
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 @@ -6,7 +6,11 @@
  
@@ -172,13 +178,10 @@ describe('categorizeUnifieddiffv2', function () {
 +    public static int multiply(int a, int b) {
 +        return a * b;
 +    }
- }`
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'addOnly')
-    })
-
-    it('t01', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+ }`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 @@ -6,7 +6,11 @@
  
@@ -193,13 +196,10 @@ describe('categorizeUnifieddiffv2', function () {
 +    public static int multiply(int a, int b) {
 +        return a * b;
 +    }
- }`
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'addOnly')
-    })
-
-    it('t01', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+ }`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 @@ -6,7 +6,11 @@
  
@@ -213,13 +213,10 @@ describe('categorizeUnifieddiffv2', function () {
 +    public static int multiply(int a, int b) {
 +        return a * b;
 +    }
- }`
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'addOnly')
-    })
-
-    it('t1', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
+ }`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 @@ -1,9 +1,10 @@
  public class MathUtil {
@@ -231,14 +228,10 @@ describe('categorizeUnifieddiffv2', function () {
 
      // write a function to subtract 2 numbers
      public static int subtract(int a, int b) {
-         return a - b;`
-
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'addOnly')
-    })
-
-    it('t2', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+         return a - b;`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 @@ -3,7 +3,9 @@
      public static int add(int a, int b) {
@@ -250,13 +243,10 @@ describe('categorizeUnifieddiffv2', function () {
 +    public static int subtract(int a, int b) {
 +        return a - b;
 +    }
- }`
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'addOnly')
-    })
-
-    it('suggestion should remove the overlap part', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+ }`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 @@ -4,8 +4,8 @@
          return a + b;
@@ -267,13 +257,22 @@ describe('categorizeUnifieddiffv2', function () {
 -        return 
 +        return a - b;
      }
- }`
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'addOnly')
+ }`,
+            },
+        ]
+
+        for (let i = 0; i < addOnlyCases.length; i++) {
+            it(`case ${i}`, function () {
+                const actual = categorizeUnifieddiffv2(addOnlyCases[i].udiff)
+                assert.strictEqual(actual, 'addOnly')
+            })
+        }
     })
 
-    it('t3', function () {
-        const udiff = `--- a/src/main/hello/MathUtil.java
+    describe('edit', function () {
+        const cases: Case[] = [
+            {
+                udiff: `--- a/src/main/hello/MathUtil.java
 +++ b/src/main/hello/MathUtil.java
 @@ -1,11 +1,11 @@
  public class MathUtil {
@@ -288,37 +287,51 @@ describe('categorizeUnifieddiffv2', function () {
      public static double subtract(double a, double b) {
          return a - b;
      }   
- }`
+ }`,
+            },
+        ]
 
-        const r = categorizeUnifieddiffv2(udiff)
-        assert.strictEqual(r, 'edit')
+        for (let i = 0; i < cases.length; i++) {
+            it(`case ${i}`, function () {
+                const actual = categorizeUnifieddiffv2(cases[i].udiff)
+                assert.strictEqual(actual, 'edit')
+            })
+        }
     })
 })
 
-describe('removeCommonPrefix', function () {
-    it('t1', function () {
-        const s1 = `return`
-        const s2 = `return a + b`
-        const actual = removeOverlapCodeFromSuggestion(s1, s2)
-        const expected = ` a + b`
-        assert.strictEqual(actual, expected)
-    })
+describe('removeOverlapCodeFromSuggestion', function () {
+    interface Case {
+        s1: string
+        s2: string
+        expected: string
+    }
 
-    it('t2', function () {
-        const s1 = `    `
-        const s2 = `return a + b`
-        const actual = removeOverlapCodeFromSuggestion(s1, s2)
-        const expected = `return a + b`
-        assert.strictEqual(actual, expected)
-    })
+    const cases: Case[] = [
+        {
+            s1: `return`,
+            s2: `return a + b`,
+            expected: ` a + b`,
+        },
+        {
+            s1: `    `,
+            s2: `return a + b`,
+            expected: `return a + b`,
+        },
+        {
+            s1: `    System.out.print`,
+            s2: `println("a + b =", a + b)
+return a + b`,
+            expected: `ln("a + b =", a + b)
+return a + b`,
+        },
+    ]
 
-    it('t3', function () {
-        const s1 = `    System.out.print`
-        const s2 = `println("a + b =", a + b)
-return a + b`
-        const actual = removeOverlapCodeFromSuggestion(s1, s2)
-        const expected = `ln("a + b =", a + b)
-return a + b`
-        assert.strictEqual(actual, expected)
-    })
+    for (let i = 0; i < cases.length; i++) {
+        it(`test case${i}`, function () {
+            const c = cases[i]
+            const actual = removeOverlapCodeFromSuggestion(c.s1, c.s2)
+            assert.strictEqual(actual, c.expected)
+        })
+    }
 })
