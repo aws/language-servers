@@ -370,7 +370,7 @@ export class AgenticChatController implements ChatHandlers {
                 tabId,
                 modifiedFiles: {
                     fileList: null,
-                    title: 'No files modified!',
+                    title: 'No files updated',
                     visible: true,
                 },
             } as any)
@@ -400,13 +400,18 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
-        // Add undo all button if there are multiple files
-        if (filePaths.length > 1 && session?.currentUndoAllId) {
-            undoButtons.push({
-                id: BUTTON_UNDO_ALL_CHANGES,
-                text: 'Undo all changes',
-                status: 'clear',
-            })
+        // Add undo all button only if we have a valid currentUndoAllId with multiple related tool uses
+        if (session?.currentUndoAllId) {
+            const undoAllToolUse = session.toolUseLookup.get(session.currentUndoAllId)
+            const relatedToolUses = undoAllToolUse?.relatedToolUses
+            if (relatedToolUses && relatedToolUses.size > 1) {
+                undoButtons.push({
+                    id: BUTTON_UNDO_ALL_CHANGES,
+                    text: 'Undo all changes',
+                    status: 'clear',
+                    messageId: `${session.currentUndoAllId}${SUFFIX_UNDOALL}`,
+                })
+            }
         }
 
         this.#features.logging.info(
@@ -473,7 +478,7 @@ export class AgenticChatController implements ChatHandlers {
             tabId,
             modifiedFiles: {
                 fileList: null,
-                title: 'No files modified!',
+                title: 'No files updated',
                 visible: true,
             },
         } as any)
@@ -695,9 +700,12 @@ export class AgenticChatController implements ChatHandlers {
         if (!toUndo) {
             return
         }
+        // Undo all related files first (in reverse order)
         for (const messageId of [...toUndo].reverse()) {
             await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
         }
+        // Then undo the original file (currentUndoAllId)
+        await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId: toolUseId, tabId })
         // Clear all modified files tracking after undoing all changes
         this.#clearModifiedFilesTracking(tabId)
     }

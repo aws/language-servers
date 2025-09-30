@@ -304,7 +304,6 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
             loadingChat: true,
             cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
-            modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
             modifiedFilesVisible: true,
             newConversation: true,
             modifiedFilesList: null,
@@ -313,7 +312,6 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
         mynahUi.updateStore(tabId, {
             loadingChat: true,
             promptInputDisabledState: true,
-            modifiedFilesTitle: uiComponentsTexts.modifiedFilesWorking,
             modifiedFilesVisible: true,
             newConversation: true,
         })
@@ -408,9 +406,15 @@ export const createMynahUi = (
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
         },
         onFileActionClick: (tabId, messageId, filePath, actionName, eventId) => {
+            // For undo buttons, extract the tool use ID from the action name
+            let actualMessageId = messageId
+            if (actionName.startsWith('undo-changes-') && actionName !== 'undo-changes') {
+                actualMessageId = actionName.replace('undo-changes-', '')
+            }
+
             const payload: ButtonClickParams = {
                 tabId,
-                messageId,
+                messageId: actualMessageId,
                 buttonId: actionName,
             }
             messager.onButtonClick(payload)
