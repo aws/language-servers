@@ -12,7 +12,12 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    SDKInitializator,
+    Logging,
+    IamCredentials,
+} from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
@@ -187,13 +192,17 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
 
         // Create a credential provider that fetches fresh credentials on each request
         const iamCredentialProvider: AwsCredentialIdentityProvider = async (): Promise<AwsCredentialIdentity> => {
-            const creds = (await credentialsProvider.getCredentials('iam')) as AwsCredentialIdentity
+            const creds = (await credentialsProvider.getCredentials('iam')) as IamCredentials
             logging.log(`Fetching new IAM credentials`)
+            if (!creds) {
+                logging.log('Failed to fetch IAM credentials: No IAM credentials found')
+                throw new Error('No IAM credentials found')
+            }
             return {
                 accessKeyId: creds.accessKeyId,
                 secretAccessKey: creds.secretAccessKey,
                 sessionToken: creds.sessionToken,
-                expiration: creds.expiration ?? new Date(), // Force refresh on each request if creds do not have expiration time
+                expiration: creds.expiration ? new Date(creds.expiration) : new Date(), // Force refresh if expiration field is not available
             }
         }
 
