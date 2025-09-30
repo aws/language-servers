@@ -26,10 +26,7 @@ const customTransformationFolderName = 'customTransformation'
 const filteredExtensions = ['.suo', '.meta', '.user', '.obj', '.tmp', '.log', '.dbmdl', '.jfm', '.pdb']
 const filteredDirectories = ['.git', 'bin', 'obj', '.idea', '.vs', 'artifactworkspace', 'node_modules', 'nuget.config']
 const failedCopies: string[] = []
-const filteredPathRegex: RegExp[] = [
-    /\\users\\[^\\]+\\appdata/i, // IgnoreCase flag with 'i'
-    /.+\.(vspscc|vssscc)$/,
-]
+const filteredPathRegex: RegExp[] = [/.+\.(vspscc|vssscc)$/]
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -210,7 +207,7 @@ export class ArtifactManager {
                         relativePath: relativePath,
                         isThirdPartyPackage: false,
                     }
-                    await this.processPrivatePackages(request, reference, artifactReference)
+                    await this.processPrivatePackages(request, artifactReference)
                     references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
@@ -229,8 +226,6 @@ export class ArtifactManager {
         if (request.PackageReferences != null) {
             for (const pkg of request.PackageReferences) {
                 if (!pkg.NetCompatiblePackageFilePath) {
-                    continue
-                } else if (this.shouldFilterFile(pkg.NetCompatiblePackageFilePath)) {
                     continue
                 }
                 try {
@@ -261,16 +256,13 @@ export class ArtifactManager {
         } as RequirementJson
     }
 
-    async processPrivatePackages(
-        request: StartTransformRequest,
-        reference: ExternalReference,
-        artifactReference: References
-    ): Promise<void> {
+    async processPrivatePackages(request: StartTransformRequest, artifactReference: References): Promise<void> {
         if (!request.PackageReferences) {
             return
         }
         var thirdPartyPackage = request.PackageReferences.find(
-            p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id)
+            // should be toLower because we to lower case the reference paths
+            p => p.IsPrivatePackage && artifactReference.relativePath.includes(p.Id.concat('.dll').toLowerCase())
         )
         if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
