@@ -12,6 +12,8 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { QDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import { rejects } from 'assert'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from './amazonQServiceManager/testUtils'
+import { stubCodeWhispererService } from './testUtils'
 
 const TIME_TO_ADVANCE_MS = 100
 
@@ -369,5 +371,55 @@ describe('StreamingClientServiceIAM', () => {
         )
 
         expect(streamingClientServiceDefault['shareCodeWhispererContentWithAWS']).to.be.undefined
+    })
+})
+
+describe('BaseAmazonQServiceManager streaming client cache updates', () => {
+    let features: TestFeatures
+    let serviceManager: TestAmazonQServiceManager
+    let streamingClientMock: StreamingClientServiceToken
+
+    beforeEach(() => {
+        features = new TestFeatures()
+        const serviceStub = stubCodeWhispererService()
+
+        streamingClientMock = Object.assign(sinon.createStubInstance(StreamingClientServiceToken), {
+            region: DEFAULT_AWS_Q_REGION,
+            endpoint: DEFAULT_AWS_Q_ENDPOINT_URL,
+        }) as unknown as StreamingClientServiceToken
+        serviceManager = initBaseTestServiceManager(features, serviceStub, streamingClientMock)
+    })
+
+    afterEach(() => {
+        sinon.restore()
+        TestAmazonQServiceManager.resetInstance()
+    })
+
+    it('updates shareCodeWhispererContentWithAWS on cached streaming client when configuration changes', async () => {
+        // Set initial configuration
+        features.lsp.workspace.getConfiguration.resolves({ shareCodeWhispererContentWithAWS: true })
+
+        await serviceManager.handleDidChangeConfiguration()
+
+        expect(streamingClientMock.shareCodeWhispererContentWithAWS).to.equal(true)
+
+        // Change configuration
+        features.lsp.workspace.getConfiguration.resolves({ shareCodeWhispererContentWithAWS: false })
+
+        await serviceManager.handleDidChangeConfiguration()
+
+        expect(streamingClientMock.shareCodeWhispererContentWithAWS).to.equal(false)
+    })
+
+    it('does not update streaming client when no cached client exists', async () => {
+        TestAmazonQServiceManager.resetInstance()
+        const serviceManagerWithoutClient = initBaseTestServiceManager(features, stubCodeWhispererService())
+
+        features.lsp.workspace.getConfiguration.resolves({ shareCodeWhispererContentWithAWS: false })
+
+        // Should not throw when no cached streaming client exists
+        await serviceManagerWithoutClient.handleDidChangeConfiguration()
+
+        expect(serviceManagerWithoutClient['cachedStreamingClient']).to.be.undefined
     })
 })
