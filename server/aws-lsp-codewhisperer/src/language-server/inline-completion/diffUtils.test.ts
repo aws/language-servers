@@ -157,6 +157,28 @@ describe('extractAdditions', function () {
 })
 
 describe('categorizeUnifieddiffv2', function () {
+    // TODO: broken scenario
+    it('t0', function () {
+        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+@@ -6,7 +6,11 @@
+ 
+     // write a function to subtract 2 numbers
+      public static int subtract(int a, int b) {
+         return a - b;
+     }
+-    
++
++    // write a function to multiply 2 numbers
++    public static int multiply(int a, int b) {
++        return a * b;
++    }
+ }`
+        const r = categorizeUnifieddiffv2(udiff)
+        assert.strictEqual(r, 'addOnly')
+    })
+
+    // TODO: broken scenario
     it('t1', function () {
         const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java

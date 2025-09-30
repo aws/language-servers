@@ -37,7 +37,7 @@ import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
-import { categorizeUnifieddiff, extractAdditions, categorizeUnifieddiffv2 } from './diffUtils'
+import { categorizeUnifieddiff, extractAdditions, categorizeUnifieddiffv2, processEditSuggestion } from './diffUtils'
 import { StreakTracker } from './tracker/streakTracker'
 import { truncateOverlapWithRightContext } from './mergeRightUtils'
 
@@ -415,15 +415,18 @@ export class EditCompletionHandler {
                         textDocument?.uri || ''
                     )
 
-                    const editCategory = categorizeUnifieddiffv2(suggestion.content)
-                    // If the given edit is "addOnly", we treat it as a pure Completion
-                    const isInlineEdit = editCategory === 'addOnly' ? false : true
-                    const s = isInlineEdit
-                        ? suggestion.content
-                        : truncateOverlapWithRightContext(
-                              session.requestContext.fileContext.rightFileContent,
-                              extractAdditions(suggestion.content)
-                          )
+                    // const editCategory = categorizeUnifieddiffv2(suggestion.content)
+                    // // If the given edit is "addOnly", we treat it as a pure Completion
+                    // const isInlineEdit = editCategory === 'addOnly' ? false : true
+                    // const s = isInlineEdit
+                    //     ? suggestion.content
+                    //     : truncateOverlapWithRightContext(
+                    //           session.requestContext.fileContext.rightFileContent,
+                    //           extractAdditions(suggestion.content)
+                    //       )
+
+                    const processedSuggestion = processEditSuggestion(suggestion.content)
+                    const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
 
                     // TODO: if suggestion should be discard or empty, telemetry
 
@@ -442,7 +445,7 @@ export class EditCompletionHandler {
                     }
 
                     return {
-                        insertText: s,
+                        insertText: processedSuggestion.suggestionContent,
                         isInlineEdit: isInlineEdit,
                         itemId: suggestion.itemId,
                     }

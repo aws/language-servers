@@ -386,15 +386,30 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
     return 'edit'
 }
 
-export function processEditSuggestion(unifiedDiff: string): { suggestionContent: string; type: SuggestionType } {}
+export function processEditSuggestion(unifiedDiff: string): { suggestionContent: string; type: SuggestionType } {
+    const diffCategory = categorizeUnifieddiffv2(unifiedDiff)
+    if (diffCategory === 'addOnly') {
+        const udiff = readUdiff(unifiedDiff)
+        const preprocessAdd = extractAdditions(unifiedDiff)
+        const deleted = udiff.linesWithoutHeaders[udiff.firstMinusIndex].substring(1)
+        const processedAdd = removeOverlapCodeFromSuggestion(deleted, preprocessAdd)
+        return {
+            suggestionContent: processedAdd,
+            type: SuggestionType.COMPLETION,
+        }
+    } else {
+        return {
+            suggestionContent: unifiedDiff,
+            type: SuggestionType.EDIT,
+        }
+    }
+}
 
-// TODO: Complete this interface/class (ideally class) and make it comprehensive
+// TODO: MAKE it a class and abstract all the business parsing logic within the classsssss so we dont need to redo the same thing again and again
 interface UnifiedDiff {
     linesWithoutHeaders: string[]
     firstMinusIndex: number
-    firstMinus: string
     firstPlusIndex: number
-    firstPlus: string
 }
 
 export function readUdiff(unifiedDiff: string): UnifiedDiff {
@@ -413,9 +428,7 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
     return {
         linesWithoutHeaders: relevantLines,
         firstMinusIndex: firstMinusIndex,
-        firstMinus: relevantLines[firstMinusIndex],
         firstPlusIndex: firstPlusIndex,
-        firstPlus: relevantLines[firstPlusIndex],
     }
 }
 
@@ -521,9 +534,4 @@ export function removeOverlapCodeFromSuggestion(code: string, suggestion: string
 
     // Remove overlap s from suggestion
     return suggestion.substring(s.length)
-}
-
-export function parseCompletionFromEdit(editSuggestion: string, fileContext: string): string {
-    const completion = extractAdditions(editSuggestion)
-    const processed = removeOverlapCodeFromSuggestion(fileContext, completion)
 }
