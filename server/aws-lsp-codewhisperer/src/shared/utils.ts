@@ -29,9 +29,9 @@ import { ServiceException } from '@smithy/smithy-client'
 import { promises as fs } from 'fs'
 import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
-import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
+import escapeHTML = require('escape-html')
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
@@ -610,9 +610,12 @@ export function getFileExtensionName(filepath: string): string {
  * @param input The input string to sanitize
  * @returns The sanitized string with dangerous characters removed
  */
-export function sanitizeInput(input: string): string {
+export function sanitizeInput(input: string, enableEscapingHTML: boolean = false): string {
     if (!input) {
         return input
+    }
+    if (enableEscapingHTML) {
+        input = escapeHTML(input)
     }
 
     // Remove Unicode tag characters (U+E0000-U+E007F) used in ASCII smuggling
