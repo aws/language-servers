@@ -231,7 +231,6 @@ import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
-import escapeHTML = require('escape-html')
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
 import { MemoryBankController } from './context/memorybank/memoryBankController'
 
@@ -836,7 +835,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '', true)
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
@@ -1453,7 +1452,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: escapeHTML(currentMessage.userInputMessage?.content ?? ''),
+                        body: currentMessage.userInputMessage?.content ?? '',
                         type: 'prompt' as any,
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
