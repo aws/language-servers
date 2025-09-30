@@ -40,7 +40,7 @@ import {
     CONTEXT_CHARACTERS_LIMIT,
     FILE_URI_CHARS_LIMIT,
     FILENAME_CHARS_LIMIT,
-} from '../language-server/inline-completion/constants'
+} from '../language-server/inline-completion/contants/constants'
 
 // Type guards for request classification
 export function isTokenRequest(request: BaseGenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
