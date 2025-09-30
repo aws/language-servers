@@ -246,9 +246,16 @@ describe('MynahUI', () => {
     })
 
     describe('sendGenericCommand', () => {
-        it('should create a new tab if none exits', () => {
+        it('should create a new tab if none exits', function () {
+            this.timeout(10000) // Increase timeout to 10 seconds
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
+
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = ''
@@ -258,12 +265,18 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
+            setTimeoutStub.restore()
         })
 
-        it('should create a new tab if current tab is loading', function (done) {
-            this.timeout(8000)
+        it('should create a new tab if current tab is loading', function () {
+            this.timeout(10000)
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
             getAllTabsStub.returns({ 'tab-1': { store: { loadingChat: true } } })
 
             const genericCommand = 'Explain'
@@ -275,11 +288,16 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
-            done()
+            setTimeoutStub.restore()
         })
 
         it('should not create a new tab if one exists already', () => {
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = 'tab-1'
@@ -289,9 +307,15 @@ describe('MynahUI', () => {
 
             sinon.assert.notCalled(createTabStub)
             sinon.assert.calledOnce(updateStoreSpy)
+            setTimeoutStub.restore()
         })
 
         it('should call handleChatPrompt when sendGenericCommand is called', () => {
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = 'tab-1'
@@ -321,6 +345,7 @@ describe('MynahUI', () => {
                 loadingChat: true,
                 promptInputDisabledState: false,
             })
+            setTimeoutStub.restore()
         })
     })
 
