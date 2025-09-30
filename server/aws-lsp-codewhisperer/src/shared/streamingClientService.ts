@@ -188,14 +188,17 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
 export class StreamingClientServiceIAM extends StreamingClientServiceBase {
     client: QDeveloperStreaming
+    private shareCodeWhispererContentWithAWS?: boolean
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
         logging: Logging,
         region: string,
-        endpoint: string
+        endpoint: string,
+        shareCodeWhispererContentWithAWS?: boolean
     ) {
         super(region, endpoint)
+        this.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
         logging.log(
             `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
@@ -222,6 +225,18 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             credentials: iamCredentialProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
+
+        this.client.middlewareStack.add(
+            (next, context) => (args: any) => {
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                return next(args)
+            },
+            {
+                step: 'build',
+            }
+        )
     }
 
     public async sendMessage(

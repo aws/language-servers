@@ -67,12 +67,16 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
 
     public getStreamingClient() {
         if (!this.cachedStreamingClient) {
+            const shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                'shareCodeWhispererContentWithAWS'
+            )
             this.cachedStreamingClient = new StreamingClientServiceIAM(
                 this.features.credentialsProvider,
                 this.features.sdkInitializator,
                 this.features.logging,
                 this.region,
-                this.endpoint
+                this.endpoint,
+                shareCodeWhispererContentWithAWS
             )
         }
         return this.cachedStreamingClient
