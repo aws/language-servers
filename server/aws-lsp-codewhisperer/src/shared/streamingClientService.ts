@@ -39,6 +39,7 @@ export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResp
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
+    public shareCodeWhispererContentWithAWS?: boolean
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -65,7 +66,6 @@ export abstract class StreamingClientServiceBase {
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
     public profileArn?: string
-    private shareCodeWhispererContentWithAWS?: boolean
 
     constructor(
         credentialsProvider: CredentialsProvider,
@@ -73,11 +73,9 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         logging: Logging,
         region: string,
         endpoint: string,
-        customUserAgent: string,
-        shareCodeWhispererContentWithAWS?: boolean
+        customUserAgent: string
     ) {
         super(region, endpoint)
-        this.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
 
         const tokenProvider = async () => {
             const token = getBearerTokenFromProvider(credentialsProvider)
@@ -188,17 +186,14 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
 export class StreamingClientServiceIAM extends StreamingClientServiceBase {
     client: QDeveloperStreaming
-    private shareCodeWhispererContentWithAWS?: boolean
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
         logging: Logging,
         region: string,
-        endpoint: string,
-        shareCodeWhispererContentWithAWS?: boolean
+        endpoint: string
     ) {
         super(region, endpoint)
-        this.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
         logging.log(
             `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )

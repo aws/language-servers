@@ -120,9 +120,9 @@ describe('StreamingClientServiceToken', () => {
             features.logging,
             DEFAULT_AWS_Q_REGION,
             DEFAULT_AWS_Q_ENDPOINT_URL,
-            'some-user-agent',
-            false
+            'some-user-agent'
         )
+        streamingClientServiceWithOptout.shareCodeWhispererContentWithAWS = false
 
         expect(streamingClientServiceWithOptout['shareCodeWhispererContentWithAWS']).to.equal(false)
     })
@@ -344,5 +344,30 @@ describe('StreamingClientServiceIAM', () => {
         // Verify expiration is set to current date to force refresh when not provided in credentials
         expect(credentials.expiration).to.be.instanceOf(Date)
         expect(credentials.expiration.getTime()).to.be.closeTo(Date.now(), 1000)
+    })
+
+    it('creates client with shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceWithOptout = new StreamingClientServiceIAM(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL
+        )
+        streamingClientServiceWithOptout.shareCodeWhispererContentWithAWS = false
+
+        expect(streamingClientServiceWithOptout['shareCodeWhispererContentWithAWS']).to.equal(false)
+    })
+
+    it('creates client without shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceDefault = new StreamingClientServiceIAM(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL
+        )
+
+        expect(streamingClientServiceDefault['shareCodeWhispererContentWithAWS']).to.be.undefined
     })
 })
