@@ -199,7 +199,7 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         },
         includeSuggestionsWithCodeReferences: false,
         includeImportsWithSuggestions: false,
-        shareCodeWhispererContentWithAWS: true,
+        shareCodeWhispererContentWithAWS: false,
         sendUserWrittenCodeMetrics: false,
         projectContext: {
             enableLocalIndexing: false,
