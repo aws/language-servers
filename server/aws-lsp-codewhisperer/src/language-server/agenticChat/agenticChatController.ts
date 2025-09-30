@@ -1032,6 +1032,9 @@ export class AgenticChatController implements ChatHandlers {
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
 
+        // Clear modified files tracking at the start of every new conversation
+        this.#clearModifiedFilesTracking(params.tabId)
+
         const { data: session, success } = sessionResult
 
         if (!success) {
@@ -1066,8 +1069,6 @@ export class AgenticChatController implements ChatHandlers {
                 // so we set it to random UUID per session, as other chat functionality
                 // depends on it
                 session.conversationId = uuid()
-                // Clear modified files tracking for new conversations
-                this.#clearModifiedFilesTracking(params.tabId)
             }
             const chatResultStream = this.#getChatResultStream(params.partialResultToken)
             token.onCancellationRequested(async () => {

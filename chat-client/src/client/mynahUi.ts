@@ -305,15 +305,12 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
             cancelButtonWhenLoading: true,
             promptInputDisabledState: false,
             modifiedFilesVisible: true,
-            newConversation: true,
-            modifiedFilesList: null,
         })
     } else {
         mynahUi.updateStore(tabId, {
             loadingChat: true,
             promptInputDisabledState: true,
             modifiedFilesVisible: true,
-            newConversation: true,
         })
     }
 
