@@ -108,6 +108,8 @@ export interface ClientFileContext {
     programmingLanguage: {
         languageName: CodewhispererLanguage
     }
+    // leftFileContextAtCurrentLine: string
+    // rightFileContextAtCurrentLine: string
 }
 
 export function getFileContext(params: {
@@ -122,10 +124,21 @@ export function getFileContext(params: {
     })
     const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
 
+    const leftFileContextAtCurrentLine = params.textDocument.getText({
+        start: { line: params.position.line, character: 0 },
+        end: params.position,
+    })
+
     const right = params.textDocument.getText({
         start: params.position,
         end: params.textDocument.positionAt(params.textDocument.getText().length),
     })
+
+    const rightFileContextAtCurrentLine = params.textDocument.getText({
+        start: params.position,
+        end: { line: params.position.line, character: CONTEXT_CHARACTERS_LIMIT },
+    })
+
     const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
 
     const relativeFilePath = params.workspaceFolder
@@ -140,6 +153,8 @@ export function getFileContext(params: {
         },
         leftFileContent: trimmedLeft,
         rightFileContent: trimmedRight,
+        // leftFileContextAtCurrentLine: leftFileContextAtCurrentLine,
+        // rightFileContextAtCurrentLine: rightFileContextAtCurrentLine,
     }
 }
 

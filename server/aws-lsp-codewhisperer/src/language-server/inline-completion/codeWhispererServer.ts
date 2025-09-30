@@ -26,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { truncateOverlapWithRightContext } from './mergeRightUtils'
+import { mergeSuggestionsWithRightContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
@@ -63,47 +63,6 @@ import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
 import { isUsingIAMAuth } from '../../shared/utils'
-
-const mergeSuggestionsWithRightContext = (
-    rightFileContext: string,
-    suggestions: Suggestion[],
-    includeImportsWithSuggestions: boolean,
-    range?: Range
-): InlineCompletionItemWithReferences[] => {
-    return suggestions.map(suggestion => {
-        const insertText: string = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
-        let references = suggestion.references
-            ?.filter(
-                ref =>
-                    !(
-                        ref.recommendationContentSpan?.start && insertText.length <= ref.recommendationContentSpan.start
-                    ) && insertText.length
-            )
-            .map(r => {
-                return {
-                    licenseName: r.licenseName,
-                    referenceUrl: r.url,
-                    referenceName: r.repository,
-                    position: r.recommendationContentSpan && {
-                        startCharacter: r.recommendationContentSpan.start,
-                        endCharacter: r.recommendationContentSpan.end
-                            ? Math.min(r.recommendationContentSpan.end, insertText.length - 1)
-                            : r.recommendationContentSpan.end,
-                    },
-                }
-            })
-
-        return {
-            itemId: suggestion.itemId,
-            insertText: insertText,
-            range,
-            references: references?.length ? references : undefined,
-            mostRelevantMissingImports: includeImportsWithSuggestions
-                ? suggestion.mostRelevantMissingImports
-                : undefined,
-        }
-    })
-}
 
 export const CodewhispererServerFactory =
     (serviceManager: (credentialsProvider?: any) => AmazonQBaseServiceManager): Server =>

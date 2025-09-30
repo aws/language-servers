@@ -37,8 +37,9 @@ import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
-import { categorizeUnifieddiff, extractAdditions } from './diffUtils'
+import { categorizeUnifieddiff, extractAdditions, categorizeUnifieddiffv2 } from './diffUtils'
 import { StreakTracker } from './tracker/streakTracker'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -319,6 +320,23 @@ export class EditCompletionHandler {
 
         try {
             const suggestionResponse = await this.codeWhispererService.generateSuggestions(generateCompletionReq)
+            //             suggestionResponse.suggestions = [
+            //                 {
+            //                     content: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
+            // +++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
+            // @@ -4,6 +4,9 @@
+            //          return a + b;
+            //      }
+
+            //      // write a function to subtract 2 numbers
+
+            // +    public static int subtract(int a, int b) {
+            // +        return a - b;
+            // +    }
+            //  }`,
+            //                     itemId: '123123123',
+            //                 },
+            //             ]
             return await this.processSuggestionResponse(
                 suggestionResponse,
                 newSession,
@@ -397,10 +415,17 @@ export class EditCompletionHandler {
                         textDocument?.uri || ''
                     )
 
-                    const editCategory = categorizeUnifieddiff(suggestion.content)
+                    const editCategory = categorizeUnifieddiffv2(suggestion.content)
                     // If the given edit is "addOnly", we treat it as a pure Completion
                     const isInlineEdit = editCategory === 'addOnly' ? false : true
-                    const s = isInlineEdit ? suggestion.content : extractAdditions(suggestion.content)
+                    const s = isInlineEdit
+                        ? suggestion.content
+                        : truncateOverlapWithRightContext(
+                              session.requestContext.fileContext.rightFileContent,
+                              extractAdditions(suggestion.content)
+                          )
+
+                    // TODO: if suggestion should be discard or empty, telemetry
 
                     if (isSimilarToRejected) {
                         // Mark as rejected in the session

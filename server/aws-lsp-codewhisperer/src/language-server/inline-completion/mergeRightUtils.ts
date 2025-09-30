@@ -1,7 +1,7 @@
-import { InlineCompletionItemWithReferences, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import { InlineCompletionItemWithReferences, TextDocument, Range } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import { applyUnifiedDiff, generateUnifiedDiffWithTimestamps } from './diffUtils'
-import { FileContext } from '../../shared/codeWhispererService'
+import { FileContext, Suggestion } from '../../shared/codeWhispererService'
 
 /**
  * Returns the longest overlap between the Suffix of firstString and Prefix of second string
@@ -129,4 +129,45 @@ export function mergeEditSuggestionsWithFileContext(
             }
         })
         .filter(item => item.insertText !== '')
+}
+
+export const mergeSuggestionsWithRightContext = (
+    rightFileContext: string,
+    suggestions: Suggestion[],
+    includeImportsWithSuggestions: boolean,
+    range?: Range
+): InlineCompletionItemWithReferences[] => {
+    return suggestions.map(suggestion => {
+        const insertText: string = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
+        let references = suggestion.references
+            ?.filter(
+                ref =>
+                    !(
+                        ref.recommendationContentSpan?.start && insertText.length <= ref.recommendationContentSpan.start
+                    ) && insertText.length
+            )
+            .map(r => {
+                return {
+                    licenseName: r.licenseName,
+                    referenceUrl: r.url,
+                    referenceName: r.repository,
+                    position: r.recommendationContentSpan && {
+                        startCharacter: r.recommendationContentSpan.start,
+                        endCharacter: r.recommendationContentSpan.end
+                            ? Math.min(r.recommendationContentSpan.end, insertText.length - 1)
+                            : r.recommendationContentSpan.end,
+                    },
+                }
+            })
+
+        return {
+            itemId: suggestion.itemId,
+            insertText: insertText,
+            range,
+            references: references?.length ? references : undefined,
+            mostRelevantMissingImports: includeImportsWithSuggestions
+                ? suggestion.mostRelevantMissingImports
+                : undefined,
+        }
+    })
 }

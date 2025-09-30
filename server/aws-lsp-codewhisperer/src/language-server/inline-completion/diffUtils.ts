@@ -6,6 +6,8 @@
 import * as diff from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
 import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
+import { getPrefixSuffixOverlap } from './mergeRightUtils'
+import { SuggestionType } from '../../shared/codeWhispererService'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -384,10 +386,98 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
     return 'edit'
 }
 
-// TODO: Polish
+export function processEditSuggestion(unifiedDiff: string): { suggestionContent: string; type: SuggestionType } {}
+
+// TODO: Complete this interface/class (ideally class) and make it comprehensive
+interface UnifiedDiff {
+    linesWithoutHeaders: string[]
+    firstMinusIndex: number
+    firstMinus: string
+    firstPlusIndex: number
+    firstPlus: string
+}
+
+export function readUdiff(unifiedDiff: string): UnifiedDiff {
+    const lines = unifiedDiff.split('\n')
+    const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
+    if (headerEndIndex === -1) {
+        throw new Error('not able to parse')
+    }
+    const relevantLines = lines.slice(headerEndIndex + 1)
+    if (relevantLines.length === 0) {
+        throw new Error('not able to parse')
+    }
+    const firstMinusIndex = relevantLines.findIndex(s => s.startsWith('-'))
+    const firstPlusIndex = relevantLines.findIndex(s => s.startsWith('+'))
+
+    return {
+        linesWithoutHeaders: relevantLines,
+        firstMinusIndex: firstMinusIndex,
+        firstMinus: relevantLines[firstMinusIndex],
+        firstPlusIndex: firstPlusIndex,
+        firstPlus: relevantLines[firstPlusIndex],
+    }
+}
+
+// TODO: still WIP thus v1 v2, eventually only need one
+export function categorizeUnifieddiffv2(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
+    try {
+        const d = readUdiff(unifiedDiff)
+        const firstMinus = d.firstMinusIndex
+        const firstPlus = d.firstPlusIndex
+        const relevantLines = d.linesWithoutHeaders
+
+        if (firstMinus === -1 && firstPlus === -1) {
+            return 'edit'
+        }
+
+        if (firstMinus === -1 && firstPlus !== -1) {
+            return 'addOnly'
+        }
+
+        if (firstMinus !== -1 && firstPlus === -1) {
+            return 'deleteOnly'
+        }
+
+        // Usually it's an edit but there is a special case where empty line is deleted and replaced with suggestion.
+        /**
+         *
+         *
+         *  --- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+         *  +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+         *  @@ -3,7 +3,9 @@
+         *      public static int add(int a, int b) {
+         *          return a + b;
+         *      }
+         *
+         *      // write a function to subtract 2 numbers
+         * -
+         * +    public static int subtract(int a, int b) {
+         * +        return a - b;
+         * +    }
+         *  }
+         *
+         *
+         **/
+        if (firstMinus + 1 === firstPlus) {
+            const minus = relevantLines[firstMinus].substring(1)
+            const plus = relevantLines[firstPlus].substring(1)
+            const overlap = getPrefixSuffixOverlap(minus, plus)
+            if (overlap.length) {
+                return 'addOnly'
+            }
+        }
+
+        return 'edit'
+    } catch (e) {
+        return 'edit'
+    }
+}
+
+// TODO: current implementation here assumes service only return 1 chunk of edits (consecutive lines) and hacky
 export function extractAdditions(unifiedDiff: string): string {
     const lines = unifiedDiff.split('\n')
-    let additions = ''
+    let completionSuggestion = ''
     let isInAdditionBlock = false
 
     for (const line of lines) {
@@ -403,7 +493,7 @@ export function extractAdditions(unifiedDiff: string): string {
 
         // Handle additions
         if (line.startsWith('+')) {
-            additions += line.substring(1) + '\n'
+            completionSuggestion += line.substring(1) + '\n'
             isInAdditionBlock = true
         } else if (isInAdditionBlock && line.startsWith(' ')) {
             // End of addition block
@@ -412,5 +502,28 @@ export function extractAdditions(unifiedDiff: string): string {
     }
 
     // Remove trailing newline
-    return additions.trimEnd()
+    return completionSuggestion.trimEnd()
+}
+
+/**
+ *
+ * example
+ * code = 'return'
+ * suggestion = 'return a + b;'
+ * output = ' a + b;'
+ */
+export function removeOverlapCodeFromSuggestion(code: string, suggestion: string): string {
+    const suggestionLines = suggestion.split('\n')
+    const firstLineSuggestion = suggestionLines[0]
+
+    // Find the common string in code surfix and prefix of suggestion
+    const s = getPrefixSuffixOverlap(code, firstLineSuggestion)
+
+    // Remove overlap s from suggestion
+    return suggestion.substring(s.length)
+}
+
+export function parseCompletionFromEdit(editSuggestion: string, fileContext: string): string {
+    const completion = extractAdditions(editSuggestion)
+    const processed = removeOverlapCodeFromSuggestion(fileContext, completion)
 }
