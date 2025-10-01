@@ -1331,7 +1331,7 @@ export class AgenticChatController implements ChatHandlers {
         if (result.data?.chatResult.body !== undefined) {
             this.#chatHistoryDb.replaceWithSummary(tabId, 'cwc', conversationIdentifier ?? '', {
                 body: result.data?.chatResult.body,
-                type: 'prompt' as any,
+                type: 'prompt' as ChatMessage['type'],
                 shouldDisplayMessage: true,
                 timestamp: new Date(),
             })
@@ -1451,7 +1451,7 @@ export class AgenticChatController implements ChatHandlers {
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
                         body: currentMessage.userInputMessage?.content ?? '',
-                        type: 'prompt' as any,
+                        type: 'prompt' as ChatMessage['type'],
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
@@ -1527,7 +1527,7 @@ export class AgenticChatController implements ChatHandlers {
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: result.data?.chatResult.body,
-                        type: 'answer' as any,
+                        type: 'answer' as ChatMessage['type'],
                         codeReference: result.data.chatResult.codeReference,
                         relatedContent:
                             result.data.chatResult.relatedContent?.content &&
