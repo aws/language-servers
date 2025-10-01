@@ -42,6 +42,7 @@ export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
     protected delayInterceptor: QDelayTrackingInterceptor
+    public shareCodeWhispererContentWithAWS?: boolean
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -116,11 +117,15 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         })
 
         this.client.middlewareStack.add(
-            (next, context) => args => {
+            (next, context) => (args: any) => {
                 if (credentialsProvider.getConnectionType() === 'external_idp') {
-                    // @ts-ignore
                     args.request.headers['TokenType'] = 'EXTERNAL_IDP'
                 }
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                // Log headers for debugging
+                logging.debug(`StreamingClient headers: ${JSON.stringify(args.request.headers)}`)
                 return next(args)
             },
             {
@@ -245,6 +250,18 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             credentials: iamCredentialProvider,
             retryStrategy: retryStrategy,
         })
+
+        this.client.middlewareStack.add(
+            (next, context) => (args: any) => {
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                return next(args)
+            },
+            {
+                step: 'build',
+            }
+        )
     }
 
     public async sendMessage(

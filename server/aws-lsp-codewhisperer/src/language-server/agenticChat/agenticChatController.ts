@@ -231,7 +231,6 @@ import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
-import escapeHTML = require('escape-html')
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
 import { MemoryBankController } from './context/memorybank/memoryBankController'
 
@@ -834,7 +833,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '', true)
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
@@ -1340,7 +1339,7 @@ export class AgenticChatController implements ChatHandlers {
         if (result.data?.chatResult.body !== undefined) {
             this.#chatHistoryDb.replaceWithSummary(tabId, 'cwc', conversationIdentifier ?? '', {
                 body: result.data?.chatResult.body,
-                type: 'prompt' as any,
+                type: 'prompt' as ChatMessage['type'],
                 shouldDisplayMessage: true,
                 timestamp: new Date(),
             })
@@ -1459,8 +1458,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: escapeHTML(currentMessage.userInputMessage?.content ?? ''),
-                        type: 'prompt' as any,
+                        body: currentMessage.userInputMessage?.content ?? '',
+                        type: 'prompt' as ChatMessage['type'],
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
@@ -1536,7 +1535,7 @@ export class AgenticChatController implements ChatHandlers {
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: result.data?.chatResult.body,
-                        type: 'answer' as any,
+                        type: 'answer' as ChatMessage['type'],
                         codeReference: result.data.chatResult.codeReference,
                         relatedContent:
                             result.data.chatResult.relatedContent?.content &&
@@ -3481,7 +3480,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMsg(err) ?? GENERIC_ERROR_MS
+        const errorMessage = (getErrorMsg(err) ?? GENERIC_ERROR_MS).replace(/[\r\n]+/g, ' ') // replace new lines with empty space
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)

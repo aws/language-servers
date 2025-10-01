@@ -52,7 +52,7 @@ import {
     SPECIAL_CHARACTER_HELLO_WORLD,
     stubCodeWhispererService,
 } from '../../shared/testUtils'
-import { CodeDiffTracker } from './codeDiffTracker'
+import { CodeDiffTracker } from './tracker/codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import * as utils from '../../shared/utils'
@@ -61,7 +61,7 @@ import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
-import { CONTEXT_CHARACTERS_LIMIT } from './constants'
+import { CONTEXT_CHARACTERS_LIMIT } from './contants/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const updateConfiguration = async (
