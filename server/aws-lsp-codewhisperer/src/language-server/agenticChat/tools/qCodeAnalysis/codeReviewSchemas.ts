@@ -113,7 +113,7 @@ export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
             })
         )
         .optional(),
-    modelId: z.string(),
+    modelId: z.string().optional(),
 })
 
 /**
