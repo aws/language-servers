@@ -26,14 +26,14 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { mergeSuggestionsWithRightContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { mergeSuggestionsWithRightContext, truncateOverlapWithRightContext } from './utils/mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
-import { CodePercentageTracker } from './codePercentage'
+import { CodePercentageTracker } from './tracker/codePercentageTracker'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
 import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
+import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './tracker/codeDiffTracker'
 import {
     AmazonQError,
     AmazonQServiceConnectionExpiredError,
@@ -50,16 +50,16 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { StreakTracker } from './tracker/streakTracker'
-import { getAddedAndDeletedLines, getCharacterDifferences } from './diffUtils'
+import { getAddedAndDeletedLines, getCharacterDifferences } from './utils/diffUtils'
 import {
     emitPerceivedLatencyTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
-} from './telemetry'
+} from './telemetry/telemetry'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EditCompletionHandler } from './editCompletionHandler'
-import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
+import { EMPTY_RESULT, ABAP_EXTENSIONS } from './contants/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { URI } from 'vscode-uri'
 import { isUsingIAMAuth } from '../../shared/utils'

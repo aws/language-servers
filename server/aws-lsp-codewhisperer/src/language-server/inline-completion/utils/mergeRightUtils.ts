@@ -1,7 +1,5 @@
-import { InlineCompletionItemWithReferences, TextDocument, Range } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererSession } from './session/sessionManager'
-import { applyUnifiedDiff, generateUnifiedDiffWithTimestamps } from './diffUtils'
-import { FileContext, Suggestion } from '../../shared/codeWhispererService'
+import { InlineCompletionItemWithReferences, Range } from '@aws/language-server-runtimes/server-interface'
+import { Suggestion } from '../../../shared/codeWhispererService'
 
 /**
  * Returns the longest overlap between the Suffix of firstString and Prefix of second string
@@ -65,70 +63,6 @@ export function truncateOverlapWithRightContext(
     } else {
         return suggestion
     }
-}
-
-/**
- * Merge Edit suggestions with current file context.
- * @param currentSession current session that contains previous suggestions
- * @param currentTextDocument current text document
- * @param currentFileContext current file context that contains the cursor position
- * @returns InlineCompletionItemWithReferences[] with merged edit suggestions and new diff content in insertText field
- */
-export function mergeEditSuggestionsWithFileContext(
-    currentSession: CodeWhispererSession,
-    currentTextDocument: TextDocument,
-    currentFileContext: FileContext
-): InlineCompletionItemWithReferences[] {
-    return currentSession.suggestions
-        .map(suggestion => {
-            // generate the previous suggested file content by applying previous suggestion to previous doc content
-            const previousTextDocument = currentSession.document
-            const suggestedFileContent = applyUnifiedDiff(previousTextDocument.getText(), suggestion.content)
-            const currentLeftFileContent = currentFileContext.leftFileContent
-            const currentRightFileContent = currentFileContext.rightFileContent
-            const previousLeftFileContent = currentSession.requestContext.fileContext.leftFileContent
-            const userEdit = currentLeftFileContent.substring(previousLeftFileContent.length)
-            // if the user moves the cursor backward, deletes some contents, or goes to the next line, discard the suggestion
-            if (previousLeftFileContent.length > currentLeftFileContent.length || userEdit.includes('\n')) {
-                return {
-                    insertText: '',
-                    isInlineEdit: true,
-                    itemId: suggestion.itemId,
-                }
-            }
-            // find the first overlap between the user input and the previous suggestion
-            const mergedRightContent = truncateOverlapWithRightContext(
-                currentRightFileContent,
-                suggestedFileContent,
-                userEdit
-            )
-            // if the merged right content is empty, discard the suggestion
-            if (!mergedRightContent) {
-                return {
-                    insertText: '',
-                    isInlineEdit: true,
-                    itemId: suggestion.itemId,
-                }
-            }
-            // generate new diff from the merged content
-            const newDiff = generateUnifiedDiffWithTimestamps(
-                currentTextDocument.uri,
-                currentSession.document.uri,
-                currentTextDocument.getText(),
-                currentLeftFileContent + mergedRightContent,
-                Date.now(),
-                Date.now()
-            )
-            suggestion.content = newDiff
-            currentSession.requestContext.fileContext = currentFileContext
-            currentSession.document = currentTextDocument
-            return {
-                insertText: newDiff,
-                isInlineEdit: true,
-                itemId: suggestion.itemId,
-            }
-        })
-        .filter(item => item.insertText !== '')
 }
 
 export const mergeSuggestionsWithRightContext = (

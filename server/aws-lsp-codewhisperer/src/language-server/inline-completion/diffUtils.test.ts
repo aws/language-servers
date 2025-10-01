@@ -1,5 +1,5 @@
 import * as assert from 'assert'
-import { extractAdditions, categorizeUnifieddiff, removeOverlapCodeFromSuggestion } from './diffUtils'
+import { categorizeUnifieddiff, extractAdditions, removeOverlapCodeFromSuggestion } from './utils/diffUtils'
 
 describe('extractAdditions', function () {
     it('singleline', function () {

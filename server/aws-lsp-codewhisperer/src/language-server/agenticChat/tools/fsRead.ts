@@ -1,6 +1,7 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { FSREAD_MAX_PER_FILE, FSREAD_MAX_TOTAL } from '../constants/constants'
 
 export interface FsReadParams {
     paths: string[]
@@ -13,16 +14,24 @@ export interface FileReadResult {
 }
 
 export class FsRead {
-    static maxResponseSize = 200_000
-    static maxResponseSizeTotal = 400_000
+    static maxResponseSize = FSREAD_MAX_PER_FILE
+    static maxResponseSizeTotal = FSREAD_MAX_TOTAL
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
     private readonly lsp: Features['lsp']
+    private readonly maxPerFile: number
+    private readonly maxTotal: number
 
-    constructor(features: Pick<Features, 'lsp' | 'workspace' | 'logging'> & Partial<Features>) {
+    constructor(
+        features: Pick<Features, 'lsp' | 'workspace' | 'logging'> & Partial<Features>,
+        maxPerFile?: number,
+        maxTotal?: number
+    ) {
         this.logging = features.logging
         this.workspace = features.workspace
         this.lsp = features.lsp
+        this.maxPerFile = maxPerFile ?? FsRead.maxResponseSize
+        this.maxTotal = maxTotal ?? FsRead.maxResponseSizeTotal
     }
 
     public async validate(params: FsReadParams): Promise<void> {
@@ -62,16 +71,16 @@ export class FsRead {
     private createOutput(fileResult: FileReadResult[]): InvokeOutput {
         let totalSize = 0
         for (const result of fileResult) {
-            const exceedsMaxSize = result.content.length > FsRead.maxResponseSize
+            const exceedsMaxSize = result.content.length > this.maxPerFile
             if (exceedsMaxSize) {
-                this.logging.info(`FsRead: truncating ${result.path} to first ${FsRead.maxResponseSize} characters`)
-                result.content = result.content.substring(0, FsRead.maxResponseSize - 3) + '...'
+                this.logging.info(`FsRead: truncating ${result.path} to first ${this.maxPerFile} characters`)
+                result.content = result.content.substring(0, this.maxPerFile - 3) + '...'
                 result.truncated = true
             }
             totalSize += result.content.length
         }
 
-        if (totalSize > FsRead.maxResponseSizeTotal) {
+        if (totalSize > this.maxTotal) {
             throw Error('Files are too large, please break the file read into smaller chunks')
         }
 

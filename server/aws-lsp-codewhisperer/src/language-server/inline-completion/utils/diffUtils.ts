@@ -4,11 +4,11 @@
  */
 
 import * as diff from 'diff'
-import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
-import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
+import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
+import { Position, TextDocument, Range } from '@aws/language-server-runtimes/protocol'
+import { SuggestionType } from '../../../shared/codeWhispererService'
 import { getPrefixSuffixOverlap } from './mergeRightUtils'
-import { SuggestionType } from '../../shared/codeWhispererService'
-import { Position, Range, TextDocument } from '@aws/language-server-runtimes/protocol'
 
 /**
  * Generates a unified diff format between old and new file contents
