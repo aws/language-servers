@@ -1834,6 +1834,8 @@ describe('CodeWhisperer Server', () => {
             error.statusCode = 500
             error.time = new Date()
             error.requestId = 'failed-request-id'
+            // Add $metadata to make isAwsError return true
+            ;(error as any).$metadata = {}
 
             service.generateSuggestions.callsFake(_request => {
                 clock.tick(1000)
