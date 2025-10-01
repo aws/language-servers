@@ -1,6 +1,6 @@
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
-import { CodePercentageTracker } from './codePercentage'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { CodePercentageTracker } from './codePercentageTracker'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 
 describe('CodePercentage', () => {
     const LANGUAGE_ID = 'python'

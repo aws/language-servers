@@ -3,15 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    TextDocumentItem,
-    InitializeParams,
-    Logging,
-    Disposable,
-    TextDocument,
-} from '@aws/language-server-runtimes/server-interface'
+import { TextDocumentItem, Logging, Disposable, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSupplementalContext, DocumentSnapshot, FileSnapshotContent } from '../../../shared/models/model'
-import { generateDiffContexts } from '../diffUtils'
+import { generateDiffContexts } from '../utils/diffUtils'
 
 /**
  * Configuration for the RecentEditTracker
