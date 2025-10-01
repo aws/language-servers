@@ -38,7 +38,6 @@ export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResp
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
-    public shareCodeWhispererContentWithAWS?: boolean
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -65,7 +64,6 @@ export abstract class StreamingClientServiceBase {
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
     public profileArn?: string
-
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
@@ -75,7 +73,6 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         customUserAgent: string
     ) {
         super(region, endpoint)
-
         const tokenProvider = async () => {
             const token = getBearerTokenFromProvider(credentialsProvider)
             // without setting expiration, the tokenProvider will only be called once
@@ -97,15 +94,11 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         })
 
         this.client.middlewareStack.add(
-            (next, context) => (args: any) => {
+            (next, context) => args => {
                 if (credentialsProvider.getConnectionType() === 'external_idp') {
+                    // @ts-ignore
                     args.request.headers['TokenType'] = 'EXTERNAL_IDP'
                 }
-                if (this.shareCodeWhispererContentWithAWS !== undefined) {
-                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-                }
-                // Log headers for debugging
-                logging.debug(`StreamingClient headers: ${JSON.stringify(args.request.headers)}`)
                 return next(args)
             },
             {
@@ -219,18 +212,6 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             credentials: iamCredentialProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
-
-        this.client.middlewareStack.add(
-            (next, context) => (args: any) => {
-                if (this.shareCodeWhispererContentWithAWS !== undefined) {
-                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-                }
-                return next(args)
-            },
-            {
-                step: 'build',
-            }
-        )
     }
 
     public async sendMessage(
