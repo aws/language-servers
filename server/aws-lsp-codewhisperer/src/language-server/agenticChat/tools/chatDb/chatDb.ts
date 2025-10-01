@@ -636,50 +636,6 @@ export class ChatDatabase {
         }
     }
 
-    /**
-     * Replace history with summary/dummyResponse pair within a specified tab.
-     *
-     * This method manages chat messages by creating a new history with compacted summary and dummy response pairs
-     */
-    replaceHistory(tabId: string, tabType: TabType, conversationId: string, messages: Message[]) {
-        if (this.isInitialized()) {
-            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
-            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
-
-            this.#features.logging.log(
-                `Update history with new messages: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
-            )
-
-            const oldHistoryId = this.getOrCreateHistoryId(tabId)
-            // create a new historyId to start fresh
-            const historyId = this.createHistoryId(tabId)
-
-            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
-            const tabTitle = tabData?.title || 'Amazon Q Chat'
-            messages = messages.map(msg => this.formatChatHistoryMessage(msg))
-            this.#features.logging.log(`Overriding tab with new historyId=${historyId}`)
-            tabCollection.insert({
-                historyId,
-                updatedAt: new Date(),
-                isOpen: true,
-                tabType: tabType,
-                title: tabTitle,
-                conversations: [
-                    {
-                        conversationId,
-                        clientType,
-                        updatedAt: new Date(),
-                        messages: messages,
-                    },
-                ],
-            })
-
-            if (oldHistoryId) {
-                tabCollection.findAndRemove({ historyId: oldHistoryId })
-            }
-        }
-    }
-
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
             let hasToolResults = false
