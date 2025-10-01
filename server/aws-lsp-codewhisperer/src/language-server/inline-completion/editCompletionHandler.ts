@@ -320,24 +320,6 @@ export class EditCompletionHandler {
 
         try {
             const suggestionResponse = await this.codeWhispererService.generateSuggestions(generateCompletionReq)
-            // TODO: dev purpose to mock server response, remove it when PR is ready
-            //             suggestionResponse.suggestions = [
-            //                 {
-            //                     content: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
-            // +++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
-            // @@ -4,6 +4,9 @@
-            //          return a + b;
-            //      }
-
-            //      // write a function to subtract 2 numbers
-
-            // +    public static int subtract(int a, int b) {
-            // +        return a - b;
-            // +    }
-            //  }`,
-            //                     itemId: '123123123',
-            //                 },
-            //             ]
             return await this.processSuggestionResponse(
                 suggestionResponse,
                 newSession,
@@ -422,8 +404,6 @@ export class EditCompletionHandler {
                         session.document
                     )
                     const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
-
-                    // TODO: if suggestion should be discard or empty, telemetry
 
                     if (isSimilarToRejected) {
                         // Mark as rejected in the session
