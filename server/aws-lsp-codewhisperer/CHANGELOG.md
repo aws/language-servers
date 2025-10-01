@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.0.83](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.82...lsp-codewhisperer/v0.0.83) (2025-10-01)
+
+
+### Bug Fixes
+
+* **amazonq:** escaping user input to mitigate xss issue ([#2360](https://github.com/aws/language-servers/issues/2360)) ([45b86be](https://github.com/aws/language-servers/commit/45b86bef1a93cf9ced6fbf0c222cf5410de04c81))
+* **amazonq:** fix to add opt-out header to streaming client ([#2365](https://github.com/aws/language-servers/issues/2365)) ([692e77b](https://github.com/aws/language-servers/commit/692e77bc99770ac7d676928e95e3dc43bb91e7f0))
+* **amazonq:** handle IAM credentials expiration field to be aws sdk versions compatible and add refresh logic to codewhisperer IAM client ([#2349](https://github.com/aws/language-servers/issues/2349)) ([5eb3768](https://github.com/aws/language-servers/commit/5eb3768bf020d61d0ade767d62e13839048146e4))
+* **amazonq:** send full finding details to plugin, partial to agent ([#2356](https://github.com/aws/language-servers/issues/2356)) ([961e6ca](https://github.com/aws/language-servers/commit/961e6ca11b122481685f9f65b3da14c6a2497cc4))
+* improve history management ([#2312](https://github.com/aws/language-servers/issues/2312)) ([#2357](https://github.com/aws/language-servers/issues/2357)) ([e7aa2a6](https://github.com/aws/language-servers/commit/e7aa2a6545bcb1a8238abfde69a05432be0b6615))
+* optimize memory bank token usage and add new tab support ([#2366](https://github.com/aws/language-servers/issues/2366)) ([3057d56](https://github.com/aws/language-servers/commit/3057d56e4a3047d1715d6e3560e9f934d1de469c))
+* private package mapping during artifact generation ([#2348](https://github.com/aws/language-servers/issues/2348)) ([d56bfa1](https://github.com/aws/language-servers/commit/d56bfa191954fac8068e2bf390c2d0b88ef8b168))
+* trim new line when emitting error message ([#2359](https://github.com/aws/language-servers/issues/2359)) ([d8733a7](https://github.com/aws/language-servers/commit/d8733a75487f74815302b838802eccbf3ffec55e))
+
+
+### Reverts
+
+* fix to add opt-out header to streaming client ([#2365](https://github.com/aws/language-servers/issues/2365)) ([#2370](https://github.com/aws/language-servers/issues/2370)) ([b29478f](https://github.com/aws/language-servers/commit/b29478fa1ecc58e331ff330ff79f46b0d8c38d9e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.15 to ^0.0.16
+
+## [0.0.82](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.81...lsp-codewhisperer/v0.0.82) (2025-09-24)
+
+
+### Features
+
+* memory bank support ([#2314](https://github.com/aws/language-servers/issues/2314)) ([0e215fc](https://github.com/aws/language-servers/commit/0e215fc0e475b4c40a8237492371716982d4d532))
+
+
+### Bug Fixes
+
+* **amazonq:** fix to emit event for same region profile switch ([#2320](https://github.com/aws/language-servers/issues/2320)) ([aa1a482](https://github.com/aws/language-servers/commit/aa1a4827871a1cfa9fcd76f7ba420107a5d44b01))
+* **amazonq:** reduce number of findings to 30 as a quick fix ([#2318](https://github.com/aws/language-servers/issues/2318)) ([b31cf67](https://github.com/aws/language-servers/commit/b31cf67ddc68a2ca2e0a4ebd9ee94d0545afc656))
+* **amazonq:** removing a bracket from full review message ([#2317](https://github.com/aws/language-servers/issues/2317)) ([6d321ac](https://github.com/aws/language-servers/commit/6d321ac6f318c27b01f9f97eee45a62798a60cf5))
+* emit error code on failed user messages ([#2322](https://github.com/aws/language-servers/issues/2322)) ([a949ac0](https://github.com/aws/language-servers/commit/a949ac0a9d7a4dbce5fb7c8480952cee0a674b55))
+* inline latency telemetry should account for preprocess time ([#2323](https://github.com/aws/language-servers/issues/2323)) ([68c6d14](https://github.com/aws/language-servers/commit/68c6d1465a3325612052740496cc1e6e50f56b9a))
+* userTriggerDecision STE suggestionType validation error ([#2313](https://github.com/aws/language-servers/issues/2313)) ([8f30ac0](https://github.com/aws/language-servers/commit/8f30ac0ec5f4f7b7c343f5e889aec64a282897ea))
+
 ## [0.0.81](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.80...lsp-codewhisperer/v0.0.81) (2025-09-19)
 
 

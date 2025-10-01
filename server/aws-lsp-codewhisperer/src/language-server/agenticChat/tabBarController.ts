@@ -343,7 +343,12 @@ export class TabBarController {
      * Determines if the environment is JupyterLab.
      */
     private isJupyterLabEnvironment(): boolean {
-        return process.env.JUPYTER_LAB === 'true'
+        try {
+            return process.env.JUPYTER_LAB === 'true'
+        } catch (error) {
+            this.#features.logging.error(`Failed to read JUPYTER_LAB environment variable: ${error}`)
+            return false
+        }
     }
 
     public static enableChatExport(params?: InitializeParams) {

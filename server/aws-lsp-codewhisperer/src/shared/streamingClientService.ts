@@ -12,7 +12,12 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    SDKInitializator,
+    Logging,
+    IamCredentials,
+} from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -34,6 +39,7 @@ export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResp
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
+    public shareCodeWhispererContentWithAWS?: boolean
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -60,6 +66,7 @@ export abstract class StreamingClientServiceBase {
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
     public profileArn?: string
+
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
@@ -69,6 +76,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         customUserAgent: string
     ) {
         super(region, endpoint)
+
         const tokenProvider = async () => {
             const token = getBearerTokenFromProvider(credentialsProvider)
             // without setting expiration, the tokenProvider will only be called once
@@ -90,11 +98,15 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         })
 
         this.client.middlewareStack.add(
-            (next, context) => args => {
+            (next, context) => (args: any) => {
                 if (credentialsProvider.getConnectionType() === 'external_idp') {
-                    // @ts-ignore
                     args.request.headers['TokenType'] = 'EXTERNAL_IDP'
                 }
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                // Log headers for debugging
+                logging.debug(`StreamingClient headers: ${JSON.stringify(args.request.headers)}`)
                 return next(args)
             },
             {
@@ -188,13 +200,17 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
 
         // Create a credential provider that fetches fresh credentials on each request
         const iamCredentialProvider: AwsCredentialIdentityProvider = async (): Promise<AwsCredentialIdentity> => {
-            const creds = (await credentialsProvider.getCredentials('iam')) as Credentials
+            const creds = (await credentialsProvider.getCredentials('iam')) as IamCredentials
             logging.log(`Fetching new IAM credentials`)
+            if (!creds) {
+                logging.log('Failed to fetch IAM credentials: No IAM credentials found')
+                throw new Error('No IAM credentials found')
+            }
             return {
                 accessKeyId: creds.accessKeyId,
                 secretAccessKey: creds.secretAccessKey,
                 sessionToken: creds.sessionToken,
-                expiration: creds.expireTime ? new Date(creds.expireTime) : new Date(), // Force refresh on each request if creds do not have expiration time
+                expiration: creds.expiration ? new Date(creds.expiration) : new Date(), // Force refresh if expiration field is not available
             }
         }
 
@@ -204,6 +220,18 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             credentials: iamCredentialProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
+
+        this.client.middlewareStack.add(
+            (next, context) => (args: any) => {
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                return next(args)
+            },
+            {
+                step: 'build',
+            }
+        )
     }
 
     public async sendMessage(

@@ -35,7 +35,6 @@ import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
 import { existsSync, renameSync } from 'fs'
-import escapeHTML = require('escape-html')
 
 export class ToolResultValidationError extends Error {
     constructor(message?: string) {
@@ -45,11 +44,6 @@ export class ToolResultValidationError extends Error {
 }
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
-// Maximum number of characters to keep in request
-// (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
-export const MaxOverallCharacters = 570_000
-// Maximum number of history messages to include in each request to the LLM
-const maxConversationHistoryMessages = 250
 
 /**
  * A singleton database class that manages chat history persistence using LokiJS.
@@ -642,50 +636,6 @@ export class ChatDatabase {
         }
     }
 
-    /**
-     * Replace history with summary/dummyResponse pair within a specified tab.
-     *
-     * This method manages chat messages by creating a new history with compacted summary and dummy response pairs
-     */
-    replaceHistory(tabId: string, tabType: TabType, conversationId: string, messages: Message[]) {
-        if (this.isInitialized()) {
-            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
-            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
-
-            this.#features.logging.log(
-                `Update history with new messages: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
-            )
-
-            const oldHistoryId = this.getOrCreateHistoryId(tabId)
-            // create a new historyId to start fresh
-            const historyId = this.createHistoryId(tabId)
-
-            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
-            const tabTitle = tabData?.title || 'Amazon Q Chat'
-            messages = messages.map(msg => this.formatChatHistoryMessage(msg))
-            this.#features.logging.log(`Overriding tab with new historyId=${historyId}`)
-            tabCollection.insert({
-                historyId,
-                updatedAt: new Date(),
-                isOpen: true,
-                tabType: tabType,
-                title: tabTitle,
-                conversations: [
-                    {
-                        conversationId,
-                        clientType,
-                        updatedAt: new Date(),
-                        messages: messages,
-                    },
-                ],
-            })
-
-            if (oldHistoryId) {
-                tabCollection.findAndRemove({ historyId: oldHistoryId })
-            }
-        }
-    }
-
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
             let hasToolResults = false
@@ -694,7 +644,6 @@ export class ChatDatabase {
             }
             return {
                 ...message,
-                body: escapeHTML(message.body),
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
@@ -708,15 +657,12 @@ export class ChatDatabase {
 
     /**
      * Prepare the history messages for service request and fix the persisted history in DB to maintain the following invariants:
-     * 1. The history contains at most MaxConversationHistoryMessages messages. Oldest messages are dropped.
-     * 2. The first message is from the user and without any tool usage results, and the last message is from the assistant.
+     * 1. The first message is from the user and without any tool usage results, and the last message is from the assistant.
      *    The history contains alternating sequene of userMessage followed by assistantMessages
-     * 3. The toolUse and toolResult relationship is valid
-     * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
+     * 2. The toolUse and toolResult relationship is valid
      */
     fixAndGetHistory(
         tabId: string,
-        conversationId: string,
         newUserMessage: ChatMessage,
         pinnedContextMessages: ChatMessage[]
     ): MessagesWithCharacterCount {
@@ -732,18 +678,19 @@ export class ChatDatabase {
 
         this.#features.logging.info(`Fixing history: tabId=${tabId}`)
 
-        // 1. Make sure the length of the history messages don't exceed MaxConversationHistoryMessages
-        let allMessages = this.getMessages(tabId, maxConversationHistoryMessages)
+        let allMessages = this.getMessages(tabId)
         if (allMessages.length > 0) {
-            // 2. Fix history: Ensure messages in history is valid for server side checks
+            // 1. Fix history: Ensure messages in history is valid for server side checks
             this.ensureValidMessageSequence(tabId, allMessages)
 
-            // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+            // 2. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
             this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
 
-            // 4. NOTE: Keep this trimming logic at the end of the preprocess.
-            // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-            messagesWithCount = this.trimMessagesToMaxLength(allMessages, newUserInputCount, tabId, conversationId)
+            messagesWithCount = {
+                history: allMessages,
+                historyCount: this.calculateMessagesCharacterCount(allMessages),
+                currentCount: newUserInputCount,
+            }
 
             // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
             if (
@@ -772,72 +719,9 @@ export class ChatDatabase {
         return messagesWithCount
     }
 
-    /**
-     * Finds a suitable "break point" index in the message sequence.
-     *
-     * It ensures that the "break point" is at a clean conversation boundary where:
-     * 1. The message is from a user (type === 'prompt')
-     * 2. The message doesn't contain tool results that would break tool use/result pairs
-     * 3. The message has a non-empty body
-     *
-     * @param allMessages The array of conversation messages to search through
-     * @returns The index to trim from, or undefined if no suitable trimming point is found
-     */
-    private findIndexToTrim(allMessages: Message[]): number | undefined {
-        for (let i = 2; i < allMessages.length; i++) {
-            const message = allMessages[i]
-            if (message.type === ('prompt' as ChatItemType) && this.isValidUserMessageWithoutToolResults(message)) {
-                return i
-            }
-        }
-        return undefined
-    }
-
     private isValidUserMessageWithoutToolResults(message: Message): boolean {
         const ctx = message.userInputMessageContext
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
-    }
-
-    private trimMessagesToMaxLength(
-        messages: Message[],
-        newUserInputCount: number,
-        tabId: string,
-        conversationId: string
-    ): MessagesWithCharacterCount {
-        let historyCharacterCount = this.calculateMessagesCharacterCount(messages)
-        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - newUserInputCount)
-        let trimmedHistory = false
-        this.#features.logging.debug(
-            `Current history character count: ${historyCharacterCount}, remaining history character budget: ${maxHistoryCharacterSize}`
-        )
-        while (historyCharacterCount > maxHistoryCharacterSize && messages.length > 2) {
-            trimmedHistory = true
-            // Find the next valid user message to start from
-            const indexToTrim = this.findIndexToTrim(messages)
-            if (indexToTrim !== undefined && indexToTrim > 0) {
-                this.#features.logging.debug(
-                    `Removing the first ${indexToTrim} elements in the history due to character count limit`
-                )
-                messages.splice(0, indexToTrim)
-            } else {
-                this.#features.logging.debug(
-                    'Could not find a valid point to trim, reset history to reduce character count'
-                )
-                this.replaceHistory(tabId, 'cwc', conversationId, [])
-                return { history: [], historyCount: 0, currentCount: newUserInputCount }
-            }
-            historyCharacterCount = this.calculateMessagesCharacterCount(messages)
-            this.#features.logging.debug(`History character count post trimming: ${historyCharacterCount}`)
-        }
-
-        if (trimmedHistory) {
-            this.replaceHistory(tabId, 'cwc', conversationId, messages)
-        }
-        return {
-            history: messages,
-            historyCount: historyCharacterCount,
-            currentCount: newUserInputCount,
-        }
     }
 
     private calculateToolSpecCharacterCount(currentMessage: ChatMessage): number {

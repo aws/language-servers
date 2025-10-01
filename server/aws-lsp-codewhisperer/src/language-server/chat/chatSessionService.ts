@@ -38,10 +38,10 @@ type DeferredHandler = {
     reject: (err: Error) => void
 }
 export class ChatSessionService {
-    public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     public modelId: string | undefined
+    public isMemoryBankGeneration: boolean = false
     #lsp?: Features['lsp']
     #abortController?: AbortController
     #currentPromptId?: string
