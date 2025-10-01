@@ -37,7 +37,7 @@ import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
-import { categorizeUnifieddiff, extractAdditions, categorizeUnifieddiffv2, processEditSuggestion } from './diffUtils'
+import { categorizeUnifieddiff, extractAdditions, categorizeUnifieddiff, processEditSuggestion } from './diffUtils'
 import { StreakTracker } from './tracker/streakTracker'
 import { truncateOverlapWithRightContext } from './mergeRightUtils'
 

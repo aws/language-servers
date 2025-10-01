@@ -1,5 +1,5 @@
 import * as assert from 'assert'
-import { extractAdditions, categorizeUnifieddiffv2, removeOverlapCodeFromSuggestion } from './diffUtils'
+import { extractAdditions, categorizeUnifieddiff, removeOverlapCodeFromSuggestion } from './diffUtils'
 
 describe('extractAdditions', function () {
     it('singleline', function () {
@@ -167,7 +167,7 @@ describe('categorizeUnifieddiffv2 should return correct type (addOnly, edit, del
 
         for (let i = 0; i < addOnlyCases.length; i++) {
             it(`case ${i}`, function () {
-                const actual = categorizeUnifieddiffv2(addOnlyCases[i].udiff)
+                const actual = categorizeUnifieddiff(addOnlyCases[i].udiff)
                 assert.strictEqual(actual, 'addOnly')
             })
         }
@@ -214,7 +214,7 @@ describe('categorizeUnifieddiffv2 should return correct type (addOnly, edit, del
 
         for (let i = 0; i < cases.length; i++) {
             it(`case ${i}`, function () {
-                const actual = categorizeUnifieddiffv2(cases[i].udiff)
+                const actual = categorizeUnifieddiff(cases[i].udiff)
                 assert.strictEqual(actual, 'edit')
             })
         }

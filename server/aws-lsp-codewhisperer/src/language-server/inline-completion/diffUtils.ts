@@ -330,7 +330,7 @@ export function processEditSuggestion(
     triggerPosition: Position,
     document: TextDocument
 ): { suggestionContent: string; type: SuggestionType } {
-    const diffCategory = categorizeUnifieddiffv2(unifiedDiff)
+    const diffCategory = categorizeUnifieddiff(unifiedDiff)
     if (diffCategory === 'addOnly') {
         const udiff = readUdiff(unifiedDiff)
         const preprocessAdd = extractAdditions(unifiedDiff)
@@ -384,7 +384,7 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
     }
 }
 
-export function categorizeUnifieddiffv2(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
+export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
     try {
         const d = readUdiff(unifiedDiff)
         const firstMinusIndex = d.firstMinusIndex
