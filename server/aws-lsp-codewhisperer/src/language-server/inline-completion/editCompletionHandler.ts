@@ -28,7 +28,7 @@ import {
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
-} from './telemetry'
+} from './telemetry/telemetry'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
@@ -36,7 +36,7 @@ import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './contants/constants'
 import { StreakTracker } from './tracker/streakTracker'
 
 export class EditCompletionHandler {
