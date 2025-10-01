@@ -325,68 +325,6 @@ export function getCharacterDifferences(addedLines: string[], deletedLines: stri
     }
 }
 
-/**
- * a function to determine if a provided unified diff is either
- *  (1) pure addition
- *  (2) pure deletion
- *  (3) edit
- */
-export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
-    try {
-        // diff.parsePatch might throw
-        const parsedDiffs = diff.parsePatch(unifiedDiff)
-
-        if (parsedDiffs.length === 0) {
-            throw new Error('not able to parse')
-        }
-
-        const hasDeletion = parsedDiffs.some(parsedDiff =>
-            parsedDiff.hunks.some(hunk => hunk.lines.some(line => line.startsWith('-')))
-        )
-
-        const hasAddition = parsedDiffs.some(parsedDiff =>
-            parsedDiff.hunks.some(hunk => hunk.lines.some(line => line.startsWith('+')))
-        )
-
-        switch (true) {
-            case hasDeletion && hasAddition:
-                return 'edit'
-            case hasDeletion:
-                return 'deleteOnly'
-            case hasAddition:
-                return 'addOnly'
-        }
-    } catch (e) {
-        const lines = unifiedDiff.split('\n')
-        const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
-        if (headerEndIndex === -1) {
-            // Assume it's a pure edit when parsing fail
-            return 'edit'
-        }
-
-        const relevantLines = lines.slice(headerEndIndex + 1)
-        if (relevantLines.length === 0) {
-            // Assume it's a pure edit
-            return 'edit'
-        }
-
-        const hasAddition = relevantLines.some(l => l.startsWith('+'))
-        const hasDeletion = relevantLines.some(l => l.startsWith('-'))
-
-        switch (true) {
-            case hasDeletion && hasAddition:
-                return 'edit'
-            case hasDeletion:
-                return 'deleteOnly'
-            case hasAddition:
-                return 'addOnly'
-        }
-    }
-
-    // Shouldn't be here
-    return 'edit'
-}
-
 export function processEditSuggestion(
     unifiedDiff: string,
     triggerPosition: Position,
@@ -446,7 +384,6 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
     }
 }
 
-// TODO: still WIP thus v1 v2, eventually only need one
 export function categorizeUnifieddiffv2(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
     try {
         const d = readUdiff(unifiedDiff)
