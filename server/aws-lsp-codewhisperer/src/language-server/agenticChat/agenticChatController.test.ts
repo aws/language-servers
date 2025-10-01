@@ -3157,7 +3157,7 @@ ${' '.repeat(8)}}
 
                 // Verify fallback to FALLBACK_MODEL_OPTIONS
                 assert.strictEqual(result.tabId, mockTabId)
-                assert.strictEqual(result.models.length, 2) // FALLBACK_MODEL_OPTIONS length
+                assert.strictEqual(result.models.length, 1) // FALLBACK_MODEL_OPTIONS length
 
                 // Verify cache was not updated due to error
                 sinon.assert.notCalled(setCachedModelsStub)
@@ -3224,7 +3224,7 @@ ${' '.repeat(8)}}
 
             it('should fall back to default model when session has no modelId and no defaultModelId in cache', async () => {
                 getCachedModelsStub.returns({
-                    models: [{ id: 'model1', name: 'Model 1' }],
+                    models: [{ id: 'model1', name: 'Model 1', description: 'Test model' }],
                     defaultModelId: undefined, // No default model
                     timestamp: Date.now(),
                 })
