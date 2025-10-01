@@ -38,7 +38,6 @@ type DeferredHandler = {
     reject: (err: Error) => void
 }
 export class ChatSessionService {
-    public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     public modelId: string | undefined
