@@ -1,4 +1,11 @@
-import { MynahIconsType, MynahUI, DetailedListItem, DetailedListItemGroup, MynahIcons } from '@aws/mynah-ui'
+import {
+    MynahIconsType,
+    MynahUI,
+    DetailedListItem,
+    DetailedListItemGroup,
+    MynahIcons,
+    NotificationType,
+} from '@aws/mynah-ui'
 import { Messager } from '../messager'
 import { ListRulesResult } from '@aws/language-server-runtimes-types'
 import { RulesFolder } from '@aws/language-server-runtimes-types'
@@ -82,14 +89,38 @@ export class RulesList {
         // Close the rules list first
         this.rulesList?.close()
 
-        // Use the current tab, the tabId should be the same as the one used for the rules list
-        this.messager.onChatPrompt({
-            prompt: {
-                prompt: 'Generate a Memory Bank for this project',
-                escapedPrompt: 'Generate a Memory Bank for this project',
-            },
-            tabId: this.tabId,
-        })
+        // Check if we're at the tab limit (10 tabs max)
+        const currentTabCount = Object.keys(this.mynahUi.getAllTabs()).length
+        if (currentTabCount >= 10) {
+            // Show notification that max tabs reached
+            this.mynahUi.notify({
+                content: 'You can only open ten conversation tabs at a time.',
+                type: NotificationType.WARNING,
+            })
+            return
+        }
+
+        // Create a new tab for the memory bank generation
+        const newTabId = this.mynahUi.updateStore('', { tabTitle: 'Memory Bank' })
+        if (newTabId) {
+            // Add the new tab and switch to it
+            this.messager.onTabAdd(newTabId)
+
+            // Send the chat prompt to the new tab
+            this.messager.onChatPrompt({
+                prompt: {
+                    prompt: 'Generate a Memory Bank for this project',
+                    escapedPrompt: 'Generate a Memory Bank for this project',
+                },
+                tabId: newTabId,
+            })
+        } else {
+            // Show error notification if tab creation failed
+            this.mynahUi.notify({
+                content: 'Failed to create new tab for Memory Bank generation.',
+                type: NotificationType.ERROR,
+            })
+        }
     }
 
     showLoading(tabId: string) {
