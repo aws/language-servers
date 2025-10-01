@@ -468,6 +468,17 @@ export class AgenticChatController implements ChatHandlers {
      */
     #clearModifiedFilesTracking(tabId: string): void {
         this.#modifiedFilesTracker.delete(tabId)
+
+        // Clear session tool use data to prevent stale diff data
+        const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+        if (sessionResult.success && sessionResult.data) {
+            const session = sessionResult.data
+            // Clear the tool use lookup to prevent showing stale file diff data
+            session.toolUseLookup.clear()
+            // Clear current undo all ID to reset undo state
+            session.currentUndoAllId = undefined
+        }
+
         // Send update asynchronously to prevent blocking
         setTimeout(() => {
             this.#features.chat.sendChatUpdate({
