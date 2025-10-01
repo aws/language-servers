@@ -189,6 +189,8 @@ import {
     DEFAULT_WINDOW_STOP_SHORTCUT,
     COMPACTION_CHARACTER_THRESHOLD,
     MAX_OVERALL_CHARACTERS,
+    FSREAD_MEMORY_BANK_MAX_PER_FILE,
+    FSREAD_MEMORY_BANK_MAX_TOTAL,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -837,9 +839,17 @@ export class AgenticChatController implements ChatHandlers {
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        if (!success) {
+            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
+        }
+
         // Memory Bank Creation Flow - Delegate to MemoryBankController
         if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
             this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
+            session.isMemoryBankGeneration = true
 
             // Store original prompt to prevent data loss on failure
             const originalPrompt = params.prompt.prompt
@@ -921,20 +931,14 @@ export class AgenticChatController implements ChatHandlers {
                 this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
                 // Restore original prompt to ensure no data loss
                 params.prompt.prompt = originalPrompt
+                // Reset memory bank flag since preparation failed
+                session.isMemoryBankGeneration = false
             }
         }
 
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
-        }
-
-        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-
-        const { data: session, success } = sessionResult
-
-        if (!success) {
-            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
 
         const compactIds = session.getAllDeferredCompactMessageIds()
@@ -1930,7 +1934,14 @@ export class AgenticChatController implements ChatHandlers {
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
-                        const tool = new Tool(this.#features)
+                        const tool =
+                            toolUse.name === FS_READ && session.isMemoryBankGeneration
+                                ? new Tool(
+                                      this.#features,
+                                      FSREAD_MEMORY_BANK_MAX_PER_FILE,
+                                      FSREAD_MEMORY_BANK_MAX_TOTAL
+                                  )
+                                : new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
                         // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
@@ -3458,6 +3469,9 @@ export class AgenticChatController implements ChatHandlers {
             },
         })
 
+        // Reset memory bank flag after completion
+        session.isMemoryBankGeneration = false
+
         return chatResultStream.getResult()
     }
 
@@ -3484,6 +3498,12 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         const errorCode = err.code ?? ''
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
+
+        // Reset memory bank flag on request error
+        const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+        if (sessionResult.success) {
+            sessionResult.data.isMemoryBankGeneration = false
+        }
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
