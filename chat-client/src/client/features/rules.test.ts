@@ -16,6 +16,9 @@ describe('rules', () => {
         mynahUi = {
             openTopBarButtonOverlay: sinon.stub(),
             showCustomForm: sinon.stub(),
+            getAllTabs: sinon.stub().returns({}),
+            updateStore: sinon.stub().returns('new-tab-id'),
+            notify: sinon.stub(),
         } as unknown as MynahUI
         openTopBarButtonOverlayStub = mynahUi.openTopBarButtonOverlay as sinon.SinonStub
         showCustomFormStub = mynahUi.showCustomForm as sinon.SinonStub
@@ -23,6 +26,7 @@ describe('rules', () => {
         messager = {
             onRuleClick: sinon.stub(),
             onChatPrompt: sinon.stub(),
+            onTabAdd: sinon.stub(),
         } as unknown as Messager
 
         rulesList = new RulesList(mynahUi, messager)
@@ -151,12 +155,17 @@ describe('rules', () => {
 
             onItemClick(createMemoryBankItem)
 
-            // Should send a chat prompt
+            // Should create new tab and send chat prompt
+            sinon.assert.calledOnce(messager.onTabAdd as sinon.SinonStub)
             sinon.assert.calledOnce(messager.onChatPrompt as sinon.SinonStub)
+
+            const tabAddArgs = (messager.onTabAdd as sinon.SinonStub).getCall(0).args[0]
+            assert.equal(tabAddArgs, 'new-tab-id')
 
             const chatPromptArgs = (messager.onChatPrompt as sinon.SinonStub).getCall(0).args[0]
             assert.equal(chatPromptArgs.prompt.prompt, 'Generate a Memory Bank for this project')
             assert.equal(chatPromptArgs.prompt.escapedPrompt, 'Generate a Memory Bank for this project')
+            assert.equal(chatPromptArgs.tabId, 'new-tab-id')
         })
 
         it('calls messager when regular rule is clicked', () => {
