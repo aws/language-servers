@@ -1,6 +1,6 @@
-import { CodeWhispererCodePercentageEvent } from '../../shared/telemetry/types'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { CodewhispererLanguage } from '../../shared/languageDetection'
+import { CodeWhispererCodePercentageEvent } from '../../../shared/telemetry/types'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
+import { CodewhispererLanguage } from '../../../shared/languageDetection'
 
 const CODE_PERCENTAGE_INTERVAL = 5 * 60 * 1000
 const INSERT_CUTOFF_THRESHOLD = 50
