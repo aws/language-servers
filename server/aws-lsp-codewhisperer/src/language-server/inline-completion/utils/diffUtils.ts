@@ -4,8 +4,8 @@
  */
 
 import * as diff from 'diff'
-import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
-import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
+import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
 
 /**
  * Generates a unified diff format between old and new file contents
