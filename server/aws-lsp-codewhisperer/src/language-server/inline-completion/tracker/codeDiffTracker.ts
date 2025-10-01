@@ -1,8 +1,8 @@
 import { distance } from 'fastest-levenshtein'
 import { Position } from '@aws/language-server-runtimes/server-interface'
-import { Features } from '../types'
-import { getErrorMessage, getUnmodifiedAcceptedTokens } from '../../shared/utils'
-import { CodewhispererLanguage } from '../../shared/languageDetection'
+import { Features } from '../../types'
+import { getErrorMessage, getUnmodifiedAcceptedTokens } from '../../../shared/utils'
+import { CodewhispererLanguage } from '../../../shared/languageDetection'
 
 export interface AcceptedSuggestionEntry {
     fileUrl: string

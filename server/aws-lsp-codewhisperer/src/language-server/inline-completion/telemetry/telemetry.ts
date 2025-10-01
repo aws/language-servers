@@ -1,10 +1,13 @@
 import { Telemetry, IdeDiagnostic } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { CodeWhispererSession, UserTriggerDecision } from './session/sessionManager'
-import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
-import { getCompletionType, isAwsError } from '../../shared/utils'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { SuggestionType } from '../../shared/codeWhispererService'
+import { CodeWhispererSession, UserTriggerDecision } from '../session/sessionManager'
+import {
+    CodeWhispererPerceivedLatencyEvent,
+    CodeWhispererServiceInvocationEvent,
+} from '../../../shared/telemetry/types'
+import { getCompletionType, isAwsError } from '../../../shared/utils'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
+import { SuggestionType } from '../../../shared/codeWhispererService'
 
 export const emitServiceInvocationTelemetry = (
     telemetry: Telemetry,
