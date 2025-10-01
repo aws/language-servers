@@ -13,7 +13,7 @@ import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { ChatMessage, ContextCommand } from '@aws/language-server-runtimes-types'
+import { ChatMessage, ContextCommand, ListAvailableModelsResult } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
 import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
 import { strictEqual } from 'assert'
@@ -555,50 +555,54 @@ describe('MynahUI', () => {
         })
     })
 
-    // describe('listAvailableModels', () => {
-    //     it('should update promptInputOptions with available models', () => {
-    //         const tabId = 'tab-1'
+    describe('listAvailableModels', () => {
+        it('should update promptInputOptions with available models', () => {
+            const tabId = 'tab-1'
 
-    //         // Setup tab data with existing promptInputOptions
-    //         const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
-    //         getTabDataStub.returns({
-    //             getStore: () => ({
-    //                 // @ts-expect-error partial object
-    //                 promptInputOptions: [{ id: 'model-selection', options: [] }],
-    //             }),
-    //         })
+            // Setup tab data with existing promptInputOptions
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions: [{ id: 'model-selection', options: [] }],
+                }),
+            })
 
-    //         // Simulate the response from the server
-    //         const models = [
-    //             { id: 'CLAUDE_3_7_SONNET_20250219_V1_0', name: 'Claude Sonnet 3.7' },
-    //             { id: 'CLAUDE_SONNET_4_20250514_V1_0', name: 'Claude Sonnet 4' },
-    //         ]
+            // Simulate the response from the server
+            const models = [
+                { id: 'CLAUDE_3_7_SONNET_20250219_V1_0', name: 'Claude Sonnet 3.7' },
+                { id: 'CLAUDE_SONNET_4_20250514_V1_0', name: 'Claude Sonnet 4', description: 'Test description' },
+            ]
 
-    //         const result: ListAvailableModelsResult = {
-    //             tabId,
-    //             models,
-    //             selectedModelId: 'CLAUDE_3_7_SONNET_20250219_V1_0',
-    //         }
+            const result: ListAvailableModelsResult = {
+                tabId,
+                models,
+                selectedModelId: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+            }
 
-    //         // Call the listAvailableModels method
-    //         inboundChatApi.listAvailableModels(result)
+            // Call the listAvailableModels method
+            inboundChatApi.listAvailableModels(result)
 
-    //         // Verify updateStore was called with the correct options
-    //         sinon.assert.calledWith(updateStoreSpy, tabId, {
-    //             promptInputOptions: [
-    //                 {
-    //                     id: 'model-selection',
-    //                     options: [
-    //                         { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7' },
-    //                         { value: 'CLAUDE_SONNET_4_20250514_V1_0', label: 'Claude Sonnet 4' },
-    //                     ],
-    //                     type: 'select',
-    //                     value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
-    //                 },
-    //             ],
-    //         })
-    //     })
-    // })
+            // Verify updateStore was called with the correct options
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptInputOptions: [
+                    {
+                        id: 'model-selection',
+                        options: [
+                            { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7', description: '' },
+                            {
+                                value: 'CLAUDE_SONNET_4_20250514_V1_0',
+                                label: 'Claude Sonnet 4',
+                                description: 'Test description',
+                            },
+                        ],
+                        type: 'select',
+                        value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+                    },
+                ],
+            })
+        })
+    })
 
     describe('sendPinnedContext', () => {
         it('should update UI with pinned context items', () => {

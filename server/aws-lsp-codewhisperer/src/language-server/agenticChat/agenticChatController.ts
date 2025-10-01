@@ -763,7 +763,7 @@ export class AgenticChatController implements ChatHandlers {
         const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
 
         // Get the first fallback model option as default
-        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[0]
         const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)

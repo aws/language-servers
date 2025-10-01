@@ -1740,7 +1740,7 @@ ${params.message}`,
                           options: params.models.map(model => ({
                               value: model.id,
                               label: model.name,
-                              description: 'this is a temporary description',
+                              description: model.description ?? '',
                           })),
                           value: params.selectedModelId,
                       }
