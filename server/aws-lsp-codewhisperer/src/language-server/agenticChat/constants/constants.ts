@@ -112,6 +112,16 @@ export const STALLED_STREAM_CHECK_INTERVAL_MS = 1000 // 1 second
 // Request attempt tracking
 export const MAX_REQUEST_ATTEMPTS = 3
 
+// FsRead limits
+export const FSREAD_MAX_PER_FILE = 200_000
+export const FSREAD_MAX_TOTAL = 400_000
+export const FSREAD_MEMORY_BANK_MAX_PER_FILE = 20_000
+export const FSREAD_MEMORY_BANK_MAX_TOTAL = 100_000
+
+// Memory Bank constants
+// Temporarily reduced from recommended 20 to 5 for token optimization
+export const MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING = 5
+
 // shortcut constant
 export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8679; &#8984; &#8629;'
 export const DEFAULT_WINDOW_RUN_SHORTCUT = 'Ctrl + &#8679; + &#8629;'
