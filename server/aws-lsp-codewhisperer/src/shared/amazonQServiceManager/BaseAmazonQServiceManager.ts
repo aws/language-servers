@@ -156,6 +156,17 @@ export abstract class BaseAmazonQServiceManager<
             )
             this.cachedCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
         }
+
+        if (this.cachedStreamingClient) {
+            const shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                'shareCodeWhispererContentWithAWS'
+            )
+            this.logging.debug(
+                'Update shareCodeWhispererContentWithAWS setting on cachedStreamingClient to ' +
+                    shareCodeWhispererContentWithAWS
+            )
+            this.cachedStreamingClient.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+        }
     }
 
     private async notifyDidChangeConfigurationListeners(): Promise<void> {
