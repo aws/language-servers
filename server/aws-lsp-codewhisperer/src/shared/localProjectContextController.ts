@@ -156,9 +156,10 @@ export class LocalProjectContextController {
             }
 
             // initialize vecLib and index if needed
+            const winPrefix = `\\\\?\\`
             const libraryPath1 = this.getVectorLibraryPath()
-            const libraryPath = libraryPath1.startsWith(`\\\\?\\`)
-                ? libraryPath1.substring(`\\\\?\\`.length)
+            const libraryPath = libraryPath1.startsWith(winPrefix)
+                ? libraryPath1.substring(winPrefix.length)
                 : libraryPath1
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
