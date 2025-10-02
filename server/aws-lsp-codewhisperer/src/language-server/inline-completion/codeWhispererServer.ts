@@ -7,7 +7,6 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { getSupportedLanguageId } from '../../shared/languageDetection'
 import { SessionManager } from './session/sessionManager'
-import { mergeSuggestionsWithRightContext, truncateOverlapWithRightContext } from './utils/mergeRightUtils'
 import { CodePercentageTracker } from './tracker/codePercentageTracker'
 import { safeGet } from '../../shared/utils'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
