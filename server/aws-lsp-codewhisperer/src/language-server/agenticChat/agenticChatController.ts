@@ -425,7 +425,11 @@ export class AgenticChatController implements ChatHandlers {
             `[AgenticChatController] Created ${undoButtons.length} undo buttons: ${JSON.stringify(undoButtons.map(b => ({ id: b.id, text: b.text })))}`
         )
 
-        const fileList: FileList & { undoButtons?: Array<{ id: string; text: string; status?: string }> } = {
+        const messageId = session.currentUndoAllId || `modified-files-tracker-${tabId}`
+        const fileList: FileList & {
+            undoButtons?: Array<{ id: string; text: string; status?: string }>
+            messageId?: string
+        } = {
             filePaths,
             details: Object.fromEntries(
                 filePaths.map(filePath => [
@@ -434,7 +438,7 @@ export class AgenticChatController implements ChatHandlers {
                         description: filePath,
                         clickable: true,
                         data: {
-                            messageId: session.currentUndoAllId || 'modified-files-tracker',
+                            messageId,
                             fullPath: filePath,
                         },
                     },
@@ -442,6 +446,7 @@ export class AgenticChatController implements ChatHandlers {
             ),
             rootFolderTitle: 'Modified Files',
             undoButtons,
+            messageId,
         }
 
         const count = modifiedFiles.size

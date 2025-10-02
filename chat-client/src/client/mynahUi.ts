@@ -959,8 +959,15 @@ export const createMynahUi = (
         return imageContextInPrompt + imageContextInPin
     }
 
-    const processUndoButtonsToFileActions = (undoButtons: any[], filePaths: string[]) => {
-        const fileActions: Record<string, any[]> = {}
+    const processUndoButtonsToFileActions = (
+        undoButtons: Array<{ id: string; text?: string; messageId?: string }>,
+        filePaths: string[],
+        messageId?: string
+    ) => {
+        const fileActions: Record<
+            string,
+            Array<{ name: string; label: string; icon: string; status: string; messageId?: string }>
+        > = {}
 
         for (const button of undoButtons) {
             if (button.id && button.id.startsWith('undo-changes-') && button.id !== 'undo-all-changes') {
@@ -975,6 +982,7 @@ export const createMynahUi = (
                                 label: `Undo ${fileName}`,
                                 icon: 'undo',
                                 status: 'clear',
+                                messageId: button.messageId || messageId,
                             },
                         ]
                     }
@@ -1345,7 +1353,8 @@ export const createMynahUi = (
                           modifiedFilesData.fileList.undoButtons?.filter((b: any) => b.id === 'undo-all-changes') || [],
                       actions: processUndoButtonsToFileActions(
                           modifiedFilesData.fileList.undoButtons || [],
-                          modifiedFilesData.fileList.filePaths || []
+                          modifiedFilesData.fileList.filePaths || [],
+                          modifiedFilesData.fileList.messageId
                       ),
                   }
                 : null
