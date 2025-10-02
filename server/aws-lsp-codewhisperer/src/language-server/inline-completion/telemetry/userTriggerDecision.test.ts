@@ -9,17 +9,17 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { CodewhispererServerFactory } from './codeWhispererServer'
+import { CodewhispererServerFactory } from '../codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     ResponseContext,
     Suggestion,
     SuggestionType,
-} from '../../shared/codeWhispererService'
-import { CodeWhispererSession, SessionManager } from './session/sessionManager'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
-import { getNormalizeOsName } from './auto-trigger/autoTrigger'
+} from '../../../shared/codeWhispererService'
+import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../../shared/amazonQServiceManager/testUtils'
+import { getNormalizeOsName } from '../auto-trigger/autoTrigger'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
