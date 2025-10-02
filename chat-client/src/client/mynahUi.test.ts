@@ -597,6 +597,7 @@ describe('MynahUI', () => {
                             },
                         ],
                         type: 'select',
+                        showDescriptionAsTooltip: true,
                         value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
                     },
                 ],

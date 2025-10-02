@@ -1737,6 +1737,7 @@ ${params.message}`,
                     ? {
                           ...option,
                           type: 'select',
+                          showDescriptionAsTooltip: true,
                           options: params.models.map(model => ({
                               value: model.id,
                               label: model.name,
