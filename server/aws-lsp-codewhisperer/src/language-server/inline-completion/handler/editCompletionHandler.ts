@@ -9,7 +9,7 @@ import {
     ResponseError,
     TextDocument,
 } from '@aws/language-server-runtimes/protocol'
-import { RecentEditTracker } from './tracker/codeEditTracker'
+import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { CredentialsProvider, Logging, Telemetry, Workspace } from '@aws/language-server-runtimes/server-interface'
 import {
     CodeWhispererServiceToken,
@@ -17,28 +17,28 @@ import {
     GenerateSuggestionsResponse,
     getFileContext,
     SuggestionType,
-} from '../../shared/codeWhispererService'
-import { CodeWhispererSession, SessionManager } from './session/sessionManager'
-import { CursorTracker } from './tracker/cursorTracker'
-import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
-import { shouldTriggerEdits } from './trigger'
+} from '../../../shared/codeWhispererService'
+import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
+import { CursorTracker } from '../tracker/cursorTracker'
+import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
+import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
+import { shouldTriggerEdits } from '../trigger'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
-} from './telemetry/telemetry'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
+} from '../telemetry/telemetry'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { textUtils } from '@aws/lsp-core'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { RejectedEditTracker } from './tracker/rejectedEditTracker'
-import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
-import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
-import { DocumentChangedListener } from './documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './contants/constants'
-import { StreakTracker } from './tracker/streakTracker'
-import { processEditSuggestion } from './utils/diffUtils'
+import { AmazonQBaseServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
+import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
+import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
+import { DocumentChangedListener } from '../documentChangedListener'
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
+import { StreakTracker } from '../tracker/streakTracker'
+import { processEditSuggestion } from '../utils/diffUtils'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
