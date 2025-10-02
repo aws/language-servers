@@ -156,7 +156,10 @@ export class LocalProjectContextController {
             }
 
             // initialize vecLib and index if needed
-            const libraryPath = this.getVectorLibraryPath()
+            const libraryPath1 = this.getVectorLibraryPath()
+            const libraryPath = libraryPath1.startsWith(`\\\\?\\`)
+                ? libraryPath1.substring(`\\\\?\\`.length)
+                : libraryPath1
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
