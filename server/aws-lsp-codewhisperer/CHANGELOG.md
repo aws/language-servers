@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.84](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.83...lsp-codewhisperer/v0.0.84) (2025-10-03)
+
+
+### Features
+
+* **amazonq:** support JupyterLab conversation history on refresh ([#2325](https://github.com/aws/language-servers/issues/2325)) ([0980351](https://github.com/aws/language-servers/commit/09803514d1ce31ca77a532161e071e1d037e3fb1))
+
+
+### Bug Fixes
+
+* add in-loop compaction ([#2387](https://github.com/aws/language-servers/issues/2387)) ([35f0795](https://github.com/aws/language-servers/commit/35f0795fa5d09f3610e6a29cb72d49f32cc5534e))
+
 ## [0.0.83](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.82...lsp-codewhisperer/v0.0.83) (2025-10-01)
 
 
