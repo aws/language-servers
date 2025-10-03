@@ -48,6 +48,7 @@ import {
 import { EMPTY_RESULT } from '../contants/constants'
 import { IdleWorkspaceManager } from '../../workspaceContext/IdleWorkspaceManager'
 import { mergeSuggestionsWithRightContext } from '../utils/mergeRightUtils'
+import { getTextDocument } from '../utils/textDocumentUtils'
 
 export class InlineCompletionHandler {
     private isOnInlineCompletionHandlerInProgress = false
@@ -67,12 +68,7 @@ export class InlineCompletionHandler {
         private readonly credentialsProvider: CredentialsProvider,
         private readonly getEditsEnabled: () => boolean,
         private readonly getTimeSinceLastUserModification: () => number,
-        private readonly lsp: Lsp,
-        private readonly getTextDocument: (
-            uri: string,
-            workspace: any,
-            logging: any
-        ) => Promise<TextDocument | undefined>
+        private readonly lsp: Lsp
     ) {}
 
     async onInlineCompletion(
@@ -110,7 +106,7 @@ export class InlineCompletionHandler {
             if (this.cursorTracker) {
                 this.cursorTracker.trackPosition(params.textDocument.uri, params.position)
             }
-            const textDocument = await this.getTextDocument(params.textDocument.uri, this.workspace, this.logging)
+            const textDocument = await getTextDocument(params.textDocument.uri, this.workspace, this.logging)
 
             const codeWhispererService = this.amazonQServiceManager.getCodewhispererService()
             const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
