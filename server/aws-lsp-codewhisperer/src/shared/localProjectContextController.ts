@@ -23,8 +23,10 @@ import { getFileExtensionName, listFilesWithGitignore } from './utils'
 
 const LIBRARY_DIR = (() => {
     if (require.main?.filename) {
+        console.log(`debug 1: ${dirname(require.main.filename)}`)
         return path.join(dirname(require.main.filename), 'indexing')
     }
+    console.log(`debug 2: ${__dirname}`)
     return path.join(__dirname, 'indexing')
 })()
 
@@ -156,7 +158,11 @@ export class LocalProjectContextController {
             }
 
             // initialize vecLib and index if needed
-            const libraryPath = this.getVectorLibraryPath()
+            const winPrefix = `\\\\?\\`
+            const libraryPath1 = this.getVectorLibraryPath()
+            const libraryPath = libraryPath1.startsWith(winPrefix)
+                ? libraryPath1.substring(winPrefix.length)
+                : libraryPath1
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
@@ -186,9 +192,11 @@ export class LocalProjectContextController {
             // On Windows, the path must be loaded using a URL.
             // Using the file path directly results in ERR_UNSUPPORTED_ESM_URL_SCHEME
             // More details: https://github.com/nodejs/node/issues/31710
+            this.log.info(`debug 3: ${pathToFileURL(libraryPath).toString()}`)
             return pathToFileURL(libraryPath).toString()
         }
 
+        this.log.info(`debug 4: ${libraryPath}`)
         return libraryPath
     }
 
