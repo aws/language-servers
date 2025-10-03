@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CodeWhispererServer, CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
+import { CodeWhispererServer, CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -2460,54 +2460,6 @@ describe('CodeWhisperer Server', () => {
 
             assert.deepEqual(result, EMPTY_RESULT)
             TestAmazonQServiceManager.resetInstance()
-        })
-    })
-
-    describe('getLanguageIdFromUri', () => {
-        it('should return python for notebook cell URIs', () => {
-            const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'
-            assert.strictEqual(getLanguageIdFromUri(uri), 'python')
-        })
-
-        it('should return abap for files with ABAP extensions', () => {
-            const uris = ['file:///path/to/file.asprog']
-
-            uris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), 'abap')
-            })
-        })
-
-        it('should return empty string for non-ABAP files', () => {
-            const uris = ['file:///path/to/file.js', 'file:///path/to/file.ts', 'file:///path/to/file.py']
-
-            uris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), '')
-            })
-        })
-
-        it('should return empty string for invalid URIs', () => {
-            const invalidUris = ['', 'invalid-uri', 'file:///']
-
-            invalidUris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), '')
-            })
-        })
-
-        it('should log errors when provided with a logging object', () => {
-            const mockLogger = {
-                log: sinon.spy(),
-            }
-
-            const invalidUri = {} as string // Force type error
-            getLanguageIdFromUri(invalidUri, mockLogger)
-
-            sinon.assert.calledOnce(mockLogger.log)
-            sinon.assert.calledWith(mockLogger.log, sinon.match(/Error parsing URI to determine language:.*/))
-        })
-
-        it('should handle URIs without extensions', () => {
-            const uri = 'file:///path/to/file'
-            assert.strictEqual(getLanguageIdFromUri(uri), '')
         })
     })
 
