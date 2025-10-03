@@ -5,7 +5,6 @@ import {
     InlineCompletionWithReferencesParams,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
-import { getSupportedLanguageId } from '../../shared/languageDetection'
 import { SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './tracker/codePercentageTracker'
 import { safeGet } from '../../shared/utils'
@@ -22,7 +21,7 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { StreakTracker } from './tracker/streakTracker'
-import { DocumentChangedListener } from './documentChangedListener'
+import { DocumentEventHandler } from './handler/documentEventHandler'
 import { EditCompletionHandler } from './handler/editCompletionHandler'
 import { InlineCompletionHandler } from './handler/inlineCompletionHandler'
 import { SessionResultsHandler } from './handler/sessionResultsHandler'
@@ -31,7 +30,6 @@ import { isUsingIAMAuth } from '../../shared/utils'
 export const CodewhispererServerFactory =
     (serviceManager: (credentialsProvider?: any) => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
-        let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
         const completionSessionManager = SessionManager.getInstance('COMPLETIONS')
@@ -61,7 +59,7 @@ export const CodewhispererServerFactory =
         const streakTracker = StreakTracker.getInstance()
         let editsEnabled = false
 
-        const documentChangedListener = new DocumentChangedListener()
+        let documentEventHandler: DocumentEventHandler
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
@@ -146,6 +144,18 @@ export const CodewhispererServerFactory =
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
 
+            documentEventHandler = new DocumentEventHandler(
+                workspace,
+                logging,
+                codePercentageTracker,
+                userWrittenCodeTracker,
+                recentEditTracker,
+                cursorTracker,
+                completionSessionManager,
+                amazonQServiceManager,
+                () => editsEnabled
+            )
+
             editCompletionHandler = new EditCompletionHandler(
                 logging,
                 clientParams,
@@ -155,7 +165,7 @@ export const CodewhispererServerFactory =
                 cursorTracker,
                 recentEditTracker,
                 rejectedEditTracker,
-                documentChangedListener,
+                documentEventHandler,
                 telemetry,
                 telemetryService,
                 credentialsProvider
@@ -178,6 +188,8 @@ export const CodewhispererServerFactory =
                 () => timeSinceLastUserModification,
                 lsp
             )
+
+            documentEventHandler.setEditCompletionHandler(editCompletionHandler)
 
             sessionResultsHandler = new SessionResultsHandler(
                 logging,
@@ -209,78 +221,16 @@ export const CodewhispererServerFactory =
         lsp.onInitialized(onInitializedHandler)
 
         lsp.onDidChangeTextDocument(async p => {
-            const textDocument = await workspace.getTextDocument(p.textDocument.uri)
-            const languageId = getSupportedLanguageId(textDocument)
-
-            if (!textDocument || !languageId) {
-                return
-            }
-
-            p.contentChanges.forEach(change => {
-                codePercentageTracker.countTotalTokens(languageId, change.text, false)
-
-                const { sendUserWrittenCodeMetrics } = amazonQServiceManager.getConfiguration()
-                if (!sendUserWrittenCodeMetrics) {
-                    return
-                }
-                // exclude cases that the document change is from Q suggestions
-                const currentSession = completionSessionManager.getCurrentSession()
-                if (
-                    !currentSession?.suggestions.some(
-                        suggestion => suggestion?.insertText && suggestion.insertText === change.text
-                    )
-                ) {
-                    userWrittenCodeTracker?.countUserWrittenTokens(languageId, change.text)
-                }
-            })
-
-            // Record last user modification time for any document
-            if (lastUserModificationTime) {
-                timeSinceLastUserModification = Date.now() - lastUserModificationTime
-            }
-            lastUserModificationTime = Date.now()
-
-            documentChangedListener.onDocumentChanged(p)
-            editCompletionHandler.documentChanged()
-
-            // Process document changes with RecentEditTracker.
-            if (editsEnabled && recentEditTracker) {
-                await recentEditTracker.handleDocumentChange({
-                    uri: p.textDocument.uri,
-                    languageId: textDocument.languageId,
-                    version: textDocument.version,
-                    text: textDocument.getText(),
-                })
-            }
+            await documentEventHandler.onDidChangeTextDocument(p)
+            timeSinceLastUserModification = documentEventHandler.timeSinceLastUserModification
         })
 
         lsp.onDidOpenTextDocument(p => {
-            logging.log(`Document opened: ${p.textDocument.uri}`)
-
-            // Track document opening with RecentEditTracker
-            if (recentEditTracker) {
-                logging.log(`[SERVER] Tracking document open with RecentEditTracker: ${p.textDocument.uri}`)
-                recentEditTracker.handleDocumentOpen({
-                    uri: p.textDocument.uri,
-                    languageId: p.textDocument.languageId,
-                    version: p.textDocument.version,
-                    text: p.textDocument.text,
-                })
-            }
+            documentEventHandler.onDidOpenTextDocument(p)
         })
 
         lsp.onDidCloseTextDocument(p => {
-            logging.log(`Document closed: ${p.textDocument.uri}`)
-
-            // Track document closing with RecentEditTracker
-            if (recentEditTracker) {
-                logging.log(`[SERVER] Tracking document close with RecentEditTracker: ${p.textDocument.uri}`)
-                recentEditTracker.handleDocumentClose(p.textDocument.uri)
-            }
-
-            if (cursorTracker) {
-                cursorTracker.clearHistory(p.textDocument.uri)
-            }
+            documentEventHandler.onDidCloseTextDocument(p)
         })
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
