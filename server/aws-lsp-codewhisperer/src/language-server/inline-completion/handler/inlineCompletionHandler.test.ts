@@ -13,6 +13,7 @@ import { InlineCompletionTriggerKind, CancellationToken } from '@aws/language-se
 import { EMPTY_RESULT } from '../contants/constants'
 import * as IdleWorkspaceManagerModule from '../../workspaceContext/IdleWorkspaceManager'
 import * as telemetryModule from '../telemetry/telemetry'
+import * as textDocumentUtils from '../utils/textDocumentUtils'
 
 describe('InlineCompletionHandler', () => {
     const testDocument = TextDocument.create('file:///test.cs', 'csharp', 1, 'test content')
@@ -37,7 +38,7 @@ describe('InlineCompletionHandler', () => {
     let credentialsProvider: any
     let workspace: any
     let logging: any
-    let getTextDocument: sinon.SinonStub
+    let getTextDocumentStub: sinon.SinonStub
 
     beforeEach(() => {
         SessionManager.reset()
@@ -56,16 +57,16 @@ describe('InlineCompletionHandler', () => {
 
         workspace = { getWorkspaceFolder: sinon.stub() }
         logging = { log: sinon.stub(), debug: sinon.stub() }
-        getTextDocument = sinon.stub().resolves(testDocument)
         lsp = { getClientInitializeParams: sinon.stub() } as any
         telemetry = { emitMetric: sinon.stub() } as any
         credentialsProvider = { getConnectionMetadata: sinon.stub() } as any
 
-        // Stub IdleWorkspaceManager and telemetry functions
+        // Stub IdleWorkspaceManager, telemetry functions, and textDocumentUtils
         sinon.stub(IdleWorkspaceManagerModule.IdleWorkspaceManager, 'recordActivityTimestamp')
         sinon.stub(telemetryModule, 'emitServiceInvocationTelemetry')
         sinon.stub(telemetryModule, 'emitServiceInvocationFailure')
         sinon.stub(telemetryModule, 'emitUserTriggerDecisionTelemetry')
+        getTextDocumentStub = sinon.stub(textDocumentUtils, 'getTextDocument')
 
         handler = new InlineCompletionHandler(
             logging,
@@ -82,8 +83,7 @@ describe('InlineCompletionHandler', () => {
             credentialsProvider,
             () => false,
             () => 1000,
-            lsp,
-            getTextDocument
+            lsp
         )
     })
 
@@ -117,8 +117,7 @@ describe('InlineCompletionHandler', () => {
             { getConnectionMetadata: sinon.stub() } as any,
             () => false,
             () => 1000,
-            { getClientInitializeParams: sinon.stub() } as any,
-            getTextDocument
+            { getClientInitializeParams: sinon.stub() } as any
         )
 
         const result = await handler.onInlineCompletion(completionParams, CancellationToken.None)
@@ -128,7 +127,7 @@ describe('InlineCompletionHandler', () => {
     })
 
     it('should return empty result when text document not found', async () => {
-        getTextDocument.resolves(null)
+        getTextDocumentStub.resolves(null)
 
         const result = await handler.onInlineCompletion(completionParams, CancellationToken.None)
 
@@ -137,7 +136,7 @@ describe('InlineCompletionHandler', () => {
     })
 
     it('should track cursor position when cursor tracker available', async () => {
-        getTextDocument.resolves(null) // Will return early
+        getTextDocumentStub.resolves(null) // Will return early
 
         await handler.onInlineCompletion(completionParams, CancellationToken.None)
 
