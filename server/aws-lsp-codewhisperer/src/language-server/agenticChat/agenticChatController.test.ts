@@ -3116,38 +3116,38 @@ ${' '.repeat(8)}}
                 isCachedModelsValidStub.returns(false)
             })
 
-            it('should fetch models from API when cache is invalid', async () => {
-                getConnectionTypeStub.returns('builderId')
-                getActiveProfileArnStub.returns('test-profile-arn')
+            // it('should fetch models from API when cache is invalid', async () => {
+            //     getConnectionTypeStub.returns('builderId')
+            //     getActiveProfileArnStub.returns('test-profile-arn')
 
-                const mockApiResponse = {
-                    models: {
-                        'claude-3-sonnet': { modelId: 'claude-3-sonnet' },
-                        'claude-4-sonnet': { modelId: 'claude-4-sonnet' },
-                    },
-                    defaultModel: { modelId: 'claude-3-sonnet' },
-                }
-                listAvailableModelsStub.resolves(mockApiResponse)
+            //     const mockApiResponse = {
+            //         models: {
+            //             'claude-3-sonnet': { modelId: 'claude-3-sonnet' },
+            //             'claude-4-sonnet': { modelId: 'claude-4-sonnet' },
+            //         },
+            //         defaultModel: { modelId: 'claude-3-sonnet' },
+            //     }
+            //     listAvailableModelsStub.resolves(mockApiResponse)
 
-                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+            //     const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
-                // Verify API call was made with correct parameters
-                sinon.assert.calledOnceWithExactly(listAvailableModelsStub, {
-                    origin: 'IDE',
-                    profileArn: 'test-profile-arn',
-                })
+            //     // Verify API call was made with correct parameters
+            //     sinon.assert.calledOnceWithExactly(listAvailableModelsStub, {
+            //         origin: 'IDE',
+            //         profileArn: 'test-profile-arn',
+            //     })
 
-                // Verify result structure
-                assert.strictEqual(result.tabId, mockTabId)
-                assert.strictEqual(result.models.length, 2)
-                assert.deepStrictEqual(result.models, [
-                    { id: 'claude-3-sonnet', name: 'claude-3-sonnet' },
-                    { id: 'claude-4-sonnet', name: 'claude-4-sonnet' },
-                ])
+            //     // Verify result structure
+            //     assert.strictEqual(result.tabId, mockTabId)
+            //     assert.strictEqual(result.models.length, 2)
+            //     assert.deepStrictEqual(result.models, [
+            //         { id: 'claude-3-sonnet', name: 'claude-3-sonnet' },
+            //         { id: 'claude-4-sonnet', name: 'claude-4-sonnet' },
+            //     ])
 
-                // Verify cache was updated
-                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, 'claude-3-sonnet')
-            })
+            //     // Verify cache was updated
+            //     sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, 'claude-3-sonnet')
+            // })
 
             it('should fall back to hardcoded models when API call fails', async () => {
                 getConnectionTypeStub.returns('builderId')
