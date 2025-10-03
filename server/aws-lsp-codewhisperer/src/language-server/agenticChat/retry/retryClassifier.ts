@@ -7,6 +7,8 @@ import {
     HTTP_STATUS_INTERNAL_SERVER_ERROR,
     INSUFFICIENT_MODEL_CAPACITY,
     CONTENT_LENGTH_EXCEEDS_THRESHOLD,
+    INVALID_MODEL_ID,
+    MAXIMUM_CHAT_CONTENT_MESSAGE,
 } from '../constants/constants'
 
 export enum RetryAction {
@@ -48,6 +50,8 @@ export class QRetryClassifier {
 
         // Handle non-retryable errors first (matching original + enhanced detection)
         if (
+            error?.name === 'AccessDeniedException' ||
+            error?.name === 'SERVICE_QUOTA_EXCEPTION' ||
             error?.name === 'AbortError' ||
             error?.code === 'RequestAborted' ||
             error?.name === 'RequestAborted' ||
@@ -56,12 +60,20 @@ export class QRetryClassifier {
             return RetryAction.RetryForbidden
         }
 
-        if (error?.reason === CONTENT_LENGTH_EXCEEDS_THRESHOLD || isInputTooLongError(error)) {
+        if (
+            error?.reason === CONTENT_LENGTH_EXCEEDS_THRESHOLD ||
+            isInputTooLongError(error) ||
+            error?.reason === INVALID_MODEL_ID
+        ) {
             return RetryAction.RetryForbidden
         }
 
         // Check for monthly limit error in error object
         if (this.isMonthlyLimitError(error)) {
+            return RetryAction.RetryForbidden
+        }
+
+        if (error?.message === MAXIMUM_CHAT_CONTENT_MESSAGE) {
             return RetryAction.RetryForbidden
         }
 

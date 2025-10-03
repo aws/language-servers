@@ -100,6 +100,9 @@ export const HIGH_LOAD_ERROR_MESSAGE =
     'Encountered unexpectedly high load when processing the request, please try again.'
 export const SERVICE_UNAVAILABLE_EXCEPTION = 'ServiceUnavailableException'
 export const INSUFFICIENT_MODEL_CAPACITY = 'INSUFFICIENT_MODEL_CAPACITY'
+export const INVALID_MODEL_ID = 'INVALID_MODEL_ID'
+export const SERVICE_QUOTA_EXCEPTION = 'ServiceQuotaExceededException'
+export const MAXIMUM_CHAT_CONTENT_MESSAGE = 'Exceeded max chat context length.'
 
 // Delay tracking constants
 export const MINOR_DELAY_THRESHOLD_MS = 2000 // 2 seconds

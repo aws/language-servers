@@ -15,6 +15,24 @@ describe('QRetryClassifier', () => {
     })
 
     describe('classifyRetry', () => {
+        it('should forbid retry for AccessDeniedException', () => {
+            const error = new Error('Access denied')
+            error.name = 'AccessDeniedException'
+
+            const result = classifier.classifyRetry({ error })
+
+            expect(result).to.equal(RetryAction.RetryForbidden)
+        })
+
+        it('should forbid retry for SERVICE_QUOTA_EXCEPTION', () => {
+            const error = new Error('Service quota exceeded')
+            error.name = 'SERVICE_QUOTA_EXCEPTION'
+
+            const result = classifier.classifyRetry({ error })
+
+            expect(result).to.equal(RetryAction.RetryForbidden)
+        })
+
         it('should forbid retry for abort errors', () => {
             const error = new Error('Request aborted')
             error.name = 'AbortError'
@@ -27,6 +45,24 @@ describe('QRetryClassifier', () => {
         it('should forbid retry for input too long errors', () => {
             const error = new Error('input too long')
             ;(error as any).reason = 'CONTENT_LENGTH_EXCEEDS_THRESHOLD'
+
+            const result = classifier.classifyRetry({ error })
+
+            expect(result).to.equal(RetryAction.RetryForbidden)
+        })
+
+        it('should forbid retry for invalid model ID errors', () => {
+            const error = new Error('Invalid model')
+            ;(error as any).reason = 'INVALID_MODEL_ID'
+
+            const result = classifier.classifyRetry({ error })
+
+            expect(result).to.equal(RetryAction.RetryForbidden)
+        })
+
+        it('should forbid retry for maximum chat content message', () => {
+            const error = new Error('Exceeded max chat context length.')
+            error.message = 'Exceeded max chat context length.'
 
             const result = classifier.classifyRetry({ error })
 
