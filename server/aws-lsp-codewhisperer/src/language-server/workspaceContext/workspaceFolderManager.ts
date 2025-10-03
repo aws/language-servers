@@ -834,7 +834,11 @@ export class WorkspaceFolderManager {
                 this.logging.log(`User's administrator opted out server-side workspace context`)
                 optOut = true
             }
-            if (isAwsError(e) && e.code === 'AccessDeniedException' && e.message.includes('Feature is not supported')) {
+            if (
+                isAwsError(e) &&
+                (e as any).code === 'AccessDeniedException' &&
+                e.message.includes('Feature is not supported')
+            ) {
                 featureDisabled = true
             }
         }
@@ -857,7 +861,7 @@ export class WorkspaceFolderManager {
             this.logging.warn(
                 `Error while creating workspace (${workspaceRoot}): ${e.message}. Error is ${e.retryable ? '' : 'not'} retryable}`
             )
-            if (isAwsError(e) && e.code === 'ServiceQuotaExceededException') {
+            if (isAwsError(e) && (e as any).code === 'ServiceQuotaExceededException') {
                 isServiceQuotaExceeded = true
             }
             error = {

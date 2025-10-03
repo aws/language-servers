@@ -52,7 +52,7 @@ export const emitServiceInvocationFailure = (
     error: Error | AWSError
 ) => {
     const duration = new Date().getTime() - session.startTime
-    const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
+    const codewhispererRequestId = isAwsError(error) ? (error as any).requestId : undefined
 
     const data: CodeWhispererServiceInvocationEvent = {
         codewhispererRequestId: codewhispererRequestId,
@@ -82,8 +82,8 @@ export const emitServiceInvocationFailure = (
         data,
         errorData: {
             reason: error.name || 'UnknownError',
-            errorCode: isAwsError(error) ? error.code : undefined,
-            httpStatusCode: isAwsError(error) ? error.statusCode : undefined,
+            errorCode: isAwsError(error) ? (error as any).code : undefined,
+            httpStatusCode: isAwsError(error) ? (error as any).statusCode : undefined,
         },
     })
 }
