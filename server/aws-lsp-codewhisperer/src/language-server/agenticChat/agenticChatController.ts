@@ -724,9 +724,10 @@ export class AgenticChatController implements ChatHandlers {
 
             // Wait for the response to be completed before proceeding
             this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
-            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+            models = Object.values(responseResult.models).map(({ modelId, modelName, description }) => ({
                 id: modelId,
                 name: modelName ?? modelId,
+                description: description ?? '',
             }))
             defaultModelId = responseResult.defaultModel?.modelId
 
@@ -763,7 +764,7 @@ export class AgenticChatController implements ChatHandlers {
         const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
 
         // Get the first fallback model option as default
-        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[0]
         const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
