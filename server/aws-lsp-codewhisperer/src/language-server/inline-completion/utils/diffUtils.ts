@@ -131,88 +131,6 @@ export function generateDiffContexts(
     }
 }
 
-/** src: https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L18
- * Apply a unified diff to original code to generate modified code
- * @param originalCode The original code as a string
- * @param unifiedDiff The unified diff content
- * @returns The modified code after applying the diff
- */
-export function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
-    try {
-        // First try the standard diff package
-        try {
-            const result = diff.applyPatch(docText, unifiedDiff)
-            if (result !== false) {
-                return result
-            }
-        } catch (error) {}
-
-        // Parse the unified diff to extract the changes
-        const diffLines = unifiedDiff.split('\n')
-        let result = docText
-
-        // Find all hunks in the diff
-        const hunkStarts = diffLines
-            .map((line, index) => (line.startsWith('@@ ') ? index : -1))
-            .filter(index => index !== -1)
-
-        // Process each hunk
-        for (const hunkStart of hunkStarts) {
-            // Parse the hunk header
-            const hunkHeader = diffLines[hunkStart]
-            const match = hunkHeader.match(/@@ -(\d+),(\d+) \+(\d+),(\d+) @@/)
-
-            if (!match) {
-                continue
-            }
-
-            const oldStart = parseInt(match[1])
-            const oldLines = parseInt(match[2])
-
-            // Extract the content lines for this hunk
-            let i = hunkStart + 1
-            const contentLines = []
-            while (i < diffLines.length && !diffLines[i].startsWith('@@')) {
-                contentLines.push(diffLines[i])
-                i++
-            }
-
-            // Build the old and new text
-            let oldText = ''
-            let newText = ''
-
-            for (const line of contentLines) {
-                if (line.startsWith('-')) {
-                    oldText += line.substring(1) + '\n'
-                } else if (line.startsWith('+')) {
-                    newText += line.substring(1) + '\n'
-                } else if (line.startsWith(' ')) {
-                    oldText += line.substring(1) + '\n'
-                    newText += line.substring(1) + '\n'
-                }
-            }
-
-            // Remove trailing newline if it was added
-            oldText = oldText.replace(/\n$/, '')
-            newText = newText.replace(/\n$/, '')
-
-            // Find the text to replace in the document
-            const docLines = docText.split('\n')
-            const startLine = oldStart - 1 // Convert to 0-based
-            const endLine = startLine + oldLines
-
-            // Extract the text that should be replaced
-            const textToReplace = docLines.slice(startLine, endLine).join('\n')
-
-            // Replace the text
-            result = result.replace(textToReplace, newText)
-        }
-        return result
-    } catch (error) {
-        return docText // Return original text if all methods fail
-    }
-}
-
 export function getAddedAndDeletedLines(unifiedDiff: string): { addedLines: string[]; deletedLines: string[] } {
     const lines = unifiedDiff.split('\n')
     const addedLines = lines.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1))
@@ -222,48 +140,6 @@ export function getAddedAndDeletedLines(unifiedDiff: string): { addedLines: stri
     return {
         addedLines,
         deletedLines,
-    }
-}
-
-// src https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L147
-export function getAddedAndDeletedChars(unifiedDiff: string): {
-    addedCharacters: string
-    deletedCharacters: string
-} {
-    let addedCharacters = ''
-    let deletedCharacters = ''
-    const lines = unifiedDiff.split('\n')
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-            addedCharacters += line.slice(1)
-        } else if (line.startsWith('-') && !line.startsWith('---')) {
-            const removedLine = line.slice(1)
-
-            // Check if this is a modified line rather than a pure deletion
-            const nextLine = lines[i + 1]
-            if (nextLine && nextLine.startsWith('+') && !nextLine.startsWith('+++')) {
-                // This is a modified line, not a pure deletion
-                // We've already counted the deletion, so we'll just increment i to skip the next line
-                // since we'll process the addition on the next iteration
-                const addedLine = nextLine.slice(1)
-                const changes = diff.diffChars(removedLine, addedLine)
-                for (const part of changes) {
-                    if (part.removed) {
-                        deletedCharacters += part.value
-                    } else if (part.added) {
-                        addedCharacters += part.value
-                    }
-                }
-                i += 1
-            } else {
-                deletedCharacters += removedLine
-            }
-        }
-    }
-    return {
-        addedCharacters,
-        deletedCharacters,
     }
 }
 

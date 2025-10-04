@@ -1,13 +1,13 @@
-import { SessionManager } from './session/sessionManager'
+import { SessionManager } from '../session/sessionManager'
 import { InlineCompletionWithReferencesParams } from '@aws/language-server-runtimes/protocol'
-import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
-import { CursorTracker } from './tracker/cursorTracker'
-import { RecentEditTracker } from './tracker/codeEditTracker'
+import { editPredictionAutoTrigger } from '../auto-trigger/editPredictionAutoTrigger'
+import { CursorTracker } from '../tracker/cursorTracker'
+import { RecentEditTracker } from '../tracker/codeEditTracker'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
     ClientFileContext,
-} from '../../shared/codeWhispererService'
+} from '../../../shared/codeWhispererService'
 
 export class NepTrigger {}
 
