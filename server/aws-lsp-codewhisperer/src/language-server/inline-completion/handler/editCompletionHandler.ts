@@ -35,7 +35,7 @@ import { AmazonQBaseServiceManager } from '../../../shared/amazonQServiceManager
 import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
-import { DocumentChangedListener } from '../documentChangedListener'
+import { DocumentEventHandler } from './documentEventHandler'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
 
@@ -57,7 +57,7 @@ export class EditCompletionHandler {
         readonly cursorTracker: CursorTracker,
         readonly recentEditsTracker: RecentEditTracker,
         readonly rejectedEditTracker: RejectedEditTracker,
-        readonly documentChangedListener: DocumentChangedListener,
+        readonly documentEventHandler: DocumentEventHandler,
         readonly telemetry: Telemetry,
         readonly telemetryService: TelemetryService,
         readonly credentialsProvider: CredentialsProvider
@@ -291,7 +291,7 @@ export class EditCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 currentSession,
-                this.documentChangedListener.timeSinceLastUserModification,
+                this.documentEventHandler.timeSinceLastUserModification,
                 0,
                 0,
                 [],
@@ -363,7 +363,7 @@ export class EditCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 session,
-                this.documentChangedListener.timeSinceLastUserModification,
+                this.documentEventHandler.timeSinceLastUserModification,
                 0,
                 0,
                 [],
@@ -381,7 +381,7 @@ export class EditCompletionHandler {
             await emitEmptyUserTriggerDecisionTelemetry(
                 this.telemetryService,
                 session,
-                this.documentChangedListener.timeSinceLastUserModification,
+                this.documentEventHandler.timeSinceLastUserModification,
                 this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             )
             return EMPTY_RESULT
