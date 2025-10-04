@@ -60,7 +60,7 @@ describe('extractAdditions', function () {
     })
 })
 
-describe('categorizeUnifieddiffv2 should return correct type (addOnly, edit, deleteOnly)', function () {
+describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, deleteOnly)', function () {
     interface Case {
         udiff: string
     }
@@ -209,6 +209,23 @@ describe('categorizeUnifieddiffv2 should return correct type (addOnly, edit, del
  
      async generateSuggestions(request: BaseGenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
          // Cast is now safe because GenerateTokenSuggestionsRequest extends GenerateCompletionsRequest`,
+            },
+            {
+                udiff: `--- file:///Users/atona/workplace/NEP/language-servers/server/aws-lsp-codewhisperer/src/language-server/inline-completion/utils/textDocumentUtils.ts
++++ file:///Users/atona/workplace/NEP/language-servers/server/aws-lsp-codewhisperer/src/language-server/inline-completion/utils/textDocumentUtils.ts
+@@ -15,11 +15,11 @@
+         return ''
+     }
+ }
+ 
+ export const getTextDocument = async (uri: string, workspace: any, logging: any): Promise<TextDocument | undefined> => {
+-    let 
++    if (!textDocument) {
+     if (!textDocument) {
+         try {
+             const content = await workspace.fs.readFile(URI.parse(uri).fsPath)
+             const languageId = getLanguageIdFromUri(uri)
+             textDocument = TextDocument.create(uri, languageId, 0, content)`,
             },
         ]
 

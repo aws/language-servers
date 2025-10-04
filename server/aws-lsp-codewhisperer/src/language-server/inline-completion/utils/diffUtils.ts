@@ -332,6 +332,7 @@ export function processEditSuggestion(
 ): { suggestionContent: string; type: SuggestionType } {
     const diffCategory = categorizeUnifieddiff(unifiedDiff)
     if (diffCategory === 'addOnly') {
+        // TODO: should try...catch
         const udiff = readUdiff(unifiedDiff)
         const preprocessAdd = extractAdditions(unifiedDiff)
         const leftContextAtTriggerLine = document.getText(
@@ -362,8 +363,11 @@ interface UnifiedDiff {
     linesWithoutHeaders: string[]
     firstMinusIndex: number
     firstPlusIndex: number
+    minusIndexes: number[]
+    plusIndexes: number[]
 }
 
+// TODO: refine
 export function readUdiff(unifiedDiff: string): UnifiedDiff {
     const lines = unifiedDiff.split('\n')
     const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
@@ -374,6 +378,18 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
     if (relevantLines.length === 0) {
         throw new Error('not able to parse')
     }
+
+    const minusIndexes: number[] = []
+    const plusIndexes: number[] = []
+    for (let i = 0; i < relevantLines.length; i++) {
+        const l = relevantLines[i]
+        if (l.startsWith('-')) {
+            minusIndexes.push(i)
+        } else if (l.startsWith('+')) {
+            plusIndexes.push(i)
+        }
+    }
+
     const firstMinusIndex = relevantLines.findIndex(s => s.startsWith('-'))
     const firstPlusIndex = relevantLines.findIndex(s => s.startsWith('+'))
 
@@ -381,6 +397,8 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
         linesWithoutHeaders: relevantLines,
         firstMinusIndex: firstMinusIndex,
         firstPlusIndex: firstPlusIndex,
+        minusIndexes: minusIndexes,
+        plusIndexes: plusIndexes,
     }
 }
 
@@ -389,7 +407,7 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
         const d = readUdiff(unifiedDiff)
         const firstMinusIndex = d.firstMinusIndex
         const firstPlusIndex = d.firstPlusIndex
-        const relevantLines = d.linesWithoutHeaders
+        const diffWithoutHeaders = d.linesWithoutHeaders
 
         if (firstMinusIndex === -1 && firstPlusIndex === -1) {
             return 'edit'
@@ -403,32 +421,30 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
             return 'deleteOnly'
         }
 
-        // Usually it's an edit but there is a special case where empty line is deleted and replaced with suggestion.
-        /**
-         *
-         *
-         *  --- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-         *  +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-         *  @@ -3,7 +3,9 @@
-         *      public static int add(int a, int b) {
-         *          return a + b;
-         *      }
-         *
-         *      // write a function to subtract 2 numbers
-         * -
-         * +    public static int subtract(int a, int b) {
-         * +        return a - b;
-         * +    }
-         *  }
-         *
-         *
-         **/
-        // TODO: should refine the logic here more, possibly find the first non-empty minus/plus if possible
-        if (firstMinusIndex + 1 === firstPlusIndex) {
-            const minus = relevantLines[firstMinusIndex].substring(1)
-            const plus = relevantLines[firstPlusIndex].substring(1)
-            const overlap = getPrefixSuffixOverlap(minus, plus)
-            if (overlap.length || (minus.trim().length === 0 && plus.trim().length === 0)) {
+        const minusIndexes = d.minusIndexes
+        const plusIndexes = d.plusIndexes
+
+        // If there are multiple (> 1) non empty '-' lines, it must be edit
+        const c = minusIndexes.reduce((acc: number, cur: number): number => {
+            if (diffWithoutHeaders[cur].trim().length > 0) {
+                return acc++
+            }
+
+            return acc
+        }, 0)
+
+        if (c > 1) {
+            return 'edit'
+        }
+
+        // If last '-' line is followed by '+' block, it could be addonly
+        if (plusIndexes[0] === minusIndexes[minusIndexes.length - 1] + 1) {
+            const minusLine = diffWithoutHeaders[minusIndexes[minusIndexes.length - 1]].substring(1)
+            const pluscode = extractAdditions(unifiedDiff)
+
+            // If minusLine subtract the longest common substring of minusLine and plugcode and it's empty string, it's addonly
+            const commonPrefix = longestCommonPrefix(minusLine, pluscode)
+            if (minusLine.substring(commonPrefix.length).trim().length === 0) {
                 return 'addOnly'
             }
         }
@@ -486,4 +502,19 @@ export function removeOverlapCodeFromSuggestion(code: string, suggestion: string
 
     // Remove overlap s from suggestion
     return suggestion.substring(s.length)
+}
+
+export function longestCommonPrefix(str1: string, str2: string): string {
+    const minLength = Math.min(str1.length, str2.length)
+    let prefix = ''
+
+    for (let i = 0; i < minLength; i++) {
+        if (str1[i] === str2[i]) {
+            prefix += str1[i]
+        } else {
+            break
+        }
+    }
+
+    return prefix
 }
