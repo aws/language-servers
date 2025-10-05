@@ -31,7 +31,7 @@ import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
-export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
+export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none' | 'external_idp'
 
 export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {

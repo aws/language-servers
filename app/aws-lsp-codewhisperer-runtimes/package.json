@@ -23,7 +23,7 @@
         "local-build": "node scripts/local-build.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.127",
+        "@aws/language-server-runtimes": "file:../../../language-server-runtimes/runtimes/out/aws-language-server-runtimes-0.2.128.tgz",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",

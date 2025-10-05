@@ -189,6 +189,7 @@ import {
     DEFAULT_MACOS_STOP_SHORTCUT,
     DEFAULT_WINDOW_STOP_SHORTCUT,
 } from './constants/constants'
+
 import {
     AgenticChatError,
     customerFacingErrorCodes,
@@ -198,6 +199,7 @@ import {
     unactionableErrorCodes,
 } from './errors'
 import { URI } from 'vscode-uri'
+import '../../types/chat-extensions' // Import the type extensions
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
@@ -423,6 +425,10 @@ export class AgenticChatController implements ChatHandlers {
             try {
                 await this.#undoFileChange(toolUseId, session.data)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
+
+                // Send modified-files-tracker update for undo
+                await this.#sendModifiedFilesTrackerUpdate(params.tabId, toolUseId, session.data, 'undone')
+
                 this.#telemetryController.emitInteractWithAgenticChat(
                     'RejectDiff',
                     params.tabId,
@@ -439,7 +445,17 @@ export class AgenticChatController implements ChatHandlers {
             }
         } else if (params.buttonId === BUTTON_UNDO_ALL_CHANGES) {
             const toolUseId = params.messageId.replace(SUFFIX_UNDOALL, '')
+            const toUndo = session.data?.toolUseLookup.get(toolUseId)?.relatedToolUses
+
             await this.#undoAllFileChanges(params.tabId, toolUseId, session.data)
+
+            // Send modified-files-tracker update for undo all
+            if (toUndo) {
+                for (const undoToolUseId of toUndo) {
+                    await this.#sendModifiedFilesTrackerUpdate(params.tabId, undoToolUseId, session.data, 'undone')
+                }
+            }
+
             return {
                 success: true,
             }
@@ -525,6 +541,165 @@ export class AgenticChatController implements ChatHandlers {
                         header: updatedHeader,
                     },
                 ],
+            },
+        })
+    }
+
+    /**
+     * Sends an update to the modified-files-tracker component
+     */
+    async #sendModifiedFilesTrackerUpdate(
+        tabId: string,
+        toolUseId: string,
+        session: ChatSessionService | undefined,
+        status: 'modified' | 'undone' | 'error'
+    ): Promise<void> {
+        const cachedToolUse = session?.toolUseLookup.get(toolUseId)
+        if (!cachedToolUse) {
+            return
+        }
+
+        const input = cachedToolUse.input as unknown as FsWriteParams | FsReplaceParams
+        if (!input?.path) {
+            return
+        }
+
+        const fileName = path.basename(input.path)
+        const oldContent = cachedToolUse.fileChange?.before ?? ''
+        const newContent = cachedToolUse.fileChange?.after ?? ''
+        const changes = cachedToolUse.chatResult?.header?.fileList?.details?.[fileName]?.changes
+
+        if (!changes) {
+            return
+        }
+
+        // Send the update to the modified files tracker UI component (not as a chat message)
+        const modifiedFilesTrackerData = {
+            type: 'modified-files-tracker-data',
+            toolUseId,
+            filePath: input.path,
+            fileName,
+            changes: {
+                added: changes.added ?? 0,
+                deleted: changes.deleted ?? 0,
+            },
+            beforeContent: oldContent,
+            afterContent: newContent,
+            undoAvailable: status === 'modified',
+            relatedToolUses: cachedToolUse.relatedToolUses ? Array.from(cachedToolUse.relatedToolUses) : undefined,
+            status,
+            timestamp: Date.now(),
+            tabId,
+            visible: status !== 'undone',
+        }
+
+        // Create a ChatMessage for the modified-files-tracker component
+        const modifiedFilesTrackerMessage = {
+            type: 'tool' as const,
+            messageId: `modified-files-tracker-update-${toolUseId}`,
+            header: {
+                body: 'Modified Files Tracker',
+                fileList: {
+                    filePaths: status === 'undone' ? [] : [fileName], // Remove from list when undone
+                    details:
+                        status === 'undone'
+                            ? {}
+                            : {
+                                  [fileName]: {
+                                      visibleName: fileName,
+                                      description: input.path,
+                                      changes: {
+                                          added: changes.added ?? 0,
+                                          deleted: changes.deleted ?? 0,
+                                      },
+                                  },
+                              },
+                },
+            },
+            // Store additional data in the body as JSON that the component can parse
+            body: JSON.stringify(modifiedFilesTrackerData),
+        }
+
+        // Send the update through the chat system with both message and TabData
+        this.#features.chat.sendChatUpdate({
+            tabId,
+            data: {
+                messages: [modifiedFilesTrackerMessage],
+                modifiedFilesTracker: {
+                    visible: status !== 'undone',
+                    files: [
+                        {
+                            toolUseId,
+                            filePath: input.path,
+                            fileName,
+                            changes: {
+                                added: changes.added ?? 0,
+                                deleted: changes.deleted ?? 0,
+                            },
+                            status,
+                            timestamp: Date.now(),
+                            undoAvailable: status === 'modified',
+                        },
+                    ],
+                    title: 'Modified Files',
+                    showUndoAll: true,
+                },
+            },
+        })
+    }
+
+    /**
+     * Updates the complete modified files tracker state for a tab
+     */
+    async #updateModifiedFilesTrackerState(tabId: string, session: ChatSessionService | undefined): Promise<void> {
+        if (!session) return
+
+        // Collect all modified files from the session
+        const modifiedFiles: Array<{
+            toolUseId: string
+            filePath: string
+            fileName: string
+            changes: { added: number; deleted: number }
+            status: 'modified' | 'undone' | 'error'
+            timestamp: number
+            undoAvailable: boolean
+        }> = []
+
+        // Iterate through all tool uses to find file modifications
+        for (const [toolUseId, toolUse] of session.toolUseLookup.entries()) {
+            if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && toolUse.chatResult?.header?.fileList) {
+                const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                const fileName = path.basename(input.path)
+                const fileDetails = toolUse.chatResult.header.fileList.details?.[fileName]
+
+                if (fileDetails?.changes) {
+                    modifiedFiles.push({
+                        toolUseId,
+                        filePath: input.path,
+                        fileName,
+                        changes: {
+                            added: fileDetails.changes.added ?? 0,
+                            deleted: fileDetails.changes.deleted ?? 0,
+                        },
+                        status: 'modified', // Could be enhanced to track actual status
+                        timestamp: Date.now(),
+                        undoAvailable: true,
+                    })
+                }
+            }
+        }
+
+        // Send complete state update
+        this.#features.chat.sendChatUpdate({
+            tabId,
+            data: {
+                messages: [], // Required property
+                modifiedFilesTracker: {
+                    visible: modifiedFiles.length > 0,
+                    files: modifiedFiles,
+                    title: `Modified Files (${modifiedFiles.length})`,
+                    showUndoAll: modifiedFiles.length > 1,
+                },
             },
         })
     }
@@ -2070,6 +2245,12 @@ export class AgenticChatController implements ChatHandlers {
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
                             })
                         }
+
+                        // Forward file modification data to custom UI
+                        const fileName = path.basename(input.path)
+                        const oldContent = cachedToolUse?.fileChange?.before ?? ''
+                        const newContent = doc?.getText() ?? ''
+
                         this.#telemetryController.emitInteractWithAgenticChat(
                             'GeneratedDiff',
                             tabId,
@@ -2090,6 +2271,21 @@ export class AgenticChatController implements ChatHandlers {
                             acceptedLineCount
                         )
                         await chatResultStream.writeResultBlock(chatResult)
+
+                        // Send modified files tracker data
+                        const modifiedFilesTrackerMessage = this.#createModifiedFilesTrackerMessage(
+                            toolUse,
+                            input,
+                            session,
+                            tabId
+                        )
+                        if (modifiedFilesTrackerMessage) {
+                            await chatResultStream.writeResultBlock(modifiedFilesTrackerMessage)
+                        }
+
+                        // Update the complete modified files tracker state
+                        await this.#updateModifiedFilesTrackerState(tabId, session)
+
                         break
                     case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
@@ -2256,6 +2452,7 @@ export class AgenticChatController implements ChatHandlers {
                     if (fsParam.path) {
                         const fileName = path.basename(fsParam.path)
                         const customerFacingError = getCustomerFacingErrorMessage(err)
+
                         const errorResult = {
                             type: 'tool',
                             messageId: toolUse.toolUseId,
@@ -2282,6 +2479,41 @@ export class AgenticChatController implements ChatHandlers {
                         } else {
                             await chatResultStream.writeResultBlock(errorResult)
                         }
+
+                        // Send modified-files-tracker error message
+                        const modifiedFilesTrackerErrorMessage = {
+                            type: 'tool' as const,
+                            messageId: `modified-files-tracker-error-${toolUse.toolUseId}`,
+                            header: {
+                                body: 'Modified Files Tracker',
+                                fileList: {
+                                    filePaths: [fileName],
+                                    details: {
+                                        [fileName]: {
+                                            visibleName: fileName,
+                                            description: fsParam.path,
+                                            status: 'error',
+                                        },
+                                    },
+                                },
+                            },
+                            // Store additional data in the body as JSON that the component can parse
+                            body: JSON.stringify({
+                                type: 'modified-files-tracker-data',
+                                toolUseId: toolUse.toolUseId,
+                                filePath: fsParam.path,
+                                fileName,
+                                changes: { added: 0, deleted: 0 },
+                                beforeContent: '',
+                                afterContent: '',
+                                undoAvailable: false,
+                                status: 'error' as const,
+                                timestamp: Date.now(),
+                                error: customerFacingError,
+                                visible: true,
+                            }),
+                        }
+                        await chatResultStream.writeResultBlock(modifiedFilesTrackerErrorMessage)
                     }
                 } else if (toolUse.name === EXECUTE_BASH && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
@@ -3045,6 +3277,69 @@ export class AgenticChatController implements ChatHandlers {
                 },
                 buttons: [{ id: BUTTON_UNDO_CHANGES, text: 'Undo', icon: 'undo' }],
             },
+        }
+    }
+
+    /**
+     * Creates a ChatMessage for the modified-files-tracker component
+     */
+    #createModifiedFilesTrackerMessage(
+        toolUse: ToolUse,
+        input: FsWriteParams | FsReplaceParams,
+        session: ChatSessionService,
+        tabId: string
+    ): ChatMessage | null {
+        const fileName = path.basename(input.path)
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId!)
+        const oldContent = cachedToolUse?.fileChange?.before ?? ''
+        const newContent = cachedToolUse?.fileChange?.after ?? ''
+
+        if (!cachedToolUse?.chatResult?.header?.fileList?.details?.[fileName]?.changes) {
+            return null
+        }
+
+        const changes = cachedToolUse.chatResult.header.fileList.details[fileName].changes!
+
+        // Create a message specifically for the modified-files-tracker component
+        // Use a special messageId prefix that the UI can recognize
+        return {
+            type: 'tool' as const,
+            messageId: `modified-files-tracker-${toolUse.toolUseId}`,
+            header: {
+                body: 'Modified Files Tracker',
+                fileList: {
+                    filePaths: [fileName],
+                    details: {
+                        [fileName]: {
+                            visibleName: fileName,
+                            description: input.path,
+
+                            changes: {
+                                added: changes.added ?? 0,
+                                deleted: changes.deleted ?? 0,
+                            },
+                        },
+                    },
+                },
+            },
+            // Store additional data in the body as JSON that the component can parse
+            body: JSON.stringify({
+                type: 'modified-files-tracker-data',
+                toolUseId: toolUse.toolUseId!,
+                filePath: input.path,
+                fileName,
+                changes: {
+                    added: changes.added ?? 0,
+                    deleted: changes.deleted ?? 0,
+                },
+                beforeContent: oldContent,
+                afterContent: newContent,
+                undoAvailable: true,
+                relatedToolUses: cachedToolUse.relatedToolUses ? Array.from(cachedToolUse.relatedToolUses) : undefined,
+                status: 'modified' as const,
+                timestamp: Date.now(),
+                tabId,
+            }),
         }
     }
 
