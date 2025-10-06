@@ -1737,7 +1737,11 @@ ${params.message}`,
                     ? {
                           ...option,
                           type: 'select',
-                          options: params.models.map(model => ({ value: model.id, label: model.name })),
+                          options: params.models.map(model => ({
+                              value: model.id,
+                              label: model.name,
+                              description: model.description ?? '',
+                          })),
                           value: params.selectedModelId,
                       }
                     : option
