@@ -571,7 +571,7 @@ describe('MynahUI', () => {
             // Simulate the response from the server
             const models = [
                 { id: 'CLAUDE_3_7_SONNET_20250219_V1_0', name: 'Claude Sonnet 3.7' },
-                { id: 'CLAUDE_SONNET_4_20250514_V1_0', name: 'Claude Sonnet 4' },
+                { id: 'CLAUDE_SONNET_4_20250514_V1_0', name: 'Claude Sonnet 4', description: 'Test description' },
             ]
 
             const result: ListAvailableModelsResult = {
@@ -589,8 +589,12 @@ describe('MynahUI', () => {
                     {
                         id: 'model-selection',
                         options: [
-                            { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7' },
-                            { value: 'CLAUDE_SONNET_4_20250514_V1_0', label: 'Claude Sonnet 4' },
+                            { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7', description: '' },
+                            {
+                                value: 'CLAUDE_SONNET_4_20250514_V1_0',
+                                label: 'Claude Sonnet 4',
+                                description: 'Test description',
+                            },
                         ],
                         type: 'select',
                         value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
