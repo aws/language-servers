@@ -163,6 +163,23 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
      }
  }`,
             },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/LRUCache.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/LRUCache.java
+@@ -7,7 +7,11 @@
+     private Map<Integer, Node> map;
+     private DoubleLinkedList list;
+     private int capacity;
+ 
+     // get
+-    public LruCache
++    public LruCache(int capacity) {
++        this.capacity = capacity;
++        map = new HashMap<>();
++        list = new DoubleLinkedList();
++    }
+ }`,
+            },
         ]
 
         for (let i = 0; i < addOnlyCases.length; i++) {
