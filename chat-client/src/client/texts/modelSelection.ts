@@ -5,21 +5,24 @@ import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
  */
 export enum BedrockModel {
     CLAUDE_SONNET_4_20250514_V1_0 = 'CLAUDE_SONNET_4_20250514_V1_0',
-    CLAUDE_3_7_SONNET_20250219_V1_0 = 'CLAUDE_3_7_SONNET_20250219_V1_0',
 }
 
 type ModelDetails = {
     label: string
+    description: string
 }
 
 const modelRecord: Record<BedrockModel, ModelDetails> = {
-    [BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0]: { label: 'Claude 3.7 Sonnet' },
-    [BedrockModel.CLAUDE_SONNET_4_20250514_V1_0]: { label: 'Claude Sonnet 4' },
+    [BedrockModel.CLAUDE_SONNET_4_20250514_V1_0]: {
+        label: 'Claude Sonnet 4',
+        description: 'Hybrid reasoning and coding for regular use',
+    },
 }
 
-const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
+const modelOptions = Object.entries(modelRecord).map(([value, { label, description }]) => ({
     value,
     label,
+    description,
 }))
 
 export const modelSelection: ChatItemFormItem = {
