@@ -3043,8 +3043,8 @@ ${' '.repeat(8)}}
                 isCachedModelsValidStub.returns(true)
                 const cachedData = {
                     models: [
-                        { id: 'model1', name: 'Model 1' },
-                        { id: 'model2', name: 'Model 2' },
+                        { id: 'model1', name: 'Model 1', description: 'Test description 1' },
+                        { id: 'model2', name: 'Model 2', description: 'Test description 2' },
                     ],
                     defaultModelId: 'model1',
                     timestamp: Date.now(),
@@ -3128,8 +3128,16 @@ ${' '.repeat(8)}}
 
                 const mockApiResponse = {
                     models: {
-                        'claude-3-sonnet': { modelId: 'claude-3-sonnet' },
-                        'claude-4-sonnet': { modelId: 'claude-4-sonnet' },
+                        'claude-3-sonnet': {
+                            modelId: 'claude-3-sonnet',
+                            modelName: 'Claude 3 Sonnet',
+                            description: 'Advanced AI model',
+                        },
+                        'claude-4-sonnet': {
+                            modelId: 'claude-4-sonnet',
+                            modelName: 'Claude 4 Sonnet',
+                            description: 'Latest AI model',
+                        },
                     },
                     defaultModel: { modelId: 'claude-3-sonnet' },
                 }
@@ -3147,8 +3155,8 @@ ${' '.repeat(8)}}
                 assert.strictEqual(result.tabId, mockTabId)
                 assert.strictEqual(result.models.length, 2)
                 assert.deepStrictEqual(result.models, [
-                    { id: 'claude-3-sonnet', name: 'claude-3-sonnet' },
-                    { id: 'claude-4-sonnet', name: 'claude-4-sonnet' },
+                    { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', description: 'Advanced AI model' },
+                    { id: 'claude-4-sonnet', name: 'Claude 4 Sonnet', description: 'Latest AI model' },
                 ])
 
                 // Verify cache was updated
@@ -3163,7 +3171,7 @@ ${' '.repeat(8)}}
 
                 // Verify fallback to FALLBACK_MODEL_OPTIONS
                 assert.strictEqual(result.tabId, mockTabId)
-                assert.strictEqual(result.models.length, 2) // FALLBACK_MODEL_OPTIONS length
+                assert.strictEqual(result.models.length, 1) // FALLBACK_MODEL_OPTIONS length
 
                 // Verify cache was not updated due to error
                 sinon.assert.notCalled(setCachedModelsStub)
@@ -3230,7 +3238,7 @@ ${' '.repeat(8)}}
 
             it('should fall back to default model when session has no modelId and no defaultModelId in cache', async () => {
                 getCachedModelsStub.returns({
-                    models: [{ id: 'model1', name: 'Model 1' }],
+                    models: [{ id: 'model1', name: 'Model 1', description: 'Test model' }],
                     defaultModelId: undefined, // No default model
                     timestamp: Date.now(),
                 })
