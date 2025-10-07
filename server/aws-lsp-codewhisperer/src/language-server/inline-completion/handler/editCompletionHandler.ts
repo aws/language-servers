@@ -22,7 +22,7 @@ import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
-import { shouldTriggerEdits } from '../trigger'
+import { shouldTriggerEdits } from '../utils/triggerUtils'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
