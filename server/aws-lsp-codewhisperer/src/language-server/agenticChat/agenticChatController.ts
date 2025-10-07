@@ -2090,6 +2090,9 @@ export class AgenticChatController implements ChatHandlers {
                             acceptedLineCount
                         )
                         await chatResultStream.writeResultBlock(chatResult)
+
+                        // Send modified files data to ModifiedFilesTracker
+                        await this.#getModifiedFilesDataChatResult(toolUse, doc, session, chatResultStream)
                         break
                     case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
@@ -3045,6 +3048,56 @@ export class AgenticChatController implements ChatHandlers {
                 },
                 buttons: [{ id: BUTTON_UNDO_CHANGES, text: 'Undo', icon: 'undo' }],
             },
+        }
+    }
+
+    /**
+     * Creates a chat message for modified files data to be sent to the ModifiedFilesTracker
+     */
+    async #getModifiedFilesDataChatResult(
+        toolUse: ToolUse,
+        doc: TextDocument | undefined,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+        const fileName = path.basename(input.path)
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId!)
+
+        if (cachedToolUse?.fileChange?.before !== undefined) {
+            const oldContent = cachedToolUse.fileChange.before
+            const newContent = doc?.getText() ?? ''
+
+            const diffChanges = diffLines(oldContent, newContent)
+            const changes = diffChanges.reduce(
+                (acc, { count = 0, added, removed }) => {
+                    if (added) {
+                        acc.added += count
+                    } else if (removed) {
+                        acc.deleted += count
+                    }
+                    return acc
+                },
+                { added: 0, deleted: 0 }
+            )
+
+            const modifiedFilesMessage: ChatMessage = {
+                type: 'tool',
+                messageId: `modified-files-${toolUse.toolUseId}`,
+                header: {
+                    fileList: {
+                        filePaths: [fileName],
+                        details: {
+                            [fileName]: {
+                                changes,
+                                description: input.path,
+                            },
+                        },
+                    },
+                },
+            }
+
+            await chatResultStream.writeResultBlock(modifiedFilesMessage)
         }
     }
 
