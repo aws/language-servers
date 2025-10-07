@@ -1,11 +1,14 @@
 import { Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
 import { ServiceException } from '@smithy/smithy-client'
-import { CodeWhispererSession, UserTriggerDecision } from './session/sessionManager'
-import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
-import { getCompletionType, isServiceException, getErrorId } from '../../shared/utils'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { SuggestionType } from '../../shared/codeWhispererService'
+import { CodeWhispererSession, UserTriggerDecision } from '../session/sessionManager'
+import {
+    CodeWhispererPerceivedLatencyEvent,
+    CodeWhispererServiceInvocationEvent,
+} from '../../../shared/telemetry/types'
+import { getCompletionType, isServiceException, getErrorId } from '../../../shared/utils'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
+import { SuggestionType } from '../../../shared/codeWhispererService'
 
 export const emitServiceInvocationTelemetry = (
     telemetry: Telemetry,

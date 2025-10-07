@@ -6,6 +6,7 @@
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { MemoryBankPrompts } from './memoryBankPrompts'
 import { normalizePathFromUri } from '../../tools/mcp/mcpUtils'
+import { MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING } from '../../constants/constants'
 
 const MEMORY_BANK_DIRECTORY = '.amazonq/rules/memory-bank'
 const MEMORY_BANK_FILES = {
@@ -71,7 +72,10 @@ export class MemoryBankController {
             const analysisResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
 
             // Step 3: Make LLM call for file ranking
-            const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(analysisResults.formattedFilesString, 10)
+            const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(
+                analysisResults.formattedFilesString,
+                MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING
+            )
             const rankedFilesResponse = await llmCallFunction(rankingPrompt)
 
             // Step 4: Parse ranked files
@@ -111,7 +115,7 @@ export class MemoryBankController {
                 this.features.logging.warn(
                     `Memory Bank: failed to parse LLM ranking response, using TF-IDF fallback: ${error}`
                 )
-                rankedFilesList = analysisResults.rankedFilesList.slice(0, 10)
+                rankedFilesList = analysisResults.rankedFilesList.slice(0, MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING)
             }
 
             this.features.logging.info(
@@ -477,7 +481,7 @@ export class MemoryBankController {
             // Step 5: Create fallback ranking (deterministic, for when LLM fails)
             const rankedFilesList = filesWithDissimilarity
                 .sort((a, b) => b.dissimilarity - a.dissimilarity)
-                .slice(0, 10)
+                .slice(0, MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING)
                 .map(f => f.path)
 
             return {

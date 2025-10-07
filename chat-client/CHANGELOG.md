@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.38](https://github.com/aws/language-servers/compare/chat-client/v0.1.37...chat-client/v0.1.38) (2025-10-01)
+
+
+### Bug Fixes
+
+* **amazonq:** Fix mock fs clean; Node version upgrade ([#2324](https://github.com/aws/language-servers/issues/2324)) ([1d9afd4](https://github.com/aws/language-servers/commit/1d9afd410e19624223e300ca06ea7d08a112cc82))
+* optimize memory bank token usage and add new tab support ([#2366](https://github.com/aws/language-servers/issues/2366)) ([3057d56](https://github.com/aws/language-servers/commit/3057d56e4a3047d1715d6e3560e9f934d1de469c))
+
 ## [0.1.37](https://github.com/aws/language-servers/compare/chat-client/v0.1.36...chat-client/v0.1.37) (2025-09-24)
 
 
