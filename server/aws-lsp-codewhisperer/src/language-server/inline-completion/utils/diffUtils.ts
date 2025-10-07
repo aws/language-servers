@@ -358,7 +358,7 @@ export function extractAdditions(unifiedDiff: string): string {
         if (line.startsWith('+')) {
             completionSuggestion += line.substring(1) + '\n'
             isInAdditionBlock = true
-        } else if (isInAdditionBlock && line.startsWith(' ')) {
+        } else if (isInAdditionBlock && !line.startsWith('+')) {
             // End of addition block
             isInAdditionBlock = false
         }
