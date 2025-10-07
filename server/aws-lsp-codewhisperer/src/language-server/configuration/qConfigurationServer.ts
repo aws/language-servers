@@ -13,7 +13,7 @@ import {
     getListAllAvailableProfilesHandler,
     ListAllAvailableProfilesHandler,
 } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
-import { Customization } from '@amzn/codewhisperer-runtime'
+import { Customization, Customizations } from '../../client/token/codewhispererbearertokenclient'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
@@ -120,7 +120,7 @@ export const QConfigurationServerToken =
             ): Promise<QConfigurationResponse | void> => {
                 const section = params.section
 
-                let customizations: Customization[] | CustomizationWithMetadata[] = []
+                let customizations: Customizations | CustomizationWithMetadata[] = []
                 let developerProfiles: AmazonQDeveloperProfile[] = []
 
                 try {
@@ -228,22 +228,19 @@ export class ServerConfigurationProvider {
         }
     }
 
-    async listAvailableCustomizations(): Promise<Customization[]> {
+    async listAvailableCustomizations(): Promise<Customizations> {
         try {
             const customizations = (
                 await this.serviceManager.getCodewhispererService().listAvailableCustomizations({ maxResults: 100 })
             ).customizations
 
-            return customizations ?? []
+            return customizations
         } catch (error) {
             throw this.getResponseError(`${ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX}${Q_CUSTOMIZATIONS}`, error)
         }
     }
 
-    async listAvailableCustomizationsForProfileAndRegion(
-        profileArn: string | undefined,
-        region: string
-    ): Promise<Customization[]> {
+    async listAvailableCustomizationsForProfileAndRegion(profileArn: string, region: string): Promise<Customizations> {
         try {
             // Create a new service for the specific region
             const service = this.serviceManager.getServiceFactory()(region, AWS_Q_ENDPOINTS.get(region) || '')
@@ -251,7 +248,7 @@ export class ServerConfigurationProvider {
 
             const customizations = (await service.listAvailableCustomizations({ maxResults: 100 })).customizations
 
-            return customizations ?? []
+            return customizations
         } catch (error) {
             throw this.getResponseError(`${ON_GET_CONFIGURATION_FROM_SERVER_ERROR_PREFIX}${Q_CUSTOMIZATIONS}`, error)
         }
@@ -292,11 +289,11 @@ export class ServerConfigurationProvider {
 
                         return [
                             defaultCustomization,
-                            ...(customizations?.map(customization => ({
+                            ...customizations.map(customization => ({
                                 ...customization,
                                 isDefault: false,
                                 profile: profile,
-                            })) ?? []),
+                            })),
                         ]
                     })
                     .catch(error => {

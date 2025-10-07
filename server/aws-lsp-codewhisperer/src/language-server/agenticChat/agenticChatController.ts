@@ -230,7 +230,7 @@ import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_I
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
-import { UserContext } from '@amzn/codewhisperer-runtime'
+import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
@@ -726,13 +726,11 @@ export class AgenticChatController implements ChatHandlers {
 
             // Wait for the response to be completed before proceeding
             this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
-            if (responseResult.models) {
-                models = Object.values(responseResult.models).map(({ modelId, modelName, description }) => ({
-                    id: modelId ?? 'unknown',
-                    name: modelName ?? modelId ?? 'unknown',
-                    description: description ?? '',
-                }))
-            }
+            models = Object.values(responseResult.models).map(({ modelId, modelName, description }) => ({
+                id: modelId,
+                name: modelName ?? modelId,
+                description: description ?? '',
+            }))
             defaultModelId = responseResult.defaultModel?.modelId
 
             // Cache the models with defaultModelId
@@ -4936,12 +4934,10 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(
-                        feature =>
-                            feature.feature &&
-                            ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
+                    const feature = result.featureEvaluations?.find(feature =>
+                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
-                    if (feature && feature.feature && feature.variation) {
+                    if (feature) {
                         this.#abTestingAllocation = {
                             experimentName: feature.feature,
                             userVariation: feature.variation,

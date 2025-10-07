@@ -10,14 +10,15 @@ import * as path from 'path'
 import * as ScanConstants from './constants'
 
 import {
+    ArtifactMap,
     CreateUploadUrlRequest,
     CreateUploadUrlResponse,
     GetCodeAnalysisRequest,
     ListCodeAnalysisFindingsRequest,
     StartCodeAnalysisRequest,
-} from '@amzn/codewhisperer-runtime'
+} from '../../client/token/codewhispererbearertokenclient'
 import { sleep } from './dependencyGraph/commonUtil'
-import { AggregatedCodeScanIssue, ArtifactMap, RawCodeScanIssue } from './types'
+import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class SecurityScanHandler {
@@ -64,7 +65,7 @@ export class SecurityScanHandler {
         try {
             this.logging.log('Prepare for uploading src context...')
             const response = await this.serviceManager.getCodewhispererService().createUploadUrl(request)
-            this.logging.log(`Request id: ${response.$metadata.requestId}`)
+            this.logging.log(`Request id: ${response.$response.requestId}`)
             this.logging.log(`Complete Getting presigned Url for uploading src context.`)
             this.logging.log(`Uploading src context...`)
             await this.uploadArtifactToS3(zipContent, response)
@@ -98,7 +99,7 @@ export class SecurityScanHandler {
                       'Content-Type': 'application/zip',
                       'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
                   }
-        const response = await got.put(resp.uploadUrl ?? 'invalid-url', {
+        const response = await got.put(resp.uploadUrl, {
             body: zipBuffer,
             headers: resp?.requestHeaders ?? headersObj,
         })
@@ -117,16 +118,16 @@ export class SecurityScanHandler {
         this.logging.log(`Creating scan job...`)
         try {
             const resp = await this.serviceManager.getCodewhispererService().startCodeAnalysis(req)
-            this.logging.log(`Request id: ${resp.$metadata.requestId}`)
+            this.logging.log(`Request id: ${resp.$response.requestId}`)
             return resp
         } catch (error) {
             this.logging.log(`Error while creating scan job: ${error}`)
             throw error
         }
     }
-    async pollScanJobStatus(jobId: string | undefined) {
+    async pollScanJobStatus(jobId: string) {
         this.logging.log(`Polling scan job status...`)
-        let status: string | undefined = 'Pending'
+        let status = 'Pending'
         let timer = 0
         const codeScanJobPollingIntervalSeconds = 1
         const codeScanJobTimeoutSeconds = ScanConstants.standardScanTimeoutMs
@@ -136,7 +137,7 @@ export class SecurityScanHandler {
                 jobId: jobId,
             }
             const resp = await this.serviceManager.getCodewhispererService().getCodeAnalysis(req)
-            this.logging.log(`Request id: ${resp.$metadata.requestId}`)
+            this.logging.log(`Request id: ${resp.$response.requestId}`)
 
             if (resp.status !== 'Pending') {
                 status = resp.status
@@ -155,22 +156,19 @@ export class SecurityScanHandler {
         return status
     }
 
-    async listScanResults(jobId: string | undefined, projectPath: string) {
+    async listScanResults(jobId: string, projectPath: string) {
         const request: ListCodeAnalysisFindingsRequest = {
             jobId,
             codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
         }
         const response = await this.serviceManager.getCodewhispererService().listCodeAnalysisFindings(request)
-        this.logging.log(`Request id: ${response.$metadata.requestId}`)
+        this.logging.log(`Request id: ${response.$response.requestId}`)
 
         const aggregatedCodeScanIssueList = await this.mapToAggregatedList(response.codeAnalysisFindings, projectPath)
         return aggregatedCodeScanIssueList
     }
 
-    async mapToAggregatedList(json: string | undefined, projectPath: string) {
-        if (json === undefined) {
-            return []
-        }
+    async mapToAggregatedList(json: string, projectPath: string) {
         const codeScanIssueMap: Map<string, RawCodeScanIssue[]> = new Map()
         const aggregatedCodeScanIssueList: AggregatedCodeScanIssue[] = []
 

@@ -6,9 +6,9 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { WorkspaceFolder } from 'vscode-languageserver-protocol'
 import { ArtifactManager } from './artifactManager'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { ListWorkspaceMetadataResponse, WorkspaceStatus } from '@amzn/codewhisperer-runtime'
+import { ListWorkspaceMetadataResponse } from '../../client/token/codewhispererbearertokenclient'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
-import { ServiceException } from '@smithy/smithy-client'
+import { AWSError } from 'aws-sdk'
 import { SemanticSearch } from '../agenticChat/tools/workspaceContext/semanticSearch'
 
 describe('WorkspaceFolderManager', () => {
@@ -148,14 +148,15 @@ describe('WorkspaceFolderManager', () => {
                 },
             ]
 
-            const mockError = new ServiceException({
+            // Mock listWorkspaceMetadata to throw AccessDeniedException with feature not supported
+            const mockError: AWSError = {
                 name: 'AccessDeniedException',
                 message: 'Feature is not supported',
-                $fault: 'client',
-                $metadata: {
-                    httpStatusCode: 403,
-                },
-            })
+                code: 'AccessDeniedException',
+                time: new Date(),
+                retryable: false,
+                statusCode: 403,
+            }
 
             mockCodeWhispererService.listWorkspaceMetadata.rejects(mockError)
 
@@ -201,8 +202,7 @@ describe('WorkspaceFolderManager', () => {
                 workspaces: [
                     {
                         workspaceId: 'test-workspace-id',
-                        // TODO: RUNNING does not exist in WorkspaceStatus so we need to use type assertion for now.
-                        workspaceStatus: 'RUNNING' as WorkspaceStatus,
+                        workspaceStatus: 'RUNNING',
                     },
                 ],
             }
@@ -458,14 +458,14 @@ describe('WorkspaceFolderManager', () => {
             sinon.stub(IdleWorkspaceManager, 'isSessionIdle').returns(false)
 
             // Mock listWorkspaceMetadata to throw AccessDeniedException with feature not supported
-            const mockError = new ServiceException({
+            const mockError: AWSError = {
                 name: 'AccessDeniedException',
                 message: 'Feature is not supported',
-                $fault: 'client',
-                $metadata: {
-                    httpStatusCode: 403,
-                },
-            })
+                code: 'AccessDeniedException',
+                time: new Date(),
+                retryable: false,
+                statusCode: 403,
+            }
 
             mockCodeWhispererService.listWorkspaceMetadata.rejects(mockError)
 

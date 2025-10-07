@@ -14,6 +14,8 @@
     },
     "scripts": {
         "compile": "tsc --build",
+        "postcompile": "npm run copyServiceClient",
+        "copyServiceClient": "copyfiles -u 1 --error ./src/client/sigv4/*.json out && copyfiles -u 1 --error ./src/client/token/*.json out",
         "fix": "npm run fix:prettier",
         "fix:prettier": "prettier . --write",
         "lint": "npm run lint:src",
@@ -30,20 +32,18 @@
     },
     "dependencies": {
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
-        "@amzn/codewhisperer": "file:../../core/codewhisperer/amzn-codewhisperer-1.0.0.tgz",
-        "@amzn/codewhisperer-runtime": "file:../../core/codewhisperer-runtime/amzn-codewhisperer-runtime-1.0.0.tgz",
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.57",
-        "@aws/language-server-runtimes": "^0.3.0",
+        "@aws/language-server-runtimes": "^0.2.129",
         "@aws/lsp-core": "^0.0.16",
         "@modelcontextprotocol/sdk": "^1.15.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
         "async-mutex": "^0.5.0",
-        "@aws-sdk/types": "^3.734.0",
+        "aws-sdk": "^2.1403.0",
         "axios": "^1.8.4",
         "chokidar": "^4.0.3",
         "deepmerge": "^4.3.1",
@@ -103,8 +103,6 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
-        "@amzn/codewhisperer",
-        "@amzn/codewhisperer-runtime",
         "@amzn/codewhisperer-streaming",
         "@amzn/amazon-q-developer-streaming-client"
     ]

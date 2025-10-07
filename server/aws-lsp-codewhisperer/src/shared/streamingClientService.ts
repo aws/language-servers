@@ -20,6 +20,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
+import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'

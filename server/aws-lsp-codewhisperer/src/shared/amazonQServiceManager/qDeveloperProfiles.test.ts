@@ -15,7 +15,6 @@ import {
 } from './qDeveloperProfiles'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
 import { AmazonQServiceProfileThrottlingError } from './errors'
-import { ListAvailableProfilesCommandOutput } from '@amzn/codewhisperer-runtime'
 
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'
@@ -50,8 +49,8 @@ describe('ListAllAvailableProfiles Handler', () => {
                 profileName: SOME_Q_DEVELOPER_PROFILE_NAME,
             },
         ],
-        $metadata: {},
-    } satisfies ListAvailableProfilesCommandOutput
+        $response: {} as any,
+    }
 
     beforeEach(() => {
         logging = stubInterface<Logging>()

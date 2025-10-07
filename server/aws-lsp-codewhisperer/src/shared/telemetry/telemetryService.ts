@@ -24,11 +24,8 @@ import {
     InlineChatEvent,
     IdeDiagnostic,
     UserModificationEvent,
-    CompletionType,
-    InlineChatUserDecision,
-    AgenticChatEventStatus,
-} from '@amzn/codewhisperer-runtime'
-import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
+} from '../../client/token/codewhispererbearertokenclient'
+import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
     ChatConversationType,
     ChatHistoryActionEvent,
@@ -153,8 +150,8 @@ export class TelemetryService {
 
     private logSendTelemetryEventFailure(error: any) {
         let requestId: string | undefined
-        if (isServiceException(error)) {
-            requestId = error.$metadata.requestId
+        if (isAwsError(error)) {
+            requestId = error.requestId
         }
 
         this.logging.log(
@@ -183,7 +180,7 @@ export class TelemetryService {
                 request.modelId = this.modelId
             }
             const r = await this.getService().sendTelemetryEvent(request)
-            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$metadata.requestId}`)
+            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$response.requestId}`)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
         }
@@ -247,9 +244,9 @@ export class TelemetryService {
         }
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
-            acceptedSuggestion === undefined || acceptedSuggestion.content?.trim() === ''
+            acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''
                 ? 0
-                : acceptedSuggestion.content?.split('\n').length
+                : acceptedSuggestion.content.split('\n').length
         const referenceCount =
             acceptedSuggestion === undefined
                 ? 0
@@ -271,11 +268,7 @@ export class TelemetryService {
                 languageName: getRuntimeLanguage(session.language),
             },
             completionType:
-                session.suggestions.length > 0
-                    ? getCompletionType(session.suggestions[0]) === 'Line'
-                        ? CompletionType.Line
-                        : CompletionType.Block
-                    : CompletionType.Line,
+                session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
             suggestionState: this.getSuggestionState(userTriggerDecision),
             recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency ?? 0,
             timestamp: new Date(Date.now()),
@@ -648,7 +641,7 @@ export class TelemetryService {
             responseLength: params.responseLength,
             numberOfCodeBlocks: params.numberOfCodeBlocks,
             hasProjectLevelContext: false,
-            result: (params.result?.toUpperCase() ?? AgenticChatEventStatus.Succeeded) as AgenticChatEventStatus,
+            result: params.result?.toUpperCase() ?? 'SUCCEEDED',
         }
         if (params.customizationArn) {
             event.customizationArn = params.customizationArn
@@ -674,7 +667,7 @@ export class TelemetryService {
             numSuggestionDelChars: params.suggestionDeletedChars,
             numSuggestionDelLines: params.suggestionDeletedLines,
             codeIntent: params.codeIntent,
-            userDecision: params.userDecision as InlineChatUserDecision,
+            userDecision: params.userDecision,
             responseStartLatency: params.responseStartLatency,
             responseEndLatency: params.responseEndLatency,
         }
