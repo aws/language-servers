@@ -189,6 +189,10 @@ import {
     DEFAULT_WINDOW_STOP_SHORTCUT,
     COMPACTION_CHARACTER_THRESHOLD,
     MAX_OVERALL_CHARACTERS,
+    FSREAD_MEMORY_BANK_MAX_PER_FILE,
+    FSREAD_MEMORY_BANK_MAX_TOTAL,
+    MID_LOOP_COMPACTION_HANDOFF_PROMPT,
+    COMPACTION_PROMPT,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -723,9 +727,10 @@ export class AgenticChatController implements ChatHandlers {
             // Wait for the response to be completed before proceeding
             this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
             if (responseResult.models) {
-                models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+                models = Object.values(responseResult.models).map(({ modelId, modelName, description }) => ({
                     id: modelId ?? 'unknown',
                     name: modelName ?? modelId ?? 'unknown',
+                    description: description ?? '',
                 }))
             }
             defaultModelId = responseResult.defaultModel?.modelId
@@ -763,7 +768,7 @@ export class AgenticChatController implements ChatHandlers {
         const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
 
         // Get the first fallback model option as default
-        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[0]
         const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
@@ -839,9 +844,17 @@ export class AgenticChatController implements ChatHandlers {
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        if (!success) {
+            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
+        }
+
         // Memory Bank Creation Flow - Delegate to MemoryBankController
         if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
             this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
+            session.isMemoryBankGeneration = true
 
             // Store original prompt to prevent data loss on failure
             const originalPrompt = params.prompt.prompt
@@ -923,6 +936,8 @@ export class AgenticChatController implements ChatHandlers {
                 this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
                 // Restore original prompt to ensure no data loss
                 params.prompt.prompt = originalPrompt
+                // Reset memory bank flag since preparation failed
+                session.isMemoryBankGeneration = false
             }
         }
 
@@ -931,16 +946,13 @@ export class AgenticChatController implements ChatHandlers {
             return maybeDefaultResponse
         }
 
-        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-
-        const { data: session, success } = sessionResult
-
-        if (!success) {
-            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
-        }
-
         const compactIds = session.getAllDeferredCompactMessageIds()
         await this.#invalidateCompactCommand(params.tabId, compactIds)
+        // Set compactionDeclined flag if there were pending compaction requests
+        // This prevents endless compaction warning loops when user declines compaction once
+        if (compactIds.length > 0) {
+            session.compactionDeclined = true
+        }
         session.rejectAllDeferredToolExecutions(new ToolApprovalException('Command ignored: new prompt', false))
         await this.#invalidateAllShellCommands(params.tabId, session)
 
@@ -976,6 +988,10 @@ export class AgenticChatController implements ChatHandlers {
                 session.abortRequest()
                 const compactIds = session.getAllDeferredCompactMessageIds()
                 await this.#invalidateCompactCommand(params.tabId, compactIds)
+                // Set compactionDeclined flag if there were pending compaction requests
+                if (compactIds.length > 0) {
+                    session.compactionDeclined = true
+                }
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
 
@@ -1085,7 +1101,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // Result Handling - This happens only once
-            return await this.#handleFinalResult(
+            const result = await this.#handleFinalResult(
                 finalResult,
                 session,
                 params.tabId,
@@ -1094,6 +1110,13 @@ export class AgenticChatController implements ChatHandlers {
                 isNewConversation,
                 chatResultStream
             )
+
+            // Reset compactionDeclined flag after successful completion
+            if (session.compactionDeclined) {
+                session.compactionDeclined = false
+            }
+
+            return result
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
             // Without this, the `working` indicator never goes away.
@@ -1165,7 +1188,7 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Prepares the initial request input for the chat prompt
      */
-    #getCompactionRequestInput(session: ChatSessionService): ChatCommandInput {
+    #getCompactionRequestInput(session: ChatSessionService, toolResults?: any[]): ChatCommandInput {
         this.#debug('Preparing compaction request input')
         // Get profileArn from the service manager if available
         const profileArn = this.#serviceManager?.getActiveProfileArn()
@@ -1173,7 +1196,8 @@ export class AgenticChatController implements ChatHandlers {
             profileArn,
             this.#getTools(session),
             session.modelId,
-            this.#origin
+            this.#origin,
+            toolResults
         )
         return requestInput
     }
@@ -1181,9 +1205,12 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Runs the compaction, making requests and processing tool uses until completion
      */
-    #shouldCompact(currentRequestCount: number): boolean {
-        if (currentRequestCount > COMPACTION_CHARACTER_THRESHOLD) {
-            this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
+    #shouldCompact(currentRequestCount: number, session: ChatSessionService): boolean {
+        const EFFECTIVE_COMPACTION_THRESHOLD = COMPACTION_CHARACTER_THRESHOLD - COMPACTION_PROMPT.length
+        if (currentRequestCount > EFFECTIVE_COMPACTION_THRESHOLD && !session.compactionDeclined) {
+            this.#debug(
+                `Current request total character count is: ${currentRequestCount}, prompting user to compact (threshold: ${EFFECTIVE_COMPACTION_THRESHOLD})`
+            )
             return true
         } else {
             return false
@@ -1366,6 +1393,10 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestCount = 0
         const pinnedContext = additionalContext?.filter(item => item.pinned)
 
+        // Store initial non-empty prompt for compaction handoff
+        const initialPrompt =
+            initialRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.trim() || ''
+
         metric.recordStart()
         this.logSystemInformation()
         while (true) {
@@ -1430,6 +1461,63 @@ export class AgenticChatController implements ChatHandlers {
             this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
             currentRequestInput = sanitizeRequestInput(currentRequestInput)
+
+            if (this.#shouldCompact(currentRequestCount, session)) {
+                this.#features.logging.info(
+                    `Entering mid-loop compaction at iteration ${iterationCount} with ${currentRequestCount} characters`
+                )
+                this.#telemetryController.emitMidLoopCompaction(
+                    currentRequestCount,
+                    iterationCount,
+                    this.#features.runtime.serverInfo.version ?? ''
+                )
+                const messageId = this.#getMessageIdForCompact(uuid())
+                const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
+                const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
+
+                // Run compaction
+                const toolResults =
+                    currentRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
+                        ?.toolResults || []
+                const compactionRequestInput = this.#getCompactionRequestInput(session, toolResults)
+                const compactionResult = await this.#runCompaction(
+                    compactionRequestInput,
+                    session,
+                    metric,
+                    chatResultStream,
+                    tabId,
+                    promptId,
+                    CompactHistoryActionType.Nudge,
+                    session.conversationId,
+                    token,
+                    documentReference
+                )
+
+                if (!compactionResult.success) {
+                    this.#features.logging.error(`Compaction failed: ${compactionResult.error}`)
+                    return compactionResult
+                }
+
+                // Show compaction summary to user before continuing
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    body:
+                        (compactionResult.data?.chatResult.body || '') +
+                        '\n\nConversation history has been compacted successfully!',
+                    messageId: uuid(),
+                })
+
+                currentRequestInput = this.#updateRequestInputWithToolResults(
+                    currentRequestInput,
+                    [],
+                    MID_LOOP_COMPACTION_HANDOFF_PROMPT + initialPrompt
+                )
+                shouldDisplayMessage = false
+                this.#features.logging.info(`Completed mid-loop compaction, restarting loop with handoff prompt`)
+                continue
+            }
+
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
                 `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
@@ -1658,7 +1746,7 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (this.#shouldCompact(currentRequestCount)) {
+        if (this.#shouldCompact(currentRequestCount, session)) {
             this.#telemetryController.emitCompactNudge(
                 currentRequestCount,
                 this.#features.runtime.serverInfo.version ?? ''
@@ -1932,7 +2020,14 @@ export class AgenticChatController implements ChatHandlers {
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
-                        const tool = new Tool(this.#features)
+                        const tool =
+                            toolUse.name === FS_READ && session.isMemoryBankGeneration
+                                ? new Tool(
+                                      this.#features,
+                                      FSREAD_MEMORY_BANK_MAX_PER_FILE,
+                                      FSREAD_MEMORY_BANK_MAX_TOTAL
+                                  )
+                                : new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
                         // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
@@ -3460,6 +3555,9 @@ export class AgenticChatController implements ChatHandlers {
             },
         })
 
+        // Reset memory bank flag after completion
+        session.isMemoryBankGeneration = false
+
         return chatResultStream.getResult()
     }
 
@@ -3486,6 +3584,12 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         const errorCode = err.code ?? ''
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
+
+        // Reset memory bank flag on request error
+        const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+        if (sessionResult.success) {
+            sessionResult.data.isMemoryBankGeneration = false
+        }
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {

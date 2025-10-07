@@ -18,6 +18,8 @@ export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 // 200K tokens * 3.5 = 700K characters, intentionally overestimating with 3.5:1 ratio
 export const MAX_OVERALL_CHARACTERS = 700_000
 export const COMPACTION_CHARACTER_THRESHOLD = 0.7 * MAX_OVERALL_CHARACTERS
+// TODO: We need to carefully craft a prompt for this supported by the science team
+export const MID_LOOP_COMPACTION_HANDOFF_PROMPT = `CONTEXT HANDOFF: Previous conversation was compacted. Continue with user's request: `
 export const COMPACTION_BODY = (threshold: number) =>
     `The context window is almost full (${threshold}%) and exceeding it will clear your history. Amazon Q can compact your history instead.`
 export const COMPACTION_HEADER_BODY = 'Compact chat history?'
@@ -80,6 +82,16 @@ The summary should have following main sections:
 - **toolUsage1**: Summary of what was done in toolUsage1 and ultimate result
 </example_output>
 `
+
+// FsRead limits
+export const FSREAD_MAX_PER_FILE = 200_000
+export const FSREAD_MAX_TOTAL = 400_000
+export const FSREAD_MEMORY_BANK_MAX_PER_FILE = 20_000
+export const FSREAD_MEMORY_BANK_MAX_TOTAL = 100_000
+
+// Memory Bank constants
+// Temporarily reduced from recommended 20 to 5 for token optimization
+export const MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING = 5
 
 // shortcut constant
 export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8679; &#8984; &#8629;'

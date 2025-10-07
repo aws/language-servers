@@ -20,7 +20,7 @@ import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/codeDiffTracker'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/tracker/codeDiffTracker'
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
@@ -237,6 +237,18 @@ export class ChatTelemetryController {
             name: ChatTelemetryEventName.CompactNudge,
             data: {
                 characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitMidLoopCompaction(characters: number, iterationCount: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MidLoopCompaction,
+            data: {
+                characters,
+                iterationCount,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 languageServerVersion: languageServerVersion,
             },
