@@ -521,7 +521,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 tokenRequest.customizationArn = this.customizationArn
             }
 
-            const beforeApiCall = Date.now()
             // TODO: Should make context log as a dev option, too noisy, comment it out temporarily
             // let recentEditsLogStr = ''
             // const recentEdits = tokenRequest.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
@@ -549,8 +548,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "request.nextToken": ${tokenRequest.nextToken}`
             // "recentEdits": ${recentEditsLogStr}\n`
 
+            const beforeApiCall = performance.now()
             const response = await this.client.generateCompletions(this.withProfileArn(tokenRequest)).promise()
-
+            const apiLatency = performance.now() - beforeApiCall
             const responseContext = {
                 requestId: response?.$response?.requestId,
                 codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
@@ -568,7 +568,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "response.completions.length": ${response.completions?.length ?? 0},
     "response.predictions.length": ${response.predictions?.length ?? 0},
     "predictionType": ${tokenRequest.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
-    "latency": ${Date.now() - beforeApiCall},
+    "latency": ${apiLatency},
     "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
 
