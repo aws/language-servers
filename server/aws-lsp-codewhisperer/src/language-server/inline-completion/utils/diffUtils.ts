@@ -206,7 +206,15 @@ export function processEditSuggestion(
     triggerPosition: Position,
     document: TextDocument
 ): { suggestionContent: string; type: SuggestionType } {
-    const diffCategory = categorizeUnifieddiff(unifiedDiff)
+    // Assume it's an edit if anything goes wrong, at the very least it will not be rendered incorrectly
+    let diffCategory: ReturnType<typeof categorizeUnifieddiff> = 'edit'
+    try {
+        diffCategory = categorizeUnifieddiff(unifiedDiff)
+    } catch (e) {
+        // We dont have logger here....
+        diffCategory = 'edit'
+    }
+
     if (diffCategory === 'addOnly') {
         const preprocessAdd = extractAdditions(unifiedDiff)
         const leftContextAtTriggerLine = document.getText(
