@@ -3095,6 +3095,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     },
                 },
+                buttons: [{ id: BUTTON_UNDO_CHANGES, text: 'Undo', icon: 'undo' }],
             }
 
             await chatResultStream.writeResultBlock(modifiedFilesMessage)
