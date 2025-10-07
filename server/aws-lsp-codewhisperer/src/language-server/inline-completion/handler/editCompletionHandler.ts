@@ -129,7 +129,7 @@ export class EditCompletionHandler {
 
         // Not ideally to rely on a state, should improve it and simply make it a debounced API
         this.isInProgress = true
-        const startPreprocessTimestamp = Date.now()
+        const startPreprocessTimestamp = performance.now()
 
         if (params.partialResultToken && currentSession) {
             // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.

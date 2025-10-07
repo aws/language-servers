@@ -85,12 +85,12 @@ export class CodeWhispererSession {
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     supplementalMetadata?: CodeWhispererSupplementalContext
-    private _timeToFirstRecommendation: number = 0
-    get timeToFirstRecommendation() {
-        return this._timeToFirstRecommendation
+    private _triggerToResponseLatency: number = 0
+    get triggerToResponseLatency() {
+        return this._triggerToResponseLatency
     }
     setTimeToFirstRecommendation() {
-        this._timeToFirstRecommendation = Date.now() - this.startTime
+        this._triggerToResponseLatency = performance.now() - this.startTime
     }
 
     credentialStartUrl?: string
@@ -128,7 +128,7 @@ export class CodeWhispererSession {
         this._state = 'REQUESTING'
         this.startTime = data.startPreprocessTimestamp
         // Current implementation is the session will be created when preprocess is done
-        this._endPreprocessTimestamp = Date.now()
+        this._endPreprocessTimestamp = performance.now()
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -163,7 +163,7 @@ export class CodeWhispererSession {
             }
         }
 
-        this.closeTime = Date.now()
+        this.closeTime = performance.now()
 
         this.state = 'CLOSED'
     }
@@ -178,7 +178,7 @@ export class CodeWhispererSession {
             this.suggestionsStates.set(suggestion.itemId, 'Discard')
         }
 
-        this.closeTime = Date.now()
+        this.closeTime = performance.now()
 
         this.state = 'DISCARD'
     }

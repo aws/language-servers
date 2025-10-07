@@ -100,7 +100,7 @@ describe('TelemetryService', () => {
         },
         acceptedSuggestionId: 'item-id-1',
         firstCompletionDisplayLatency: 100,
-        timeToFirstRecommendation: 200,
+        triggerToResponseLatency: 200,
         getAggregatedUserTriggerDecision: () => 'Accept',
         startPosition: {
             line: 12,

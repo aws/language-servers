@@ -200,7 +200,7 @@ export class TelemetryService {
         removedIdeDiagnostics?: IdeDiagnostic[],
         streakLength?: number
     ) {
-        session.decisionMadeTimestamp = Date.now()
+        session.decisionMadeTimestamp = performance.now()
         // Toolkit telemetry API
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
@@ -227,7 +227,7 @@ export class TelemetryService {
                 codewhispererTimeSinceLastUserDecision: session.previousTriggerDecisionTime
                     ? session.startTime - session.previousTriggerDecisionTime
                     : undefined,
-                codewhispererTimeToFirstRecommendation: session.timeToFirstRecommendation,
+                codewhispererTimeToFirstRecommendation: session.triggerToResponseLatency,
                 codewhispererPreviousSuggestionState: session.previousTriggerDecision,
                 codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
                 codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
@@ -256,7 +256,7 @@ export class TelemetryService {
         const acceptedCharacterCount =
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
-            session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
+            session.triggerType === 'OnDemand' ? session.triggerToResponseLatency : timeSinceLastUserModification
         const isInlineEdit = session.predictionType === SuggestionType.EDIT
 
         // RTS STE API
@@ -270,9 +270,10 @@ export class TelemetryService {
             completionType:
                 session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
             suggestionState: this.getSuggestionState(userTriggerDecision),
+            // TODO: firstCompletionDisplayLatency is directly send from ides (vscode/jb), what's difference against perceivedLatencyMilliseconds?
             recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency ?? 0,
             timestamp: new Date(Date.now()),
-            triggerToResponseLatencyMilliseconds: session.timeToFirstRecommendation,
+            triggerToResponseLatencyMilliseconds: session.triggerToResponseLatency,
             suggestionReferenceCount: referenceCount,
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
