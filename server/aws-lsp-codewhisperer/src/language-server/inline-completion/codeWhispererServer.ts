@@ -236,9 +236,9 @@ export const CodewhispererServerFactory =
 
             // Record last user modification time for any document
             if (lastUserModificationTime) {
-                timeSinceLastUserModification = Date.now() - lastUserModificationTime
+                timeSinceLastUserModification = performance.now() - lastUserModificationTime
             }
-            lastUserModificationTime = Date.now()
+            lastUserModificationTime = performance.now()
 
             documentChangedListener.onDocumentChanged(p)
             editCompletionHandler.documentChanged()
