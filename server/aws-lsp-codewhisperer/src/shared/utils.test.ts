@@ -5,7 +5,7 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { CredentialsProvider, Position, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
-import { ServiceException } from '@smithy/smithy-client'
+import { AWSError } from 'aws-sdk'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
 import * as os from 'os'
@@ -18,6 +18,7 @@ import {
     getUnmodifiedAcceptedTokens,
     isAwsThrottlingError,
     isUsageLimitError,
+    isQuotaExceededError,
     isStringOrNull,
     safeGet,
     getFileExtensionName,
@@ -461,12 +462,12 @@ describe('isAwsThrottlingError', function () {
     })
 
     it('false for non-throttling AWS errors', function () {
-        const nonThrottlingError = new ServiceException({
+        const nonThrottlingError = {
             name: 'AWSError',
             message: 'Not a throttling error',
-            $fault: 'server',
-            $metadata: {},
-        })
+            code: 'SomeOtherError',
+            time: new Date(),
+        } as AWSError
 
         assert.strictEqual(isAwsThrottlingError(nonThrottlingError), false)
     })
@@ -521,6 +522,57 @@ describe('isMonthlyLimitError', function () {
         ;(usageLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
 
         assert.strictEqual(isUsageLimitError(usageLimitError), true)
+    })
+})
+
+describe('isQuotaExceededError', function () {
+    it('false for non-AWS errors', function () {
+        const regularError = new Error('Some error')
+        assert.strictEqual(isQuotaExceededError(regularError), false)
+
+        assert.strictEqual(isQuotaExceededError(undefined), false)
+        assert.strictEqual(isQuotaExceededError(null), false)
+        assert.strictEqual(isQuotaExceededError('error string'), false)
+    })
+
+    it('true for free tier limit errors', function () {
+        const e = new ThrottlingException({
+            message: 'Free tier limit reached',
+            $metadata: {},
+        })
+
+        assert.strictEqual(isQuotaExceededError(e), true)
+    })
+
+    it('true for ServiceQuotaExceededException errors', function () {
+        const e = new ServiceQuotaExceededException({
+            message: 'Service quota exceeded',
+            $metadata: {},
+        })
+
+        assert.strictEqual(isQuotaExceededError(e), true)
+    })
+
+    it('true for specific messages', function () {
+        const reachedForThisMonth = new Error()
+        ;(reachedForThisMonth as any).name = 'ThrottlingException'
+        ;(reachedForThisMonth as any).message = 'You have reached the limit for this month'
+        ;(reachedForThisMonth as any).code = 'ThrottlingException'
+        ;(reachedForThisMonth as any).time = new Date()
+
+        const limitForIterationsError = new ThrottlingException({
+            message: 'You have reached the limit for number of iterations',
+            $metadata: {},
+        })
+
+        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), true)
+        assert.strictEqual(isQuotaExceededError(limitForIterationsError), true)
+
+        // Invalid cases
+        reachedForThisMonth.message = 'some other messsage'
+        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), false)
+        limitForIterationsError.message = 'foo bar'
+        assert.strictEqual(isQuotaExceededError(limitForIterationsError), false)
     })
 })
 

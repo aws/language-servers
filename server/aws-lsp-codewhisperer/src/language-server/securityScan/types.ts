@@ -69,7 +69,3 @@ export interface SecurityScanFindings {
     findingsWithFixes: number
     scannedFiles: string
 }
-
-export type ArtifactMap = {
-    [key: string]: string | undefined
-}

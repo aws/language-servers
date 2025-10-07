@@ -547,17 +547,19 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
-        const customUserAgent = this.getCustomUserAgent()
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
             this.features.logging,
             region,
             endpoint,
-            this.features.sdkInitializator,
-            customUserAgent
+            this.features.sdkInitializator
         )
 
+        const customUserAgent = this.getCustomUserAgent()
+        service.updateClientConfig({
+            customUserAgent: customUserAgent,
+        })
         service.customizationArn = this.configurationCache.getProperty('customizationArn')
         service.profileArn = this.activeIdcProfile?.arn
         service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(

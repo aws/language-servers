@@ -80,7 +80,6 @@ const webworkerConfig = {
             http: 'stream-http',
             crypto: 'crypto-browserify',
             stream: 'stream-browserify',
-            url: require.resolve('url/'),
             fs: path.resolve(__dirname, 'src/mock-fs.js'),
             child_process: false,
             vm: false,

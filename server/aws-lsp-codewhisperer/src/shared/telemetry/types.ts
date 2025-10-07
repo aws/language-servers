@@ -1,4 +1,4 @@
-import { TransformationSpec, TransformationStep } from '@amzn/codewhisperer-runtime'
+import { TransformationSpec, TransformationSteps } from '../../client/token/codewhispererbearertokenclient'
 import { CodewhispererLanguage } from '../languageDetection'
 import { CancellationJobStatus } from '../../language-server/netTransform/models'
 import { UserDecision } from '../../language-server/inline-completion/session/sessionManager'
@@ -144,8 +144,8 @@ export interface SecurityScanEvent {
 
 export interface TransformationJobStartedEvent {
     category: string
-    transformationJobId: string | undefined
-    uploadId: string | undefined
+    transformationJobId: string
+    uploadId: string
     error: string
 }
 
@@ -163,7 +163,7 @@ export interface TransformationJobReceivedEvent {
 export interface TransformationPlanReceivedEvent {
     category: string
     transformationJobId: string
-    transformationSteps: TransformationStep[] | undefined
+    transformationSteps: TransformationSteps
 }
 
 export interface TransformationJobCancelledEvent {

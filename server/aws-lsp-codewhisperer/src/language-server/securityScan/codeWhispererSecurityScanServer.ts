@@ -8,11 +8,12 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { performance } from 'perf_hooks'
 import { pathToFileURL } from 'url'
+import { ArtifactMap } from '../../client/token/codewhispererbearertokenclient'
 import { DependencyGraphFactory } from './dependencyGraph/dependencyGraphFactory'
 import { getSupportedLanguageId, supportedSecurityScanLanguages } from '../../shared/languageDetection'
 import SecurityScanDiagnosticsProvider from './securityScanDiagnosticsProvider'
 import { SecurityScanCancelledError, SecurityScanHandler } from './securityScanHandler'
-import { ArtifactMap, SecurityScanRequestParams, SecurityScanResponse } from './types'
+import { SecurityScanRequestParams, SecurityScanResponse } from './types'
 import { SecurityScanEvent } from '../../shared/telemetry/types'
 import { getErrorMessage, parseJson } from '../../shared/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -37,7 +38,7 @@ export const SecurityScanServerToken =
              */
             logging.log(`Starting security scan`)
             await diagnosticsProvider.resetDiagnostics()
-            let jobStatus: string | undefined
+            let jobStatus: string
             const securityScanStartTime = performance.now()
             let serviceInvocationStartTime = 0
             const securityScanTelemetryEntry: Partial<SecurityScanEvent> = {

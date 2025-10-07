@@ -1,5 +1,5 @@
 import { InitializeParams, Platform, ServerInfo } from '@aws/language-server-runtimes/server-interface'
-import { IdeCategory, OperatingSystem, UserContext } from '@amzn/codewhisperer-runtime'
+import { IdeCategory, UserContext } from '../client/token/codewhispererbearertokenclient'
 
 const USER_AGENT_PREFIX = 'AWS-Language-Servers'
 
@@ -48,38 +48,38 @@ export const getUserAgent = (initializeParams: InitializeParams, serverInfo?: Se
 
 const IDE_CATEGORY_MAP: { [key: string]: IdeCategory } = {
     // TODO: VSCode key needs to change for getting the correct coefficient value for inline
-    'AmazonQ-For-VSCode': IdeCategory.VSCode,
-    'Amazon Q For JetBrains': IdeCategory.JetBrains,
-    'Amazon Q For Eclipse': IdeCategory.Eclipse,
-    'AWS Toolkit For VisualStudio': IdeCategory.VisualStudio,
+    'AmazonQ-For-VSCode': 'VSCODE',
+    'Amazon Q For JetBrains': 'JETBRAINS',
+    'Amazon Q For Eclipse': 'ECLIPSE',
+    'AWS Toolkit For VisualStudio': 'VISUAL_STUDIO',
 }
 
-const mapClientNameToIdeCategory = (clientName: string): IdeCategory | undefined => {
+const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
     return IDE_CATEGORY_MAP[clientName]
 }
 
 // Use InitializeParams.initializationOptions.aws.clientInfo.extension to derive IDE Category from calling client
 // https://github.com/aws/language-server-runtimes/blob/main/runtimes/protocol/lsp.ts#L60-L69
 export const getIdeCategory = (initializeParams: InitializeParams) => {
-    let ideCategory: IdeCategory | undefined
+    let ideCategory
     if (initializeParams.initializationOptions?.aws?.clientInfo?.extension?.name) {
         ideCategory = mapClientNameToIdeCategory(initializeParams.initializationOptions.aws.clientInfo.extension.name)
     }
 
-    return ideCategory
+    return ideCategory || 'UNKNOWN'
 }
 
 // Map result from https://github.com/aws/language-server-runtimes/blob/main/runtimes/server-interface/runtime.ts#L6 to expected Operating system
 const getOperatingSystem = (platform: Platform) => {
     switch (platform) {
         case 'darwin':
-            return OperatingSystem.Mac
+            return 'MAC'
         case 'win32':
-            return OperatingSystem.Windows
+            return 'WINDOWS'
         case 'linux':
-            return OperatingSystem.Linux
+            return 'LINUX'
         default:
-            return undefined
+            return 'UNKNOWN'
     }
 }
 
@@ -107,7 +107,7 @@ export const makeUserContextObject = (
         lspVersion: lspVersion,
     }
 
-    if (userContext.ideCategory === undefined || userContext.operatingSystem === undefined) {
+    if (userContext.ideCategory === 'UNKNOWN' || userContext.operatingSystem === 'UNKNOWN') {
         return
     }
 

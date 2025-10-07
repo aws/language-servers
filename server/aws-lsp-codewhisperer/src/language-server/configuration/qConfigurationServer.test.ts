@@ -251,11 +251,11 @@ describe('ServerConfigurationProvider', () => {
         codeWhispererService = stubInterface<CodeWhispererServiceToken>()
         codeWhispererService.listAvailableCustomizations.resolves({
             customizations: mockCustomizations,
-            $metadata: {},
+            $response: {} as any,
         })
         codeWhispererService.listAvailableProfiles.resolves({
             profiles: [],
-            $metadata: {},
+            $response: {} as any,
         })
 
         testFeatures = new TestFeatures()
@@ -365,14 +365,14 @@ describe('ServerConfigurationProvider', () => {
 
             // Return different customizations for each profile
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[0].arn!, mockProfiles[0].identityDetails!.region)
+                .withArgs(mockProfiles[0].arn, mockProfiles[0].identityDetails!.region)
                 .resolves([
                     { arn: 'customization1', name: 'Customization 1' },
                     { arn: 'customization2', name: 'Customization 2' },
                 ])
 
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[1].arn!, mockProfiles[1].identityDetails!.region)
+                .withArgs(mockProfiles[1].arn, mockProfiles[1].identityDetails!.region)
                 .resolves([{ arn: 'customization3', name: 'Customization 3' }])
 
             const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
@@ -438,11 +438,11 @@ describe('ServerConfigurationProvider', () => {
 
             // Return different customizations for each profile
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[0].arn!, mockProfiles[0].identityDetails!.region)
+                .withArgs(mockProfiles[0].arn, mockProfiles[0].identityDetails!.region)
                 .resolves([])
 
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[1].arn!, mockProfiles[1].identityDetails!.region)
+                .withArgs(mockProfiles[1].arn, mockProfiles[1].identityDetails!.region)
                 .resolves([{ arn: 'customization3', name: 'Customization 3' }])
 
             const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
@@ -509,7 +509,7 @@ describe('ServerConfigurationProvider', () => {
 
             // Return different customizations for each profile
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[0].arn!, mockProfiles[0].identityDetails!.region)
+                .withArgs(mockProfiles[0].arn, mockProfiles[0].identityDetails!.region)
                 .resolves([{ arn: 'customization1', name: 'Customization 1' }])
 
             // Call with provided profiles
@@ -561,12 +561,12 @@ describe('ServerConfigurationProvider', () => {
 
             // First profile succeeds
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[0].arn!, mockProfiles[0].identityDetails!.region)
+                .withArgs(mockProfiles[0].arn, mockProfiles[0].identityDetails!.region)
                 .resolves([{ arn: 'customization1', name: 'Customization 1' }])
 
             // Second profile fails
             listAvailableCustomizationsForProfileAndRegionStub
-                .withArgs(mockProfiles[1].arn!, mockProfiles[1].identityDetails!.region)
+                .withArgs(mockProfiles[1].arn, mockProfiles[1].identityDetails!.region)
                 .rejects(new Error('Failed to fetch customizations'))
 
             const result = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(

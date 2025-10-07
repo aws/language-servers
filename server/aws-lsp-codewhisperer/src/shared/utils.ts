@@ -1,13 +1,16 @@
 import {
+    AwsResponseError,
     BearerCredentials,
     CredentialsProvider,
     Position,
     SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
+import { AWSError, Credentials } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import {
+    BUILDER_ID_START_URL,
     COMMON_GITIGNORE_PATTERNS,
     crashMonitoringDirName,
     driveLetterRegex,
@@ -17,6 +20,7 @@ import {
 import {
     CodeWhispererStreamingServiceException,
     Origin,
+    ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@amzn/codewhisperer-streaming'
@@ -29,11 +33,7 @@ import { InitializeParams } from '@aws/language-server-runtimes/server-interface
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
 import escapeHTML = require('escape-html')
 
-export function isServiceException(error: unknown): error is ServiceException {
-    return error instanceof ServiceException
-}
-
-export function isAwsError(error: unknown): error is Error & { code: string; time: Date } {
+export function isAwsError(error: unknown): error is AWSError {
     if (error === undefined) {
         return false
     }
@@ -53,11 +53,7 @@ export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
     //     return true
     // }
 
-    if (
-        e instanceof ThrottlingException ||
-        (isAwsError(e) && e.code === 'ThrottlingException') ||
-        (isServiceException(e) && e.name === 'ThrottlingException')
-    ) {
+    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
         return true
     }
 
@@ -88,6 +84,38 @@ export function isUsageLimitError(e: unknown): e is ThrottlingException {
     }
 
     if (e.reason == ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT) {
+        return true
+    }
+
+    return false
+}
+
+export function isQuotaExceededError(e: unknown): e is AWSError {
+    if (!e) {
+        return false
+    }
+
+    // From client/token/bearer-token-service.json
+    if (isUsageLimitError(e)) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
+    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "API Front-end will throw Throttling if conversation limit is reached.
+    // API Front-end monitors StartCodeGeneration for throttling"
+    if (
+        isAwsThrottlingError(e) &&
+        (e.message.includes('reached for this month') ||
+            e.message.includes('limit for this month') ||
+            e.message.includes('limit reached') ||
+            e.message.includes('limit for number of iterations'))
+    ) {
         return true
     }
 
@@ -288,9 +316,9 @@ export function isBool(value: unknown): value is boolean {
 }
 
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
-    const nonBlankLines = suggestion.content?.split('\n').filter(line => line.trim() !== '').length
+    const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
 
-    return nonBlankLines && nonBlankLines > 1 ? 'Block' : 'Line'
+    return nonBlankLines > 1 ? 'Block' : 'Line'
 }
 
 export function enabledModelSelection(params: InitializeParams | undefined): boolean {
@@ -422,7 +450,7 @@ export function getUnmodifiedAcceptedTokens(origin: string, after: string) {
     return Math.max(origin.length, after.length) - distance(origin, after)
 }
 
-export function getEndPositionForAcceptedSuggestion(content: string = '', startPosition: Position): Position {
+export function getEndPositionForAcceptedSuggestion(content: string, startPosition: Position): Position {
     const insertedLines = content.split('\n')
     const numberOfInsertedLines = insertedLines.length
 

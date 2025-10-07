@@ -2,8 +2,8 @@ import * as fs from 'fs'
 import { StartTransformRequest, TransformProjectMetadata } from './models'
 import { supportedProjects, unsupportedViewComponents } from './resources/SupportedProjects'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { TransformationJob } from '../../client/token/codewhispererbearertokenclient'
 import { TransformationErrorCode } from './models'
-import { TransformationJob } from '@amzn/codewhisperer-runtime'
 
 /**
  * Project type validation moved to backend service.
