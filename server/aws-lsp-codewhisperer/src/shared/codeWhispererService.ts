@@ -600,7 +600,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
         }
 
-        // Backward compatibility, completions will be returned if predictinoType is not specified (either Completion or Edit)
+        // Backward compatibility, completions will be returned if predictionType is not specified (either Completion or Edit)
         for (const recommendation of apiResponse?.completions ?? []) {
             Object.assign(recommendation, { itemId: this.generateItemId() })
         }
