@@ -208,8 +208,6 @@ export function processEditSuggestion(
 ): { suggestionContent: string; type: SuggestionType } {
     const diffCategory = categorizeUnifieddiff(unifiedDiff)
     if (diffCategory === 'addOnly') {
-        // TODO: should try...catch
-        const udiff = readUdiff(unifiedDiff)
         const preprocessAdd = extractAdditions(unifiedDiff)
         const leftContextAtTriggerLine = document.getText(
             Range.create(Position.create(triggerPosition.line, 0), triggerPosition)

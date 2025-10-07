@@ -8,8 +8,14 @@ import {
 } from './diffUtils'
 
 describe('extractAdditions', function () {
-    it('singleline', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
+    interface Case {
+        udiff: string
+        expected: string
+    }
+
+    const cases: Case[] = [
+        {
+            udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 @@ -1,9 +1,10 @@
  public class MathUtil {
@@ -21,14 +27,11 @@ describe('extractAdditions', function () {
  
      // write a function to subtract 2 numbers
      public static int subtract(int a, int b) {
-         return a - b;`
-
-        const r = extractAdditions(udiff)
-        assert.strictEqual(r, '        return a + b;')
-    })
-
-    it('multiline', function () {
-        const udiff = `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
+         return a - b;`,
+            expected: '        return a + b;',
+        },
+        {
+            udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator/src/main/hello/MathUtil.java
 @@ -1,9 +1,17 @@
  public class MathUtil {
@@ -48,12 +51,8 @@ describe('extractAdditions', function () {
  
      // write a function to subtract 2 numbers
      public static int subtract(int a, int b) {
-         return a - b;`
-
-        const r = extractAdditions(udiff)
-        assert.strictEqual(
-            r,
-            `        if (a > Integer.MAX_VALUE - b){
+         return a - b;`,
+            expected: `        if (a > Integer.MAX_VALUE - b){
             throw new IllegalArgumentException("Overflow!");
         }
         else if (a < Integer.MIN_VALUE - b){
@@ -61,9 +60,20 @@ describe('extractAdditions', function () {
         }
         else{
             return a + b;
-        }`
-        )
-    })
+        }`,
+        },
+    ]
+
+    for (let i = 0; i < cases.length; i++) {
+        it(`case ${i}`, function () {
+            const c = cases[i]
+            const udiff = c.udiff
+            const expected = c.expected
+
+            const actual = extractAdditions(udiff)
+            assert.strictEqual(actual, expected)
+        })
+    }
 })
 
 describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, deleteOnly)', function () {
