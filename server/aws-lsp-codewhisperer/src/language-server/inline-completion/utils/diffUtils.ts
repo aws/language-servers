@@ -1,0 +1,402 @@
+/*!
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import * as diff from 'diff'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
+import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
+import { Position, TextDocument, Range } from '@aws/language-server-runtimes/protocol'
+import { SuggestionType } from '../../../shared/codeWhispererService'
+import { getPrefixSuffixOverlap } from './mergeRightUtils'
+
+/**
+ * Generates a unified diff format between old and new file contents
+ *
+ * @param oldFilePath - Path to the old version of the file
+ * @param newFilePath - Path to the new version of the file
+ * @param oldContent - Content of the old version
+ * @param newContent - Content of the new version
+ * @param oldTimestamp - Timestamp of the old version
+ * @param newTimestamp - Timestamp of the new version
+ * @param contextSize - Number of context lines to include in the diff
+ * @returns Unified diff string
+ */
+export function generateUnifiedDiffWithTimestamps(
+    oldFilePath: string,
+    newFilePath: string,
+    oldContent: string,
+    newContent: string,
+    oldTimestamp: number,
+    newTimestamp: number,
+    contextSize: number = 3
+): string {
+    const patchResult = diff.createTwoFilesPatch(
+        oldFilePath,
+        newFilePath,
+        oldContent,
+        newContent,
+        String(oldTimestamp),
+        String(newTimestamp),
+        { context: contextSize }
+    )
+
+    // Remove unused headers
+    const lines = patchResult.split('\n')
+    if (lines.length >= 2 && lines[0].startsWith('Index:')) {
+        lines.splice(0, 2)
+        return lines.join('\n')
+    }
+
+    return patchResult
+}
+
+/**
+ * Represents a snapshot content of a file at a specific point in time
+ */
+export interface FileSnapshotContent {
+    /** URI of the file */
+    readonly filePath: string
+    /** Content of the file */
+    readonly content: string
+    /** Timestamp when the snapshot was taken */
+    readonly timestamp: number
+}
+
+/**
+ * Generates supplemental contexts from snapshot contents and current content
+ *
+ * @param filePath - Path to the file
+ * @param currentContent - Current content of the file
+ * @param snapshotContents - List of snapshot contents sorted by timestamp (oldest first)
+ * @param maxContexts - Maximum number of supplemental contexts to return
+ * @returns CodeWhispererSupplementalContext object containing diffs between snapshots and current content
+ */
+export function generateDiffContexts(
+    filePath: string,
+    currentContent: string,
+    snapshotContents: FileSnapshotContent[],
+    maxContexts: number
+): CodeWhispererSupplementalContext {
+    if (snapshotContents.length === 0) {
+        return {
+            isUtg: false,
+            isProcessTimeout: false,
+            supplementalContextItems: [],
+            contentsLength: 0,
+            latency: 0,
+            strategy: 'recentEdits',
+        }
+    }
+
+    const startTime = Date.now()
+    const supplementalContextItems: CodeWhispererSupplementalContextItem[] = []
+    const currentTimestamp = Date.now()
+
+    // Process snapshots from newest to oldest
+    for (let i = snapshotContents.length - 1; i >= 0; i--) {
+        const snapshot = snapshotContents[i]
+        try {
+            const unifiedDiff = generateUnifiedDiffWithTimestamps(
+                snapshot.filePath,
+                filePath,
+                snapshot.content,
+                currentContent,
+                snapshot.timestamp,
+                currentTimestamp
+            )
+
+            // Only add non-empty diffs
+            if (unifiedDiff.trim().length > 0) {
+                supplementalContextItems.push({
+                    filePath: snapshot.filePath,
+                    content: unifiedDiff,
+                    score: 1.0, // Default score for recent edits
+                })
+            }
+        } catch (err) {
+            // TODO: logging
+            // console.error(`Failed to generate diff: ${err}`)
+        }
+    }
+
+    const trimmedContextItems = trimSupplementalContexts(supplementalContextItems, maxContexts)
+    const contentsLength = trimmedContextItems.reduce((sum, ctx) => sum + ctx.content.length, 0)
+    const latency = Date.now() - startTime
+
+    return {
+        isUtg: false,
+        isProcessTimeout: false,
+        supplementalContextItems: trimmedContextItems,
+        contentsLength,
+        latency,
+        strategy: 'recentEdits',
+    }
+}
+
+export function getAddedAndDeletedLines(unifiedDiff: string): { addedLines: string[]; deletedLines: string[] } {
+    const lines = unifiedDiff.split('\n')
+    const addedLines = lines.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1))
+    const deletedLines = lines
+        .filter(line => line.startsWith('-') && !line.startsWith('---'))
+        .map(line => line.slice(1))
+    return {
+        addedLines,
+        deletedLines,
+    }
+}
+
+/**
+ * Calculate character differences between added and deleted text blocks using LCS
+ */
+export interface CharDiffResult {
+    charactersAdded: number
+    charactersRemoved: number
+}
+
+/**
+ * Find longest common subsequence length between two strings
+ */
+function lcsLength(str1: string, str2: string): number[][] {
+    const m = str1.length
+    const n = str2.length
+    const dp = Array(m + 1)
+        .fill(null)
+        .map(() => Array(n + 1).fill(0))
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (str1[i - 1] === str2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+            }
+        }
+    }
+
+    return dp
+}
+
+/**
+ * Calculate character differences between added and deleted blocks
+ */
+export function getCharacterDifferences(addedLines: string[], deletedLines: string[]): CharDiffResult {
+    const addedText = addedLines.join('\n')
+    const deletedText = deletedLines.join('\n')
+
+    if (addedText.length === 0) {
+        return { charactersAdded: 0, charactersRemoved: deletedText.length }
+    }
+
+    if (deletedText.length === 0) {
+        return { charactersAdded: addedText.length, charactersRemoved: 0 }
+    }
+
+    const lcsTable = lcsLength(deletedText, addedText)
+    const lcsLen = lcsTable[deletedText.length][addedText.length]
+
+    return {
+        charactersAdded: addedText.length - lcsLen,
+        charactersRemoved: deletedText.length - lcsLen,
+    }
+}
+
+export function processEditSuggestion(
+    unifiedDiff: string,
+    triggerPosition: Position,
+    document: TextDocument
+): { suggestionContent: string; type: SuggestionType } {
+    // Assume it's an edit if anything goes wrong, at the very least it will not be rendered incorrectly
+    let diffCategory: ReturnType<typeof categorizeUnifieddiff> = 'edit'
+    try {
+        diffCategory = categorizeUnifieddiff(unifiedDiff)
+    } catch (e) {
+        // We dont have logger here....
+        diffCategory = 'edit'
+    }
+
+    if (diffCategory === 'addOnly') {
+        const preprocessAdd = extractAdditions(unifiedDiff)
+        const leftContextAtTriggerLine = document.getText(
+            Range.create(Position.create(triggerPosition.line, 0), triggerPosition)
+        )
+        /**
+         * SHOULD NOT remove the entire overlapping string, the way inline suggestion prefix matching work depends on where it triggers
+         * For example (^ note where user triggers)
+         * console.lo
+         *        ^
+         * if LSP returns `g('foo')` instead of `.log()` the suggestion will be discarded because prefix doesnt match
+         */
+        const processedAdd = removeOverlapCodeFromSuggestion(leftContextAtTriggerLine, preprocessAdd)
+        return {
+            suggestionContent: processedAdd,
+            type: SuggestionType.COMPLETION,
+        }
+    } else {
+        return {
+            suggestionContent: unifiedDiff,
+            type: SuggestionType.EDIT,
+        }
+    }
+}
+
+// TODO: MAKE it a class and abstract all the business parsing logic within the classsssss so we dont need to redo the same thing again and again
+interface UnifiedDiff {
+    linesWithoutHeaders: string[]
+    firstMinusIndex: number
+    firstPlusIndex: number
+    minusIndexes: number[]
+    plusIndexes: number[]
+}
+
+// TODO: refine
+export function readUdiff(unifiedDiff: string): UnifiedDiff {
+    const lines = unifiedDiff.split('\n')
+    const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
+    if (headerEndIndex === -1) {
+        throw new Error('not able to parse')
+    }
+    const relevantLines = lines.slice(headerEndIndex + 1)
+    if (relevantLines.length === 0) {
+        throw new Error('not able to parse')
+    }
+
+    const minusIndexes: number[] = []
+    const plusIndexes: number[] = []
+    for (let i = 0; i < relevantLines.length; i++) {
+        const l = relevantLines[i]
+        if (l.startsWith('-')) {
+            minusIndexes.push(i)
+        } else if (l.startsWith('+')) {
+            plusIndexes.push(i)
+        }
+    }
+
+    const firstMinusIndex = relevantLines.findIndex(s => s.startsWith('-'))
+    const firstPlusIndex = relevantLines.findIndex(s => s.startsWith('+'))
+
+    return {
+        linesWithoutHeaders: relevantLines,
+        firstMinusIndex: firstMinusIndex,
+        firstPlusIndex: firstPlusIndex,
+        minusIndexes: minusIndexes,
+        plusIndexes: plusIndexes,
+    }
+}
+
+export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
+    try {
+        const d = readUdiff(unifiedDiff)
+        const firstMinusIndex = d.firstMinusIndex
+        const firstPlusIndex = d.firstPlusIndex
+        const diffWithoutHeaders = d.linesWithoutHeaders
+
+        if (firstMinusIndex === -1 && firstPlusIndex === -1) {
+            return 'edit'
+        }
+
+        if (firstMinusIndex === -1 && firstPlusIndex !== -1) {
+            return 'addOnly'
+        }
+
+        if (firstMinusIndex !== -1 && firstPlusIndex === -1) {
+            return 'deleteOnly'
+        }
+
+        const minusIndexes = d.minusIndexes
+        const plusIndexes = d.plusIndexes
+
+        // If there are multiple (> 1) non empty '-' lines, it must be edit
+        const c = minusIndexes.reduce((acc: number, cur: number): number => {
+            if (diffWithoutHeaders[cur].trim().length > 0) {
+                return acc++
+            }
+
+            return acc
+        }, 0)
+
+        if (c > 1) {
+            return 'edit'
+        }
+
+        // If last '-' line is followed by '+' block, it could be addonly
+        if (plusIndexes[0] === minusIndexes[minusIndexes.length - 1] + 1) {
+            const minusLine = diffWithoutHeaders[minusIndexes[minusIndexes.length - 1]].substring(1)
+            const pluscode = extractAdditions(unifiedDiff)
+
+            // If minusLine subtract the longest common substring of minusLine and plugcode and it's empty string, it's addonly
+            const commonPrefix = longestCommonPrefix(minusLine, pluscode)
+            if (minusLine.substring(commonPrefix.length).trim().length === 0) {
+                return 'addOnly'
+            }
+        }
+
+        return 'edit'
+    } catch (e) {
+        return 'edit'
+    }
+}
+
+// TODO: current implementation here assumes service only return 1 chunk of edits (consecutive lines) and hacky
+export function extractAdditions(unifiedDiff: string): string {
+    const lines = unifiedDiff.split('\n')
+    let completionSuggestion = ''
+    let isInAdditionBlock = false
+
+    for (const line of lines) {
+        // Skip diff headers (files)
+        if (line.startsWith('+++') || line.startsWith('---')) {
+            continue
+        }
+
+        // Skip hunk headers (@@ lines)
+        if (line.startsWith('@@')) {
+            continue
+        }
+
+        // Handle additions
+        if (line.startsWith('+')) {
+            completionSuggestion += line.substring(1) + '\n'
+            isInAdditionBlock = true
+        } else if (isInAdditionBlock && !line.startsWith('+')) {
+            // End of addition block
+            isInAdditionBlock = false
+        }
+    }
+
+    // Remove trailing newline
+    return completionSuggestion.trimEnd()
+}
+
+/**
+ *
+ * example
+ * code = 'return'
+ * suggestion = 'return a + b;'
+ * output = ' a + b;'
+ */
+export function removeOverlapCodeFromSuggestion(code: string, suggestion: string): string {
+    const suggestionLines = suggestion.split('\n')
+    const firstLineSuggestion = suggestionLines[0]
+
+    // Find the common string in code surfix and prefix of suggestion
+    const s = getPrefixSuffixOverlap(code, firstLineSuggestion)
+
+    // Remove overlap s from suggestion
+    return suggestion.substring(s.length)
+}
+
+export function longestCommonPrefix(str1: string, str2: string): string {
+    const minLength = Math.min(str1.length, str2.length)
+    let prefix = ''
+
+    for (let i = 0; i < minLength; i++) {
+        if (str1[i] === str2[i]) {
+            prefix += str1[i]
+        } else {
+            break
+        }
+    }
+
+    return prefix
+}
