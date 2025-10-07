@@ -2,7 +2,6 @@ import * as assert from 'assert'
 import {
     categorizeUnifieddiff,
     extractAdditions,
-    removeOverlapCodeFromSuggestion,
     getAddedAndDeletedLines,
     getCharacterDifferences,
     generateDiffContexts,
