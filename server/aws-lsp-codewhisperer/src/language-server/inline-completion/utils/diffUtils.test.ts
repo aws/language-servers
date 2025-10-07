@@ -62,6 +62,46 @@ describe('extractAdditions', function () {
             return a + b;
         }`,
         },
+        {
+            udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+@@ -6,7 +6,11 @@
+ 
+     // write a function to subtract 2 numbers
+      public static int subtract(int a, int b) {
+         return a - b;
+     }
+-    
++
++    // write a function to multiply 2 numbers
++    public static int multiply(int a, int b) {
++        return a * b;
++    }
+ }`,
+            expected: `
+    // write a function to multiply 2 numbers
+    public static int multiply(int a, int b) {
+        return a * b;
+    }`,
+        },
+        {
+            udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+@@ -3,7 +3,9 @@
+     public static int add(int a, int b) {
+         return a + b;
+     }
+ 
+     // write a function to subtract 2 numbers
+-    
++    public static int subtract(int a, int b) {
++        return a - b;
++    }
+ }`,
+            expected: `    public static int subtract(int a, int b) {
+        return a - b;
+    }`,
+        },
     ]
 
     for (let i = 0; i < cases.length; i++) {
