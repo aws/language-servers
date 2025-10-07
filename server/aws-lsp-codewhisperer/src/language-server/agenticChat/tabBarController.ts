@@ -22,6 +22,7 @@ import { ChatHistoryActionType } from '../../shared/telemetry/types'
 import { CancellationError } from '@aws/lsp-core'
 
 const MaxRestoredHistoryMessages = 250
+const JUPYTERLAB_APP_TYPE_VALUE = 'jupyterlab'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -344,9 +345,9 @@ export class TabBarController {
      */
     private isJupyterLabEnvironment(): boolean {
         try {
-            return process.env.JUPYTER_LAB === 'true'
+            return process.env.SAGEMAKER_APP_TYPE_LOWERCASE === JUPYTERLAB_APP_TYPE_VALUE
         } catch (error) {
-            this.#features.logging.error(`Failed to read JUPYTER_LAB environment variable: ${error}`)
+            this.#features.logging.error(`Failed to read SAGEMAKER_APP_TYPE_LOWERCASE environment variable: ${error}`)
             return false
         }
     }
