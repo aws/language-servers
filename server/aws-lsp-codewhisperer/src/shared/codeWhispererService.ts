@@ -522,20 +522,21 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
 
             const beforeApiCall = Date.now()
-            let recentEditsLogStr = ''
-            const recentEdits = tokenRequest.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
-            if (recentEdits) {
-                if (recentEdits.length === 0) {
-                    recentEditsLogStr += `No recent edits`
-                } else {
-                    recentEditsLogStr += '\n'
-                    for (let i = 0; i < recentEdits.length; i++) {
-                        const e = recentEdits[i]
-                        recentEditsLogStr += `[recentEdits ${i}th]:\n`
-                        recentEditsLogStr += `${e.content}\n`
-                    }
-                }
-            }
+            // TODO: Should make context log as a dev option, too noisy, comment it out temporarily
+            // let recentEditsLogStr = ''
+            // const recentEdits = tokenRequest.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
+            // if (recentEdits) {
+            //     if (recentEdits.length === 0) {
+            //         recentEditsLogStr += `No recent edits`
+            //     } else {
+            //         recentEditsLogStr += '\n'
+            //         for (let i = 0; i < recentEdits.length; i++) {
+            //             const e = recentEdits[i]
+            //             recentEditsLogStr += `[recentEdits ${i}th]:\n`
+            //             recentEditsLogStr += `${e.content}\n`
+            //         }
+            //     }
+            // }
 
             logstr += `@@request metadata@@
     "endpoint": ${this.codeWhispererEndpoint},
@@ -545,8 +546,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     rightContextLength: ${request.fileContext.rightFileContent.length},
     "language": ${tokenRequest.fileContext.programmingLanguage.languageName},
     "supplementalContextCount": ${tokenRequest.supplementalContexts?.length ?? 0},
-    "request.nextToken": ${tokenRequest.nextToken},
-    "recentEdits": ${recentEditsLogStr}\n`
+    "request.nextToken": ${tokenRequest.nextToken}`
+            // "recentEdits": ${recentEditsLogStr}\n`
 
             const response = await this.client.generateCompletions(this.withProfileArn(tokenRequest)).promise()
 
@@ -566,7 +567,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "sessionId": ${responseContext.codewhispererSessionId},
     "response.completions.length": ${response.completions?.length ?? 0},
     "response.predictions.length": ${response.predictions?.length ?? 0},
-    "predictionType": ${tokenRequest.predictionTypes?.toString() ?? ''},
+    "predictionType": ${tokenRequest.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "latency": ${Date.now() - beforeApiCall},
     "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
@@ -599,6 +600,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
         }
 
+        // Backward compatibility, completions will be returned if predictionType is not specified (either Completion or Edit)
         for (const recommendation of apiResponse?.completions ?? []) {
             Object.assign(recommendation, { itemId: this.generateItemId() })
         }
