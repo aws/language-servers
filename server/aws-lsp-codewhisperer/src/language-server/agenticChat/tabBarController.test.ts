@@ -15,6 +15,8 @@ import { ChatHistoryActionType } from '../../shared/telemetry/types'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { URI } from 'vscode-uri'
 
+const JUPYTERLAB_APP_TYPE_VALUE = 'jupyterlab'
+
 describe('TabBarController', () => {
     let testFeatures: TestFeatures
     let chatHistoryDb: ChatDatabase
@@ -50,7 +52,7 @@ describe('TabBarController', () => {
     afterEach(() => {
         sinon.restore()
         clock.restore()
-        delete process.env.JUPYTER_LAB // Clean up JupyterLab environment variables
+        delete process.env.SAGEMAKER_APP_TYPE_LOWERCASE // Clean up JupyterLab environment variables
         testFeatures.dispose()
     })
 
@@ -563,7 +565,7 @@ describe('TabBarController', () => {
 
         it('should allow multiple loads in JupyterLab environment', async () => {
             // Set JupyterLab environment
-            process.env.JUPYTER_LAB = 'true'
+            process.env.SAGEMAKER_APP_TYPE_LOWERCASE = JUPYTERLAB_APP_TYPE_VALUE
 
             const mockTabs = [{ historyId: 'history1', conversations: [{ messages: [] }] }] as unknown as Tab[]
             ;(chatHistoryDb.getOpenTabs as sinon.SinonStub).returns(mockTabs)
