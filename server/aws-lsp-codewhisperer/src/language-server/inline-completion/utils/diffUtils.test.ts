@@ -124,17 +124,21 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
     describe('addOnly', function () {
         const addOnlyCases: Case[] = [
             {
-                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-+++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-@@ -6,7 +6,11 @@
+                udiff: `--- a/src/main/hello/MathUtil.java
++++ b/src/main/hello/MathUtil.java
+@@ -10,6 +10,6 @@ public class MathUtil {
+     }   
+ 
+     public static int multiply(int a, int b) {
 -        return a * b;
 +        return a * b * c;
+     }
  }`,
             },
             {
                 udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-@@ -6,7 +6,11 @@
+@@ -6,2 +6,3 @@
 -        return a * b;
 +        return a * b *
 +               c * d;
@@ -158,12 +162,10 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
  }`,
             },
             {
-                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-+++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-@@ -6,7 +6,11 @@
- 
-     // write a function to subtract 2 numbers
-      public static int subtract(int a, int b) {
+                udiff: `--- a/src/main/hello/MathUtil.java
++++ b/src/main/hello/MathUtil.java
+@@ -8,5 +8,10 @@ public class MathUtil {
+     public static int subtract(int a, int b) {
          return a - b;
      }
 -    
@@ -268,20 +270,14 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
             {
                 udiff: `--- a/src/main/hello/MathUtil.java
 +++ b/src/main/hello/MathUtil.java
-@@ -1,11 +1,11 @@
+@@ -1,6 +1,6 @@
  public class MathUtil {
      // write a function to add 2 numbers
 -    public static int add(int a, int b) {
 +    public static double add(double a, double b) {
          return a + b;
      }
- 
-     // write a function to subtract 2 numbers
-     public static int subtract(int a, int b) {
-     public static double subtract(double a, double b) {
-         return a - b;
-     }   
- }`,
+ `,
             },
             {
                 udiff: `--- a/server/aws-lsp-codewhisperer/src/shared/codeWhispererService.ts
@@ -318,13 +314,15 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
              textDocument = TextDocument.create(uri, languageId, 0, content)`,
             },
             {
-                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-+++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
-@@ -6,7 +6,11 @@
+                udiff: `--- a/src/main/hello/MathUtil.java
++++ b/src/main/hello/MathUtil.java
+@@ -12,4 +12,5 @@ public class MathUtil {
+ 
+     // write a function to multiply 2 numbers
+     public static int multiply(int a, int b) {
 -        return a * b;
 +        return a * b * c;
-+    }
- }`,
++    }`,
             },
         ]
 
