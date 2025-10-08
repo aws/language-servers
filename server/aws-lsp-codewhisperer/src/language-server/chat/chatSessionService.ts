@@ -1,12 +1,4 @@
-import {
-    CodeWhispererStreamingClientConfig,
-    CodeWhispererStreamingServiceException,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-    Origin,
-    SendMessageCommand,
-    ToolUse,
-} from '@amzn/codewhisperer-streaming'
+import { CodeWhispererStreamingClientConfig, Origin, ToolUse } from '@amzn/codewhisperer-streaming'
 import {
     StreamingClientServiceToken,
     SendMessageCommandInput,
@@ -16,19 +8,15 @@ import {
     ChatCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
-import {
-    AgenticChatError,
-    isInputTooLongError,
-    isRequestAbortedError,
-    isThrottlingRelated,
-    wrapErrorWithCode,
-} from '../agenticChat/errors'
+import { AgenticChatError } from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { getOriginFromClientInfo, getClientName, getRequestID, isUsageLimitError } from '../../shared/utils'
+import { getOriginFromClientInfo, getClientName } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
+import { QErrorTransformer } from '../agenticChat/retry/errorTransformer'
+import { DelayNotification } from '../agenticChat/retry/delayInterceptor'
+import { MAX_REQUEST_ATTEMPTS } from '../agenticChat/constants/constants'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -59,6 +47,7 @@ export class ChatSessionService {
     #serviceManager?: AmazonQBaseServiceManager
     #logging?: Logging
     #origin?: Origin
+    #errorTransformer: QErrorTransformer
 
     public getConversationType(): string {
         return this.#conversationType
@@ -147,6 +136,9 @@ export class ChatSessionService {
         this.#lsp = lsp
         this.#logging = logging
         this.#origin = getOriginFromClientInfo(getClientName(this.#lsp?.getClientInitializeParams()))
+
+        // Initialize Q-specific error transformation
+        this.#errorTransformer = new QErrorTransformer(logging, () => this.isModelSelectionEnabled())
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -162,9 +154,12 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
-        const response = await client.sendMessage(request, this.#abortController)
-
-        return response
+        // AWS SDK handles retries natively, we just transform final errors
+        try {
+            return await client.sendMessage(request, this.#abortController)
+        } catch (error) {
+            throw this.#errorTransformer.transformFinalError(error)
+        }
     }
 
     private isModelSelectionEnabled(): boolean {
@@ -184,125 +179,23 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
+        // AWS SDK handles retries natively, we just transform final errors
+        try {
+            return await this.#performChatRequest(client, request)
+        } catch (error) {
+            throw this.#errorTransformer.transformFinalError(error)
+        }
+    }
+
+    async #performChatRequest(client: any, request: ChatCommandInput): Promise<ChatCommandOutput> {
         if (client instanceof StreamingClientServiceToken) {
-            try {
-                return await client.generateAssistantResponse(request, this.#abortController)
-            } catch (e) {
-                // Log the error using the logging property if available, otherwise fall back to console.error
-                if (this.#logging) {
-                    this.#logging.error(`Error in generateAssistantResponse: ${loggingUtils.formatErr(e)}`)
-                }
-
-                const requestId = getRequestID(e)
-                if (isUsageLimitError(e)) {
-                    throw new AgenticChatError(
-                        'Request aborted',
-                        'AmazonQUsageLimitError',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                if (isRequestAbortedError(e)) {
-                    throw new AgenticChatError(
-                        'Request aborted',
-                        'RequestAborted',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                if (isInputTooLongError(e)) {
-                    throw new AgenticChatError(
-                        'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
-                        'InputTooLong',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                if (isThrottlingRelated(e)) {
-                    throw new AgenticChatError(
-                        'Service is currently experiencing high traffic. Please try again later.',
-                        'RequestThrottled',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                let error = wrapErrorWithCode(e, 'QModelResponse')
-                if (
-                    (request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                        (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                        error.message ===
-                            'Encountered unexpectedly high load when processing the request, please try again.') ||
-                    (error.cause &&
-                        typeof error.cause === 'object' &&
-                        '$metadata' in error.cause &&
-                        (error.cause as any).$metadata?.httpStatusCode === 429 &&
-                        'reason' in error.cause &&
-                        error.cause.reason === 'INSUFFICIENT_MODEL_CAPACITY')
-                ) {
-                    error.message = this.isModelSelectionEnabled()
-                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
-                        : `I am experiencing high traffic, please try again shortly.`
-                }
-
-                throw error
-            }
+            return await client.generateAssistantResponse(request, this.#abortController)
         } else if (client instanceof StreamingClientServiceIAM) {
-            try {
-                // @ts-ignore
-                // SendMessageStreaming checks for origin from request source
-                // https://code.amazon.com/packages/AWSVectorConsolasRuntimeService/blobs/ac917609a28dbcb6757a8427bcc585a42fd15bf2/--/src/com/amazon/aws/vector/consolas/runtimeservice/activity/SendMessageStreamingActivity.java#L246
-                request.source = this.#origin ? this.#origin : 'IDE'
-                return await client.sendMessage(request, this.#abortController)
-            } catch (e) {
-                // Log the error using the logging property if available, otherwise fall back to console.error
-                if (this.#logging) {
-                    this.#logging.error(`Error in Send Message response: ${loggingUtils.formatErr(e)}`)
-                }
-
-                const requestId = getRequestID(e)
-                if (isUsageLimitError(e)) {
-                    throw new AgenticChatError(
-                        'Request aborted',
-                        'AmazonQUsageLimitError',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                if (isRequestAbortedError(e)) {
-                    throw new AgenticChatError(
-                        'Request aborted',
-                        'RequestAborted',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                if (isInputTooLongError(e)) {
-                    throw new AgenticChatError(
-                        'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
-                        'InputTooLong',
-                        e instanceof Error ? e : undefined,
-                        requestId
-                    )
-                }
-                let error = wrapErrorWithCode(e, 'QModelResponse')
-                if (
-                    (request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                        (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                        error.message ===
-                            'Encountered unexpectedly high load when processing the request, please try again.') ||
-                    (error.cause &&
-                        typeof error.cause === 'object' &&
-                        '$metadata' in error.cause &&
-                        (error.cause as any).$metadata?.httpStatusCode === 429 &&
-                        'reason' in error.cause &&
-                        error.cause.reason === 'INSUFFICIENT_MODEL_CAPACITY')
-                ) {
-                    error.message = this.isModelSelectionEnabled()
-                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
-                        : `I am experiencing high traffic, please try again shortly.`
-                }
-                throw error
-            }
+            // @ts-ignore
+            // SendMessageStreaming checks for origin from request source
+            // https://code.amazon.com/packages/AWSVectorConsolasRuntimeService/blobs/ac917609a28dbcb6757a8427bcc585a42fd15bf2/--/src/com/amazon/aws/vector/consolas/runtimeservice/activity/SendMessageStreamingActivity.java#L246
+            request.source = this.#origin ? this.#origin : 'IDE'
+            return await client.sendMessage(request, this.#abortController)
         } else {
             // error
             return Promise.reject(
@@ -348,5 +241,16 @@ export class ChatSessionService {
      */
     public setLogging(logging: Logging): void {
         this.#logging = logging
+    }
+
+    /**
+     * Sets the delay notification callback for UI integration
+     * @param callback Function to call when delay notifications occur
+     */
+    public setDelayNotificationCallback(callback: (notification: DelayNotification) => void): void {
+        if (this.#serviceManager) {
+            const client = this.#serviceManager.getStreamingClient()
+            client.setDelayNotificationCallback(callback)
+        }
     }
 }
