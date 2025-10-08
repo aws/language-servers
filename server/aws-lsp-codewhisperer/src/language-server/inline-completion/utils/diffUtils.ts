@@ -6,6 +6,9 @@
 import * as diff from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
 import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
+import { Position, TextDocument, Range } from '@aws/language-server-runtimes/protocol'
+import { SuggestionType } from '../../../shared/codeWhispererService'
+import { getPrefixSuffixOverlap } from './mergeRightUtils'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -131,88 +134,6 @@ export function generateDiffContexts(
     }
 }
 
-/** src: https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L18
- * Apply a unified diff to original code to generate modified code
- * @param originalCode The original code as a string
- * @param unifiedDiff The unified diff content
- * @returns The modified code after applying the diff
- */
-export function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
-    try {
-        // First try the standard diff package
-        try {
-            const result = diff.applyPatch(docText, unifiedDiff)
-            if (result !== false) {
-                return result
-            }
-        } catch (error) {}
-
-        // Parse the unified diff to extract the changes
-        const diffLines = unifiedDiff.split('\n')
-        let result = docText
-
-        // Find all hunks in the diff
-        const hunkStarts = diffLines
-            .map((line, index) => (line.startsWith('@@ ') ? index : -1))
-            .filter(index => index !== -1)
-
-        // Process each hunk
-        for (const hunkStart of hunkStarts) {
-            // Parse the hunk header
-            const hunkHeader = diffLines[hunkStart]
-            const match = hunkHeader.match(/@@ -(\d+),(\d+) \+(\d+),(\d+) @@/)
-
-            if (!match) {
-                continue
-            }
-
-            const oldStart = parseInt(match[1])
-            const oldLines = parseInt(match[2])
-
-            // Extract the content lines for this hunk
-            let i = hunkStart + 1
-            const contentLines = []
-            while (i < diffLines.length && !diffLines[i].startsWith('@@')) {
-                contentLines.push(diffLines[i])
-                i++
-            }
-
-            // Build the old and new text
-            let oldText = ''
-            let newText = ''
-
-            for (const line of contentLines) {
-                if (line.startsWith('-')) {
-                    oldText += line.substring(1) + '\n'
-                } else if (line.startsWith('+')) {
-                    newText += line.substring(1) + '\n'
-                } else if (line.startsWith(' ')) {
-                    oldText += line.substring(1) + '\n'
-                    newText += line.substring(1) + '\n'
-                }
-            }
-
-            // Remove trailing newline if it was added
-            oldText = oldText.replace(/\n$/, '')
-            newText = newText.replace(/\n$/, '')
-
-            // Find the text to replace in the document
-            const docLines = docText.split('\n')
-            const startLine = oldStart - 1 // Convert to 0-based
-            const endLine = startLine + oldLines
-
-            // Extract the text that should be replaced
-            const textToReplace = docLines.slice(startLine, endLine).join('\n')
-
-            // Replace the text
-            result = result.replace(textToReplace, newText)
-        }
-        return result
-    } catch (error) {
-        return docText // Return original text if all methods fail
-    }
-}
-
 export function getAddedAndDeletedLines(unifiedDiff: string): { addedLines: string[]; deletedLines: string[] } {
     const lines = unifiedDiff.split('\n')
     const addedLines = lines.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1))
@@ -222,48 +143,6 @@ export function getAddedAndDeletedLines(unifiedDiff: string): { addedLines: stri
     return {
         addedLines,
         deletedLines,
-    }
-}
-
-// src https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L147
-export function getAddedAndDeletedChars(unifiedDiff: string): {
-    addedCharacters: string
-    deletedCharacters: string
-} {
-    let addedCharacters = ''
-    let deletedCharacters = ''
-    const lines = unifiedDiff.split('\n')
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-            addedCharacters += line.slice(1)
-        } else if (line.startsWith('-') && !line.startsWith('---')) {
-            const removedLine = line.slice(1)
-
-            // Check if this is a modified line rather than a pure deletion
-            const nextLine = lines[i + 1]
-            if (nextLine && nextLine.startsWith('+') && !nextLine.startsWith('+++')) {
-                // This is a modified line, not a pure deletion
-                // We've already counted the deletion, so we'll just increment i to skip the next line
-                // since we'll process the addition on the next iteration
-                const addedLine = nextLine.slice(1)
-                const changes = diff.diffChars(removedLine, addedLine)
-                for (const part of changes) {
-                    if (part.removed) {
-                        deletedCharacters += part.value
-                    } else if (part.added) {
-                        addedCharacters += part.value
-                    }
-                }
-                i += 1
-            } else {
-                deletedCharacters += removedLine
-            }
-        }
-    }
-    return {
-        addedCharacters,
-        deletedCharacters,
     }
 }
 
@@ -320,4 +199,204 @@ export function getCharacterDifferences(addedLines: string[], deletedLines: stri
         charactersAdded: addedText.length - lcsLen,
         charactersRemoved: deletedText.length - lcsLen,
     }
+}
+
+export function processEditSuggestion(
+    unifiedDiff: string,
+    triggerPosition: Position,
+    document: TextDocument
+): { suggestionContent: string; type: SuggestionType } {
+    // Assume it's an edit if anything goes wrong, at the very least it will not be rendered incorrectly
+    let diffCategory: ReturnType<typeof categorizeUnifieddiff> = 'edit'
+    try {
+        diffCategory = categorizeUnifieddiff(unifiedDiff)
+    } catch (e) {
+        // We dont have logger here....
+        diffCategory = 'edit'
+    }
+
+    if (diffCategory === 'addOnly') {
+        const preprocessAdd = extractAdditions(unifiedDiff)
+        const leftContextAtTriggerLine = document.getText(
+            Range.create(Position.create(triggerPosition.line, 0), triggerPosition)
+        )
+        /**
+         * SHOULD NOT remove the entire overlapping string, the way inline suggestion prefix matching work depends on where it triggers
+         * For example (^ note where user triggers)
+         * console.lo
+         *        ^
+         * if LSP returns `g('foo')` instead of `.log()` the suggestion will be discarded because prefix doesnt match
+         */
+        const processedAdd = removeOverlapCodeFromSuggestion(leftContextAtTriggerLine, preprocessAdd)
+        return {
+            suggestionContent: processedAdd,
+            type: SuggestionType.COMPLETION,
+        }
+    } else {
+        return {
+            suggestionContent: unifiedDiff,
+            type: SuggestionType.EDIT,
+        }
+    }
+}
+
+// TODO: MAKE it a class and abstract all the business parsing logic within the classsssss so we dont need to redo the same thing again and again
+interface UnifiedDiff {
+    linesWithoutHeaders: string[]
+    firstMinusIndex: number
+    firstPlusIndex: number
+    minusIndexes: number[]
+    plusIndexes: number[]
+}
+
+// TODO: refine
+export function readUdiff(unifiedDiff: string): UnifiedDiff {
+    const lines = unifiedDiff.split('\n')
+    const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
+    if (headerEndIndex === -1) {
+        throw new Error('not able to parse')
+    }
+    const relevantLines = lines.slice(headerEndIndex + 1)
+    if (relevantLines.length === 0) {
+        throw new Error('not able to parse')
+    }
+
+    const minusIndexes: number[] = []
+    const plusIndexes: number[] = []
+    for (let i = 0; i < relevantLines.length; i++) {
+        const l = relevantLines[i]
+        if (l.startsWith('-')) {
+            minusIndexes.push(i)
+        } else if (l.startsWith('+')) {
+            plusIndexes.push(i)
+        }
+    }
+
+    const firstMinusIndex = relevantLines.findIndex(s => s.startsWith('-'))
+    const firstPlusIndex = relevantLines.findIndex(s => s.startsWith('+'))
+
+    return {
+        linesWithoutHeaders: relevantLines,
+        firstMinusIndex: firstMinusIndex,
+        firstPlusIndex: firstPlusIndex,
+        minusIndexes: minusIndexes,
+        plusIndexes: plusIndexes,
+    }
+}
+
+export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
+    try {
+        const d = readUdiff(unifiedDiff)
+        const firstMinusIndex = d.firstMinusIndex
+        const firstPlusIndex = d.firstPlusIndex
+        const diffWithoutHeaders = d.linesWithoutHeaders
+
+        if (firstMinusIndex === -1 && firstPlusIndex === -1) {
+            return 'edit'
+        }
+
+        if (firstMinusIndex === -1 && firstPlusIndex !== -1) {
+            return 'addOnly'
+        }
+
+        if (firstMinusIndex !== -1 && firstPlusIndex === -1) {
+            return 'deleteOnly'
+        }
+
+        const minusIndexes = d.minusIndexes
+        const plusIndexes = d.plusIndexes
+
+        // If there are multiple (> 1) non empty '-' lines, it must be edit
+        const c = minusIndexes.reduce((acc: number, cur: number): number => {
+            if (diffWithoutHeaders[cur].trim().length > 0) {
+                return acc++
+            }
+
+            return acc
+        }, 0)
+
+        if (c > 1) {
+            return 'edit'
+        }
+
+        // If last '-' line is followed by '+' block, it could be addonly
+        if (plusIndexes[0] === minusIndexes[minusIndexes.length - 1] + 1) {
+            const minusLine = diffWithoutHeaders[minusIndexes[minusIndexes.length - 1]].substring(1)
+            const pluscode = extractAdditions(unifiedDiff)
+
+            // If minusLine subtract the longest common substring of minusLine and plugcode and it's empty string, it's addonly
+            const commonPrefix = longestCommonPrefix(minusLine, pluscode)
+            if (minusLine.substring(commonPrefix.length).trim().length === 0) {
+                return 'addOnly'
+            }
+        }
+
+        return 'edit'
+    } catch (e) {
+        return 'edit'
+    }
+}
+
+// TODO: current implementation here assumes service only return 1 chunk of edits (consecutive lines) and hacky
+export function extractAdditions(unifiedDiff: string): string {
+    const lines = unifiedDiff.split('\n')
+    let completionSuggestion = ''
+    let isInAdditionBlock = false
+
+    for (const line of lines) {
+        // Skip diff headers (files)
+        if (line.startsWith('+++') || line.startsWith('---')) {
+            continue
+        }
+
+        // Skip hunk headers (@@ lines)
+        if (line.startsWith('@@')) {
+            continue
+        }
+
+        // Handle additions
+        if (line.startsWith('+')) {
+            completionSuggestion += line.substring(1) + '\n'
+            isInAdditionBlock = true
+        } else if (isInAdditionBlock && !line.startsWith('+')) {
+            // End of addition block
+            isInAdditionBlock = false
+        }
+    }
+
+    // Remove trailing newline
+    return completionSuggestion.trimEnd()
+}
+
+/**
+ *
+ * example
+ * code = 'return'
+ * suggestion = 'return a + b;'
+ * output = ' a + b;'
+ */
+export function removeOverlapCodeFromSuggestion(code: string, suggestion: string): string {
+    const suggestionLines = suggestion.split('\n')
+    const firstLineSuggestion = suggestionLines[0]
+
+    // Find the common string in code surfix and prefix of suggestion
+    const s = getPrefixSuffixOverlap(code, firstLineSuggestion)
+
+    // Remove overlap s from suggestion
+    return suggestion.substring(s.length)
+}
+
+export function longestCommonPrefix(str1: string, str2: string): string {
+    const minLength = Math.min(str1.length, str2.length)
+    let prefix = ''
+
+    for (let i = 0; i < minLength; i++) {
+        if (str1[i] === str2[i]) {
+            prefix += str1[i]
+        } else {
+            break
+        }
+    }
+
+    return prefix
 }

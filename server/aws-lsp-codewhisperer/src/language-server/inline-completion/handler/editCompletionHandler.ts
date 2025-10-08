@@ -22,7 +22,7 @@ import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
-import { shouldTriggerEdits } from '../trigger'
+import { shouldTriggerEdits } from '../utils/triggerUtils'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
@@ -38,6 +38,7 @@ import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../sha
 import { DocumentChangedListener } from '../documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
+import { processEditSuggestion } from '../utils/diffUtils'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -396,6 +397,13 @@ export class EditCompletionHandler {
                         textDocument?.uri || ''
                     )
 
+                    const processedSuggestion = processEditSuggestion(
+                        suggestion.content,
+                        session.startPosition,
+                        session.document
+                    )
+                    const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
+
                     if (isSimilarToRejected) {
                         // Mark as rejected in the session
                         session.setSuggestionState(suggestion.itemId, 'Reject')
@@ -405,14 +413,14 @@ export class EditCompletionHandler {
                         // Return empty item that will be filtered out
                         return {
                             insertText: '',
-                            isInlineEdit: true,
+                            isInlineEdit: isInlineEdit,
                             itemId: suggestion.itemId,
                         }
                     }
 
                     return {
-                        insertText: suggestion.content,
-                        isInlineEdit: true,
+                        insertText: processedSuggestion.suggestionContent,
+                        isInlineEdit: isInlineEdit,
                         itemId: suggestion.itemId,
                     }
                 })

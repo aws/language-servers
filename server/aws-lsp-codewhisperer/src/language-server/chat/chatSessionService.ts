@@ -30,6 +30,7 @@ export class ChatSessionService {
     public contextListSent: boolean = false
     public modelId: string | undefined
     public isMemoryBankGeneration: boolean = false
+    public compactionDeclined: boolean = false
     #lsp?: Features['lsp']
     #abortController?: AbortController
     #currentPromptId?: string
