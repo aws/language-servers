@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as diff from 'diff'
+import { parsePatch, Hunk, createTwoFilesPatch } from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
 import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
 import { Position, TextDocument, Range } from '@aws/language-server-runtimes/protocol'
 import { SuggestionType } from '../../../shared/codeWhispererService'
-import { getPrefixSuffixOverlap } from './mergeRightUtils'
+import { getPrefixSuffixOverlap, truncateOverlapWithRightContext } from './mergeRightUtils'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -31,7 +31,7 @@ export function generateUnifiedDiffWithTimestamps(
     newTimestamp: number,
     contextSize: number = 3
 ): string {
-    const patchResult = diff.createTwoFilesPatch(
+    const patchResult = createTwoFilesPatch(
         oldFilePath,
         newFilePath,
         oldContent,
@@ -204,12 +204,13 @@ export function getCharacterDifferences(addedLines: string[], deletedLines: stri
 export function processEditSuggestion(
     unifiedDiff: string,
     triggerPosition: Position,
-    document: TextDocument
+    document: TextDocument,
+    rightContext: string
 ): { suggestionContent: string; type: SuggestionType } {
     // Assume it's an edit if anything goes wrong, at the very least it will not be rendered incorrectly
     let diffCategory: ReturnType<typeof categorizeUnifieddiff> = 'edit'
     try {
-        diffCategory = categorizeUnifieddiff(unifiedDiff)
+        diffCategory = categorizeUnifieddiff(unifiedDiff, triggerPosition.line)
     } catch (e) {
         // We dont have logger here....
         diffCategory = 'edit'
@@ -228,8 +229,9 @@ export function processEditSuggestion(
          * if LSP returns `g('foo')` instead of `.log()` the suggestion will be discarded because prefix doesnt match
          */
         const processedAdd = removeOverlapCodeFromSuggestion(leftContextAtTriggerLine, preprocessAdd)
+        const mergedWithRightContext = truncateOverlapWithRightContext(rightContext, processedAdd)
         return {
-            suggestionContent: processedAdd,
+            suggestionContent: mergedWithRightContext,
             type: SuggestionType.COMPLETION,
         }
     } else {
@@ -247,10 +249,26 @@ interface UnifiedDiff {
     firstPlusIndex: number
     minusIndexes: number[]
     plusIndexes: number[]
+    hunk: Hunk
 }
 
 // TODO: refine
 export function readUdiff(unifiedDiff: string): UnifiedDiff {
+    let hunk: Hunk | undefined
+    try {
+        const patches = parsePatch(unifiedDiff)
+        if (patches.length !== 1) {
+            throw new Error(`Provided unified diff from has 0 or more than 1 patches`)
+        }
+        hunk = patches[0].hunks[0]
+        if (!hunk) {
+            throw new Error(`Null hunk`)
+        }
+    } catch (e) {
+        throw e
+    }
+
+    // TODO: Should use hunk instead of parsing manually
     const lines = unifiedDiff.split('\n')
     const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
     if (headerEndIndex === -1) {
@@ -299,18 +317,31 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
         firstPlusIndex: firstPlusIndex,
         minusIndexes: minusIndexes,
         plusIndexes: plusIndexes,
+        hunk: hunk,
     }
 }
 
-export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
+// Theoretically, we should always pass userTriggerAtLine, keeping it nullable for easier testing for now
+export function categorizeUnifieddiff(
+    unifiedDiff: string,
+    userTriggerAtLine?: number
+): 'addOnly' | 'deleteOnly' | 'edit' {
     try {
         const d = readUdiff(unifiedDiff)
+        const hunk = d.hunk
         const firstMinusIndex = d.firstMinusIndex
         const firstPlusIndex = d.firstPlusIndex
         const diffWithoutHeaders = d.linesWithoutHeaders
 
         // Shouldn't be the case but if there is no - nor +, assume it's an edit
         if (firstMinusIndex === -1 && firstPlusIndex === -1) {
+            return 'edit'
+        }
+
+        // If first "EDIT" line is not where users trigger, it must be EDIT
+        // Note hunk.start is 1 based index
+        const firstLineEdited = hunk.oldStart - 1 + Math.min(...d.minusIndexes, ...d.plusIndexes)
+        if (userTriggerAtLine !== undefined && userTriggerAtLine !== firstLineEdited) {
             return 'edit'
         }
 
