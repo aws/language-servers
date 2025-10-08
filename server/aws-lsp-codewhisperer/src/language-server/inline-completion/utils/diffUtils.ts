@@ -275,6 +275,24 @@ export function readUdiff(unifiedDiff: string): UnifiedDiff {
     const firstMinusIndex = relevantLines.findIndex(s => s.startsWith('-'))
     const firstPlusIndex = relevantLines.findIndex(s => s.startsWith('+'))
 
+    // TODO: Comment these out as they are used for a different version of addonly type determination logic in case the current implementation doesn't work.
+    // Could remove later if we are sure current imple works.
+    /**
+     * Concatenate all contiguous added lines (i.e., unbroken sequence of "+"s).
+     * Exclude all newlines when concatenating, so we get a single line representing the new text
+     */
+    // let singleLine = ''
+    // let prev: number | undefined
+    // for (const idx of plusIndexes) {
+    //     if (!prev || idx === prev + 1) {
+    //         const removedPlus = relevantLines[idx].substring(1)
+    //         const removedStartNewline = trimStartNewline(removedPlus)
+    //         singleLine += removedStartNewline
+    //     } else {
+    //         break
+    //     }
+    // }
+
     return {
         linesWithoutHeaders: relevantLines,
         firstMinusIndex: firstMinusIndex,
@@ -291,14 +309,17 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
         const firstPlusIndex = d.firstPlusIndex
         const diffWithoutHeaders = d.linesWithoutHeaders
 
+        // Shouldn't be the case but if there is no - nor +, assume it's an edit
         if (firstMinusIndex === -1 && firstPlusIndex === -1) {
             return 'edit'
         }
 
+        // Naive case, only +
         if (firstMinusIndex === -1 && firstPlusIndex !== -1) {
             return 'addOnly'
         }
 
+        // Naive case, only -
         if (firstMinusIndex !== -1 && firstPlusIndex === -1) {
             return 'deleteOnly'
         }
@@ -321,12 +342,47 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
 
         // If last '-' line is followed by '+' block, it could be addonly
         if (plusIndexes[0] === minusIndexes[minusIndexes.length - 1] + 1) {
+            /**
+            -------------------------------
+            -  return 
+            +  return a - b;
+            -------------------------------
+            commonPrefix = "return "
+            minusLinesDelta = ""
+
+            --------------------------------
+            -\t\t\t
+            +\treturn a - b;
+            --------------------------------
+            commonPrefix = "\t"
+            minusLinesDelta = "\t\t"
+
+             * 
+             * 
+             * 
+             */
             const minusLine = diffWithoutHeaders[minusIndexes[minusIndexes.length - 1]].substring(1)
             const pluscode = extractAdditions(unifiedDiff)
 
             // If minusLine subtract the longest common substring of minusLine and plugcode and it's empty string, it's addonly
             const commonPrefix = longestCommonPrefix(minusLine, pluscode)
-            if (minusLine.substring(commonPrefix.length).trim().length === 0) {
+            const minusLinesDelta = minusLine.substring(commonPrefix.length)
+            if (minusLinesDelta.trim().length === 0) {
+                return 'addOnly'
+            }
+
+            /**
+            -------------------------------
+             -  return a * b;
+             +  return a * b * c;
+            -------------------------------
+            commonPrefix = "return a * b"
+            minusLinesDelta = ";"
+            pluscodeDelta = " * c;"
+             *
+             */
+            const pluscodeDelta = pluscode.substring(commonPrefix.length)
+            if (pluscodeDelta.endsWith(minusLinesDelta)) {
                 return 'addOnly'
             }
         }
@@ -400,3 +456,23 @@ export function longestCommonPrefix(str1: string, str2: string): string {
 
     return prefix
 }
+
+// TODO: They are used for a different version of addonly type determination logic in case the current implementation doesn't work.
+// Could remove later if we are sure current impl works.
+// function trimStartNewline(str: string): string {
+//     return str.replace(/^[\n\r]+/, '')
+// }
+
+// function hasOneContiguousInsert(original: string, changed: string) {
+//     const delta = changed.length - original.length
+//     if (delta <= 0) {
+//         // Changed string must be longer
+//         return false
+//     }
+
+//     let p, s
+//     for (p = 0; original[p] === changed[p] && p < original.length; ++p);
+//     for (s = original.length - 1; original[s] === changed[s + delta] && s >= 0; --s);
+
+//     return p === s + 1
+// }

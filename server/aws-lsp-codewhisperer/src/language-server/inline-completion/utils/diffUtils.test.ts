@@ -127,6 +127,23 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
                 udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 +++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
 @@ -6,7 +6,11 @@
+-        return a * b;
++        return a * b * c;
+ }`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+@@ -6,7 +6,11 @@
+-        return a * b;
++        return a * b *
++               c * d;
+ }`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+@@ -6,7 +6,11 @@
  
      // write a function to subtract 2 numbers
       public static int subtract(int a, int b) {
@@ -299,6 +316,15 @@ describe('categorizeUnifieddiffV2v2 should return correct type (addOnly, edit, d
              const content = await workspace.fs.readFile(URI.parse(uri).fsPath)
              const languageId = getLanguageIdFromUri(uri)
              textDocument = TextDocument.create(uri, languageId, 0, content)`,
+            },
+            {
+                udiff: `--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java
+@@ -6,7 +6,11 @@
+-        return a * b;
++        return a * b * c;
++    }
+ }`,
             },
         ]
 
