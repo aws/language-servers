@@ -5,7 +5,6 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { CredentialsProvider, Position, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
-import { AWSError } from 'aws-sdk'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
 import * as os from 'os'
@@ -462,29 +461,25 @@ describe('isAwsThrottlingError', function () {
     })
 
     it('false for non-throttling AWS errors', function () {
-        const nonThrottlingError = {
-            name: 'AWSError',
-            message: 'Not a throttling error',
-            code: 'SomeOtherError',
-            time: new Date(),
-        } as AWSError
+        const nonThrottlingError = new Error('Not a throttling error')
+        ;(nonThrottlingError as any).name = 'SomeOtherError'
+        ;(nonThrottlingError as any).$metadata = {}
 
         assert.strictEqual(isAwsThrottlingError(nonThrottlingError), false)
     })
 
     it('true for AWS throttling errors', function () {
-        const sdkV2Error = new Error()
-        ;(sdkV2Error as any).name = 'ThrottlingException'
-        ;(sdkV2Error as any).message = 'Rate exceeded'
-        ;(sdkV2Error as any).code = 'ThrottlingException'
-        ;(sdkV2Error as any).time = new Date()
-        assert.strictEqual(isAwsThrottlingError(sdkV2Error), true)
-
         const sdkV3Error = new ThrottlingException({
             message: 'Too many requests',
             $metadata: {},
         })
         assert.strictEqual(isAwsThrottlingError(sdkV3Error), true)
+
+        // Test error with $metadata property
+        const errorWithMetadata = new Error('Rate exceeded')
+        ;(errorWithMetadata as any).$metadata = {}
+        ;(errorWithMetadata as any).name = 'ThrottlingException'
+        assert.strictEqual(isAwsThrottlingError(errorWithMetadata), true)
     })
 })
 
@@ -503,22 +498,20 @@ describe('isMonthlyLimitError', function () {
     })
 
     it('false for throttling errors without MONTHLY_REQUEST_COUNT reason', function () {
-        const throttlingError = new Error()
-        ;(throttlingError as any).name = 'ThrottlingException'
-        ;(throttlingError as any).message = 'Rate exceeded'
-        ;(throttlingError as any).code = 'ThrottlingException'
-        ;(throttlingError as any).time = new Date()
+        const throttlingError = new ThrottlingException({
+            message: 'Rate exceeded',
+            $metadata: {},
+        })
         ;(throttlingError as any).reason = 'SOME_OTHER_REASON'
 
         assert.strictEqual(isUsageLimitError(throttlingError), false)
     })
 
     it('true for throttling errors with MONTHLY_REQUEST_COUNT reason', function () {
-        const usageLimitError = new Error()
-        ;(usageLimitError as any).name = 'ThrottlingException'
-        ;(usageLimitError as any).message = 'Free tier limit reached'
-        ;(usageLimitError as any).code = 'ThrottlingException'
-        ;(usageLimitError as any).time = new Date()
+        const usageLimitError = new ThrottlingException({
+            message: 'Free tier limit reached',
+            $metadata: {},
+        })
         ;(usageLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
 
         assert.strictEqual(isUsageLimitError(usageLimitError), true)
@@ -554,11 +547,10 @@ describe('isQuotaExceededError', function () {
     })
 
     it('true for specific messages', function () {
-        const reachedForThisMonth = new Error()
-        ;(reachedForThisMonth as any).name = 'ThrottlingException'
-        ;(reachedForThisMonth as any).message = 'You have reached the limit for this month'
-        ;(reachedForThisMonth as any).code = 'ThrottlingException'
-        ;(reachedForThisMonth as any).time = new Date()
+        const reachedForThisMonth = new ThrottlingException({
+            message: 'You have reached the limit for this month',
+            $metadata: {},
+        })
 
         const limitForIterationsError = new ThrottlingException({
             message: 'You have reached the limit for number of iterations',
@@ -569,10 +561,16 @@ describe('isQuotaExceededError', function () {
         assert.strictEqual(isQuotaExceededError(limitForIterationsError), true)
 
         // Invalid cases
-        reachedForThisMonth.message = 'some other messsage'
-        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), false)
-        limitForIterationsError.message = 'foo bar'
-        assert.strictEqual(isQuotaExceededError(limitForIterationsError), false)
+        const invalidError1 = new ThrottlingException({
+            message: 'some other messsage',
+            $metadata: {},
+        })
+        const invalidError2 = new ThrottlingException({
+            message: 'foo bar',
+            $metadata: {},
+        })
+        assert.strictEqual(isQuotaExceededError(invalidError1), false)
+        assert.strictEqual(isQuotaExceededError(invalidError2), false)
     })
 })
 
