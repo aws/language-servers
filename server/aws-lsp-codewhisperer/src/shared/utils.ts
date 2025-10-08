@@ -38,8 +38,8 @@ export function isAwsError(error: unknown): error is Error & { code: string; tim
         return false
     }
 
-    // TODO: do SDK v3 errors have `.code` ?
-    return error instanceof Error && hasCode(error) && hasTime(error)
+    // AWS SDK v3 errors extend ServiceException
+    return error instanceof ServiceException || (error instanceof Error && '$metadata' in error)
 }
 
 export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
@@ -461,9 +461,6 @@ export function isStringOrNull(object: any): object is string | null {
 export function getHttpStatusCode(err: unknown): number | undefined {
     // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
 
-    if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
-        return err?.$response?.statusCode
-    }
     if (hasMetadata(err) && err.$metadata?.httpStatusCode !== undefined) {
         return err.$metadata?.httpStatusCode
     }
@@ -472,10 +469,6 @@ export function getHttpStatusCode(err: unknown): number | undefined {
     }
 
     return undefined
-}
-
-function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$response'> {
-    return typeof (error as { $response?: unknown })?.$response === 'object'
 }
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
@@ -596,6 +589,16 @@ export function sanitizeInput(input: string, enableEscapingHTML: boolean = false
         /[\u{E0000}-\u{E007F}\u{200B}-\u{200F}\u{2028}-\u{202F}\u{205F}-\u{206F}\u{FFF0}-\u{FFFF}]/gu,
         ''
     )
+}
+
+/**
+ * Sanitizes input for logging to prevent log injection attacks
+ * @param input The input string to sanitize
+ * @returns The sanitized string with control characters replaced
+ */
+export function sanitizeLogInput(input: string): string {
+    // Remove newlines, carriage returns, and other control characters
+    return input.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, '_')
 }
 
 /**
