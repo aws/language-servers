@@ -19,12 +19,12 @@ describe('QRetryStrategy', () => {
 
         mockClassifier = {
             classifyRetry: sinon.stub(),
-        } as any
+        } as sinon.SinonStubbedInstance<QRetryClassifier>
 
         mockDelayInterceptor = {
             beforeAttempt: sinon.stub(),
             reset: sinon.stub(),
-        } as any
+        } as sinon.SinonStubbedInstance<QDelayTrackingInterceptor>
 
         retryStrategy = new QRetryStrategy(mockClassifier, mockDelayInterceptor, 3, mockLogging)
     })

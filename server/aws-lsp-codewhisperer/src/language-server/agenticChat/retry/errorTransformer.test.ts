@@ -2,6 +2,12 @@ import { QErrorTransformer } from './errorTransformer'
 import { AgenticChatError } from '../errors'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
+import {
+    MONTHLY_LIMIT_ERROR_MARKER,
+    HIGH_LOAD_ERROR_MESSAGE,
+    INSUFFICIENT_MODEL_CAPACITY,
+    SERVICE_UNAVAILABLE_EXCEPTION,
+} from '../constants/constants'
 
 describe('QErrorTransformer', () => {
     let transformer: QErrorTransformer
@@ -19,7 +25,7 @@ describe('QErrorTransformer', () => {
         it('should transform usage limit errors', () => {
             const error = new Error('Usage limit exceeded')
             ;(error as any).code = 'AmazonQUsageLimitError'
-            error.message = 'MONTHLY_REQUEST_COUNT exceeded'
+            error.message = `${MONTHLY_LIMIT_ERROR_MARKER} exceeded`
 
             const result = transformer.transformFinalError(error)
 
@@ -32,7 +38,7 @@ describe('QErrorTransformer', () => {
             const error = new Error('Service error')
             ;(error as any).cause = {
                 $metadata: {
-                    body: 'Error: MONTHLY_REQUEST_COUNT exceeded for user',
+                    body: `Error: ${MONTHLY_LIMIT_ERROR_MARKER} exceeded for user`,
                 },
             }
 
@@ -68,7 +74,7 @@ describe('QErrorTransformer', () => {
             const transformerWithModelSelection = new QErrorTransformer(mockLogging, true)
             const error = new Error('Model unavailable')
             ;(error as any).statusCode = 429
-            ;(error as any).cause = { reason: 'INSUFFICIENT_MODEL_CAPACITY' }
+            ;(error as any).cause = { reason: INSUFFICIENT_MODEL_CAPACITY }
 
             const result = transformerWithModelSelection.transformFinalError(error)
 
@@ -80,7 +86,7 @@ describe('QErrorTransformer', () => {
         it('should transform model unavailable errors without model selection', () => {
             const error = new Error('High load')
             ;(error as any).statusCode = 500
-            error.message = 'Encountered unexpectedly high load when processing the request, please try again.'
+            error.message = HIGH_LOAD_ERROR_MESSAGE
 
             const result = transformer.transformFinalError(error)
 
@@ -106,7 +112,7 @@ describe('QErrorTransformer', () => {
             ;(error as any).statusCode = 500
             ;(error as any).cause = {
                 $metadata: {
-                    body: 'ServiceUnavailableException: Service temporarily unavailable',
+                    body: `${SERVICE_UNAVAILABLE_EXCEPTION}: Service temporarily unavailable`,
                 },
             }
 
@@ -169,7 +175,7 @@ describe('QErrorTransformer', () => {
         it('should handle model unavailable with reason property', () => {
             const error = new Error('Model unavailable')
             ;(error as any).statusCode = 429
-            ;(error as any).reason = 'INSUFFICIENT_MODEL_CAPACITY'
+            ;(error as any).reason = INSUFFICIENT_MODEL_CAPACITY
 
             const result = transformer.transformFinalError(error)
 
@@ -334,7 +340,7 @@ describe('QErrorTransformer', () => {
                 statusCode: 500,
                 cause: {
                     $metadata: {
-                        body: 'Encountered unexpectedly high load when processing the request, please try again.',
+                        body: HIGH_LOAD_ERROR_MESSAGE,
                     },
                 },
             }
@@ -360,7 +366,7 @@ describe('QErrorTransformer', () => {
 
             const error: any = {
                 statusCode: 429,
-                cause: { reason: 'INSUFFICIENT_MODEL_CAPACITY' },
+                cause: { reason: INSUFFICIENT_MODEL_CAPACITY },
             }
             expect((transformer as any).isThrottlingError(error)).to.be.true
         })
@@ -372,7 +378,7 @@ describe('QErrorTransformer', () => {
                 statusCode: 500,
                 cause: {
                     $metadata: {
-                        body: 'ServiceUnavailableException: Service temporarily unavailable',
+                        body: `${SERVICE_UNAVAILABLE_EXCEPTION}: Service temporarily unavailable`,
                     },
                 },
             }

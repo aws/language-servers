@@ -19,7 +19,7 @@ export class QRetryStrategy extends AdaptiveRetryStrategy {
     constructor(
         retryClassifier: QRetryClassifier,
         delayInterceptor: QDelayTrackingInterceptor,
-        maxAttempts: number = 3,
+        maxAttempts: number,
         logging?: Logging
     ) {
         super(() => Promise.resolve(maxAttempts))

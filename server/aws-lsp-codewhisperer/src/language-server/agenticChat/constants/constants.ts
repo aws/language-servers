@@ -109,6 +109,7 @@ export const MAXIMUM_CHAT_CONTENT_MESSAGE = 'Exceeded max chat context length.'
 // Delay tracking constants
 export const MINOR_DELAY_THRESHOLD_MS = 2000 // 2 seconds
 export const MAJOR_DELAY_THRESHOLD_MS = 5000 // 5 seconds
+export const MAX_RETRY_DELAY_MS = 10000 // 10 seconds
 
 // Stalled stream protection constants
 export const STALLED_STREAM_GRACE_PERIOD_MS = 300000 // 5 minutes

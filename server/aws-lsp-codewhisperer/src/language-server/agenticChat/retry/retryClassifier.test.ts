@@ -1,6 +1,14 @@
 import { QRetryClassifier, RetryAction } from './retryClassifier'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
+import {
+    CONTENT_LENGTH_EXCEEDS_THRESHOLD,
+    INVALID_MODEL_ID,
+    MAXIMUM_CHAT_CONTENT_MESSAGE,
+    MONTHLY_LIMIT_ERROR_MARKER,
+    HIGH_LOAD_ERROR_MESSAGE,
+    INSUFFICIENT_MODEL_CAPACITY,
+} from '../constants/constants'
 
 describe('QRetryClassifier', () => {
     let classifier: QRetryClassifier
@@ -44,7 +52,7 @@ describe('QRetryClassifier', () => {
 
         it('should forbid retry for input too long errors', () => {
             const error = new Error('input too long')
-            ;(error as any).reason = 'CONTENT_LENGTH_EXCEEDS_THRESHOLD'
+            ;(error as any).reason = CONTENT_LENGTH_EXCEEDS_THRESHOLD
 
             const result = classifier.classifyRetry({ error })
 
@@ -53,7 +61,7 @@ describe('QRetryClassifier', () => {
 
         it('should forbid retry for invalid model ID errors', () => {
             const error = new Error('Invalid model')
-            ;(error as any).reason = 'INVALID_MODEL_ID'
+            ;(error as any).reason = INVALID_MODEL_ID
 
             const result = classifier.classifyRetry({ error })
 
@@ -61,8 +69,8 @@ describe('QRetryClassifier', () => {
         })
 
         it('should forbid retry for maximum chat content message', () => {
-            const error = new Error('Exceeded max chat context length.')
-            error.message = 'Exceeded max chat context length.'
+            const error = new Error(MAXIMUM_CHAT_CONTENT_MESSAGE)
+            error.message = MAXIMUM_CHAT_CONTENT_MESSAGE
 
             const result = classifier.classifyRetry({ error })
 
@@ -71,12 +79,12 @@ describe('QRetryClassifier', () => {
 
         it('should forbid retry for monthly limit errors', () => {
             const error = new Error('Monthly limit exceeded')
-            ;(error as any).reason = 'MONTHLY_REQUEST_COUNT'
+            ;(error as any).reason = MONTHLY_LIMIT_ERROR_MARKER
             const context = {
                 error,
                 response: {
                     status: 400,
-                    body: 'Error: MONTHLY_REQUEST_COUNT exceeded',
+                    body: `Error: ${MONTHLY_LIMIT_ERROR_MARKER} exceeded`,
                 },
             }
 
@@ -90,7 +98,7 @@ describe('QRetryClassifier', () => {
                 error: new Error('Service unavailable'),
                 response: {
                     status: 500,
-                    body: 'Encountered unexpectedly high load when processing the request, please try again.',
+                    body: HIGH_LOAD_ERROR_MESSAGE,
                 },
             }
 
@@ -102,7 +110,7 @@ describe('QRetryClassifier', () => {
         it('should classify throttling for 429 status with model capacity', () => {
             const error = new Error('Model unavailable')
             ;(error as any).$metadata = { httpStatusCode: 429 }
-            ;(error as any).reason = 'INSUFFICIENT_MODEL_CAPACITY'
+            ;(error as any).reason = INSUFFICIENT_MODEL_CAPACITY
 
             const result = classifier.classifyRetry({ error })
 
@@ -132,21 +140,21 @@ describe('QRetryClassifier', () => {
             // since monthly limit detection now uses error.reason instead of body content
             const context1 = {
                 error: {
-                    cause: { $metadata: { body: 'MONTHLY_REQUEST_COUNT' } },
+                    cause: { $metadata: { body: MONTHLY_LIMIT_ERROR_MARKER } },
                 },
             }
             expect(classifier.classifyRetry(context1)).to.equal(RetryAction.NoActionIndicated)
 
             const context2 = {
                 error: {
-                    $metadata: { body: 'MONTHLY_REQUEST_COUNT' },
+                    $metadata: { body: MONTHLY_LIMIT_ERROR_MARKER },
                 },
             }
             expect(classifier.classifyRetry(context2)).to.equal(RetryAction.NoActionIndicated)
 
             const context3 = {
                 error: {
-                    message: 'MONTHLY_REQUEST_COUNT exceeded',
+                    message: `${MONTHLY_LIMIT_ERROR_MARKER} exceeded`,
                 },
             }
             expect(classifier.classifyRetry(context3)).to.equal(RetryAction.NoActionIndicated)
@@ -220,7 +228,7 @@ describe('QRetryClassifier', () => {
     describe('isMonthlyLimitError', () => {
         it('should log debug messages for monthly limit detection', () => {
             const classifierWithLogging = new QRetryClassifier(mockLogging)
-            const error = { reason: 'MONTHLY_REQUEST_COUNT' }
+            const error = { reason: MONTHLY_LIMIT_ERROR_MARKER }
 
             const result = (classifierWithLogging as any).isMonthlyLimitError(error)
 
@@ -237,10 +245,7 @@ describe('QRetryClassifier', () => {
                 response: { status: 500 },
             }
 
-            const result = (classifierWithLogging as any).isServiceOverloadedError(
-                context,
-                'Encountered unexpectedly high load when processing the request, please try again.'
-            )
+            const result = (classifierWithLogging as any).isServiceOverloadedError(context, HIGH_LOAD_ERROR_MESSAGE)
 
             expect(result).to.be.true
             expect(mockLogging.debug.called).to.be.true

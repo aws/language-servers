@@ -1,4 +1,5 @@
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { MINOR_DELAY_THRESHOLD_MS, MAJOR_DELAY_THRESHOLD_MS, MAX_RETRY_DELAY_MS } from '../constants/constants'
 
 export interface DelayNotification {
     message: string
@@ -13,9 +14,9 @@ export interface DelayNotification {
  */
 export class QDelayTrackingInterceptor {
     private logging?: Logging
-    private minorDelayThreshold: number = 2000 // 2 seconds
-    private majorDelayThreshold: number = 5000 // 5 seconds
-    private maxRetryDelay: number = 10000 // 10 seconds
+    private minorDelayThreshold: number = MINOR_DELAY_THRESHOLD_MS
+    private majorDelayThreshold: number = MAJOR_DELAY_THRESHOLD_MS
+    private maxRetryDelay: number = MAX_RETRY_DELAY_MS
     private lastAttemptTime?: number
     private onDelayNotification?: (notification: DelayNotification) => void
 
