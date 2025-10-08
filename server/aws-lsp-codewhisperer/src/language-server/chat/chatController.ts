@@ -172,7 +172,7 @@ export class ChatController implements ChatHandlers {
             this.#log('Response for conversation id:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
-                metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+                metric.setDimension('cwsprChatRepsonseCode', (err as any).statusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
             }
 
@@ -289,7 +289,7 @@ export class ChatController implements ChatHandlers {
                 name: 'codewhisperer_inlineChatServiceInvocation',
                 result: 'Failed',
                 data: {
-                    codewhispererRequestId: isAwsError(err) ? err.requestId : undefined,
+                    codewhispererRequestId: isAwsError(err) ? (err as any).requestId : undefined,
                     codewhispererTriggerType: this.#inlineChatTriggerType,
                     duration: this.#inlineChatResponseLatency,
                     codewhispererLanguage: this.#inlineChatLanguage,
@@ -302,8 +302,8 @@ export class ChatController implements ChatHandlers {
                 },
                 errorData: {
                     reason: err instanceof Error ? err.name : 'UnknownError',
-                    errorCode: isAwsError(err) ? err.code : undefined,
-                    httpStatusCode: isAwsError(err) ? err.statusCode : undefined,
+                    errorCode: isAwsError(err) ? (err as any).code : undefined,
+                    httpStatusCode: isAwsError(err) ? (err as any).statusCode : undefined,
                 },
             })
 
@@ -370,8 +370,8 @@ export class ChatController implements ChatHandlers {
                 },
                 errorData: {
                     reason: err instanceof Error ? err.name : 'UnknownError',
-                    errorCode: isAwsError(err) ? err.code : undefined,
-                    httpStatusCode: isAwsError(err) ? err.statusCode : undefined,
+                    errorCode: isAwsError(err) ? (err as any).code : undefined,
+                    httpStatusCode: isAwsError(err) ? (err as any).statusCode : undefined,
                 },
             })
 
