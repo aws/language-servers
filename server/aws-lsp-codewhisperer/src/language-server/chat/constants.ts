@@ -79,6 +79,8 @@ export const DEFAULT_EXCLUDE_FILES = [
     '.DS_Store',
 ]
 
+export const DEFAULT_RETRY_ATTEMPTS = 3
+
 export const loadingMessage: ChatMessage = {
     body: '',
     // @ts-ignore
