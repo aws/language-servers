@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.39](https://github.com/aws/language-servers/compare/chat-client/v0.1.38...chat-client/v0.1.39) (2025-10-09)
+
+
+### Features
+
+* add model description to dropdown ([#2374](https://github.com/aws/language-servers/issues/2374)) ([ed8c6dd](https://github.com/aws/language-servers/commit/ed8c6dda1312f728e9ee7472f7ca447196ad9d84))
+
 ## [0.1.38](https://github.com/aws/language-servers/compare/chat-client/v0.1.37...chat-client/v0.1.38) (2025-10-01)
 
 
