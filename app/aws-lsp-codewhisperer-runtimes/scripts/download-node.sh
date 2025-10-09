@@ -6,7 +6,7 @@
 
 set -eo pipefail
 NODE_VERSION="24"
-BASE_URL="https://nodejs.org/download/release/latest-v${NODE_VERSION}.x"
+BASE_URL="https://nodejs.org/download/release/v24.9.0"
 SHASUMS_FILE="SHASUMS256.txt"
 ASSETS_DIR="build/node-assets"
 
@@ -14,7 +14,10 @@ ASSETS_DIR="build/node-assets"
 curl -s "$BASE_URL/$SHASUMS_FILE" -o "$SHASUMS_FILE"
 
 # Extract exact Node.js version from any entry in SHASUMS256.txt
-NODE_SEMVER=$(grep -o 'node-v[0-9]*\.[0-9]*\.[0-9]*' SHASUMS256.txt | head -1 | cut -d'v' -f2)
+# NODE_SEMVER=$(grep -o 'node-v[0-9]*\.[0-9]*\.[0-9]*' SHASUMS256.txt | head -1 | cut -d'v' -f2)
+
+# temporarily lock node.js version to 24.9.0 due to https://github.com/nodejs/node/issues/60176
+NODE_SEMVER="24.9.0"
 
 if [ -z "$NODE_SEMVER" ]; then
     echo "Failed to extract Node.js version from SHASUMS256.txt"
