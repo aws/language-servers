@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.84](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.83...lsp-codewhisperer/v0.0.84) (2025-10-09)
+
+
+### Features
+
+* add model description to dropdown ([#2374](https://github.com/aws/language-servers/issues/2374)) ([ed8c6dd](https://github.com/aws/language-servers/commit/ed8c6dda1312f728e9ee7472f7ca447196ad9d84))
+* **amazonq:** adding classification based retry strategy for chat ([#2234](https://github.com/aws/language-servers/issues/2234)) ([#2409](https://github.com/aws/language-servers/issues/2409)) ([15d1b1f](https://github.com/aws/language-servers/commit/15d1b1f5947a1b83dab65c9d3fef901ab8a033c9))
+* **amazonq:** env var change for JupyterLab conversation history on refresh support ([#2395](https://github.com/aws/language-servers/issues/2395)) ([a908195](https://github.com/aws/language-servers/commit/a9081954bcaf20b7d0fbe0af11e61b8f82c7e82f))
+* **amazonq:** support JupyterLab conversation history on refresh ([#2325](https://github.com/aws/language-servers/issues/2325)) ([0980351](https://github.com/aws/language-servers/commit/09803514d1ce31ca77a532161e071e1d037e3fb1))
+
+
+### Bug Fixes
+
+* add in-loop compaction ([#2387](https://github.com/aws/language-servers/issues/2387)) ([35f0795](https://github.com/aws/language-servers/commit/35f0795fa5d09f3610e6a29cb72d49f32cc5534e))
+* addonly EDITS should be handled as COMPLETIONS ([#2133](https://github.com/aws/language-servers/issues/2133)) ([4f5a9da](https://github.com/aws/language-servers/commit/4f5a9dacf3bfd68aeb40920fb800adf001ed43d5))
+* patch [#2133](https://github.com/aws/language-servers/issues/2133) and handle more variants of FIM suggestions ([#2407](https://github.com/aws/language-servers/issues/2407)) ([f3086d7](https://github.com/aws/language-servers/commit/f3086d71808bd49336e0df9ba30f5be5fda837c3))
+
 ## [0.0.83](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.82...lsp-codewhisperer/v0.0.83) (2025-10-01)
 
 
