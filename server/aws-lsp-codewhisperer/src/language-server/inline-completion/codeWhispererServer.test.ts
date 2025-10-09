@@ -2149,7 +2149,7 @@ describe('CodeWhisperer Server', () => {
                     suggestions: activeSession.suggestions,
                     responseContext: activeSession.responseContext,
                     codewhispererSessionId: activeSession.codewhispererSessionId,
-                    timeToFirstRecommendation: activeSession.timeToFirstRecommendation,
+                    timeToFirstRecommendation: activeSession.triggerToResponseLatency,
                 },
                 expectedSessionData
             )

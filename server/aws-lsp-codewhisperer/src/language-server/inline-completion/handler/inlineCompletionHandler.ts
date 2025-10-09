@@ -168,7 +168,7 @@ export class InlineCompletionHandler {
         const maxResults = isAutomaticLspTriggerKind ? 1 : 5
         const selectionRange = params.context.selectedCompletionInfo?.range
 
-        const startPreprocessTimestamp = Date.now()
+        const startPreprocessTimestamp = performance.now()
 
         // For Jupyter Notebook in VSC, the language server does not have access to
         // its internal states including current active cell index, etc
@@ -199,7 +199,7 @@ export class InlineCompletionHandler {
         const previousSession = this.completionSessionManager.getPreviousSession()
         // Only refer to decisions in the past 2 mins
         const previousDecisionForClassifier =
-            previousSession && Date.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
+            previousSession && performance.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
                 ? previousSession.getAggregatedUserTriggerDecision()
                 : undefined
         let ideCategory: string | undefined = ''
