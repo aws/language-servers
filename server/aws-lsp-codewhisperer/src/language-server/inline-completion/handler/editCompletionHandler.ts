@@ -400,7 +400,8 @@ export class EditCompletionHandler {
                     const processedSuggestion = processEditSuggestion(
                         suggestion.content ?? '',
                         session.startPosition,
-                        session.document
+                        session.document,
+                        session.requestContext.fileContext.rightFileContent
                     )
                     const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
 
