@@ -13,6 +13,9 @@ export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100
 // LLM Constants
 export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 
+// MCP Constants
+export const MCP_TOOLS_CONTEXT_WINDOW_THRESHOLD = 0.2 // 20% of context window
+
 // Compaction
 // Maximum number of characters per request used for compaction prompt
 // 200K tokens * 3.5 = 700K characters, intentionally overestimating with 3.5:1 ratio
