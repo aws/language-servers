@@ -401,7 +401,7 @@ export class EditCompletionHandler {
                         suggestion.content ?? '',
                         session.startPosition,
                         session.document,
-                        session.requestContext.fileContext.rightFileContent
+                        session.requestContext.fileContext?.rightFileContent ?? ''
                     )
                     const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
 
