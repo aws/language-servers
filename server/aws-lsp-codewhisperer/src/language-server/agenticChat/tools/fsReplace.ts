@@ -2,6 +2,7 @@ import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAccepta
 import { EmptyPathError, EmptyDiffsError, FileNotExistsError, TextNotFoundError, MultipleMatchesError } from '../errors'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { unescapeHtml } from '../textFormatting'
 import * as os from 'os'
 
 interface BaseParams extends ExplanatoryParams {
@@ -138,9 +139,13 @@ const getReplaceContent = (params: ReplaceParams, fileContent: string) => {
             continue
         }
 
+        // Unescape HTML entities in oldStr since the prompt was HTML-escaped before being sent to LLM
+        const unescapedOldStr = unescapeHtml(diff.oldStr)
+        const unescapedNewStr = unescapeHtml(diff.newStr)
+
         // Normalize oldStr and newStr to match fileContent's line ending style
-        const normalizedOldStr = diff.oldStr.split(/\r\n|\r|\n/).join(lineEnding)
-        const normalizedNewStr = diff.newStr.split(/\r\n|\r|\n/).join(lineEnding)
+        const normalizedOldStr = unescapedOldStr.split(/\r\n|\r|\n/).join(lineEnding)
+        const normalizedNewStr = unescapedNewStr.split(/\r\n|\r|\n/).join(lineEnding)
 
         // Use string indexOf and substring for safer replacement with special characters
         const startIndex = fileContent.indexOf(normalizedOldStr)
