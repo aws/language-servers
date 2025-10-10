@@ -5,7 +5,7 @@ import {
     CreateWorkspaceResponse,
     WorkspaceMetadata,
     WorkspaceStatus,
-} from '../../client/token/codewhispererbearertokenclient'
+} from '@amzn/codewhisperer-runtime'
 import { Agent, CredentialsProvider, Logging, ToolClassification } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
 import {
@@ -19,7 +19,7 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { URI } from 'vscode-uri'
 import path = require('path')
-import { isAwsError } from '../../shared/utils'
+import { isAwsError, isServiceException } from '../../shared/utils'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
 import { SemanticSearch, SemanticSearchParams } from '../agenticChat/tools/workspaceContext/semanticSearch'
 
@@ -126,7 +126,8 @@ export class WorkspaceFolderManager {
             this.remoteWorkspaceIdResolver = resolve
         })
         this.workspaceState = {
-            remoteWorkspaceState: 'CREATION_PENDING',
+            // TODO: CREATION_PENDING does not exist in WorkspaceStatus so we need to use type assertion for now.
+            remoteWorkspaceState: 'CREATION_PENDING' as WorkspaceStatus,
             messageQueue: [],
         }
     }
@@ -419,8 +420,9 @@ export class WorkspaceFolderManager {
                         return
                     }
 
-                    this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
-
+                    if (metadata.workspaceStatus) {
+                        this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
+                    }
                     switch (metadata.workspaceStatus) {
                         case 'READY':
                             const client = this.workspaceState.webSocketClient
@@ -504,8 +506,10 @@ export class WorkspaceFolderManager {
                 return
             }
 
-            this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
-            if (this.workspaceState.workspaceId === undefined) {
+            if (metadata.workspaceStatus) {
+                this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
+            }
+            if (this.workspaceState.workspaceId === undefined && metadata.workspaceId) {
                 this.setRemoteWorkspaceId(metadata.workspaceId)
             }
 
@@ -722,8 +726,10 @@ export class WorkspaceFolderManager {
             return createWorkspaceResult
         }
 
-        this.workspaceState.remoteWorkspaceState = workspaceDetails.workspace.workspaceStatus
-        if (this.workspaceState.workspaceId === undefined) {
+        if (workspaceDetails.workspace?.workspaceStatus) {
+            this.workspaceState.remoteWorkspaceState = workspaceDetails.workspace?.workspaceStatus
+        }
+        if (this.workspaceState.workspaceId === undefined && workspaceDetails.workspace?.workspaceId) {
             this.setRemoteWorkspaceId(workspaceDetails.workspace.workspaceId)
         }
 
@@ -823,7 +829,7 @@ export class WorkspaceFolderManager {
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
             const response = await this.serviceManager.getCodewhispererService().listWorkspaceMetadata(params)
-            metadata = response && response.workspaces.length ? response.workspaces[0] : null
+            metadata = response && response.workspaces?.length ? response.workspaces[0] : null
         } catch (e: any) {
             error = e
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
@@ -834,12 +840,10 @@ export class WorkspaceFolderManager {
                 this.logging.log(`User's administrator opted out server-side workspace context`)
                 optOut = true
             }
-            if (
-                isAwsError(e) &&
-                (e as any).code === 'AccessDeniedException' &&
-                e.message.includes('Feature is not supported')
-            ) {
-                featureDisabled = true
+            if (isServiceException(e) && e.name === 'AccessDeniedException') {
+                if (e.message.includes('Feature is not supported')) {
+                    featureDisabled = true
+                }
             }
         }
         return { metadata, optOut, featureDisabled, error }
@@ -861,7 +865,7 @@ export class WorkspaceFolderManager {
             this.logging.warn(
                 `Error while creating workspace (${workspaceRoot}): ${e.message}. Error is ${e.retryable ? '' : 'not'} retryable}`
             )
-            if (isAwsError(e) && (e as any).code === 'ServiceQuotaExceededException') {
+            if (isServiceException(e) && e.name === 'ServiceQuotaExceededException') {
                 isServiceQuotaExceeded = true
             }
             error = {
