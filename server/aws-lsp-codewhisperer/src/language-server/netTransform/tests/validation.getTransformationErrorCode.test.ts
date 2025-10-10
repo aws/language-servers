@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { TransformationErrorCode } from '../models'
 import { getTransformationErrorCode } from '../validation'
-import { TransformationJob } from '../../../client/token/codewhispererbearertokenclient'
+import { TransformationJob } from '@amzn/codewhisperer-runtime'
 
 describe('getTransformationErrorCode', () => {
     it('should return NONE when transformationJob is undefined', () => {
