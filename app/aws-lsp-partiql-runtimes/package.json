@@ -11,12 +11,12 @@
         "package": "npm run compile && npm run compile:webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.128",
-        "@aws/lsp-partiql": "^0.0.5"
+        "@aws/language-server-runtimes": "^0.3.0",
+        "@aws/lsp-partiql": "^0.0.18"
     },
     "devDependencies": {
         "ts-loader": "^9.4.4",
-        "ts-lsp-client": "^1.0.3",
+        "ts-lsp-client": "1.0.3",
         "webpack": "^5.94.0",
         "webpack-cli": "^6.0.1"
     }
