@@ -19,8 +19,8 @@ import {
     IamCredentials,
 } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
-import { Credentials } from 'aws-sdk'
 import { CLIENT_TIMEOUT_MS, MAX_REQUEST_ATTEMPTS } from '../language-server/agenticChat/constants/constants'
+
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'

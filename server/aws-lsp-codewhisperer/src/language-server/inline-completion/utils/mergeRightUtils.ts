@@ -40,7 +40,7 @@ export const mergeSuggestionsWithRightContext = (
     range?: Range
 ): InlineCompletionItemWithReferences[] => {
     return suggestions.map(suggestion => {
-        const insertText: string = truncateOverlapWithRightContext(rightFileContext, suggestion.content)
+        const insertText: string = truncateOverlapWithRightContext(rightFileContext, suggestion.content ?? '')
         let references = suggestion.references
             ?.filter(
                 ref =>
