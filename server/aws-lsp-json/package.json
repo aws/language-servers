@@ -26,7 +26,7 @@
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.129",
+        "@aws/language-server-runtimes": "^0.3.0",
         "@aws/lsp-core": "^0.0.16",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
@@ -42,6 +42,7 @@
         "endOfLine": "lf"
     },
     "devDependencies": {
-        "c8": "^10.1.2"
+        "c8": "^10.1.2",
+        "ts-mocha": "^11.1.0"
     }
 }
