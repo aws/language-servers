@@ -254,7 +254,7 @@ export class EditCompletionHandler {
                 document: {
                     relativeFilePath: textDocument.uri,
                     programmingLanguage: {
-                        languageName: generateCompletionReq.fileContext.programmingLanguage.languageName,
+                        languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
                     },
                     text: textDocument.getText(),
                 },
@@ -393,15 +393,15 @@ export class EditCompletionHandler {
                 .map(suggestion => {
                     // Check if this suggestion is similar to a previously rejected edit
                     const isSimilarToRejected = this.rejectedEditTracker.isSimilarToRejected(
-                        suggestion.content,
+                        suggestion.content ?? '',
                         textDocument?.uri || ''
                     )
 
                     const processedSuggestion = processEditSuggestion(
-                        suggestion.content,
+                        suggestion.content ?? '',
                         session.startPosition,
                         session.document,
-                        session.requestContext.fileContext.rightFileContent
+                        session.requestContext.fileContext?.rightFileContent ?? ''
                     )
                     const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
 
