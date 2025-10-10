@@ -16,7 +16,6 @@ import {
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from '../auto-trigger/autoTrigger'
 import {
     FileContext,
-    BaseGenerateSuggestionsRequest,
     CodeWhispererServiceToken,
     GenerateIAMSuggestionsRequest,
     GenerateTokenSuggestionsRequest,
@@ -119,9 +118,11 @@ export class InlineCompletionHandler {
                 try {
                     const suggestionResponse = await codeWhispererService.generateSuggestions({
                         ...currentSession.requestContext,
-                        fileContext: {
-                            ...currentSession.requestContext.fileContext,
-                        },
+                        fileContext: currentSession.requestContext.fileContext
+                            ? {
+                                  ...currentSession.requestContext.fileContext,
+                              }
+                            : undefined,
                         nextToken: `${params.partialResultToken}`,
                     })
                     return await this.processSuggestionResponse(
@@ -316,13 +317,13 @@ export class InlineCompletionHandler {
 
         // Add extra context to request context
         const { extraContext } = this.amazonQServiceManager.getConfiguration().inlineSuggestions
-        if (extraContext) {
+        if (extraContext && requestContext.fileContext) {
             requestContext.fileContext.leftFileContent =
                 extraContext + '\n' + requestContext.fileContext.leftFileContent
         }
 
         // Create the appropriate request based on service type
-        let generateCompletionReq: BaseGenerateSuggestionsRequest
+        let generateCompletionReq: GenerateSuggestionsRequest
 
         if (codeWhispererService instanceof CodeWhispererServiceToken) {
             const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
@@ -432,7 +433,7 @@ export class InlineCompletionHandler {
 
         const { includeImportsWithSuggestions } = this.amazonQServiceManager.getConfiguration()
         const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
-            session.requestContext.fileContext.rightFileContent,
+            session.requestContext.fileContext?.rightFileContent ?? '',
             filteredSuggestions,
             includeImportsWithSuggestions,
             selectionRange
