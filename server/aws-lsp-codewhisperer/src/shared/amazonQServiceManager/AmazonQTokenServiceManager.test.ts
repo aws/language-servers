@@ -57,7 +57,6 @@ const TEST_ENDPOINT_EU_CENTRAL_1 = 'http://amazon-q-in-eu-central-1-endpoint'
 describe('AmazonQTokenServiceManager', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererServiceToken>
     let codewhispererStubFactory: sinon.SinonStub<any[], StubbedInstance<CodeWhispererServiceToken>>
-    let sdkInitializatorSpy: sinon.SinonSpy
     let getListAllAvailableProfilesHandlerStub: sinon.SinonStub
 
     let amazonQTokenServiceManager: AmazonQTokenServiceManager
@@ -83,10 +82,6 @@ describe('AmazonQTokenServiceManager', () => {
         AmazonQTokenServiceManager.resetInstance()
 
         features = new TestFeatures()
-
-        sdkInitializatorSpy = Object.assign(sinon.spy(features.sdkInitializator), {
-            v2: sinon.spy(features.sdkInitializator.v2),
-        })
 
         codewhispererServiceStub = stubInterface<CodeWhispererServiceToken>()
         // @ts-ignore
