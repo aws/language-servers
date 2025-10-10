@@ -3,6 +3,7 @@ import {
     LogInlineCompletionSessionResultsParams,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
+import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
 import { SessionManager } from '../session/sessionManager'
 import { CodePercentageTracker } from '../tracker/codePercentageTracker'
 import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
@@ -41,7 +42,7 @@ export class SessionResultsHandler {
             fileUrl: session.document.uri,
             languageId: session.language,
             time: Date.now(),
-            originalString: originalString,
+            originalString: originalString ?? '',
             startPosition: session.startPosition,
             endPosition: endPosition,
             customizationArn: session.customizationArn,
@@ -153,8 +154,8 @@ export class SessionResultsHandler {
             this.getTimeSinceLastUserModification(),
             addedLengthForEdits,
             deletedLengthForEdits,
-            addedDiagnostics,
-            removedDiagnostics,
+            addedDiagnostics as IdeDiagnostic[],
+            removedDiagnostics as IdeDiagnostic[],
             streakLength,
             Object.keys(params.completionSessionResult)[0]
         )
