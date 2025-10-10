@@ -1,5 +1,5 @@
 import { ExecuteCommandParams } from 'vscode-languageserver'
-import { TransformationJob, TransformationPlan } from '../../client/token/codewhispererbearertokenclient'
+import { TransformationJob, TransformationPlan } from '@amzn/codewhisperer-runtime'
 
 /**
  * Error codes for transformation job failures.
@@ -29,8 +29,8 @@ export interface StartTransformRequest extends ExecuteCommandParams {
 }
 
 export interface StartTransformResponse {
-    UploadId: string
-    TransformationJobId: string
+    UploadId: string | undefined
+    TransformationJobId: string | undefined
     ArtifactPath: string
     Error?: string
     IsSupported?: boolean
