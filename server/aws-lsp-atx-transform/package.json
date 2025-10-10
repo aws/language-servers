@@ -1,0 +1,44 @@
+{
+    "name": "@aws/lsp-atx-transform",
+    "version": "0.0.1",
+    "description": "ATX Transform Language Server",
+    "main": "out/index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aws/language-servers"
+    },
+    "author": "Amazon Web Services",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "compile": "tsc --build",
+        "fix": "npm run fix:prettier",
+        "fix:prettier": "prettier . --write",
+        "lint": "npm run lint:src",
+        "lint:src": "eslint src/ --ext .ts,.tsx",
+        "test:unit": "ts-mocha --timeout 0 -b \"./src/**/*.test.ts\"",
+        "test": "npm run lint && npm run test:unit",
+        "prepack": "npm run compile"
+    },
+    "dependencies": {
+        "@amazon/elastic-gumby-frontend-client": "file:amazon-elastic-gumby-frontend-client-1.0.0.tgz",
+        "@aws/language-server-runtimes": "^0.2.129",
+        "@aws/lsp-core": "^0.0.15",
+        "vscode-languageserver": "^9.0.1",
+        "vscode-languageserver-textdocument": "^1.0.11"
+    },
+    "devDependencies": {
+        "@types/node": "^18.0.0",
+        "@typescript-eslint/eslint-plugin": "^6.0.0",
+        "@typescript-eslint/parser": "^6.0.0",
+        "eslint": "^8.0.0",
+        "prettier": "^3.0.0",
+        "ts-mocha": "^10.0.0",
+        "typescript": "^5.0.0"
+    },
+    "bundleDependencies": [
+        "@amazon/elastic-gumby-frontend-client"
+    ]
+}
