@@ -2399,6 +2399,20 @@ export class AgenticChatController implements ChatHandlers {
                 },
             ],
         })
+        // provide the same undoAll button but with 'modified-files-' messageId suffix
+        await chatResultStream.writeResultBlock({
+            type: 'answer',
+            messageId: `modified-files-${session.currentUndoAllId}${SUFFIX_UNDOALL}`,
+            buttons: [
+                {
+                    id: BUTTON_UNDO_ALL_CHANGES,
+                    text: 'Undo all changes',
+                    icon: 'undo',
+                    status: 'clear',
+                    keepCardAfterClick: false,
+                },
+            ],
+        })
         session.currentUndoAllId = undefined
     }
 
