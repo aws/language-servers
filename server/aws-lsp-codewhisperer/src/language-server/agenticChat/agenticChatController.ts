@@ -3101,15 +3101,6 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock(modifiedFilesMessage)
         }
     }
-    // need to decide when to call
-    async #resetModifiedFilesTracker(chatResultStream: AgenticChatResultStream): Promise<void> {
-        const resetMessage: ChatMessage = {
-            type: 'tool',
-            messageId: `modified-files-${crypto.randomUUID()}`,
-            fileList: undefined,
-        }
-        await chatResultStream.writeResultBlock(resetMessage)
-    }
 
     async #processFileSearchTool(
         toolInput: FileSearchParams,
