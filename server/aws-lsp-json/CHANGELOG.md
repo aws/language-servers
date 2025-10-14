@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/aws/language-servers/compare/lsp-json/v0.1.20...lsp-json/v0.1.21) (2025-10-14)
+
+
+### Bug Fixes
+
+* set resolveProvider to false in init handler json and yaml language servers ([#2391](https://github.com/aws/language-servers/issues/2391)) ([e11c544](https://github.com/aws/language-servers/commit/e11c544804e4fbe7dbad3e5373223ba919a34758))
+
 ## [0.1.20](https://github.com/aws/language-servers/compare/lsp-json/v0.1.19...lsp-json/v0.1.20) (2025-10-01)
 
 
