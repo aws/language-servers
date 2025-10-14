@@ -64,9 +64,15 @@ export class SessionResultsHandler {
             removedDiagnostics,
         } = params
 
-        const sessionManager = params.isInlineEdit ? this.editSessionManager : this.completionSessionManager
+        // Comment this out because Edit request might return Completion as well so we can't rely on this flag
+        // const sessionManager = params.isInlineEdit ? this.editSessionManager : this.completionSessionManager
 
-        const session = sessionManager.getSessionById(sessionId)
+        // TODO: Not elegant, worth refactoring
+        const editSession = this.editSessionManager.getSessionById(sessionId)
+        const completionSession = this.completionSessionManager.getSessionById(sessionId)
+
+        const session = editSession ?? completionSession
+        const sessionManager = editSession ? this.editSessionManager : this.completionSessionManager
         if (!session) {
             this.logging.log(`ERROR: Session ID ${sessionId} was not found`)
             return
