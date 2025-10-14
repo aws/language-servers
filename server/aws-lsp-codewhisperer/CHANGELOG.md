@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.85](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.84...lsp-codewhisperer/v0.0.85) (2025-10-14)
+
+
+### Bug Fixes
+
+* inline, nep telemetry not sent and throw sessionId not found ([#2419](https://github.com/aws/language-servers/issues/2419)) ([c96106d](https://github.com/aws/language-servers/commit/c96106d18c9e9d846765665ce2ee50304af4ff7f))
+
 ## [0.0.84](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.83...lsp-codewhisperer/v0.0.84) (2025-10-09)
 
 
