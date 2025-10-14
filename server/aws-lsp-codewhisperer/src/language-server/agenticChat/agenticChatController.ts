@@ -2399,7 +2399,7 @@ export class AgenticChatController implements ChatHandlers {
                 },
             ],
         })
-        // provide the same undoAll button but with 'modified-files-' messageId suffix
+        // provide the same undoAll button but with 'modified-files-' messageId prefix
         await chatResultStream.writeResultBlock({
             type: 'answer',
             messageId: `modified-files-${session.currentUndoAllId}${SUFFIX_UNDOALL}`,
