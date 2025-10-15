@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.86](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.85...lsp-codewhisperer/v0.0.86) (2025-10-15)
+
+
+### Reverts
+
+* revert for mid-loop compaction ([3f48b12](https://github.com/aws/language-servers/commit/3f48b12bce4faba474404f7c74a9520c379552fe))
+
 ## [0.0.85](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.84...lsp-codewhisperer/v0.0.85) (2025-10-14)
 
 
