@@ -4,11 +4,12 @@
  */
 
 import { FileContext } from '../../../shared/codeWhispererService'
-import { Position } from '@aws/language-server-runtimes/server-interface'
+import { Position, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
-import { LanguageDetectorFactory } from './languageDetector'
 import { EditPredictionConfigManager } from './editPredictionConfig'
+import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
+import { UserTriggerDecision } from '../session/sessionManager'
 
 /**
  * Parameters for the edit prediction auto-trigger
@@ -64,4 +65,181 @@ export const editPredictionAutoTrigger = ({
     const shouldTrigger = hasRecentEdit && hasNonEmptySuffix
 
     return { shouldTrigger }
+}
+
+// TODO: interface is not finalized
+type EditAutoTriggerInput = {
+    textDocument: TextDocument
+    fileContext: FileContext
+    triggerChar: string
+    cursorPosition: Position
+    recentEdits: CodeWhispererSupplementalContext
+    recentDecisions: UserTriggerDecision[]
+}
+
+type EditClassifierFeatures = {
+    lastCharacter: string
+    lastLineLength: number
+    leftContextLineCount: number
+    rightContextLineCount: number
+    normalizedEditHistory: EditHistoryFeature | undefined
+    language: string
+    keyword: string
+    userAR: number
+}
+
+type EditHistoryFeature = {
+    changedCharacters: number
+    addedLines: number
+    deletedLines: number
+}
+
+class EditClassifier {
+    private _score: number | undefined
+    constructor(private readonly params: EditAutoTriggerInput) {
+        // TODO: set this.features = features
+        this.prepareFeatures(params)
+    }
+
+    score() {
+        if (this._score !== undefined) {
+            return this._score
+        }
+        // TODO: formula
+    }
+
+    prepareFeatures(params: EditAutoTriggerInput): EditClassifierFeatures {
+        // 1. Last Character
+        const lastCharacter = params.triggerChar[params.triggerChar.length - 1]
+
+        // 2. Last Line Length
+        const currentLine = getCurrentLine(params.textDocument, params.cursorPosition)
+        const lastLineLength = currentLine.left.length // TODO: only left?
+
+        // 3. Left Context Line Count
+        const leftContextLineCount = params.fileContext.leftFileContent.split('\n').length + 1
+
+        // 4. Right Context Line Count
+        const rightContextLineCount = params.fileContext.rightFileContent.split('\n').length + 1
+
+        // 5. Edit History (only using olderst)
+        const oldest = params.recentEdits.supplementalContextItems[0] // nullable
+        const editHistory = oldest ? this.processEditHistory(oldest.content) : undefined
+        const normalizedEditHistory = editHistory ? this.normalizedRecentEdit(editHistory) : undefined
+
+        // 6. Language
+        const lang = params.fileContext.programmingLanguage
+
+        // 7. Keywords
+        const tokens = currentLine.left.trim().split(' ') // split(' ') Not strict enough?
+        const lastToken = tokens[tokens.length - 1]
+
+        // 8. User AR for last 5
+        const ar =
+            params.recentDecisions.reduce((acc: number, cur: UserTriggerDecision) => {
+                if (cur === 'Accept') {
+                    return acc + 1
+                } else {
+                    return acc
+                }
+            }, 0) / 5.0
+
+        return {
+            lastCharacter: lastCharacter,
+            lastLineLength: lastLineLength,
+            leftContextLineCount: leftContextLineCount,
+            rightContextLineCount: rightContextLineCount,
+            normalizedEditHistory: normalizedEditHistory,
+            language: lang.languageName,
+            userAR: ar,
+            keyword: lastToken,
+        }
+    }
+
+    processEditHistory(udiff: string): EditHistoryFeature {
+        const lines = udiff.split('\n')
+        const addedLines = lines.filter(line => line.startsWith('+') && !line.startsWith('+++'))
+        const deletedLines = lines.filter(line => line.startsWith('-') && !line.startsWith('---'))
+
+        function editDistance(s1: string, s2: string) {
+            if (s1.length === 0) {
+                return s2.length
+            }
+
+            if (s2.length === 0) {
+                return s1.length
+            }
+
+            let prev: number[] = Array.from({ length: s1.length + 1 }, (_, i) => i)
+
+            for (let i = 0; i < s2.length; i++) {
+                const curr: number[] = [i + 1]
+                for (let j = 0; j < s1.length; j++) {
+                    curr.push(Math.min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (s1[j] !== s2[i] ? 1 : 0)))
+                }
+                prev = curr
+            }
+
+            return prev[s1.length]
+        }
+
+        const deletedText = deletedLines.join('\n')
+        const addedText = addedLines.join('\n')
+
+        const hisotryChangedChars = editDistance(deletedText, addedText)
+        const historyLineAdded = addedLines.length
+        const historyLineDeleted = deletedLines.length
+
+        return {
+            changedCharacters: hisotryChangedChars,
+            addedLines: historyLineAdded,
+            deletedLines: historyLineDeleted,
+        }
+    }
+
+    normalizedRecentEdit(edit: ReturnType<typeof this.processEditHistory>): EditHistoryFeature {
+        // Apply min-max normalization using training data min/max values
+        const { changedCharacters, addedLines, deletedLines } = edit
+
+        const trainingCharsChangedMin = 0
+        const trainingCharsChangedMax = 261
+        const normalizedChangedCharacters =
+            (changedCharacters - trainingCharsChangedMin) / (trainingCharsChangedMax - trainingCharsChangedMin)
+
+        const trainingLineAddedMin = 0
+        const trainingLineAddedMax = 7
+        const normalizedAddedLines = (addedLines - trainingLineAddedMin) / (trainingLineAddedMax - trainingLineAddedMin)
+
+        const trainingLineDeletedMin = 0
+        const trainingLineDeletedMax = 6
+        const normalizedDeletedLines =
+            (deletedLines - trainingLineDeletedMin) / (trainingLineDeletedMax - trainingLineDeletedMin)
+
+        return {
+            changedCharacters: normalizedChangedCharacters,
+            addedLines: normalizedAddedLines,
+            deletedLines: normalizedDeletedLines,
+        }
+    }
+}
+
+// TODO: Move to utils and tests
+export function getCurrentLine(
+    document: TextDocument,
+    position: Position
+): {
+    left: string
+    right: string
+} {
+    const left = document.getText({
+        start: { line: position.line, character: 0 },
+        end: { line: position.line, character: position.character },
+    })
+
+    const right = document.getText({
+        start: { line: position.line, character: position.character },
+        end: { line: position.line, character: Number.MAX_VALUE },
+    })
+
+    return { left, right }
 }
