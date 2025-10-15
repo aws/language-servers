@@ -36,7 +36,7 @@ export const JsonServerFactory =
         const onInitializeHandler = () => {
             return {
                 capabilities: {
-                    completionProvider: { resolveProvider: true },
+                    completionProvider: { resolveProvider: false },
                     hoverProvider: true,
                     documentFormattingProvider: true,
                     textDocumentSync: {
