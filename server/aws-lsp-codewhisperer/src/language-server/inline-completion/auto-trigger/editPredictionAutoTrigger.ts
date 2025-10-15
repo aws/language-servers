@@ -11,6 +11,11 @@ import { EditPredictionConfigManager } from './editPredictionConfig'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
 import { UserTriggerDecision } from '../session/sessionManager'
 
+// The sigmoid function to clamp the auto-trigger result to the (0, 1) range
+const sigmoid = (x: number) => {
+    return 1 / (1 + Math.exp(-x))
+}
+
 /**
  * Parameters for the edit prediction auto-trigger
  */
@@ -67,109 +72,121 @@ export const editPredictionAutoTrigger = ({
     return { shouldTrigger }
 }
 
-const coefficients = {
-    keyword: {
-        get: 1.1235,
-        const: -0.7675,
-        try: 0.6546,
-        number: 0.6149,
-        this: 0.5651,
-        return: -0.4762,
-        from: -0.4207,
-        None: -0.3971,
-        True: -0.3919,
-        true: -0.325,
-        async: -0.3236,
-        false: 0.3115,
-        else: 0.2746,
-        type: -0.273,
-        null: -0.2177,
-        if: -0.1763,
-        in: -0.1396,
-        void: 0.1379,
-        any: 0.1319,
-        as: 0.1032,
-        import: 0.1001,
-        for: -0.0042,
-        is: 0.0719,
-        other: -0.0509,
-        string: 0.0186,
-    },
-    lastChar: {
-        // alphabet
-        a: 0.0149,
-        c: 0.0553,
-        d: -0.1598,
-        e: -0.2132,
-        f: 0.348,
-        i: 0.0913,
-        l: 0.1584,
-        m: -0.353,
-        n: -0.0291,
-        o: 0.1346,
-        p: -0.2929,
-        Q: -0.0205,
-        r: 0.0753,
-        s: -0.0287,
-        S: 0.2682,
-        t: 0.123,
-        u: 0.2866,
-        y: -0.0166,
-        // numbers
-        '1': -0.2389,
-        '2': -0.1672,
-        // special chars
-        '(': -0.0113,
-        ')': 0.035,
-        '{': 0.1935,
-        '}': 0.0512,
-        ';': 0.1611,
-        '/': -0.1337,
-        '>': -0.0997,
-        '.': -0.0358,
-        ',': -0.0952,
-        '\\n': 0.0364,
-        ' ': -0.066,
-        _: 0.0122,
-        "'": -0.0939,
-        '"': -0.0006,
-        // others
-        others: -0.0828,
-    },
-    language: {
-        c: 0.1426,
-        cpp: -0.0935,
-        sql: -0.0674,
-        java: 0.0905,
-        javascript: 0.1512,
-        json: 0.1256,
-        kotlin: -0.2586,
-        python: 0.1293,
-        rust: -0.0603,
-        scala: 0.1985,
-        shell: 0.1605,
-        tf: -0.3423,
-        typescript: 0.1318,
-        yaml: -0.2152,
-        others: 0.0512,
-    },
-    leftContextLineCount: {
-        lte25: -0.0695,
-        gt26: -0.0245,
-    },
-    editHistory: {
-        changedCharsNorm: 0.0174,
-        linesDeletedNorm: -0.0833,
-        linesAddedNorm: 0.0539,
-    },
-    lastLineLength: {
-        lte4: -0.0119,
-        gte_5_lte12: -0.0411,
-        gt13: -0.0411,
-    },
-    ar: {
-        previous5: 0.4723,
-    },
+// TODO: restructure interface
+const keyWordCoefficients: Record<string, number> = {
+    get: 1.1235,
+    const: -0.7675,
+    try: 0.6546,
+    number: 0.6149,
+    this: 0.5651,
+    return: -0.4762,
+    from: -0.4207,
+    None: -0.3971,
+    True: -0.3919,
+    true: -0.325,
+    async: -0.3236,
+    false: 0.3115,
+    else: 0.2746,
+    type: -0.273,
+    null: -0.2177,
+    if: -0.1763,
+    in: -0.1396,
+    void: 0.1379,
+    any: 0.1319,
+    as: 0.1032,
+    import: 0.1001,
+    for: -0.0042,
+    is: 0.0719,
+    others: -0.0509,
+    string: 0.0186,
+}
+
+const lastCharCoefficients: Record<string, number> & Record<'others', number> = {
+    // alphabet
+    a: 0.0149,
+    c: 0.0553,
+    d: -0.1598,
+    e: -0.2132,
+    f: 0.348,
+    i: 0.0913,
+    l: 0.1584,
+    m: -0.353,
+    n: -0.0291,
+    o: 0.1346,
+    p: -0.2929,
+    Q: -0.0205,
+    r: 0.0753,
+    s: -0.0287,
+    S: 0.2682,
+    t: 0.123,
+    u: 0.2866,
+    y: -0.0166,
+    // numbers
+    '1': -0.2389,
+    '2': -0.1672,
+    // special chars
+    '(': -0.0113,
+    ')': 0.035,
+    '{': 0.1935,
+    '}': 0.0512,
+    ';': 0.1611,
+    '/': -0.1337,
+    '>': -0.0997,
+    '.': -0.0358,
+    ',': -0.0952,
+    '\\n': 0.0364,
+    ' ': -0.066,
+    _: 0.0122,
+    "'": -0.0939,
+    '"': -0.0006,
+    // others
+    others: -0.0828,
+}
+
+const languageCoefficients: Record<string, number> = {
+    c: 0.1426,
+    cpp: -0.0935,
+    sql: -0.0674,
+    java: 0.0905,
+    javascript: 0.1512,
+    json: 0.1256,
+    kotlin: -0.2586,
+    python: 0.1293,
+    rust: -0.0603,
+    scala: 0.1985,
+    shell: 0.1605,
+    tf: -0.3423,
+    typescript: 0.1318,
+    yaml: -0.2152,
+    others: 0.0512,
+}
+
+const leftContextLineCountCoeffecients = {
+    lte25: -0.0695,
+    gt26: -0.0245,
+}
+
+// TODO: update
+const rightContextLineCountCoefficients = {
+    lte3: 0,
+    gte_4_lte6: 0,
+    gte7: 0,
+}
+
+const editHistoryCoefficients = {
+    changedCharsNorm: 0.0174,
+    linesDeletedNorm: -0.0833,
+    linesAddedNorm: 0.0539,
+}
+
+const lastLineLengthCoefficients = {
+    lte4: -0.0119,
+    gte_5_lte12: -0.0411,
+    gt13: -0.0411,
+}
+
+const arCoefficients = {
+    previous5: 0.4723,
 }
 
 // TODO: interface is not finalized
@@ -200,10 +217,21 @@ type EditHistoryFeature = {
 }
 
 class EditClassifier {
+    static THRESHOLD = 0.53
+
     private _score: number | undefined
+    private features: EditClassifierFeatures
     constructor(private readonly params: EditAutoTriggerInput) {
-        // TODO: set this.features = features
-        this.prepareFeatures(params)
+        this.features = this.prepareFeatures(params)
+    }
+
+    shouldTriggerNep(): { shouldTrigger: boolean; threshold: number; score: number } {
+        const s = this.score()
+        return {
+            score: s,
+            threshold: EditClassifier.THRESHOLD,
+            shouldTrigger: s > EditClassifier.THRESHOLD,
+        }
     }
 
     score() {
@@ -211,6 +239,66 @@ class EditClassifier {
             return this._score
         }
         // TODO: formula
+        // 1. Last Character
+        const lastChar = this.features.lastCharacter
+        const myLastCharCoef = lastCharCoefficients[lastChar] ?? lastCharCoefficients['others']
+
+        // 2. Last Line Length
+        const lastLineLength = this.features.lastLineLength
+        let myLastLineLengthCoef = 0
+        if (lastLineLength <= 4) {
+            myLastLineLengthCoef = lastLineLengthCoefficients.lte4
+        } else if (lastLineLength >= 5 && lastLineLength <= 12) {
+            myLastLineLengthCoef = lastLineLengthCoefficients.gte_5_lte12
+        } else {
+            myLastLineLengthCoef = lastLineLengthCoefficients.gt13
+        }
+
+        // 3. Left Context Line Count
+        const leftContextLineCount = this.features.leftContextLineCount
+        const myLeftContextLineCountCoef =
+            leftContextLineCount <= 25 ? leftContextLineCountCoeffecients.lte25 : leftContextLineCountCoeffecients.gt26
+
+        // 4. Right Context Line Count
+        const rightContextLineCount = this.features.rightContextLineCount
+        let myRightContextLineCountCoef = 0
+        if (rightContextLineCount <= 3) {
+            myRightContextLineCountCoef = rightContextLineCountCoefficients.lte3
+        } else if (rightContextLineCount >= 4 && rightContextLineCount <= 6) {
+            myRightContextLineCountCoef = rightContextLineCountCoefficients.gte_4_lte6
+        } else {
+            myRightContextLineCountCoef = rightContextLineCountCoefficients.gte7
+        }
+
+        // 5. Edit History (only using oldest)
+        const editH = this.features.normalizedEditHistory
+        const myAdded = (editH?.addedLines ?? 0) * editHistoryCoefficients.linesAddedNorm
+        const myDeleted = (editH?.deletedLines ?? 0) * editHistoryCoefficients.linesDeletedNorm
+        const myChanged = (editH?.changedCharacters ?? 0) * editHistoryCoefficients.changedCharsNorm
+
+        // 6. Language
+        const lang = this.features.language
+        const myLangCoef = languageCoefficients[lang] ?? languageCoefficients['others']
+
+        // 7. Keyword
+        const kw = this.features.keyword
+        const myKeywordCoef = keyWordCoefficients[kw] ?? keyWordCoefficients['others']
+
+        // Linear combination result
+        const logit =
+            myLastCharCoef +
+            myLastLineLengthCoef +
+            myLeftContextLineCountCoef +
+            myRightContextLineCountCoef +
+            myAdded +
+            myDeleted +
+            myChanged +
+            myLangCoef +
+            myKeywordCoef
+
+        const probability = sigmoid(logit)
+
+        return probability
     }
 
     prepareFeatures(params: EditAutoTriggerInput): EditClassifierFeatures {
@@ -348,3 +436,109 @@ export function getCurrentLine(
 
     return { left, right }
 }
+
+// const coefficients: Record<'keyword' | 'lastChar' | 'language' | 'leftContextLineCount' | 'editHistory' | 'lastLineLength' | 'ar', Record<string, number>> = {
+// const coefficients = {
+//     keyword: {
+//         get: 1.1235,
+//         const: -0.7675,
+//         try: 0.6546,
+//         number: 0.6149,
+//         this: 0.5651,
+//         return: -0.4762,
+//         from: -0.4207,
+//         None: -0.3971,
+//         True: -0.3919,
+//         true: -0.325,
+//         async: -0.3236,
+//         false: 0.3115,
+//         else: 0.2746,
+//         type: -0.273,
+//         null: -0.2177,
+//         if: -0.1763,
+//         in: -0.1396,
+//         void: 0.1379,
+//         any: 0.1319,
+//         as: 0.1032,
+//         import: 0.1001,
+//         for: -0.0042,
+//         is: 0.0719,
+//         other: -0.0509,
+//         string: 0.0186,
+//     },
+//     lastChar: {
+//         // alphabet
+//         a: 0.0149,
+//         c: 0.0553,
+//         d: -0.1598,
+//         e: -0.2132,
+//         f: 0.348,
+//         i: 0.0913,
+//         l: 0.1584,
+//         m: -0.353,
+//         n: -0.0291,
+//         o: 0.1346,
+//         p: -0.2929,
+//         Q: -0.0205,
+//         r: 0.0753,
+//         s: -0.0287,
+//         S: 0.2682,
+//         t: 0.123,
+//         u: 0.2866,
+//         y: -0.0166,
+//         // numbers
+//         '1': -0.2389,
+//         '2': -0.1672,
+//         // special chars
+//         '(': -0.0113,
+//         ')': 0.035,
+//         '{': 0.1935,
+//         '}': 0.0512,
+//         ';': 0.1611,
+//         '/': -0.1337,
+//         '>': -0.0997,
+//         '.': -0.0358,
+//         ',': -0.0952,
+//         '\\n': 0.0364,
+//         ' ': -0.066,
+//         _: 0.0122,
+//         "'": -0.0939,
+//         '"': -0.0006,
+//         // others
+//         others: -0.0828,
+//     },
+//     language: {
+//         c: 0.1426,
+//         cpp: -0.0935,
+//         sql: -0.0674,
+//         java: 0.0905,
+//         javascript: 0.1512,
+//         json: 0.1256,
+//         kotlin: -0.2586,
+//         python: 0.1293,
+//         rust: -0.0603,
+//         scala: 0.1985,
+//         shell: 0.1605,
+//         tf: -0.3423,
+//         typescript: 0.1318,
+//         yaml: -0.2152,
+//         others: 0.0512,
+//     },
+//     leftContextLineCount: {
+//         lte25: -0.0695,
+//         gt26: -0.0245,
+//     },
+//     editHistory: {
+//         changedCharsNorm: 0.0174,
+//         linesDeletedNorm: -0.0833,
+//         linesAddedNorm: 0.0539,
+//     },
+//     lastLineLength: {
+//         lte4: -0.0119,
+//         gte_5_lte12: -0.0411,
+//         gt13: -0.0411,
+//     },
+//     ar: {
+//         previous5: 0.4723,
+//     },
+// }
