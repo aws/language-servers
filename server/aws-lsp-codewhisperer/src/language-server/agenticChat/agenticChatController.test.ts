@@ -1185,21 +1185,15 @@ describe('AgenticChatController', () => {
 
         it('truncate input to 500k character ', async function () {
             const input = 'X'.repeat(GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT + 10)
-            const request: GenerateAssistantResponseCommandInput = {
-                conversationState: {
-                    currentMessage: {
-                        userInputMessage: {
-                            content: input,
-                        },
-                    },
-                    chatTriggerType: undefined,
-                },
-            }
-
-            chatController.truncateRequest(request)
-
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {})
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: input } }, mockCancellationToken)
+            assert.ok(generateAssistantResponseStub.called)
+            const calledRequestInput: GenerateAssistantResponseCommandInput =
+                generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(
-                request.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
                 GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
             )
         })
