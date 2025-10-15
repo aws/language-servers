@@ -218,6 +218,7 @@ type EditHistoryFeature = {
 
 class EditClassifier {
     static THRESHOLD = 0.53
+    static INTERCEPT = -0.1324
 
     private _score: number | undefined
     private features: EditClassifierFeatures
@@ -284,6 +285,9 @@ class EditClassifier {
         const kw = this.features.keyword
         const myKeywordCoef = keyWordCoefficients[kw] ?? keyWordCoefficients['others']
 
+        // 8. AR
+        const myArCoef = arCoefficients.previous5 * this.features.userAR
+
         // Linear combination result
         const logit =
             myLastCharCoef +
@@ -294,7 +298,9 @@ class EditClassifier {
             myDeleted +
             myChanged +
             myLangCoef +
-            myKeywordCoef
+            myKeywordCoef +
+            myArCoef +
+            EditClassifier.INTERCEPT
 
         const probability = sigmoid(logit)
 
