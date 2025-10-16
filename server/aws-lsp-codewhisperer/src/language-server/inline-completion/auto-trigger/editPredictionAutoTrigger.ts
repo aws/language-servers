@@ -417,24 +417,3 @@ class EditClassifier {
         }
     }
 }
-
-// TODO: Move to utils and tests
-export function getCurrentLine(
-    document: TextDocument,
-    position: Position
-): {
-    left: string
-    right: string
-} {
-    const left = document.getText({
-        start: { line: position.line, character: 0 },
-        end: { line: position.line, character: position.character },
-    })
-
-    const right = document.getText({
-        start: { line: position.line, character: position.character },
-        end: { line: position.line, character: Number.MAX_VALUE },
-    })
-
-    return { left, right }
-}
