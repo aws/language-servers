@@ -3,17 +3,13 @@ import { InlineCompletionWithReferencesParams } from '@aws/language-server-runti
 import { editPredictionAutoTrigger } from '../auto-trigger/editPredictionAutoTrigger'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
-import {
-    CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
-    ClientFileContext,
-} from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceBase, CodeWhispererServiceToken, FileContext } from '../../../shared/codeWhispererService'
 
 export class NepTrigger {}
 
 export function shouldTriggerEdits(
     service: CodeWhispererServiceBase,
-    fileContext: ClientFileContext,
+    fileContext: FileContext,
     inlineParams: InlineCompletionWithReferencesParams,
     cursorTracker: CursorTracker,
     recentEditsTracker: RecentEditTracker,
