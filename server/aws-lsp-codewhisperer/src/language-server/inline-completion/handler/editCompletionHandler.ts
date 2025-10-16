@@ -39,6 +39,7 @@ import { DocumentChangedListener } from '../documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
 import { processEditSuggestion } from '../utils/diffUtils'
+import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -228,17 +229,15 @@ export class EditCompletionHandler {
         const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
         const workspaceId = workspaceState?.webSocketClient?.isConnected() ? workspaceState.workspaceId : undefined
 
-        const qEditsTrigger = shouldTriggerEdits(
-            this.codeWhispererService,
-            fileContextClss.toServiceModel(),
-            params,
-            this.cursorTracker,
-            this.recentEditsTracker,
-            this.sessionManager,
-            true
-        )
+        const recentEdits = await this.recentEditsTracker.generateEditBasedContext(textDocument)
+        const qEditsTrigger = new EditClassifier({
+            fileContext: fileContextClss,
+            triggerChar: '',
+            recentEdits: recentEdits,
+            recentDecisions: this.sessionManager.userDecisionLog.map(it => it.decision),
+        })
 
-        if (!qEditsTrigger) {
+        if (!qEditsTrigger.shouldTriggerNep()) {
             return EMPTY_RESULT
         }
 
@@ -249,22 +248,20 @@ export class EditCompletionHandler {
             workspaceId: workspaceId,
         }
 
-        if (qEditsTrigger) {
-            generateCompletionReq.editorState = {
-                document: {
-                    relativeFilePath: textDocument.uri,
-                    programmingLanguage: {
-                        languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
-                    },
-                    text: textDocument.getText(),
+        generateCompletionReq.editorState = {
+            document: {
+                relativeFilePath: textDocument.uri,
+                programmingLanguage: {
+                    languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
                 },
-                cursorState: {
-                    position: {
-                        line: params.position.line,
-                        character: params.position.character,
-                    },
+                text: textDocument.getText(),
+            },
+            cursorState: {
+                position: {
+                    line: params.position.line,
+                    character: params.position.character,
                 },
-            }
+            },
         }
 
         const supplementalContext = await this.codeWhispererService.constructSupplementalContext(

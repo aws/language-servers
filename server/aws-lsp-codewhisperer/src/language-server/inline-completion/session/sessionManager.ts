@@ -309,7 +309,7 @@ export class SessionManager {
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
-    private _userDecisionLog: { sessionId: string; decision: string }[] = []
+    private _userDecisionLog: { sessionId: string; decision: UserTriggerDecision }[] = []
     get userDecisionLog() {
         return [...this._userDecisionLog]
     }
