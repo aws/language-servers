@@ -5,10 +5,11 @@
 
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { editPredictionAutoTrigger } from './editPredictionAutoTrigger'
+import { EditClassifier, editPredictionAutoTrigger } from './editPredictionAutoTrigger'
 import { EditPredictionConfigManager } from './editPredictionConfig'
-import { FileContext } from '../../../shared/codeWhispererService'
+import { FileContext, getFileContext } from '../../../shared/codeWhispererService'
 import { Position } from '@aws/language-server-runtimes/server-interface'
+import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { TestScenarios, EditTrackingScenarios, splitCodeAtPosition } from './EditPredictionAutoTriggerTestConstants'
@@ -334,6 +335,67 @@ describe('editPredictionAutoTrigger', function () {
 
             // Assert
             assert.strictEqual(result.shouldTrigger, true)
+        })
+    })
+})
+
+describe('classifier', function () {
+    const SAMPLE = `public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+    }
+}`
+
+    const SAMPLE_FILE_CONTEXT = getFileContext({
+        textDocument: TextDocument.create('file:///testfile.java', 'java', 1, SAMPLE),
+        position: Position.create(2, 18),
+        inferredLanguageId: 'java',
+        workspaceFolder: undefined,
+    })
+
+    it('test sample', function () {
+        assert.strictEqual(SAMPLE_FILE_CONTEXT.leftContextAtCurLine, '        System.out')
+        assert.strictEqual(SAMPLE_FILE_CONTEXT.rightContextAtCurLine, '.println("Hello, World!");') // TODO: Not sure why it doesnt include \n
+        assert.strictEqual(SAMPLE_FILE_CONTEXT.programmingLanguage.languageName, 'java')
+        assert.strictEqual(
+            SAMPLE_FILE_CONTEXT.leftFileContent,
+            `public class HelloWorld {
+    public static void main(String[] args) {
+        System.out`
+        )
+        assert.strictEqual(
+            SAMPLE_FILE_CONTEXT.rightFileContent,
+            `.println("Hello, World!");
+    }
+}`
+        )
+    })
+
+    describe('constant check', function () {
+        it('intercept', function () {
+            assert.strictEqual(EditClassifier.INTERCEPT, -0.1324)
+        })
+
+        it('threshold', function () {
+            assert.strictEqual(EditClassifier.THRESHOLD, 0.53)
+        })
+    })
+
+    describe('test suite1', function () {
+        it('t', function () {
+            const sut = new EditClassifier({
+                fileContext: SAMPLE_FILE_CONTEXT,
+                triggerChar: 't', // System.ou't'
+                recentEdits: {
+                    isUtg: false,
+                    isProcessTimeout: false,
+                    supplementalContextItems: [],
+                    contentsLength: 0,
+                    latency: 0,
+                    strategy: 'recentEdits',
+                },
+                recentDecisions: [],
+            })
         })
     })
 })

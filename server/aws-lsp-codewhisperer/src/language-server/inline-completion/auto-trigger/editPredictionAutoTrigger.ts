@@ -213,7 +213,7 @@ type EditHistoryFeature = {
     deletedLines: number
 }
 
-class EditClassifier {
+export class EditClassifier {
     static THRESHOLD = 0.53
     static INTERCEPT = -0.1324
 
