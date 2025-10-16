@@ -351,7 +351,7 @@ ${JSON.stringify(
 
         console.log(`recent edits:
 @@raw oldest edit@@
-${oldest}
+${oldest.content}
 @@raw numbers@@
 ${JSON.stringify(editHistory, undefined, 2)}
 @@normalized numbers@@
