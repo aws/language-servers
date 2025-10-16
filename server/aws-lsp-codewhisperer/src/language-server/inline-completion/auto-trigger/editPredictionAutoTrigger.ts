@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FileContext } from '../../../shared/codeWhispererService'
+import { ClientFileContextClss, FileContext } from '../../../shared/codeWhispererService'
 import { Position, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
@@ -191,10 +191,8 @@ const arCoefficients = {
 
 // TODO: interface is not finalized
 type EditAutoTriggerInput = {
-    textDocument: TextDocument
-    fileContext: FileContext
+    fileContext: ClientFileContextClss
     triggerChar: string
-    cursorPosition: Position
     recentEdits: CodeWhispererSupplementalContext
     recentDecisions: UserTriggerDecision[]
 }
@@ -239,7 +237,6 @@ class EditClassifier {
         if (this._score !== undefined) {
             return this._score
         }
-        // TODO: formula
         // 1. Last Character
         const lastChar = this.features.lastCharacter
         const myLastCharCoef = lastCharCoefficients[lastChar] ?? lastCharCoefficients['others']
@@ -312,8 +309,7 @@ class EditClassifier {
         const lastCharacter = params.triggerChar[params.triggerChar.length - 1]
 
         // 2. Last Line Length
-        const currentLine = getCurrentLine(params.textDocument, params.cursorPosition)
-        const lastLineLength = currentLine.left.length // TODO: only left?
+        const lastLineLength = params.fileContext.leftContextAtCurLine.length // TODO: only left?
 
         // 3. Left Context Line Count
         const leftContextLineCount = params.fileContext.leftFileContent.split('\n').length + 1
@@ -330,7 +326,7 @@ class EditClassifier {
         const lang = params.fileContext.programmingLanguage
 
         // 7. Keywords
-        const tokens = currentLine.left.trim().split(' ') // split(' ') Not strict enough?
+        const tokens = params.fileContext.leftContextAtCurLine.trim().split(' ') // split(' ') Not strict enough?
         const lastToken = tokens[tokens.length - 1]
 
         // 8. User AR for last 5
@@ -442,109 +438,3 @@ export function getCurrentLine(
 
     return { left, right }
 }
-
-// const coefficients: Record<'keyword' | 'lastChar' | 'language' | 'leftContextLineCount' | 'editHistory' | 'lastLineLength' | 'ar', Record<string, number>> = {
-// const coefficients = {
-//     keyword: {
-//         get: 1.1235,
-//         const: -0.7675,
-//         try: 0.6546,
-//         number: 0.6149,
-//         this: 0.5651,
-//         return: -0.4762,
-//         from: -0.4207,
-//         None: -0.3971,
-//         True: -0.3919,
-//         true: -0.325,
-//         async: -0.3236,
-//         false: 0.3115,
-//         else: 0.2746,
-//         type: -0.273,
-//         null: -0.2177,
-//         if: -0.1763,
-//         in: -0.1396,
-//         void: 0.1379,
-//         any: 0.1319,
-//         as: 0.1032,
-//         import: 0.1001,
-//         for: -0.0042,
-//         is: 0.0719,
-//         other: -0.0509,
-//         string: 0.0186,
-//     },
-//     lastChar: {
-//         // alphabet
-//         a: 0.0149,
-//         c: 0.0553,
-//         d: -0.1598,
-//         e: -0.2132,
-//         f: 0.348,
-//         i: 0.0913,
-//         l: 0.1584,
-//         m: -0.353,
-//         n: -0.0291,
-//         o: 0.1346,
-//         p: -0.2929,
-//         Q: -0.0205,
-//         r: 0.0753,
-//         s: -0.0287,
-//         S: 0.2682,
-//         t: 0.123,
-//         u: 0.2866,
-//         y: -0.0166,
-//         // numbers
-//         '1': -0.2389,
-//         '2': -0.1672,
-//         // special chars
-//         '(': -0.0113,
-//         ')': 0.035,
-//         '{': 0.1935,
-//         '}': 0.0512,
-//         ';': 0.1611,
-//         '/': -0.1337,
-//         '>': -0.0997,
-//         '.': -0.0358,
-//         ',': -0.0952,
-//         '\\n': 0.0364,
-//         ' ': -0.066,
-//         _: 0.0122,
-//         "'": -0.0939,
-//         '"': -0.0006,
-//         // others
-//         others: -0.0828,
-//     },
-//     language: {
-//         c: 0.1426,
-//         cpp: -0.0935,
-//         sql: -0.0674,
-//         java: 0.0905,
-//         javascript: 0.1512,
-//         json: 0.1256,
-//         kotlin: -0.2586,
-//         python: 0.1293,
-//         rust: -0.0603,
-//         scala: 0.1985,
-//         shell: 0.1605,
-//         tf: -0.3423,
-//         typescript: 0.1318,
-//         yaml: -0.2152,
-//         others: 0.0512,
-//     },
-//     leftContextLineCount: {
-//         lte25: -0.0695,
-//         gt26: -0.0245,
-//     },
-//     editHistory: {
-//         changedCharsNorm: 0.0174,
-//         linesDeletedNorm: -0.0833,
-//         linesAddedNorm: 0.0539,
-//     },
-//     lastLineLength: {
-//         lte4: -0.0119,
-//         gte_5_lte12: -0.0411,
-//         gt13: -0.0411,
-//     },
-//     ar: {
-//         previous5: 0.4723,
-//     },
-// }

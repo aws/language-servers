@@ -218,7 +218,7 @@ export class EditCompletionHandler {
         // Build request context
         const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
         const maxResults = isAutomaticLspTriggerKind ? 1 : 5
-        const fileContext = getFileContext({
+        const fileContextClss = getFileContext({
             textDocument,
             inferredLanguageId,
             position: params.position,
@@ -230,7 +230,7 @@ export class EditCompletionHandler {
 
         const qEditsTrigger = shouldTriggerEdits(
             this.codeWhispererService,
-            fileContext,
+            fileContextClss.toServiceModel(),
             params,
             this.cursorTracker,
             this.recentEditsTracker,
@@ -243,7 +243,7 @@ export class EditCompletionHandler {
         }
 
         const generateCompletionReq: GenerateSuggestionsRequest = {
-            fileContext: fileContext,
+            fileContext: fileContextClss.toServiceModel(),
             maxResults: maxResults,
             predictionTypes: ['EDITS'],
             workspaceId: workspaceId,
@@ -306,7 +306,7 @@ export class EditCompletionHandler {
             startPreprocessTimestamp: startPreprocessTimestamp,
             startPosition: params.position,
             triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
-            language: fileContext.programmingLanguage.languageName,
+            language: fileContextClss.programmingLanguage.languageName,
             requestContext: generateCompletionReq,
             autoTriggerType: undefined,
             triggerCharacter: '',
