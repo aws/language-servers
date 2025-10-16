@@ -634,6 +634,7 @@ describe('MynahUI', () => {
                         route: ['/workspace', 'src/file1.ts'],
                         icon: 'file',
                         children: undefined,
+                        disabled: false,
                     },
                 ],
                 promptTopBarTitle: '@',
