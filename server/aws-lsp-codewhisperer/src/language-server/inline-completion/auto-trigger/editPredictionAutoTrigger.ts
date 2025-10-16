@@ -219,7 +219,7 @@ export class EditClassifier {
 
     private _score: number | undefined
     private features: EditClassifierFeatures
-    constructor(private readonly params: EditAutoTriggerInput) {
+    constructor(params: EditAutoTriggerInput) {
         this.features = this.prepareFeatures(params)
     }
 
