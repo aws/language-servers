@@ -19,12 +19,14 @@ import {
     IamCredentials,
 } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
-import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
-import { CredentialProviderChain, Credentials } from 'aws-sdk'
-import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
+import { CLIENT_TIMEOUT_MS, MAX_REQUEST_ATTEMPTS } from '../language-server/agenticChat/constants/constants'
+
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
+import { QRetryClassifier } from '../language-server/agenticChat/retry/retryClassifier'
+import { QDelayTrackingInterceptor, DelayNotification } from '../language-server/agenticChat/retry/delayInterceptor'
+import { QRetryStrategy } from '../language-server/agenticChat/retry/qRetryStrategy'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -39,14 +41,17 @@ export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResp
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
+    protected delayInterceptor: QDelayTrackingInterceptor
+    public shareCodeWhispererContentWithAWS?: boolean
 
     inflightRequests: Set<AbortController> = new Set()
 
     abstract client: CodeWhispererStreaming | QDeveloperStreaming
 
-    constructor(region: string, endpoint: string) {
+    constructor(region: string, endpoint: string, logging?: Logging) {
         this.region = region
         this.endpoint = endpoint
+        this.delayInterceptor = new QDelayTrackingInterceptor(logging)
     }
 
     abstract sendMessage(
@@ -60,11 +65,17 @@ export abstract class StreamingClientServiceBase {
         })
         this.inflightRequests.clear()
     }
+
+    public setDelayNotificationCallback(callback: (notification: DelayNotification) => void): void {
+        this.delayInterceptor.setDelayNotificationCallback(callback)
+    }
 }
 
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
     public profileArn?: string
+    private retryClassifier: QRetryClassifier
+
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
@@ -73,7 +84,9 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         endpoint: string,
         customUserAgent: string
     ) {
-        super(region, endpoint)
+        super(region, endpoint, logging)
+        this.retryClassifier = new QRetryClassifier(logging)
+
         const tokenProvider = async () => {
             const token = getBearerTokenFromProvider(credentialsProvider)
             // without setting expiration, the tokenProvider will only be called once
@@ -83,11 +96,20 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         logging.log(
             `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
+
+        // Create Q-specific retry strategy with classifier and delay tracking
+        const retryStrategy = new QRetryStrategy(
+            this.retryClassifier,
+            this.delayInterceptor,
+            MAX_REQUEST_ATTEMPTS,
+            logging
+        )
+
         this.client = sdkInitializator(CodeWhispererStreaming, {
             region,
             endpoint,
             token: tokenProvider,
-            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            retryStrategy: retryStrategy,
             requestHandler: new NodeHttpHandler({
                 requestTimeout: CLIENT_TIMEOUT_MS,
             }),
@@ -95,11 +117,15 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         })
 
         this.client.middlewareStack.add(
-            (next, context) => args => {
+            (next, context) => (args: any) => {
                 if (credentialsProvider.getConnectionType() === 'external_idp') {
-                    // @ts-ignore
                     args.request.headers['TokenType'] = 'EXTERNAL_IDP'
                 }
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                // Log headers for debugging
+                logging.debug(`StreamingClient headers: ${JSON.stringify(args.request.headers)}`)
                 return next(args)
             },
             {
@@ -153,7 +179,6 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
             return response
         } catch (e) {
-            // TODO add a test for this
             if (isUsageLimitError(e)) {
                 throw new AmazonQUsageLimitError(e)
             }
@@ -179,6 +204,8 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
 export class StreamingClientServiceIAM extends StreamingClientServiceBase {
     client: QDeveloperStreaming
+    private retryClassifier: QRetryClassifier
+
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
@@ -186,7 +213,9 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
         region: string,
         endpoint: string
     ) {
-        super(region, endpoint)
+        super(region, endpoint, logging)
+        this.retryClassifier = new QRetryClassifier(logging)
+
         logging.log(
             `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
@@ -207,12 +236,32 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             }
         }
 
+        // Create Q-specific retry strategy with classifier and delay tracking
+        const retryStrategy = new QRetryStrategy(
+            this.retryClassifier,
+            this.delayInterceptor,
+            MAX_REQUEST_ATTEMPTS,
+            logging
+        )
+
         this.client = sdkInitializator(QDeveloperStreaming, {
             region: region,
             endpoint: endpoint,
             credentials: iamCredentialProvider,
-            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            retryStrategy: retryStrategy,
         })
+
+        this.client.middlewareStack.add(
+            (next, context) => (args: any) => {
+                if (this.shareCodeWhispererContentWithAWS !== undefined) {
+                    args.request.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                }
+                return next(args)
+            },
+            {
+                step: 'build',
+            }
+        )
     }
 
     public async sendMessage(
@@ -223,12 +272,16 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
 
         this.inflightRequests.add(controller)
 
-        const response = await this.client.sendMessage(request, {
-            abortSignal: controller.signal,
-        })
+        try {
+            const response = await this.client.sendMessage(request, {
+                abortSignal: controller.signal,
+            })
 
-        this.inflightRequests.delete(controller)
-
-        return response
+            return response
+        } catch (e) {
+            throw e
+        } finally {
+            this.inflightRequests.delete(controller)
+        }
     }
 }

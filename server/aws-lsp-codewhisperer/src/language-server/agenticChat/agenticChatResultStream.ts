@@ -194,6 +194,28 @@ export class AgenticChatResultStream {
         }
     }
 
+    async updateProgressMessage(message: string) {
+        for (const block of this.#state.chatResultBlocks) {
+            if (block.messageId?.startsWith(progressPrefix) && block.header?.status?.icon === 'progress') {
+                const blockId = this.getMessageBlockId(block.messageId)
+                if (blockId !== undefined) {
+                    const updatedBlock = {
+                        ...block,
+                        header: {
+                            ...block.header,
+                            status: {
+                                ...block.header.status,
+                                text: message,
+                            },
+                        },
+                    }
+                    await this.overwriteResultBlock(updatedBlock, blockId)
+                }
+                break
+            }
+        }
+    }
+
     hasMessage(messageId: string): boolean {
         return this.#state.chatResultBlocks.some(block => block.messageId === messageId)
     }

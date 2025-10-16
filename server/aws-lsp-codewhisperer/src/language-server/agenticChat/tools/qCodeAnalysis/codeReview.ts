@@ -29,6 +29,7 @@ import {
     CodeReviewFinding,
     FailedMetricName,
     SuccessMetricName,
+    CodeReviewFindingSimplified,
 } from './codeReviewTypes'
 import { CancellationError } from '@aws/lsp-core'
 import { Origin } from '@amzn/codewhisperer-streaming'
@@ -44,7 +45,7 @@ export class CodeReview {
     private static readonly POLLING_INTERVAL_MS = 10000 // 10 seconds
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
-    private static readonly MAX_FINDINGS_COUNT = 30
+    private static readonly MAX_FINDINGS_COUNT = 300
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
@@ -358,7 +359,7 @@ export class CodeReview {
         uploadResult: PrepareAndUploadArtifactsResult,
         chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
     ) {
-        let status = 'Pending'
+        let status: string | undefined = 'Pending'
         let attemptCount = 0
 
         while (status === 'Pending' && attemptCount < CodeReview.MAX_POLLING_ATTEMPTS) {
@@ -477,9 +478,18 @@ export class CodeReview {
         )
 
         this.logging.info('Findings count grouped by file')
+        let aggregatedCodeScanIssueListSimplified: { filePath: string; issues: CodeReviewFindingSimplified[] }[] = []
         aggregatedCodeScanIssueList.forEach(item => {
             this.logging.info(`File path - ${item.filePath} Findings count - ${item.issues.length}`)
-            item.issues.forEach(issue =>
+            let simplifiedIssues: CodeReviewFindingSimplified[] = []
+            item.issues.forEach(issue => {
+                simplifiedIssues.push({
+                    filePath: issue.filePath,
+                    startLine: issue.startLine,
+                    endLine: issue.endLine,
+                    title: issue.title,
+                    severity: issue.severity,
+                })
                 CodeReviewUtils.emitMetric(
                     {
                         reason: SuccessMetricName.IssuesDetected,
@@ -496,7 +506,11 @@ export class CodeReview {
                     this.logging,
                     this.telemetry
                 )
-            )
+            })
+            aggregatedCodeScanIssueListSimplified.push({
+                filePath: item.filePath,
+                issues: simplifiedIssues,
+            })
         })
 
         let scopeMessage = this.overrideDiffScan
@@ -505,8 +519,9 @@ export class CodeReview {
 
         return {
             codeReviewId: jobId,
-            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. Please inform the user to use the explain and fix buttons in the Code Issues Panel to get the best information about particular findings. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
+            findingsByFileSimplified: JSON.stringify(aggregatedCodeScanIssueListSimplified),
         }
     }
 
@@ -880,7 +895,14 @@ export class CodeReview {
      * @param programmingLanguage programming language
      * @returns Parsed and validated findings array
      */
-    private parseFindings(findingsJson: string, jobId: string, programmingLanguage: string): CodeReviewFinding[] {
+    private parseFindings(
+        findingsJson: string | undefined,
+        jobId: string,
+        programmingLanguage: string
+    ): CodeReviewFinding[] {
+        if (findingsJson === undefined) {
+            return []
+        }
         try {
             const findingsResponseJSON = JSON.parse(findingsJson)
 
