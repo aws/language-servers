@@ -4,11 +4,7 @@ import { shouldTriggerEdits, NepTrigger } from './triggerUtils'
 import { SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
-import {
-    CodeWhispererServiceToken,
-    CodeWhispererServiceIAM,
-    ClientFileContext,
-} from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceToken, CodeWhispererServiceIAM, FileContext } from '../../../shared/codeWhispererService'
 import * as editPredictionAutoTrigger from '../auto-trigger/editPredictionAutoTrigger'
 import { InlineCompletionWithReferencesParams } from '@aws/language-server-runtimes/server-interface'
 
@@ -25,7 +21,7 @@ describe('triggerUtils', () => {
         rightFileContent: '',
         filename: 'test.ts',
         programmingLanguage: { languageName: 'typescript' },
-    } as ClientFileContext
+    } as FileContext
 
     const inlineParams = {
         textDocument: { uri: 'file:///test.ts' },
