@@ -80,14 +80,14 @@ export class EditCompletionHandler {
      * Also as a followup, ideally it should be a message/event publish/subscribe pattern instead of manual invocation like this
      */
     documentChanged() {
-        if (this.debounceTimeout) {
-            if (this.isWaiting) {
-                this.hasDocumentChangedSinceInvocation = true
-            } else {
-                this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
-                this.debounceTimeout.refresh()
-            }
-        }
+        // if (this.debounceTimeout) {
+        //     if (this.isWaiting) {
+        //         this.hasDocumentChangedSinceInvocation = true
+        //     } else {
+        //         this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
+        //         this.debounceTimeout.refresh()
+        //     }
+        // }
     }
 
     async onEditCompletion(
@@ -172,40 +172,18 @@ export class EditCompletionHandler {
             }
         }
 
-        return new Promise<InlineCompletionListWithReferences>(async resolve => {
-            this.debounceTimeout = setTimeout(async () => {
-                try {
-                    this.isWaiting = true
-                    const result = await this._invoke(
-                        params,
-                        startPreprocessTimestamp,
-                        token,
-                        textDocument,
-                        inferredLanguageId,
-                        currentSession
-                    ).finally(() => {
-                        this.isWaiting = false
-                    })
-                    if (this.hasDocumentChangedSinceInvocation) {
-                        this.logging.info(
-                            'EditCompletionHandler - Document changed during execution, resolving empty result'
-                        )
-                        resolve({
-                            sessionId: SessionManager.getInstance('EDITS').getActiveSession()?.id ?? '',
-                            items: [],
-                        })
-                    } else {
-                        this.logging.info('EditCompletionHandler - No document changes, resolving result')
-                        resolve(result)
-                    }
-                } finally {
-                    this.debounceTimeout = undefined
-                    this.hasDocumentChangedSinceInvocation = false
-                }
-            }, EDIT_DEBOUNCE_INTERVAL_MS)
-        }).finally(() => {
+        try {
+            return await this._invoke(
+                params,
+                startPreprocessTimestamp,
+                token,
+                textDocument,
+                inferredLanguageId,
+                currentSession
+            )
+        } finally {
             this.isInProgress = false
-        })
+        }
     }
 
     async _invoke(
@@ -226,18 +204,33 @@ export class EditCompletionHandler {
             workspaceFolder: this.workspace.getWorkspaceFolder(textDocument.uri),
         })
 
+        let triggerCharacters = ''
+        if (
+            params.documentChangeParams?.contentChanges &&
+            params.documentChangeParams.contentChanges.length > 0 &&
+            params.documentChangeParams.contentChanges[0].text !== undefined
+        ) {
+            triggerCharacters = params.documentChangeParams.contentChanges[0].text
+        } else {
+            // if the client does not emit document change for the trigger, use left most character.
+            triggerCharacters = fileContextClss.leftFileContent.trim().at(-1) ?? ''
+        }
+
         const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
         const workspaceId = workspaceState?.webSocketClient?.isConnected() ? workspaceState.workspaceId : undefined
 
         const recentEdits = await this.recentEditsTracker.generateEditBasedContext(textDocument)
-        const qEditsTrigger = new EditClassifier({
+        const classifier = new EditClassifier({
             fileContext: fileContextClss,
-            triggerChar: '',
+            triggerChar: triggerCharacters,
             recentEdits: recentEdits,
             recentDecisions: this.sessionManager.userDecisionLog.map(it => it.decision),
         })
 
-        if (!qEditsTrigger.shouldTriggerNep()) {
+        const qEditsTrigger = classifier.shouldTriggerNep()
+
+        console.log(`score: ${qEditsTrigger.score}; shouldTrigger: ${qEditsTrigger.shouldTrigger}`)
+        if (!qEditsTrigger.shouldTrigger) {
             return EMPTY_RESULT
         }
 

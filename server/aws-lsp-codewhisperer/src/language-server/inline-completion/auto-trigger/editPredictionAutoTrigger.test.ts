@@ -379,6 +379,28 @@ describe('classifier', function () {
         it('threshold', function () {
             assert.strictEqual(EditClassifier.THRESHOLD, 0.53)
         })
+
+        it('process edit history', function () {
+            const r =
+                EditClassifier.processEditHistory(`--- file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java	1760647547772
++++ file:///Volumes/workplace/ide/sample_projects/Calculator-2/src/main/hello/MathUtil.java	1760647547851
+@@ -4,5 +4,5 @@
+         return a + b;
+     }
+ 
+-    public static int substract
++    public static int substract()
+ }`)
+
+            assert.strictEqual(r.addedLines, 1)
+            assert.strictEqual(r.deletedLines, 1)
+            assert.strictEqual(r.changedCharacters, 2)
+        })
+
+        it('edit distance cal', function () {
+            const r = EditClassifier.editDistance('public static int substract', 'public static int substract()')
+            assert.strictEqual(r, 2)
+        })
     })
 
     describe('test suite1', function () {

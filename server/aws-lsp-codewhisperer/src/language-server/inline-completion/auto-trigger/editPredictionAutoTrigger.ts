@@ -300,26 +300,64 @@ export class EditClassifier {
 
         const probability = sigmoid(logit)
 
+        console.log(`classifier:
+"logit": ${logit},
+"probability": ${probability},
+"threshold": ${EditClassifier.THRESHOLD},
+@@features@@ 
+${JSON.stringify(this.features, undefined, 2)}
+@@linear combination of features@@
+${JSON.stringify(
+    {
+        lastChar: myLastCharCoef,
+        lastLineLength: myLastLineLengthCoef,
+        leftContextLineCount: myLeftContextLineCountCoef,
+        rightContextLineCount: myRightContextLineCountCoef,
+        addedLines: myAdded,
+        deletedLines: myDeleted,
+        changedChars: myChanged,
+        language: myLangCoef,
+        keyword: myKeywordCoef,
+        ar: myArCoef,
+        intercept: EditClassifier.INTERCEPT,
+    },
+    undefined,
+    2
+)}`)
+
         return probability
     }
 
     prepareFeatures(params: EditAutoTriggerInput): EditClassifierFeatures {
         // 1. Last Character
-        const lastCharacter = params.triggerChar[params.triggerChar.length - 1]
+        const lastCharacter =
+            params.fileContext.leftContextAtCurLine[params.fileContext.leftContextAtCurLine.length - 1]
 
         // 2. Last Line Length
         const lastLineLength = params.fileContext.leftContextAtCurLine.length // TODO: only left?
 
         // 3. Left Context Line Count
-        const leftContextLineCount = params.fileContext.leftFileContent.split('\n').length + 1
+        const leftContextLineCount = params.fileContext.leftFileContent.split('\n').length
 
         // 4. Right Context Line Count
-        const rightContextLineCount = params.fileContext.rightFileContent.split('\n').length + 1
+        const rightContextLineCount = params.fileContext.rightFileContent.split('\n').length
 
         // 5. Edit History (only using olderst)
-        const oldest = params.recentEdits.supplementalContextItems[0] // nullable
-        const editHistory = oldest ? this.processEditHistory(oldest.content) : undefined
-        const normalizedEditHistory = editHistory ? this.normalizedRecentEdit(editHistory) : undefined
+        const oldest =
+            params.recentEdits.supplementalContextItems[params.recentEdits.supplementalContextItems.length - 1] // nullable
+
+        const editHistory = oldest ? EditClassifier.processEditHistory(oldest.content) : undefined
+        const normalizedEditHistory = editHistory ? EditClassifier.normalizedRecentEdit(editHistory) : undefined
+
+        console.log(`recent edits:
+@@raw oldest edit@@
+${oldest}
+@@raw numbers@@
+${JSON.stringify(editHistory, undefined, 2)}
+@@normalized numbers@@
+${JSON.stringify(normalizedEditHistory, undefined, 2)}
+@@edits array@@
+${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
 
         // 6. Language
         const lang = params.fileContext.programmingLanguage
@@ -329,6 +367,7 @@ export class EditClassifier {
         const lastToken = tokens[tokens.length - 1]
 
         // 8. User AR for last 5
+        console.log(`recent decisions: ${JSON.stringify(params.recentDecisions)}`)
         const ar =
             params.recentDecisions.reduce((acc: number, cur: UserTriggerDecision) => {
                 if (cur === 'Accept') {
@@ -350,37 +389,20 @@ export class EditClassifier {
         }
     }
 
-    processEditHistory(udiff: string): EditHistoryFeature {
+    static processEditHistory(udiff: string): EditHistoryFeature {
+        console.log(`processing oldest edit udiff: \n${udiff}`)
         const lines = udiff.split('\n')
-        const addedLines = lines.filter(line => line.startsWith('+') && !line.startsWith('+++'))
-        const deletedLines = lines.filter(line => line.startsWith('-') && !line.startsWith('---'))
-
-        function editDistance(s1: string, s2: string) {
-            if (s1.length === 0) {
-                return s2.length
-            }
-
-            if (s2.length === 0) {
-                return s1.length
-            }
-
-            let prev: number[] = Array.from({ length: s1.length + 1 }, (_, i) => i)
-
-            for (let i = 0; i < s2.length; i++) {
-                const curr: number[] = [i + 1]
-                for (let j = 0; j < s1.length; j++) {
-                    curr.push(Math.min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (s1[j] !== s2[i] ? 1 : 0)))
-                }
-                prev = curr
-            }
-
-            return prev[s1.length]
-        }
+        const addedLines = lines
+            .filter(line => line.startsWith('+') && !line.startsWith('+++'))
+            .map(line => line.substring(1))
+        const deletedLines = lines
+            .filter(line => line.startsWith('-') && !line.startsWith('---'))
+            .map(line => line.substring(1))
 
         const deletedText = deletedLines.join('\n')
         const addedText = addedLines.join('\n')
 
-        const hisotryChangedChars = editDistance(deletedText, addedText)
+        const hisotryChangedChars = EditClassifier.editDistance(deletedText, addedText)
         const historyLineAdded = addedLines.length
         const historyLineDeleted = deletedLines.length
 
@@ -391,7 +413,7 @@ export class EditClassifier {
         }
     }
 
-    normalizedRecentEdit(edit: ReturnType<typeof this.processEditHistory>): EditHistoryFeature {
+    static normalizedRecentEdit(edit: EditHistoryFeature): EditHistoryFeature {
         // Apply min-max normalization using training data min/max values
         const { changedCharacters, addedLines, deletedLines } = edit
 
@@ -414,5 +436,44 @@ export class EditClassifier {
             addedLines: normalizedAddedLines,
             deletedLines: normalizedDeletedLines,
         }
+    }
+
+    static editDistance(s1: string, s2: string): number {
+        if (s1.length === 0) return s2.length
+        if (s2.length === 0) return s1.length
+
+        // Create matrix
+        const rows: number = s1.length + 1
+        const cols: number = s2.length + 1
+        const dp: number[][] = Array(rows)
+            .fill(0)
+            .map(() => Array(cols).fill(0))
+
+        // Initialize first row and column
+        for (let i = 0; i < rows; i++) {
+            dp[i][0] = i
+        }
+        for (let j = 0; j < cols; j++) {
+            dp[0][j] = j
+        }
+
+        // Fill the matrix
+        for (let i = 1; i < rows; i++) {
+            for (let j = 1; j < cols; j++) {
+                if (s1[i - 1] === s2[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1]
+                } else {
+                    dp[i][j] =
+                        1 +
+                        Math.min(
+                            dp[i - 1][j], // deletion
+                            dp[i][j - 1], // insertion
+                            dp[i - 1][j - 1] // substitution
+                        )
+                }
+            }
+        }
+
+        return dp[rows - 1][cols - 1]
     }
 }
