@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.0.86](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.85...lsp-codewhisperer/v0.0.86) (2025-10-15)
+
+
+### Reverts
+
+* revert for mid-loop compaction ([3f48b12](https://github.com/aws/language-servers/commit/3f48b12bce4faba474404f7c74a9520c379552fe))
+
+## [0.0.85](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.84...lsp-codewhisperer/v0.0.85) (2025-10-14)
+
+
+### Bug Fixes
+
+* inline, nep telemetry not sent and throw sessionId not found ([#2419](https://github.com/aws/language-servers/issues/2419)) ([c96106d](https://github.com/aws/language-servers/commit/c96106d18c9e9d846765665ce2ee50304af4ff7f))
+
+## [0.0.84](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.83...lsp-codewhisperer/v0.0.84) (2025-10-09)
+
+
+### Features
+
+* add model description to dropdown ([#2374](https://github.com/aws/language-servers/issues/2374)) ([ed8c6dd](https://github.com/aws/language-servers/commit/ed8c6dda1312f728e9ee7472f7ca447196ad9d84))
+* **amazonq:** adding classification based retry strategy for chat ([#2234](https://github.com/aws/language-servers/issues/2234)) ([#2409](https://github.com/aws/language-servers/issues/2409)) ([15d1b1f](https://github.com/aws/language-servers/commit/15d1b1f5947a1b83dab65c9d3fef901ab8a033c9))
+* **amazonq:** env var change for JupyterLab conversation history on refresh support ([#2395](https://github.com/aws/language-servers/issues/2395)) ([a908195](https://github.com/aws/language-servers/commit/a9081954bcaf20b7d0fbe0af11e61b8f82c7e82f))
+* **amazonq:** support JupyterLab conversation history on refresh ([#2325](https://github.com/aws/language-servers/issues/2325)) ([0980351](https://github.com/aws/language-servers/commit/09803514d1ce31ca77a532161e071e1d037e3fb1))
+
+
+### Bug Fixes
+
+* add in-loop compaction ([#2387](https://github.com/aws/language-servers/issues/2387)) ([35f0795](https://github.com/aws/language-servers/commit/35f0795fa5d09f3610e6a29cb72d49f32cc5534e))
+* addonly EDITS should be handled as COMPLETIONS ([#2133](https://github.com/aws/language-servers/issues/2133)) ([4f5a9da](https://github.com/aws/language-servers/commit/4f5a9dacf3bfd68aeb40920fb800adf001ed43d5))
+* patch [#2133](https://github.com/aws/language-servers/issues/2133) and handle more variants of FIM suggestions ([#2407](https://github.com/aws/language-servers/issues/2407)) ([f3086d7](https://github.com/aws/language-servers/commit/f3086d71808bd49336e0df9ba30f5be5fda837c3))
+
+## [0.0.83](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.82...lsp-codewhisperer/v0.0.83) (2025-10-01)
+
+
+### Bug Fixes
+
+* **amazonq:** escaping user input to mitigate xss issue ([#2360](https://github.com/aws/language-servers/issues/2360)) ([45b86be](https://github.com/aws/language-servers/commit/45b86bef1a93cf9ced6fbf0c222cf5410de04c81))
+* **amazonq:** fix to add opt-out header to streaming client ([#2365](https://github.com/aws/language-servers/issues/2365)) ([692e77b](https://github.com/aws/language-servers/commit/692e77bc99770ac7d676928e95e3dc43bb91e7f0))
+* **amazonq:** handle IAM credentials expiration field to be aws sdk versions compatible and add refresh logic to codewhisperer IAM client ([#2349](https://github.com/aws/language-servers/issues/2349)) ([5eb3768](https://github.com/aws/language-servers/commit/5eb3768bf020d61d0ade767d62e13839048146e4))
+* **amazonq:** send full finding details to plugin, partial to agent ([#2356](https://github.com/aws/language-servers/issues/2356)) ([961e6ca](https://github.com/aws/language-servers/commit/961e6ca11b122481685f9f65b3da14c6a2497cc4))
+* improve history management ([#2312](https://github.com/aws/language-servers/issues/2312)) ([#2357](https://github.com/aws/language-servers/issues/2357)) ([e7aa2a6](https://github.com/aws/language-servers/commit/e7aa2a6545bcb1a8238abfde69a05432be0b6615))
+* optimize memory bank token usage and add new tab support ([#2366](https://github.com/aws/language-servers/issues/2366)) ([3057d56](https://github.com/aws/language-servers/commit/3057d56e4a3047d1715d6e3560e9f934d1de469c))
+* private package mapping during artifact generation ([#2348](https://github.com/aws/language-servers/issues/2348)) ([d56bfa1](https://github.com/aws/language-servers/commit/d56bfa191954fac8068e2bf390c2d0b88ef8b168))
+* trim new line when emitting error message ([#2359](https://github.com/aws/language-servers/issues/2359)) ([d8733a7](https://github.com/aws/language-servers/commit/d8733a75487f74815302b838802eccbf3ffec55e))
+
+
+### Reverts
+
+* fix to add opt-out header to streaming client ([#2365](https://github.com/aws/language-servers/issues/2365)) ([#2370](https://github.com/aws/language-servers/issues/2370)) ([b29478f](https://github.com/aws/language-servers/commit/b29478fa1ecc58e331ff330ff79f46b0d8c38d9e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.15 to ^0.0.16
+
 ## [0.0.82](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.81...lsp-codewhisperer/v0.0.82) (2025-09-24)
 
 

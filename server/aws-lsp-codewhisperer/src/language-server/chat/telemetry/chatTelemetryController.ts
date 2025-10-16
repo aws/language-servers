@@ -20,7 +20,7 @@ import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/codeDiffTracker'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/tracker/codeDiffTracker'
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
@@ -314,7 +314,7 @@ export class ChatTelemetryController {
                 conversationId: conversationId,
                 messageId: metric.cwsprChatMessageId,
                 customizationArn: metric.codewhispererCustomizationArn,
-                userIntent: metric.cwsprChatUserIntent,
+                userIntent: metric.cwsprChatUserIntent as UserIntent,
                 hasCodeSnippet: metric.cwsprChatHasCodeSnippet,
                 programmingLanguage: metric.cwsprChatProgrammingLanguage as CodewhispererLanguage,
                 activeEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,

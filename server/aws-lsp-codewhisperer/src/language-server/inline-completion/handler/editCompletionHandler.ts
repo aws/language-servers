@@ -9,7 +9,7 @@ import {
     ResponseError,
     TextDocument,
 } from '@aws/language-server-runtimes/protocol'
-import { RecentEditTracker } from './tracker/codeEditTracker'
+import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { CredentialsProvider, Logging, Telemetry, Workspace } from '@aws/language-server-runtimes/server-interface'
 import {
     CodeWhispererServiceToken,
@@ -17,27 +17,28 @@ import {
     GenerateSuggestionsResponse,
     getFileContext,
     SuggestionType,
-} from '../../shared/codeWhispererService'
-import { CodeWhispererSession, SessionManager } from './session/sessionManager'
-import { CursorTracker } from './tracker/cursorTracker'
-import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
-import { shouldTriggerEdits } from './trigger'
+} from '../../../shared/codeWhispererService'
+import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
+import { CursorTracker } from '../tracker/cursorTracker'
+import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
+import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
+import { shouldTriggerEdits } from '../utils/triggerUtils'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
-} from './telemetry'
-import { TelemetryService } from '../../shared/telemetry/telemetryService'
+} from '../telemetry/telemetry'
+import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { textUtils } from '@aws/lsp-core'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { RejectedEditTracker } from './tracker/rejectedEditTracker'
-import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
-import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
-import { DocumentChangedListener } from './documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
-import { StreakTracker } from './tracker/streakTracker'
+import { AmazonQBaseServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
+import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
+import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
+import { DocumentChangedListener } from '../documentChangedListener'
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
+import { StreakTracker } from '../tracker/streakTracker'
+import { processEditSuggestion } from '../utils/diffUtils'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -253,7 +254,7 @@ export class EditCompletionHandler {
                 document: {
                     relativeFilePath: textDocument.uri,
                     programmingLanguage: {
-                        languageName: generateCompletionReq.fileContext.programmingLanguage.languageName,
+                        languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
                     },
                     text: textDocument.getText(),
                 },
@@ -392,9 +393,17 @@ export class EditCompletionHandler {
                 .map(suggestion => {
                     // Check if this suggestion is similar to a previously rejected edit
                     const isSimilarToRejected = this.rejectedEditTracker.isSimilarToRejected(
-                        suggestion.content,
+                        suggestion.content ?? '',
                         textDocument?.uri || ''
                     )
+
+                    const processedSuggestion = processEditSuggestion(
+                        suggestion.content ?? '',
+                        session.startPosition,
+                        session.document,
+                        session.requestContext.fileContext?.rightFileContent ?? ''
+                    )
+                    const isInlineEdit = processedSuggestion.type === SuggestionType.EDIT
 
                     if (isSimilarToRejected) {
                         // Mark as rejected in the session
@@ -405,14 +414,14 @@ export class EditCompletionHandler {
                         // Return empty item that will be filtered out
                         return {
                             insertText: '',
-                            isInlineEdit: true,
+                            isInlineEdit: isInlineEdit,
                             itemId: suggestion.itemId,
                         }
                     }
 
                     return {
-                        insertText: suggestion.content,
-                        isInlineEdit: true,
+                        insertText: processedSuggestion.suggestionContent,
+                        isInlineEdit: isInlineEdit,
                         itemId: suggestion.itemId,
                     }
                 })
