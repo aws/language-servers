@@ -4,7 +4,6 @@
  */
 
 import { ClientFileContextClss, FileContext } from '../../../shared/codeWhispererService'
-import { Position, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { EditPredictionConfigManager } from './editPredictionConfig'
