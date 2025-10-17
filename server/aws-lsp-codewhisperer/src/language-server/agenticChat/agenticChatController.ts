@@ -3847,9 +3847,11 @@ export class AgenticChatController implements ChatHandlers {
      */
     async onReady() {
         await this.restorePreviousChats()
+        this.#contextCommandsProvider.onReady()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
+            this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {
