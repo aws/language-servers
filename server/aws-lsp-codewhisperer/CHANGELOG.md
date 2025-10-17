@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.87](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.86...lsp-codewhisperer/v0.0.87) (2025-10-17)
+
+
+### Features
+
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
 ## [0.0.86](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.85...lsp-codewhisperer/v0.0.86) (2025-10-15)
 
 
