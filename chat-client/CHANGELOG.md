@@ -496,7 +496,7 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/chat-client-ui-types` to 0.1.63
 - Update `@aws/language-server-runtimes-types` to 0.1.29
 - Shortened legal text in the footer
 
@@ -521,7 +521,7 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/chat-client-ui-types` to 0.1.63
 - Update `@aws/language-server-runtimes-types` to 0.1.29
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
