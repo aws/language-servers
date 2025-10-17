@@ -634,6 +634,7 @@ describe('MynahUI', () => {
                         route: ['/workspace', 'src/file1.ts'],
                         icon: 'file',
                         children: undefined,
+                        disabled: false,
                     },
                 ],
                 promptTopBarTitle: '@',
@@ -690,6 +691,7 @@ describe('MynahUI', () => {
                         ...activeEditorCommand,
                         description: 'file:///workspace/src/active.ts',
                         children: undefined,
+                        disabled: false,
                     },
                 ],
                 promptTopBarTitle: '@Pin Context',
@@ -729,7 +731,7 @@ describe('MynahUI', () => {
             // Verify updateStore was called with empty context items
             // Active editor should be removed since no textDocument was provided
             sinon.assert.calledWith(updateStoreSpy, tabId, {
-                promptTopBarContextItems: [{ ...fileCommand, children: undefined }],
+                promptTopBarContextItems: [{ ...fileCommand, children: undefined, disabled: false }],
                 promptTopBarTitle: '@',
                 promptTopBarButton: null,
             })
