@@ -136,8 +136,8 @@ const lastCharCoefficients: Record<string, number> = {
     '\\n': 0.1023,
     ' ': -0.066,
     _: 0.0781,
-    "'": -0.0939,
-    '"': -0.0006,
+    "'": -0.036,
+    '"': 0.0629,
 }
 
 const languageCoefficients: Record<string, number> = {
