@@ -360,14 +360,17 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
 
         // 8. User AR for last 5
         console.log(`recent decisions: ${JSON.stringify(params.recentDecisions)}`)
+        // Cold start we assume 0.3 for AR
         const ar =
-            params.recentDecisions.reduce((acc: number, cur: UserTriggerDecision) => {
-                if (cur === 'Accept') {
-                    return acc + 1
-                } else {
-                    return acc
-                }
-            }, 0) / 5.0
+            params.recentDecisions.length === 0
+                ? 0.3
+                : params.recentDecisions.reduce((acc: number, cur: UserTriggerDecision) => {
+                      if (cur === 'Accept') {
+                          return acc + 1
+                      } else {
+                          return acc
+                      }
+                  }, 0) / 5.0
 
         return {
             lastCharacter: lastCharacter,
