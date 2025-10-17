@@ -265,10 +265,11 @@ export class CodeWhispererSession {
             return 'Discard'
         }
 
+        // TODO: Why we need this?
         // Can't report trigger decision until session is marked as closed
-        if (this.state !== 'CLOSED') {
-            return
-        }
+        // if (this.state !== 'CLOSED') {
+        // return
+        // }
 
         let isEmpty = true
         for (const state of this.suggestionsStates.values()) {
@@ -309,6 +310,10 @@ export class SessionManager {
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
+    private _userDecisionLog: { sessionId: string; decision: UserTriggerDecision }[] = []
+    get userDecisionLog() {
+        return [...this._userDecisionLog]
+    }
 
     private constructor() {}
 
@@ -351,6 +356,17 @@ export class SessionManager {
     }
 
     closeSession(session: CodeWhispererSession) {
+        const d = session.getAggregatedUserTriggerDecision()
+        if (d === 'Accept' || d === 'Reject') {
+            if (this._userDecisionLog.length === 5) {
+                this._userDecisionLog.shift()
+            }
+            this._userDecisionLog.push({
+                sessionId: session.codewhispererSessionId ?? 'undefined',
+                decision: d,
+            })
+        }
+
         session.close()
     }
 

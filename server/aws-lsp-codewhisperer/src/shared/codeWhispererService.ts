@@ -140,13 +140,66 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
-export interface ClientFileContext {
-    leftFileContent: string
-    rightFileContent: string
-    filename: string
-    fileUri: string
-    programmingLanguage: {
+export class ClientFileContextClss {
+    readonly leftFileContent: string
+    readonly rightFileContent: string
+    readonly filename: string
+    readonly fileUri: string
+    readonly programmingLanguage: {
         languageName: CodewhispererLanguage
+    }
+    readonly leftContextAtCurLine: string
+    readonly rightContextAtCurLine: string
+
+    constructor(params: {
+        textDocument: TextDocument
+        position: Position
+        inferredLanguageId: CodewhispererLanguage
+        workspaceFolder: WorkspaceFolder | null | undefined
+    }) {
+        const left = params.textDocument.getText({
+            start: { line: 0, character: 0 },
+            end: params.position,
+        })
+        const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const right = params.textDocument.getText({
+            start: params.position,
+            end: params.textDocument.positionAt(params.textDocument.getText().length),
+        })
+        const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const relativeFilePath = params.workspaceFolder
+            ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+            : path.basename(params.textDocument.uri)
+
+        this.fileUri = params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT)
+        this.filename = relativeFilePath.substring(0, FILENAME_CHARS_LIMIT)
+        this.programmingLanguage = {
+            languageName: getRuntimeLanguage(params.inferredLanguageId),
+        }
+        this.leftFileContent = trimmedLeft
+        this.rightFileContent = trimmedRight
+
+        this.leftContextAtCurLine = params.textDocument.getText({
+            start: { line: params.position.line, character: 0 },
+            end: { line: params.position.line, character: params.position.character },
+        })
+
+        this.rightContextAtCurLine = params.textDocument.getText({
+            start: { line: params.position.line, character: params.position.character },
+            end: { line: params.position.line, character: Number.MAX_VALUE },
+        })
+    }
+
+    toServiceModel(): FileContext {
+        return {
+            fileUri: this.fileUri,
+            filename: this.filename,
+            programmingLanguage: this.programmingLanguage,
+            leftFileContent: this.leftFileContent,
+            rightFileContent: this.rightFileContent,
+        }
     }
 }
 
@@ -155,32 +208,8 @@ export function getFileContext(params: {
     position: Position
     inferredLanguageId: CodewhispererLanguage
     workspaceFolder: WorkspaceFolder | null | undefined
-}): ClientFileContext {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-    const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-    const relativeFilePath = params.workspaceFolder
-        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
-        : path.basename(params.textDocument.uri)
-
-    return {
-        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
-        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
-        programmingLanguage: {
-            languageName: getRuntimeLanguage(params.inferredLanguageId),
-        },
-        leftFileContent: trimmedLeft,
-        rightFileContent: trimmedRight,
-    }
+}): ClientFileContextClss {
+    return new ClientFileContextClss(params)
 }
 
 // This abstract class can grow in the future to account for any additional changes across the clients

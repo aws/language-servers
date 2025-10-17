@@ -191,7 +191,7 @@ export class InlineCompletionHandler {
                 inferredLanguageId,
                 position: params.position,
                 workspaceFolder: this.workspace.getWorkspaceFolder(textDocument.uri),
-            })
+            }).toServiceModel()
         }
 
         const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
