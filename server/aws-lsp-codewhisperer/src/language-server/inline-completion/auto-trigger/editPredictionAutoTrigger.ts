@@ -73,91 +73,92 @@ export const editPredictionAutoTrigger = ({
 
 // TODO: restructure interface
 const keyWordCoefficients: Record<string, number> = {
-    get: 1.1235,
-    const: -0.7675,
-    try: 0.6546,
-    number: 0.6149,
-    this: 0.5651,
-    return: -0.4762,
-    from: -0.4207,
-    None: -0.3971,
-    True: -0.3919,
-    true: -0.325,
-    async: -0.3236,
-    false: 0.3115,
-    else: 0.2746,
-    type: -0.273,
-    null: -0.2177,
-    if: -0.1763,
-    in: -0.1396,
-    void: 0.1379,
-    any: 0.1319,
-    as: 0.1032,
-    import: 0.1001,
-    for: -0.0042,
-    is: 0.0719,
-    string: 0.0186,
+    get: 1.171,
+    const: -0.7697,
+    try: 0.7182,
+    number: 0.6706,
+    this: 0.6271,
+    return: -0.3991,
+    from: -0.3515,
+    None: -0.3409,
+    True: -0.3653,
+    true: -0.2502,
+    async: -0.3212,
+    false: 0.3478,
+    else: 0.3154,
+    type: -0.2662,
+    null: -0.1576,
+    if: -0.1276,
+    in: -0.0905,
+    void: 0.1712,
+    any: 0.1663,
+    as: 0.139,
+    import: 0.1424,
+    for: 0.0252,
+    is: 0.1023,
+    string: 0.0691,
 }
 
 const lastCharCoefficients: Record<string, number> = {
     // alphabet
-    a: 0.0149,
-    c: 0.0553,
-    d: -0.1598,
-    e: -0.2132,
-    f: 0.348,
-    i: 0.0913,
-    l: 0.1584,
-    m: -0.353,
-    n: -0.0291,
-    o: 0.1346,
-    p: -0.2929,
+    a: 0.0773,
+    c: 0.1191,
+    d: -0.0938,
+    e: -0.1517,
+    f: 0.4246,
+    i: 0.154,
+    l: 0.2188,
+    m: -0.3026,
+    n: -0.0324,
+    o: 0.196,
+    p: -0.2283,
     Q: -0.0205,
-    r: 0.0753,
-    s: -0.0287,
-    S: 0.2682,
-    t: 0.123,
-    u: 0.2866,
-    y: -0.0166,
+    r: 0.1418,
+    s: 0.0387,
+    S: 0.3369,
+    t: 0.1863,
+    u: 0.3599,
+    y: 0.0456,
     // numbers
-    '1': -0.2389,
-    '2': -0.1672,
+    '0': 0.0415,
+    '1': -0.1826,
+    '2': -0.1085,
     // special chars
-    '(': -0.0113,
-    ')': 0.035,
-    '{': 0.1935,
-    '}': 0.0512,
-    ';': 0.1611,
-    '/': -0.1337,
-    '>': -0.0997,
-    '.': -0.0358,
-    ',': -0.0952,
-    '\\n': 0.0364,
+    '(': 0.0539,
+    ')': 0.0996,
+    '{': 0.2644,
+    '}': 0.1122,
+    ';': 0.2225,
+    '/': -0.0745,
+    '>': -0.0378,
+    '.': 0.0244,
+    ',': -0.0274,
+    '\\n': 0.1023,
     ' ': -0.066,
-    _: 0.0122,
+    _: 0.0781,
     "'": -0.0939,
     '"': -0.0006,
 }
 
 const languageCoefficients: Record<string, number> = {
-    c: 0.1426,
-    cpp: -0.0935,
-    sql: -0.0674,
-    java: 0.0905,
-    javascript: 0.1512,
-    json: 0.1256,
-    kotlin: -0.2586,
-    python: 0.1293,
-    rust: -0.0603,
-    scala: 0.1985,
-    shell: 0.1605,
-    tf: -0.3423,
-    typescript: 0.1318,
-    yaml: -0.2152,
+    c: 0.1013,
+    cpp: -0.1371,
+    sql: -0.1509,
+    java: 0.0564,
+    javascript: 0.1183,
+    json: 0.0811,
+    kotlin: -0.3022,
+    python: 0.0914,
+    rust: -0.1024,
+    scala: 0.1648,
+    shell: 0.1292,
+    tf: -0.3823,
+    typescript: 0.0928,
+    yaml: -0.2578,
 }
 
 const leftContextLineCountCoeffecients = {
-    lte25: -0.069,
+    lte25: -0.0417,
 }
 
 // TODO: update
@@ -168,15 +169,14 @@ const rightContextLineCountCoefficients = {
 }
 
 const editHistoryCoefficients = {
-    changedCharsNorm: 0.0174,
-    linesDeletedNorm: -0.0833,
-    linesAddedNorm: 0.0539,
+    changedCharsNorm: 0.0194,
+    linesDeletedNorm: -0.084,
+    linesAddedNorm: 0.0594,
 }
 
 const lastLineLengthCoefficients = {
-    lte4: -0.0119,
-    gte_5_lte12: -0.0411,
-    gt13: -0.0411,
+    lte4: 0.0293,
+    gte_5_lte12: -0.0012,
 }
 
 const arCoefficients = {
@@ -242,8 +242,6 @@ export class EditClassifier {
             myLastLineLengthCoef = lastLineLengthCoefficients.lte4
         } else if (lastLineLength >= 5 && lastLineLength <= 12) {
             myLastLineLengthCoef = lastLineLengthCoefficients.gte_5_lte12
-        } else {
-            myLastLineLengthCoef = lastLineLengthCoefficients.gt13
         }
 
         // 3. Left Context Line Count
