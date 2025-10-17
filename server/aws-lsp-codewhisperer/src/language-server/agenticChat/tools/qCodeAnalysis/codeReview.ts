@@ -39,6 +39,7 @@ export class CodeReview {
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
+    private static readonly USER_REQUIREMENT_PATH = 'code_artifact/userRequirement/userRequirement.txt'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
     private static readonly MAX_POLLING_ATTEMPTS = 90 // 90 * POLLING_INTERVAL_MS (10000) = 15 mins
     private static readonly MID_POLLING_ATTEMPTS = 20
@@ -176,6 +177,7 @@ export class CodeReview {
 
         // parse input
         const validatedInput = Z_CODE_REVIEW_INPUT_SCHEMA.parse(input)
+        const userRequirement = validatedInput.userRequirement
         const fileArtifacts = validatedInput.fileLevelArtifacts || []
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
         const ruleArtifacts = validatedInput.ruleArtifacts || []
@@ -204,9 +206,12 @@ export class CodeReview {
         const programmingLanguage = 'java'
         const scanName = 'Standard-' + randomUUID()
 
-        this.logging.info(`Agentic scan name: ${scanName} selectedModel: ${modelId}`)
+        this.logging.info(
+            `Agentic scan name: ${scanName} selectedModel: ${modelId} userRequirement: ${userRequirement}`
+        )
 
         return {
+            userRequirement,
             fileArtifacts,
             folderArtifacts,
             isFullReviewRequest,
@@ -235,6 +240,7 @@ export class CodeReview {
             codeDiffFiles,
             filePathsInZip,
         } = await this.prepareFilesAndFoldersForUpload(
+            setup.userRequirement,
             setup.fileArtifacts,
             setup.folderArtifacts,
             setup.ruleArtifacts,
@@ -603,6 +609,7 @@ export class CodeReview {
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
+        userRequirement: string,
         fileArtifacts: FileArtifacts,
         folderArtifacts: FolderArtifacts,
         ruleArtifacts: RuleArtifacts,
@@ -659,6 +666,9 @@ export class CodeReview {
                 isCodeDiffPresent = true
                 codeArtifactZip.file(CodeReview.CODE_DIFF_PATH, codeDiff)
             }
+
+            // Add user requirement
+            codeArtifactZip.file(CodeReview.USER_REQUIREMENT_PATH, userRequirement)
 
             // Generate the final code artifact zip
             const zipBuffer = await CodeReviewUtils.generateZipBuffer(codeArtifactZip)

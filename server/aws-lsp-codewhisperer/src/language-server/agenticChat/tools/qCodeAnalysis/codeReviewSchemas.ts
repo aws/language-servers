@@ -12,8 +12,9 @@ import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './codeReviewConstants'
 export const CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: [
-        '**3 main fields in the tool:**',
+        '**4 main fields in the tool:**',
         '- scopeOfReview: CRITICAL - Must be set to either FULL_REVIEW (analyze entire file/folder/project/workspace) or CODE_DIFF_REVIEW (focus only on changes/modifications in the file/folder/project/workspace). This is a required field.',
+        '- userRequirement: CRITICAL - Must be set as a string to describe the user requirement by analyzing the current conversation and extracting all the related information for code review. This is a required field.',
         '- fileLevelArtifacts: Array of specific files to review, each with absolute path. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py"}]',
         '- folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]',
         "Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.",
@@ -84,7 +85,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
             },
         },
     },
-    required: ['scopeOfReview'] as const,
+    required: ['scopeOfReview', 'userRequirement'] as const,
 }
 
 /**
@@ -92,6 +93,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
  */
 export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
     scopeOfReview: z.enum(SCOPE_OF_CODE_REVIEW as [string, ...string[]]),
+    userRequirement: z.string(),
     fileLevelArtifacts: z
         .array(
             z.object({
