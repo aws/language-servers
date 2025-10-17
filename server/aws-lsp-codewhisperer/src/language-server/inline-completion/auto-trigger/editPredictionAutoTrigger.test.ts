@@ -397,6 +397,23 @@ describe('classifier', function () {
             assert.strictEqual(r.changedCharacters, 2)
         })
 
+        it('process edit history 2', function () {
+            const r = EditClassifier.processEditHistory(`--- file:///query.sql
++++ file:///query.sql
+@@ -1,6 +1,4 @@
+ SELECT u.name, u.email, p.title
+ FROM users u
+-LEFT JOIN profiles pr ON u.id = pr.user_id
+ JOIN posts p ON u.id = p.user_id
+ WHERE u.active = true
+-AND p.published_at >= '2023-01-01'
++AND p.published_date >= '2023-01-01'`)
+
+            assert.strictEqual(r.addedLines, 1)
+            assert.strictEqual(r.deletedLines, 2)
+            assert.strictEqual(r.changedCharacters, 45)
+        })
+
         it('edit distance cal', function () {
             const r = EditClassifier.editDistance('public static int substract', 'public static int substract()')
             assert.strictEqual(r, 2)
@@ -732,7 +749,7 @@ int main() {
             assert.strictEqual(actual, '0.3954')
         })
 
-        it.skip('case 5 SQL without keyword, with similar line changes and deletions', function () {
+        it('case 5 SQL without keyword, with similar line changes and deletions', function () {
             const document = TextDocument.create(
                 'test.sql',
                 'sql',
@@ -798,8 +815,8 @@ LIMIT 10;`
                 recentDecisions: ['Accept', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0.2
             })
 
-            const actual = sut.score()
-            assert.strictEqual(actual, '0.4032')
+            const actual = sut.score().toPrecision(4)
+            assert.strictEqual(actual, '0.4031')
         })
     })
 })
