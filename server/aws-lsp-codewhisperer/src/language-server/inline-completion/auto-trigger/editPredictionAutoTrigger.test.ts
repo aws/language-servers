@@ -731,5 +731,75 @@ int main() {
             const actual = sut.score().toPrecision(4)
             assert.strictEqual(actual, '0.3954')
         })
+
+        it.skip('case 5 SQL without keyword, with similar line changes and deletions', function () {
+            const document = TextDocument.create(
+                'test.sql',
+                'sql',
+                1,
+                `SELECT u.name, u.email, p.title
+FROM users u
+JOIN posts p ON u.id = p.user_id
+WHERE u.active = true
+AND p.published_date >= '2023-01-01'
+ORDER BY p.published_date DESC
+LIMIT 10;`
+            )
+            const filecontext = new ClientFileContextClss({
+                textDocument: document,
+                position: Position.create(4, 23),
+                inferredLanguageId: 'sql',
+                workspaceFolder: undefined,
+            })
+
+            // assert setup is correct
+            assert.strictEqual(
+                filecontext.leftFileContent,
+                `SELECT u.name, u.email, p.title
+FROM users u
+JOIN posts p ON u.id = p.user_id
+WHERE u.active = true
+AND p.published_date >=`
+            )
+            assert.strictEqual(
+                filecontext.rightFileContent,
+                ` '2023-01-01'
+ORDER BY p.published_date DESC
+LIMIT 10;`
+            )
+            assert.strictEqual(filecontext.programmingLanguage.languageName, 'sql')
+
+            // test classifier
+            const sut = new EditClassifier({
+                fileContext: filecontext,
+                triggerChar: '',
+                recentEdits: {
+                    isUtg: false,
+                    isProcessTimeout: false,
+                    supplementalContextItems: [
+                        {
+                            filePath: '',
+                            content: `--- file:///query.sql
++++ file:///query.sql
+@@ -1,6 +1,4 @@
+ SELECT u.name, u.email, p.title
+ FROM users u
+-LEFT JOIN profiles pr ON u.id = pr.user_id
+ JOIN posts p ON u.id = p.user_id
+ WHERE u.active = true
+-AND p.published_at >= '2023-01-01'
++AND p.published_date >= '2023-01-01'`,
+                        },
+                    ],
+                    contentsLength: 0,
+                    latency: 0,
+                    strategy: 'recentEdits',
+                },
+                recentDecisions: ['Accept', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0.2
+            })
+
+            const actual = sut.score()
+            assert.strictEqual(actual, '0.4032')
+        })
     })
 })
