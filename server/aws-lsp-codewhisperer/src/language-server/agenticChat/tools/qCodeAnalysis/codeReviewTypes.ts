@@ -14,6 +14,7 @@ export enum SuccessMetricName {
 }
 
 export type ValidateInputAndSetupResult = {
+    userRequirement: string
     fileArtifacts: FileArtifacts
     folderArtifacts: FolderArtifacts
     isFullReviewRequest: boolean
