@@ -3,6 +3,7 @@ import * as sinon from 'sinon'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as chokidar from 'chokidar'
 import { ContextCommandItem } from 'local-indexing'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 
 describe('ContextCommandsProvider', () => {
     let provider: ContextCommandsProvider
@@ -21,6 +22,12 @@ describe('ContextCommandsProvider', () => {
 
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
+
+        sinon.stub(LocalProjectContextController, 'getInstance').resolves({
+            onContextItemsUpdated: sinon.stub(),
+            onIndexingInProgressChanged: sinon.stub(),
+        } as any)
+
         provider = new ContextCommandsProvider(
             testFeatures.logging,
             testFeatures.chat,
@@ -58,6 +65,26 @@ describe('ContextCommandsProvider', () => {
         })
     })
 
+    describe('onReady', () => {
+        it('should call processContextCommandUpdate with empty array on first call', async () => {
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            provider.onReady()
+
+            sinon.assert.calledOnce(processUpdateSpy)
+            sinon.assert.calledWith(processUpdateSpy, [])
+        })
+
+        it('should not call processContextCommandUpdate on subsequent calls', async () => {
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            provider.onReady()
+            provider.onReady()
+
+            sinon.assert.calledOnce(processUpdateSpy)
+        })
+    })
+
     describe('onContextItemsUpdated', () => {
         it('should call processContextCommandUpdate when controller raises event', async () => {
             const mockContextItems: ContextCommandItem[] = [
@@ -76,6 +103,31 @@ describe('ContextCommandsProvider', () => {
 
             sinon.assert.calledOnce(processUpdateSpy)
             sinon.assert.calledWith(processUpdateSpy, mockContextItems)
+        })
+    })
+
+    describe('onIndexingInProgressChanged', () => {
+        it('should update workspacePending and call processContextCommandUpdate when indexing status changes', async () => {
+            let capturedCallback: ((indexingInProgress: boolean) => void) | undefined
+
+            const mockController = {
+                onContextItemsUpdated: sinon.stub(),
+                set onIndexingInProgressChanged(callback: (indexingInProgress: boolean) => void) {
+                    capturedCallback = callback
+                },
+            }
+
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves(mockController as any)
+
+            // Set initial state to false so condition is met
+            ;(provider as any).workspacePending = false
+
+            await (provider as any).registerContextCommandHandler()
+
+            capturedCallback?.(true)
+
+            sinon.assert.calledWith(processUpdateSpy, [])
         })
     })
 })
