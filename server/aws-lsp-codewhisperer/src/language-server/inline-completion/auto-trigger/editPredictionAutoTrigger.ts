@@ -96,11 +96,10 @@ const keyWordCoefficients: Record<string, number> = {
     import: 0.1001,
     for: -0.0042,
     is: 0.0719,
-    others: -0.0509,
     string: 0.0186,
 }
 
-const lastCharCoefficients: Record<string, number> & Record<'others', number> = {
+const lastCharCoefficients: Record<string, number> = {
     // alphabet
     a: 0.0149,
     c: 0.0553,
@@ -138,8 +137,6 @@ const lastCharCoefficients: Record<string, number> & Record<'others', number> = 
     _: 0.0122,
     "'": -0.0939,
     '"': -0.0006,
-    // others
-    others: -0.0828,
 }
 
 const languageCoefficients: Record<string, number> = {
@@ -157,12 +154,10 @@ const languageCoefficients: Record<string, number> = {
     tf: -0.3423,
     typescript: 0.1318,
     yaml: -0.2152,
-    others: 0.0512,
 }
 
 const leftContextLineCountCoeffecients = {
-    lte25: -0.0695,
-    gt26: -0.0245,
+    lte25: -0.069,
 }
 
 // TODO: update
@@ -238,7 +233,7 @@ export class EditClassifier {
         }
         // 1. Last Character
         const lastChar = this.features.lastCharacter
-        const myLastCharCoef = lastCharCoefficients[lastChar] ?? lastCharCoefficients['others']
+        const myLastCharCoef = lastCharCoefficients[lastChar] ?? 0
 
         // 2. Last Line Length
         const lastLineLength = this.features.lastLineLength
@@ -253,8 +248,7 @@ export class EditClassifier {
 
         // 3. Left Context Line Count
         const leftContextLineCount = this.features.leftContextLineCount
-        const myLeftContextLineCountCoef =
-            leftContextLineCount <= 25 ? leftContextLineCountCoeffecients.lte25 : leftContextLineCountCoeffecients.gt26
+        const myLeftContextLineCountCoef = leftContextLineCount <= 25 ? leftContextLineCountCoeffecients.lte25 : 0
 
         // 4. Right Context Line Count
         const rightContextLineCount = this.features.rightContextLineCount
@@ -275,11 +269,11 @@ export class EditClassifier {
 
         // 6. Language
         const lang = this.features.language
-        const myLangCoef = languageCoefficients[lang] ?? languageCoefficients['others']
+        const myLangCoef = languageCoefficients[lang] ?? 0
 
         // 7. Keyword
         const kw = this.features.keyword
-        const myKeywordCoef = keyWordCoefficients[kw] ?? keyWordCoefficients['others']
+        const myKeywordCoef = keyWordCoefficients[kw] ?? 0
 
         // 8. AR
         const myArCoef = arCoefficients.previous5 * this.features.userAR
