@@ -7,7 +7,7 @@ import * as assert from 'assert'
 import * as sinon from 'sinon'
 import { EditClassifier, editPredictionAutoTrigger } from './editPredictionAutoTrigger'
 import { EditPredictionConfigManager } from './editPredictionConfig'
-import { FileContext, getFileContext } from '../../../shared/codeWhispererService'
+import { ClientFileContextClss, FileContext, getFileContext } from '../../../shared/codeWhispererService'
 import { Position } from '@aws/language-server-runtimes/server-interface'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CursorTracker } from '../tracker/cursorTracker'
@@ -373,7 +373,7 @@ describe('classifier', function () {
 
     describe('constant check', function () {
         it('intercept', function () {
-            assert.strictEqual(EditClassifier.INTERCEPT, -0.1324)
+            assert.strictEqual(EditClassifier.INTERCEPT, -0.2782)
         })
 
         it('threshold', function () {
@@ -403,21 +403,333 @@ describe('classifier', function () {
         })
     })
 
-    describe('test suite1', function () {
-        it('t', function () {
+    describe('test logistic formula', function () {
+        function createMockFileContext(leftcontext: string, rightcontext: string) {}
+
+        it('case 1 Python function with keyword', function () {
+            const document = TextDocument.create(
+                'test.py',
+                'python',
+                1,
+                `def calculate_sum(a, b):
+    return a + b
+
+def main():
+    result = calculate_sum(5, 3)
+    try:
+        print(f"Result: {result}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()`
+            )
+            const filecontext = new ClientFileContextClss({
+                textDocument: document,
+                position: Position.create(5, 7),
+                inferredLanguageId: 'python',
+                workspaceFolder: undefined,
+            })
+
+            // assert setup is correct
+            assert.strictEqual(
+                filecontext.leftFileContent,
+                `def calculate_sum(a, b):
+    return a + b
+
+def main():
+    result = calculate_sum(5, 3)
+    try`
+            )
+            assert.strictEqual(
+                filecontext.rightFileContent,
+                `:
+        print(f"Result: {result}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()`
+            )
+            assert.strictEqual(filecontext.programmingLanguage.languageName, 'python')
+
+            // test classifier
             const sut = new EditClassifier({
-                fileContext: SAMPLE_FILE_CONTEXT,
-                triggerChar: 't', // System.ou't'
+                fileContext: filecontext,
+                triggerChar: '',
                 recentEdits: {
                     isUtg: false,
                     isProcessTimeout: false,
-                    supplementalContextItems: [],
+                    supplementalContextItems: [
+                        {
+                            filePath: '',
+                            content: `--- file:///calculator.py
++++ file:///calculator.py
+@@ -1,5 +1,7 @@
+ def calculate_sum(a, b):
+     return a + b
+ 
++def calculate_product(a, b):
++    return a * b
++
+ def main():
+     result = calculate_sum(5, 3)`,
+                        },
+                    ],
                     contentsLength: 0,
                     latency: 0,
                     strategy: 'recentEdits',
                 },
-                recentDecisions: [],
+                recentDecisions: ['Accept', 'Accept', 'Accept', 'Reject', 'Reject'], // AR = 0.6
             })
+
+            const actual = sut.score().toPrecision(4)
+            assert.strictEqual(actual, '0.6998')
+        })
+
+        it('case 2 Java method with keyword and deletions', function () {
+            const document = TextDocument.create(
+                'test.java',
+                'java',
+                1,
+                `public class Calculator {
+    private int value;
+    
+    public void setValue(int v) {
+        this.value = v;
+    }
+    
+    public int getValue() {
+        if (this.value > 0) {
+            return this.value;
+        }
+        return 0;
+    }
+}`
+            )
+            const filecontext = new ClientFileContextClss({
+                textDocument: document,
+                position: Position.create(8, 10),
+                inferredLanguageId: 'java',
+                workspaceFolder: undefined,
+            })
+
+            // assert setup is correct
+            assert.strictEqual(
+                filecontext.leftFileContent,
+                `public class Calculator {
+    private int value;
+    
+    public void setValue(int v) {
+        this.value = v;
+    }
+    
+    public int getValue() {
+        if`
+            )
+            assert.strictEqual(
+                filecontext.rightFileContent,
+                ` (this.value > 0) {
+            return this.value;
+        }
+        return 0;
+    }
+}`
+            )
+            assert.strictEqual(filecontext.programmingLanguage.languageName, 'java')
+
+            // test classifier
+            const sut = new EditClassifier({
+                fileContext: filecontext,
+                triggerChar: '',
+                recentEdits: {
+                    isUtg: false,
+                    isProcessTimeout: false,
+                    supplementalContextItems: [
+                        {
+                            filePath: '',
+                            content: `--- file:///Calculator.java
++++ file:///Calculator.java
+@@ -1,6 +1,4 @@
+ public class Calculator {
+     private int value;
+-    private String name;
+-    private boolean active;
+     
+     public void setValue(int v) {`,
+                        },
+                    ],
+                    contentsLength: 0,
+                    latency: 0,
+                    strategy: 'recentEdits',
+                },
+                recentDecisions: [], // If recentDecision has length 0, will use 0.3 as AR
+            })
+
+            const actual = sut.score().toPrecision(4)
+            assert.strictEqual(actual, '0.5374')
+        })
+
+        it('case 3 JavaScript without keyword, with deletions', function () {
+            const document = TextDocument.create(
+                'test.js',
+                'javascript',
+                1,
+                `const users = [
+    { name: 'Alice', age: 25 },
+    { name: 'Bob', age: 30 }
+];
+
+const getNames = () => {
+    return users.map(user => user.fullName);
+};
+
+console.log(getNames());`
+            )
+            const filecontext = new ClientFileContextClss({
+                textDocument: document,
+                position: Position.create(6, 42),
+                inferredLanguageId: 'javascript',
+                workspaceFolder: undefined,
+            })
+
+            // assert setup is correct
+            assert.strictEqual(
+                filecontext.leftFileContent,
+                `const users = [
+    { name: 'Alice', age: 25 },
+    { name: 'Bob', age: 30 }
+];
+
+const getNames = () => {
+    return users.map(user => user.fullName`
+            )
+            assert.strictEqual(
+                filecontext.rightFileContent,
+                `);
+};
+
+console.log(getNames());`
+            )
+            assert.strictEqual(filecontext.programmingLanguage.languageName, 'javascript')
+
+            // test classifier
+            const sut = new EditClassifier({
+                fileContext: filecontext,
+                triggerChar: '',
+                recentEdits: {
+                    isUtg: false,
+                    isProcessTimeout: false,
+                    supplementalContextItems: [
+                        {
+                            filePath: '',
+                            content: `--- file:///users.js
++++ file:///users.js
+@@ -1,6 +1,4 @@
+ const users = [
+     { name: 'Alice', age: 25 },
+-    { name: 'Bob', age: 30 },
+-    { name: 'Charlie', age: 35 }
++    { name: 'Bob', age: 30 }
+ ];`,
+                        },
+                    ],
+                    contentsLength: 0,
+                    latency: 0,
+                    strategy: 'recentEdits',
+                },
+                recentDecisions: ['Reject', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0
+            })
+
+            const actual = sut.score().toPrecision(4)
+            assert.strictEqual(actual, '0.4085')
+        })
+
+        it('case 4 C++ without keyword, with similar line changes', function () {
+            const document = TextDocument.create(
+                'test.cpp',
+                'cpp',
+                1,
+                `#include <iostream>
+#include <vector>
+
+template<typename T>
+void printVector(const std::vector<T>& vec) {
+    for (const auto& item : vec) {
+        std::cout << item << " ";
+    }
+    std::cout << std::newline;
+}
+
+int main() {
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    printVector(numbers);
+    return 0;
+}`
+            )
+            const filecontext = new ClientFileContextClss({
+                textDocument: document,
+                position: Position.create(8, 29),
+                inferredLanguageId: 'cpp',
+                workspaceFolder: undefined,
+            })
+
+            // assert setup is correct
+            assert.strictEqual(
+                filecontext.leftFileContent,
+                `#include <iostream>
+#include <vector>
+
+template<typename T>
+void printVector(const std::vector<T>& vec) {
+    for (const auto& item : vec) {
+        std::cout << item << " ";
+    }
+    std::cout << std::newline`
+            )
+            assert.strictEqual(
+                filecontext.rightFileContent,
+                `;
+}
+
+int main() {
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    printVector(numbers);
+    return 0;
+}`
+            )
+            assert.strictEqual(filecontext.programmingLanguage.languageName, 'cpp')
+
+            // test classifier
+            const sut = new EditClassifier({
+                fileContext: filecontext,
+                triggerChar: '',
+                recentEdits: {
+                    isUtg: false,
+                    isProcessTimeout: false,
+                    supplementalContextItems: [
+                        {
+                            filePath: '',
+                            content: `--- file:///vector_print.cpp
++++ file:///vector_print.cpp
+@@ -5,7 +5,7 @@
+     for (const auto& item : vec) {
+         std::cout << item << " ";
+     }
+-    std::cout << std::endl;
++    std::cout << std::newline;
+ }`,
+                        },
+                    ],
+                    contentsLength: 0,
+                    latency: 0,
+                    strategy: 'recentEdits',
+                },
+                recentDecisions: ['Accept', 'Accept', 'Reject', 'Reject', 'Reject'], // AR 0.4
+            })
+
+            const actual = sut.score().toPrecision(4)
+            assert.strictEqual(actual, '0.3954')
         })
     })
 })
