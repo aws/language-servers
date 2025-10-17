@@ -265,10 +265,11 @@ export class CodeWhispererSession {
             return 'Discard'
         }
 
+        // TODO: Why we need this?
         // Can't report trigger decision until session is marked as closed
-        if (this.state !== 'CLOSED') {
-            return
-        }
+        // if (this.state !== 'CLOSED') {
+        // return
+        // }
 
         let isEmpty = true
         for (const state of this.suggestionsStates.values()) {
