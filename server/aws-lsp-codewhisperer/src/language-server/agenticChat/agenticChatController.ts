@@ -191,8 +191,6 @@ import {
     MAX_OVERALL_CHARACTERS,
     FSREAD_MEMORY_BANK_MAX_PER_FILE,
     FSREAD_MEMORY_BANK_MAX_TOTAL,
-    MID_LOOP_COMPACTION_HANDOFF_PROMPT,
-    COMPACTION_PROMPT,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -948,11 +946,6 @@ export class AgenticChatController implements ChatHandlers {
 
         const compactIds = session.getAllDeferredCompactMessageIds()
         await this.#invalidateCompactCommand(params.tabId, compactIds)
-        // Set compactionDeclined flag if there were pending compaction requests
-        // This prevents endless compaction warning loops when user declines compaction once
-        if (compactIds.length > 0) {
-            session.compactionDeclined = true
-        }
         session.rejectAllDeferredToolExecutions(new ToolApprovalException('Command ignored: new prompt', false))
         await this.#invalidateAllShellCommands(params.tabId, session)
 
@@ -988,10 +981,6 @@ export class AgenticChatController implements ChatHandlers {
                 session.abortRequest()
                 const compactIds = session.getAllDeferredCompactMessageIds()
                 await this.#invalidateCompactCommand(params.tabId, compactIds)
-                // Set compactionDeclined flag if there were pending compaction requests
-                if (compactIds.length > 0) {
-                    session.compactionDeclined = true
-                }
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
 
@@ -1109,7 +1098,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // Result Handling - This happens only once
-            const result = await this.#handleFinalResult(
+            return await this.#handleFinalResult(
                 finalResult,
                 session,
                 params.tabId,
@@ -1118,13 +1107,6 @@ export class AgenticChatController implements ChatHandlers {
                 isNewConversation,
                 chatResultStream
             )
-
-            // Reset compactionDeclined flag after successful completion
-            if (session.compactionDeclined) {
-                session.compactionDeclined = false
-            }
-
-            return result
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
             // Without this, the `working` indicator never goes away.
@@ -1196,7 +1178,7 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Prepares the initial request input for the chat prompt
      */
-    #getCompactionRequestInput(session: ChatSessionService, toolResults?: any[]): ChatCommandInput {
+    #getCompactionRequestInput(session: ChatSessionService): ChatCommandInput {
         this.#debug('Preparing compaction request input')
         // Get profileArn from the service manager if available
         const profileArn = this.#serviceManager?.getActiveProfileArn()
@@ -1204,8 +1186,7 @@ export class AgenticChatController implements ChatHandlers {
             profileArn,
             this.#getTools(session),
             session.modelId,
-            this.#origin,
-            toolResults
+            this.#origin
         )
         return requestInput
     }
@@ -1213,12 +1194,9 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Runs the compaction, making requests and processing tool uses until completion
      */
-    #shouldCompact(currentRequestCount: number, session: ChatSessionService): boolean {
-        const EFFECTIVE_COMPACTION_THRESHOLD = COMPACTION_CHARACTER_THRESHOLD - COMPACTION_PROMPT.length
-        if (currentRequestCount > EFFECTIVE_COMPACTION_THRESHOLD && !session.compactionDeclined) {
-            this.#debug(
-                `Current request total character count is: ${currentRequestCount}, prompting user to compact (threshold: ${EFFECTIVE_COMPACTION_THRESHOLD})`
-            )
+    #shouldCompact(currentRequestCount: number): boolean {
+        if (currentRequestCount > COMPACTION_CHARACTER_THRESHOLD) {
+            this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
             return false
@@ -1401,10 +1379,6 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestCount = 0
         const pinnedContext = additionalContext?.filter(item => item.pinned)
 
-        // Store initial non-empty prompt for compaction handoff
-        const initialPrompt =
-            initialRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.trim() || ''
-
         metric.recordStart()
         this.logSystemInformation()
         while (true) {
@@ -1469,63 +1443,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
             currentRequestInput = sanitizeRequestInput(currentRequestInput)
-
-            if (this.#shouldCompact(currentRequestCount, session)) {
-                this.#features.logging.info(
-                    `Entering mid-loop compaction at iteration ${iterationCount} with ${currentRequestCount} characters`
-                )
-                this.#telemetryController.emitMidLoopCompaction(
-                    currentRequestCount,
-                    iterationCount,
-                    this.#features.runtime.serverInfo.version ?? ''
-                )
-                const messageId = this.#getMessageIdForCompact(uuid())
-                const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
-                const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
-
-                // Run compaction
-                const toolResults =
-                    currentRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.toolResults || []
-                const compactionRequestInput = this.#getCompactionRequestInput(session, toolResults)
-                const compactionResult = await this.#runCompaction(
-                    compactionRequestInput,
-                    session,
-                    metric,
-                    chatResultStream,
-                    tabId,
-                    promptId,
-                    CompactHistoryActionType.Nudge,
-                    session.conversationId,
-                    token,
-                    documentReference
-                )
-
-                if (!compactionResult.success) {
-                    this.#features.logging.error(`Compaction failed: ${compactionResult.error}`)
-                    return compactionResult
-                }
-
-                // Show compaction summary to user before continuing
-                await chatResultStream.writeResultBlock({
-                    type: 'answer',
-                    body:
-                        (compactionResult.data?.chatResult.body || '') +
-                        '\n\nConversation history has been compacted successfully!',
-                    messageId: uuid(),
-                })
-
-                currentRequestInput = this.#updateRequestInputWithToolResults(
-                    currentRequestInput,
-                    [],
-                    MID_LOOP_COMPACTION_HANDOFF_PROMPT + initialPrompt
-                )
-                shouldDisplayMessage = false
-                this.#features.logging.info(`Completed mid-loop compaction, restarting loop with handoff prompt`)
-                continue
-            }
-
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
                 `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
@@ -1754,7 +1671,7 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (this.#shouldCompact(currentRequestCount, session)) {
+        if (this.#shouldCompact(currentRequestCount)) {
             this.#telemetryController.emitCompactNudge(
                 currentRequestCount,
                 this.#features.runtime.serverInfo.version ?? ''
@@ -3930,9 +3847,11 @@ export class AgenticChatController implements ChatHandlers {
      */
     async onReady() {
         await this.restorePreviousChats()
+        this.#contextCommandsProvider.onReady()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
+            this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {
