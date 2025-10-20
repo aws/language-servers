@@ -1,6 +1,7 @@
 export const FILE_URI_CHARS_LIMIT = 1024
 export const FILENAME_CHARS_LIMIT = 1024
 export const CONTEXT_CHARACTERS_LIMIT = 10240
+export const TEXTDOCUMENT_CHARS_LIMIT = 40000
 export const EMPTY_RESULT = { sessionId: '', items: [] }
 export const EDIT_DEBOUNCE_INTERVAL_MS = 500
 // ABAP ADT extensions commonly used with Eclipse
