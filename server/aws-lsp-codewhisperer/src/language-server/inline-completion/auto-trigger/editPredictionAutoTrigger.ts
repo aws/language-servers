@@ -72,7 +72,6 @@ export const editPredictionAutoTrigger = ({
     return { shouldTrigger }
 }
 
-// TODO: restructure interface
 const keyWordCoefficients: Record<string, number> = {
     get: 1.171,
     const: -0.7697,
@@ -162,7 +161,7 @@ const leftContextLineCountCoeffecients = {
     lte25: -0.0417,
 }
 
-// TODO: update
+// No rightContextLineCountCoefficients, leave it 0 for now
 const rightContextLineCountCoefficients = {
     lte3: 0,
     gte_4_lte6: 0,
@@ -184,7 +183,6 @@ const arCoefficients = {
     previous5: 0.4723,
 }
 
-// TODO: interface is not finalized
 type EditAutoTriggerInput = {
     fileContext: ClientFileContextClss
     triggerChar: string
@@ -329,7 +327,7 @@ ${JSON.stringify(
         const lastCharacter = params.triggerChar
 
         // 2. Last Line Length
-        const lastLineLength = params.fileContext.leftContextAtCurLine.length // TODO: only left?
+        const lastLineLength = params.fileContext.leftContextAtCurLine.length
 
         // 3. Left Context Line Count
         const leftContextLineCount = params.fileContext.leftFileContent.split('\n').length
@@ -438,6 +436,7 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
         }
     }
 
+    // TODO: Maybe consider reusing same logic across the entire repo or 3rd party edit distance function, we have too many different variants of such
     static editDistance(s1: string, s2: string): number {
         if (s1.length === 0) return s2.length
         if (s2.length === 0) return s1.length
