@@ -66,6 +66,11 @@ export function inferTriggerChar(
 ): string {
     if (changes?.contentChanges && changes.contentChanges.length > 0 && changes.contentChanges[0].text !== undefined) {
         const chars = changes.contentChanges[0].text
+        // TODO: A deletion document change will be empty string with non empty range length, however not sure why we can't access TextDocumentContentChangeEvent.rangeLength here
+        if (chars.length === 0) {
+            return fileContext.leftFileContent.trim().at(-1) ?? ''
+        }
+
         if (chars.length > 1) {
             // TODO: monkey patch, should refine these logic
             // Users hit newline and IDE or other extensions auto format for users
