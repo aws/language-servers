@@ -36,7 +36,7 @@ import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from '../documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS, CONTEXT_CHARACTERS_LIMIT } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
 import { processEditSuggestion } from '../utils/diffUtils'
 
@@ -256,7 +256,8 @@ export class EditCompletionHandler {
                     programmingLanguage: {
                         languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
                     },
-                    text: textDocument.getText(),
+                    // Naive truncation, maybe we need "10240" characters around current curosr position instead
+                    text: textDocument.getText().substring(0, CONTEXT_CHARACTERS_LIMIT),
                 },
                 cursorState: {
                     position: {
