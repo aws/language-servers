@@ -8,7 +8,7 @@ import * as sinon from 'sinon'
 import { EditClassifier, editPredictionAutoTrigger } from './editPredictionAutoTrigger'
 import { EditPredictionConfigManager } from './editPredictionConfig'
 import { ClientFileContextClss, FileContext, getFileContext } from '../../../shared/codeWhispererService'
-import { Position } from '@aws/language-server-runtimes/server-interface'
+import { Logging, Position } from '@aws/language-server-runtimes/server-interface'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
@@ -353,6 +353,15 @@ describe('classifier', function () {
         workspaceFolder: undefined,
     })
 
+    // Create stubs for all methods
+    const loggingStub = {
+        error: sinon.stub(),
+        warn: sinon.stub(),
+        info: sinon.stub(),
+        log: sinon.stub(),
+        debug: sinon.stub(),
+    } satisfies Logging
+
     it('test sample', function () {
         assert.strictEqual(SAMPLE_FILE_CONTEXT.leftContextAtCurLine, '        System.out')
         assert.strictEqual(SAMPLE_FILE_CONTEXT.rightContextAtCurLine, '.println("Hello, World!");') // TODO: Not sure why it doesnt include \n
@@ -471,16 +480,17 @@ if __name__ == "__main__":
             assert.strictEqual(filecontext.programmingLanguage.languageName, 'python')
 
             // test classifier
-            const sut = new EditClassifier({
-                fileContext: filecontext,
-                triggerChar: 'y',
-                recentEdits: {
-                    isUtg: false,
-                    isProcessTimeout: false,
-                    supplementalContextItems: [
-                        {
-                            filePath: '',
-                            content: `--- file:///calculator.py
+            const sut = new EditClassifier(
+                {
+                    fileContext: filecontext,
+                    triggerChar: 'y',
+                    recentEdits: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                filePath: '',
+                                content: `--- file:///calculator.py
 +++ file:///calculator.py
 @@ -1,5 +1,7 @@
  def calculate_sum(a, b):
@@ -491,14 +501,16 @@ if __name__ == "__main__":
 +
  def main():
      result = calculate_sum(5, 3)`,
-                        },
-                    ],
-                    contentsLength: 0,
-                    latency: 0,
-                    strategy: 'recentEdits',
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'recentEdits',
+                    },
+                    recentDecisions: ['Accept', 'Accept', 'Accept', 'Reject', 'Reject'], // AR = 0.6
                 },
-                recentDecisions: ['Accept', 'Accept', 'Accept', 'Reject', 'Reject'], // AR = 0.6
-            })
+                loggingStub
+            )
 
             const actual = sut.score().toPrecision(4)
             assert.strictEqual(actual, '0.6998')
@@ -556,16 +568,17 @@ if __name__ == "__main__":
             assert.strictEqual(filecontext.programmingLanguage.languageName, 'java')
 
             // test classifier
-            const sut = new EditClassifier({
-                fileContext: filecontext,
-                triggerChar: 'f',
-                recentEdits: {
-                    isUtg: false,
-                    isProcessTimeout: false,
-                    supplementalContextItems: [
-                        {
-                            filePath: '',
-                            content: `--- file:///Calculator.java
+            const sut = new EditClassifier(
+                {
+                    fileContext: filecontext,
+                    triggerChar: 'f',
+                    recentEdits: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                filePath: '',
+                                content: `--- file:///Calculator.java
 +++ file:///Calculator.java
 @@ -1,6 +1,4 @@
  public class Calculator {
@@ -574,14 +587,16 @@ if __name__ == "__main__":
 -    private boolean active;
      
      public void setValue(int v) {`,
-                        },
-                    ],
-                    contentsLength: 0,
-                    latency: 0,
-                    strategy: 'recentEdits',
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'recentEdits',
+                    },
+                    recentDecisions: [], // If recentDecision has length 0, will use 0.3 as AR
                 },
-                recentDecisions: [], // If recentDecision has length 0, will use 0.3 as AR
-            })
+                loggingStub
+            )
 
             const actual = sut.score().toPrecision(4)
             assert.strictEqual(actual, '0.5374')
@@ -631,16 +646,17 @@ console.log(getNames());`
             assert.strictEqual(filecontext.programmingLanguage.languageName, 'javascript')
 
             // test classifier
-            const sut = new EditClassifier({
-                fileContext: filecontext,
-                triggerChar: 'e',
-                recentEdits: {
-                    isUtg: false,
-                    isProcessTimeout: false,
-                    supplementalContextItems: [
-                        {
-                            filePath: '',
-                            content: `--- file:///users.js
+            const sut = new EditClassifier(
+                {
+                    fileContext: filecontext,
+                    triggerChar: 'e',
+                    recentEdits: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                filePath: '',
+                                content: `--- file:///users.js
 +++ file:///users.js
 @@ -1,6 +1,4 @@
  const users = [
@@ -649,14 +665,16 @@ console.log(getNames());`
 -    { name: 'Charlie', age: 35 }
 +    { name: 'Bob', age: 30 }
  ];`,
-                        },
-                    ],
-                    contentsLength: 0,
-                    latency: 0,
-                    strategy: 'recentEdits',
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'recentEdits',
+                    },
+                    recentDecisions: ['Reject', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0
                 },
-                recentDecisions: ['Reject', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0
-            })
+                loggingStub
+            )
 
             const actual = sut.score().toPrecision(4)
             assert.strictEqual(actual, '0.4085')
@@ -718,16 +736,17 @@ int main() {
             assert.strictEqual(filecontext.programmingLanguage.languageName, 'cpp')
 
             // test classifier
-            const sut = new EditClassifier({
-                fileContext: filecontext,
-                triggerChar: 'e',
-                recentEdits: {
-                    isUtg: false,
-                    isProcessTimeout: false,
-                    supplementalContextItems: [
-                        {
-                            filePath: '',
-                            content: `--- file:///vector_print.cpp
+            const sut = new EditClassifier(
+                {
+                    fileContext: filecontext,
+                    triggerChar: 'e',
+                    recentEdits: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                filePath: '',
+                                content: `--- file:///vector_print.cpp
 +++ file:///vector_print.cpp
 @@ -5,7 +5,7 @@
      for (const auto& item : vec) {
@@ -736,14 +755,16 @@ int main() {
 -    std::cout << std::endl;
 +    std::cout << std::newline;
  }`,
-                        },
-                    ],
-                    contentsLength: 0,
-                    latency: 0,
-                    strategy: 'recentEdits',
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'recentEdits',
+                    },
+                    recentDecisions: ['Accept', 'Accept', 'Reject', 'Reject', 'Reject'], // AR 0.4
                 },
-                recentDecisions: ['Accept', 'Accept', 'Reject', 'Reject', 'Reject'], // AR 0.4
-            })
+                loggingStub
+            )
 
             const actual = sut.score().toPrecision(4)
             assert.strictEqual(actual, '0.3954')
@@ -787,16 +808,17 @@ LIMIT 10;`
             assert.strictEqual(filecontext.programmingLanguage.languageName, 'sql')
 
             // test classifier
-            const sut = new EditClassifier({
-                fileContext: filecontext,
-                triggerChar: '',
-                recentEdits: {
-                    isUtg: false,
-                    isProcessTimeout: false,
-                    supplementalContextItems: [
-                        {
-                            filePath: '',
-                            content: `--- file:///query.sql
+            const sut = new EditClassifier(
+                {
+                    fileContext: filecontext,
+                    triggerChar: '',
+                    recentEdits: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                filePath: '',
+                                content: `--- file:///query.sql
 +++ file:///query.sql
 @@ -1,6 +1,4 @@
  SELECT u.name, u.email, p.title
@@ -806,14 +828,16 @@ LIMIT 10;`
  WHERE u.active = true
 -AND p.published_at >= '2023-01-01'
 +AND p.published_date >= '2023-01-01'`,
-                        },
-                    ],
-                    contentsLength: 0,
-                    latency: 0,
-                    strategy: 'recentEdits',
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'recentEdits',
+                    },
+                    recentDecisions: ['Accept', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0.2
                 },
-                recentDecisions: ['Accept', 'Reject', 'Reject', 'Reject', 'Reject'], // AR 0.2
-            })
+                loggingStub
+            )
 
             const actual = sut.score().toPrecision(4)
             assert.strictEqual(actual, '0.4031')

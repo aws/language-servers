@@ -391,7 +391,6 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
     }
 
     static processEditHistory(udiff: string): EditHistoryFeature {
-        console.log(`processing oldest edit udiff: \n${udiff}`)
         const lines = udiff.split('\n')
         const addedLines = lines
             .filter(line => line.startsWith('+') && !line.startsWith('+++'))
