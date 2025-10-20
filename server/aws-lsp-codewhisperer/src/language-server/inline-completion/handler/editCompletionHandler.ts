@@ -80,6 +80,7 @@ export class EditCompletionHandler {
      * Also as a followup, ideally it should be a message/event publish/subscribe pattern instead of manual invocation like this
      */
     documentChanged() {
+        // TODO: Remove this entirely once we are sure we dont need debounce
         // if (this.debounceTimeout) {
         //     if (this.isWaiting) {
         //         this.hasDocumentChangedSinceInvocation = true

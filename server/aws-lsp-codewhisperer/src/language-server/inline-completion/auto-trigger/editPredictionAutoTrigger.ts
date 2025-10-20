@@ -341,7 +341,11 @@ ${JSON.stringify(
         const editHistory = oldest ? EditClassifier.processEditHistory(oldest.content) : undefined
         const normalizedEditHistory = editHistory ? EditClassifier.normalizedRecentEdit(editHistory) : undefined
 
-        console.log(`recent edits:
+        console.log(`lastLineFileContext: 
+${params.fileContext.leftContextAtCurLine}
+recent decisions: 
+${JSON.stringify(params.recentDecisions)}
+recent edits:
 @@raw oldest edit@@
 ${oldest.content}
 @@raw numbers@@
@@ -359,7 +363,6 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
         const lastToken = tokens[tokens.length - 1]
 
         // 8. User AR for last 5
-        console.log(`recent decisions: ${JSON.stringify(params.recentDecisions)}`)
         // Cold start we assume 0.3 for AR
         const ar =
             params.recentDecisions.length === 0
