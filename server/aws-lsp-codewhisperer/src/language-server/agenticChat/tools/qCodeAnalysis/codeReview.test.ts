@@ -104,6 +104,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
         })
@@ -136,7 +137,9 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                numberOfFilesInCustomerCodeZip: 1,
                 codeDiffFiles: new Set(),
+                filePathsInZip: new Set(['/test/file.js']),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -265,7 +268,9 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                numberOfFilesInCustomerCodeZip: 1,
                 codeDiffFiles: new Set(),
+                filePathsInZip: new Set(['/test/file.js']),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -305,6 +310,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
@@ -428,6 +434,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
@@ -453,6 +460,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [{ path: '/test/folder' }],
                 ruleArtifacts: [],
                 scopeOfReview: CODE_DIFF_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
@@ -488,6 +496,7 @@ describe('CodeReview', () => {
             const ruleArtifacts: any[] = []
 
             const result = await (codeReview as any).prepareFilesAndFoldersForUpload(
+                'Test requirement',
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -507,6 +516,7 @@ describe('CodeReview', () => {
             sandbox.stub(CodeReviewUtils, 'processArtifactWithDiff').resolves('diff content\n')
 
             const result = await (codeReview as any).prepareFilesAndFoldersForUpload(
+                'Test requirement',
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -526,6 +536,7 @@ describe('CodeReview', () => {
 
             try {
                 await (codeReview as any).prepareFilesAndFoldersForUpload(
+                    'Test requirement',
                     fileArtifacts,
                     folderArtifacts,
                     ruleArtifacts,
@@ -554,6 +565,7 @@ describe('CodeReview', () => {
             sandbox.stub(require('crypto'), 'randomUUID').returns('test-uuid-123')
 
             await (codeReview as any).prepareFilesAndFoldersForUpload(
+                'Test requirement',
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -767,6 +779,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
