@@ -5,7 +5,58 @@ import {
     getAddedAndDeletedLines,
     getCharacterDifferences,
     generateDiffContexts,
+    isDocumentChangedFromNewLine,
 } from './diffUtils'
+
+describe('isDocumentChangedFromNewLine', function () {
+    interface TestCase {
+        input: string
+        expected: boolean
+    }
+
+    const cases: TestCase[] = [
+        {
+            input: '\n               ',
+            expected: true,
+        },
+        {
+            input: '\n\t\t\t',
+            expected: true,
+        },
+        {
+            input: '\n ',
+            expected: true,
+        },
+        {
+            input: '\n  ',
+            expected: true,
+        },
+        {
+            input: '\n    def',
+            expected: false,
+        },
+        {
+            input: ' \n               ',
+            expected: false,
+        },
+        {
+            input: '\t\n               ',
+            expected: false,
+        },
+        {
+            input: ' def\n\t',
+            expected: false,
+        },
+    ]
+
+    for (let i = 0; i < cases.length; i++) {
+        const c = cases[i]
+        it(`case ${i}`, function () {
+            const actual = isDocumentChangedFromNewLine(c.input)
+            assert.strictEqual(actual, c.expected)
+        })
+    }
+})
 
 describe('extractAdditions', function () {
     interface Case {

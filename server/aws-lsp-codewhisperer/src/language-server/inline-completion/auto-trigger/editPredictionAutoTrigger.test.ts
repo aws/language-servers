@@ -473,7 +473,7 @@ if __name__ == "__main__":
             // test classifier
             const sut = new EditClassifier({
                 fileContext: filecontext,
-                triggerChar: '',
+                triggerChar: 'y',
                 recentEdits: {
                     isUtg: false,
                     isProcessTimeout: false,
@@ -558,7 +558,7 @@ if __name__ == "__main__":
             // test classifier
             const sut = new EditClassifier({
                 fileContext: filecontext,
-                triggerChar: '',
+                triggerChar: 'f',
                 recentEdits: {
                     isUtg: false,
                     isProcessTimeout: false,
@@ -633,7 +633,7 @@ console.log(getNames());`
             // test classifier
             const sut = new EditClassifier({
                 fileContext: filecontext,
-                triggerChar: '',
+                triggerChar: 'e',
                 recentEdits: {
                     isUtg: false,
                     isProcessTimeout: false,
@@ -720,7 +720,7 @@ int main() {
             // test classifier
             const sut = new EditClassifier({
                 fileContext: filecontext,
-                triggerChar: '',
+                triggerChar: 'e',
                 recentEdits: {
                     isUtg: false,
                     isProcessTimeout: false,

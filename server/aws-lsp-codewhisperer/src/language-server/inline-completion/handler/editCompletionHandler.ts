@@ -38,7 +38,7 @@ import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../sha
 import { DocumentChangedListener } from '../documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
-import { processEditSuggestion } from '../utils/diffUtils'
+import { isDocumentChangedFromNewLine, processEditSuggestion } from '../utils/diffUtils'
 import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
 
 export class EditCompletionHandler {
@@ -205,6 +205,7 @@ export class EditCompletionHandler {
             workspaceFolder: this.workspace.getWorkspaceFolder(textDocument.uri),
         })
 
+        // TODO: Parametrize these to a util function, duplicate code as inineCompletionHandler
         let triggerCharacters = ''
         if (
             params.documentChangeParams?.contentChanges &&
@@ -212,6 +213,11 @@ export class EditCompletionHandler {
             params.documentChangeParams.contentChanges[0].text !== undefined
         ) {
             triggerCharacters = params.documentChangeParams.contentChanges[0].text
+            // Users hit newline and IDE or other extensions auto format for users
+            // For such documentChanges might be '\n    ' (newline + 4 space)
+            if (triggerCharacters.length > 1 && isDocumentChangedFromNewLine(triggerCharacters)) {
+                triggerCharacters = '\n'
+            }
         } else {
             // if the client does not emit document change for the trigger, use left most character.
             triggerCharacters = fileContextClss.leftFileContent.trim().at(-1) ?? ''

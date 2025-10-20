@@ -322,8 +322,9 @@ ${JSON.stringify(
 
     prepareFeatures(params: EditAutoTriggerInput): EditClassifierFeatures {
         // 1. Last Character
-        const lastCharacter =
-            params.fileContext.leftContextAtCurLine[params.fileContext.leftContextAtCurLine.length - 1]
+        // const lastCharacter =
+        //     params.fileContext.leftContextAtCurLine[params.fileContext.leftContextAtCurLine.length - 1]
+        const lastCharacter = params.triggerChar
 
         // 2. Last Line Length
         const lastLineLength = params.fileContext.leftContextAtCurLine.length // TODO: only left?
