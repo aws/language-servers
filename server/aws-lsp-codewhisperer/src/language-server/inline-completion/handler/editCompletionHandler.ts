@@ -227,16 +227,18 @@ export class EditCompletionHandler {
         const workspaceId = workspaceState?.webSocketClient?.isConnected() ? workspaceState.workspaceId : undefined
 
         const recentEdits = await this.recentEditsTracker.generateEditBasedContext(textDocument)
-        const classifier = new EditClassifier({
-            fileContext: fileContextClss,
-            triggerChar: triggerCharacters,
-            recentEdits: recentEdits,
-            recentDecisions: this.sessionManager.userDecisionLog.map(it => it.decision),
-        })
+        const classifier = new EditClassifier(
+            {
+                fileContext: fileContextClss,
+                triggerChar: triggerCharacters,
+                recentEdits: recentEdits,
+                recentDecisions: this.sessionManager.userDecisionLog.map(it => it.decision),
+            },
+            this.logging
+        )
 
         const qEditsTrigger = classifier.shouldTriggerNep()
 
-        console.log(`score: ${qEditsTrigger.score}; shouldTrigger: ${qEditsTrigger.shouldTrigger}`)
         if (!qEditsTrigger.shouldTrigger) {
             return EMPTY_RESULT
         }

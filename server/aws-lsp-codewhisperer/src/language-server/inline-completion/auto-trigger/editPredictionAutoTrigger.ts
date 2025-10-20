@@ -9,6 +9,7 @@ import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { EditPredictionConfigManager } from './editPredictionConfig'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
 import { UserTriggerDecision } from '../session/sessionManager'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 // The sigmoid function to clamp the auto-trigger result to the (0, 1) range
 const sigmoid = (x: number) => {
@@ -214,7 +215,10 @@ export class EditClassifier {
 
     private _score: number | undefined
     private features: EditClassifierFeatures
-    constructor(params: EditAutoTriggerInput) {
+    constructor(
+        params: EditAutoTriggerInput,
+        readonly logging: Logging
+    ) {
         this.features = this.prepareFeatures(params)
     }
 
@@ -292,7 +296,7 @@ export class EditClassifier {
 
         const probability = sigmoid(logit)
 
-        console.log(`classifier:
+        this.logging.log(`classifier:
 "logit": ${logit},
 "probability": ${probability},
 "threshold": ${EditClassifier.THRESHOLD},
@@ -322,8 +326,6 @@ ${JSON.stringify(
 
     prepareFeatures(params: EditAutoTriggerInput): EditClassifierFeatures {
         // 1. Last Character
-        // const lastCharacter =
-        //     params.fileContext.leftContextAtCurLine[params.fileContext.leftContextAtCurLine.length - 1]
         const lastCharacter = params.triggerChar
 
         // 2. Last Line Length
@@ -342,7 +344,7 @@ ${JSON.stringify(
         const editHistory = oldest ? EditClassifier.processEditHistory(oldest.content) : undefined
         const normalizedEditHistory = editHistory ? EditClassifier.normalizedRecentEdit(editHistory) : undefined
 
-        console.log(`lastLineFileContext: 
+        this.logging.log(`lastLineFileContext: 
 ${params.fileContext.leftContextAtCurLine}
 recent decisions: 
 ${JSON.stringify(params.recentDecisions)}
