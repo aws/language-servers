@@ -265,11 +265,10 @@ export class CodeWhispererSession {
             return 'Discard'
         }
 
-        // TODO: Why we need this?
         // Can't report trigger decision until session is marked as closed
-        // if (this.state !== 'CLOSED') {
-        // return
-        // }
+        if (this.state !== 'CLOSED') {
+            return
+        }
 
         let isEmpty = true
         for (const state of this.suggestionsStates.values()) {
@@ -356,18 +355,20 @@ export class SessionManager {
     }
 
     closeSession(session: CodeWhispererSession) {
-        const d = session.getAggregatedUserTriggerDecision()
-        if (d === 'Accept' || d === 'Reject') {
+        session.close()
+
+        // Note: it has to be called after session.close() as getAggregatedUserTriggerDecision() will return undefined if getAggregatedUserTriggerDecision() is called before session is closed
+        const decision = session.getAggregatedUserTriggerDecision()
+        // As we only care about AR here, pushing Accept/Reject only
+        if (decision === 'Accept' || decision === 'Reject') {
             if (this._userDecisionLog.length === 5) {
                 this._userDecisionLog.shift()
             }
             this._userDecisionLog.push({
                 sessionId: session.codewhispererSessionId ?? 'undefined',
-                decision: d,
+                decision: decision,
             })
         }
-
-        session.close()
     }
 
     discardSession(session: CodeWhispererSession) {
