@@ -1,9 +1,17 @@
 import { SessionManager } from '../session/sessionManager'
-import { InlineCompletionWithReferencesParams } from '@aws/language-server-runtimes/protocol'
+import {
+    DidChangeTextDocumentParams,
+    InlineCompletionWithReferencesParams,
+} from '@aws/language-server-runtimes/protocol'
 import { editPredictionAutoTrigger } from '../auto-trigger/editPredictionAutoTrigger'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
-import { CodeWhispererServiceBase, CodeWhispererServiceToken, FileContext } from '../../../shared/codeWhispererService'
+import {
+    ClientFileContextClss,
+    CodeWhispererServiceBase,
+    CodeWhispererServiceToken,
+    FileContext,
+} from '../../../shared/codeWhispererService'
 
 export class NepTrigger {}
 
@@ -50,4 +58,55 @@ export function shouldTriggerEdits(
     } else {
         return undefined
     }
+}
+
+export function inferTriggerChar(
+    fileContext: ClientFileContextClss,
+    changes: DidChangeTextDocumentParams | undefined
+): string {
+    if (changes?.contentChanges && changes.contentChanges.length > 0 && changes.contentChanges[0].text !== undefined) {
+        const chars = changes.contentChanges[0].text
+        if (chars.length > 1) {
+            // TODO: monkey patch, should refine these logic
+            // Users hit newline and IDE or other extensions auto format for users
+            // For such documentChanges might be '\n    ' (newline + 4 space)
+            if (isDocumentChangedFromNewLine(chars)) {
+                return '\n'
+            }
+
+            if (chars === `''`) {
+                return `'`
+            }
+
+            if (chars === `""`) {
+                return `"`
+            }
+
+            if (chars === '()') {
+                return '('
+            }
+
+            if (chars === '{}') {
+                return '{'
+            }
+
+            if (chars === '[]') {
+                return '['
+            }
+        }
+
+        return chars
+    }
+
+    // if the client does not emit document change for the trigger, use left most character.
+    return fileContext.leftFileContent.trim().at(-1) ?? ''
+}
+
+/**
+ * A proxy to estimate the provided string is from enter key
+ * Input = ['\n\t', '\n   ', '\n         ', '  \ndef ']
+ * Input = [true, true, true, false]
+ */
+export function isDocumentChangedFromNewLine(s: string) {
+    return /^\n[\s\t]+$/.test(s)
 }

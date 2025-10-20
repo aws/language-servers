@@ -52,15 +52,6 @@ export function generateUnifiedDiffWithTimestamps(
 }
 
 /**
- * A proxy to estimate the provided string is from enter key
- * Input = ['\n\t', '\n   ', '\n         ', '  \ndef ']
- * Input = [true, true, true, false]
- */
-export function isDocumentChangedFromNewLine(s: string) {
-    return /^\n[\s\t]+$/.test(s)
-}
-
-/**
  * Represents a snapshot content of a file at a specific point in time
  */
 export interface FileSnapshotContent {

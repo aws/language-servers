@@ -22,7 +22,7 @@ import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
-import { shouldTriggerEdits } from '../utils/triggerUtils'
+import { inferTriggerChar } from '../utils/triggerUtils'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
@@ -36,9 +36,9 @@ import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from '../documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
+import { EMPTY_RESULT } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
-import { isDocumentChangedFromNewLine, processEditSuggestion } from '../utils/diffUtils'
+import { processEditSuggestion } from '../utils/diffUtils'
 import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
 
 export class EditCompletionHandler {
@@ -206,22 +206,7 @@ export class EditCompletionHandler {
         })
 
         // TODO: Parametrize these to a util function, duplicate code as inineCompletionHandler
-        let triggerCharacters = ''
-        if (
-            params.documentChangeParams?.contentChanges &&
-            params.documentChangeParams.contentChanges.length > 0 &&
-            params.documentChangeParams.contentChanges[0].text !== undefined
-        ) {
-            triggerCharacters = params.documentChangeParams.contentChanges[0].text
-            // Users hit newline and IDE or other extensions auto format for users
-            // For such documentChanges might be '\n    ' (newline + 4 space)
-            if (triggerCharacters.length > 1 && isDocumentChangedFromNewLine(triggerCharacters)) {
-                triggerCharacters = '\n'
-            }
-        } else {
-            // if the client does not emit document change for the trigger, use left most character.
-            triggerCharacters = fileContextClss.leftFileContent.trim().at(-1) ?? ''
-        }
+        const triggerCharacters = inferTriggerChar(fileContextClss, params.documentChangeParams)
 
         const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
         const workspaceId = workspaceState?.webSocketClient?.isConnected() ? workspaceState.workspaceId : undefined
