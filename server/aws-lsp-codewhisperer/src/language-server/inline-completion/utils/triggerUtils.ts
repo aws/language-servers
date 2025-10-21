@@ -122,9 +122,10 @@ export function lastTokenFromString(str: string): string {
     if (tokens.length === 0) {
         return ''
     }
-    const lastWordBeforeProcess = tokens[tokens.length - 1]
 
-    const a = lastWordBeforeProcess.match(/\w+/g) || []
-
-    return a.at(-1) ?? ''
+    // This step can filter out most naive case however doesnt work for `line=str` such style without empty space
+    const candidate = tokens[tokens.length - 1]
+    // Only run regex against a small portion of string instead of the entire str
+    const finalCandate = candidate.match(/\w+/g) || []
+    return finalCandate.at(-1) ?? ''
 }
