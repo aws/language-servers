@@ -1,14 +1,10 @@
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { shouldTriggerEdits, NepTrigger } from './triggerUtils'
+import { shouldTriggerEdits, NepTrigger, isDocumentChangedFromNewLine } from './triggerUtils'
 import { SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
-import {
-    CodeWhispererServiceToken,
-    CodeWhispererServiceIAM,
-    ClientFileContext,
-} from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceToken, CodeWhispererServiceIAM, FileContext } from '../../../shared/codeWhispererService'
 import * as editPredictionAutoTrigger from '../auto-trigger/editPredictionAutoTrigger'
 import { InlineCompletionWithReferencesParams } from '@aws/language-server-runtimes/server-interface'
 
@@ -25,7 +21,7 @@ describe('triggerUtils', () => {
         rightFileContent: '',
         filename: 'test.ts',
         programmingLanguage: { languageName: 'typescript' },
-    } as ClientFileContext
+    } as FileContext
 
     const inlineParams = {
         textDocument: { uri: 'file:///test.ts' },
@@ -47,6 +43,56 @@ describe('triggerUtils', () => {
 
     afterEach(() => {
         sinon.restore()
+    })
+
+    describe('isDocumentChangedFromNewLine', function () {
+        interface TestCase {
+            input: string
+            expected: boolean
+        }
+
+        const cases: TestCase[] = [
+            {
+                input: '\n               ',
+                expected: true,
+            },
+            {
+                input: '\n\t\t\t',
+                expected: true,
+            },
+            {
+                input: '\n ',
+                expected: true,
+            },
+            {
+                input: '\n  ',
+                expected: true,
+            },
+            {
+                input: '\n    def',
+                expected: false,
+            },
+            {
+                input: ' \n               ',
+                expected: false,
+            },
+            {
+                input: '\t\n               ',
+                expected: false,
+            },
+            {
+                input: ' def\n\t',
+                expected: false,
+            },
+        ]
+
+        for (let i = 0; i < cases.length; i++) {
+            const c = cases[i]
+            it(`case ${i}`, function () {
+                const actual = isDocumentChangedFromNewLine(c.input)
+                assert.strictEqual(actual, c.expected)
+            })
+        }
     })
 
     describe('shouldTriggerEdits', () => {
