@@ -115,3 +115,17 @@ export function inferTriggerChar(
 export function isDocumentChangedFromNewLine(s: string) {
     return /^\n[\s\t]+$/.test(s)
 }
+
+// TODO: Should refine the logic
+export function lastTokenFromString(str: string): string {
+    const tokens = str.trim().split(/\s+/)
+    if (tokens.length === 0) {
+        return ''
+    }
+
+    // This step can filter out most naive case however doesnt work for `line=str` such style without empty space
+    const candidate = tokens[tokens.length - 1]
+    // Only run regex against a small portion of string instead of the entire str
+    const finalCandate = candidate.match(/\w+/g) || []
+    return finalCandate.at(-1) ?? ''
+}
