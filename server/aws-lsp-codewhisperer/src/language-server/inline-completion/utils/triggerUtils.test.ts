@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { shouldTriggerEdits, NepTrigger, isDocumentChangedFromNewLine } from './triggerUtils'
+import { shouldTriggerEdits, NepTrigger, isDocumentChangedFromNewLine, lastTokenFromString } from './triggerUtils'
 import { SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
@@ -43,6 +43,44 @@ describe('triggerUtils', () => {
 
     afterEach(() => {
         sinon.restore()
+    })
+
+    describe('lastTokenFromString', function () {
+        interface TestCase {
+            input: string
+            expected: string
+        }
+
+        const cases: TestCase[] = [
+            {
+                input: `line=str`,
+                expected: `str`,
+            },
+            {
+                input: `public class Main `,
+                expected: `Main`,
+            },
+            {
+                input: `const foo = 5`,
+                expected: `5`,
+            },
+            {
+                input: `const fooString = 'foo'`,
+                expected: `foo`,
+            },
+            {
+                input: `main(`,
+                expected: `main`,
+            },
+        ]
+
+        for (let i = 0; i < cases.length; i++) {
+            const c = cases[i]
+            it(`case ${i}`, function () {
+                const actual = lastTokenFromString(c.input)
+                assert.strictEqual(actual, c.expected)
+            })
+        }
     })
 
     describe('isDocumentChangedFromNewLine', function () {

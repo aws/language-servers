@@ -115,3 +115,16 @@ export function inferTriggerChar(
 export function isDocumentChangedFromNewLine(s: string) {
     return /^\n[\s\t]+$/.test(s)
 }
+
+// TODO: Should refine the logic, monkey patch
+export function lastTokenFromString(str: string): string {
+    const tokens = str.trim().split(/\s+/)
+    if (tokens.length === 0) {
+        return ''
+    }
+    const lastWordBeforeProcess = tokens[tokens.length - 1]
+
+    const a = lastWordBeforeProcess.match(/\w+/g) || []
+
+    return a.at(-1) ?? ''
+}
