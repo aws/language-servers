@@ -309,6 +309,10 @@ export class SessionManager {
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
+    private _userDecisionLog: { sessionId: string; decision: UserTriggerDecision }[] = []
+    get userDecisionLog() {
+        return [...this._userDecisionLog]
+    }
 
     private constructor() {}
 
@@ -352,6 +356,19 @@ export class SessionManager {
 
     closeSession(session: CodeWhispererSession) {
         session.close()
+
+        // Note: it has to be called after session.close() as getAggregatedUserTriggerDecision() will return undefined if getAggregatedUserTriggerDecision() is called before session is closed
+        const decision = session.getAggregatedUserTriggerDecision()
+        // As we only care about AR here, pushing Accept/Reject only
+        if (decision === 'Accept' || decision === 'Reject') {
+            if (this._userDecisionLog.length === 5) {
+                this._userDecisionLog.shift()
+            }
+            this._userDecisionLog.push({
+                sessionId: session.codewhispererSessionId ?? 'undefined',
+                decision: decision,
+            })
+        }
     }
 
     discardSession(session: CodeWhispererSession) {
