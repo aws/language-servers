@@ -6,6 +6,7 @@ import * as sinon from 'sinon'
 import { CodeWhispererSession, SessionData, SessionManager } from '../session/sessionManager'
 import { HELLO_WORLD_IN_CSHARP } from '../../../shared/testUtils'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import * as EditAutotrigger from '../auto-trigger/editPredictionAutoTrigger'
 
 describe('EditCompletionHandler', () => {
     let handler: EditCompletionHandler
@@ -54,7 +55,7 @@ describe('EditCompletionHandler', () => {
         }
         amazonQServiceManager = { getCodewhispererService: sinon.stub().returns(codeWhispererService) }
         cursorTracker = { trackPosition: sinon.stub() }
-        recentEditsTracker = {}
+        recentEditsTracker = { generateEditBasedContext: sinon.stub() }
         rejectedEditTracker = { isSimilarToRejected: sinon.stub().returns(false) }
         telemetry = { emitMetric: sinon.stub() }
         telemetryService = { emitUserTriggerDecision: sinon.stub() }
@@ -337,12 +338,23 @@ describe('EditCompletionHandler', () => {
             position: { line: 0, character: 0 },
             context: { triggerKind: InlineCompletionTriggerKind.Automatic },
         }
+
+        afterEach('teardown', function () {
+            sinon.restore()
+        })
+
+        function aTriggerStub(flag: boolean): EditAutotrigger.EditClassifier {
+            return {
+                shouldTriggerNep: sinon
+                    .stub()
+                    .returns({ score: 0, threshold: EditAutotrigger.EditClassifier.THRESHOLD, shouldTrigger: flag }),
+            } as any as EditAutotrigger.EditClassifier
+        }
+
         it('should return empty result when shouldTriggerEdits returns false', async () => {
             workspace.getWorkspaceFolder.returns(undefined)
 
-            const shouldTriggerEditsStub = sinon
-                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(false)
+            sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(false))
 
             const result = await handler._invoke(
                 params as any,
@@ -354,15 +366,12 @@ describe('EditCompletionHandler', () => {
             )
 
             assert.deepEqual(result, EMPTY_RESULT)
-            shouldTriggerEditsStub.restore()
         })
 
         it('should create session and call generateSuggestions when trigger is valid', async () => {
             workspace.getWorkspaceFolder.returns(undefined)
 
-            const shouldTriggerEditsStub = sinon
-                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(true)
+            sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves(null)
             codeWhispererService.generateSuggestions.resolves({
                 suggestions: [{ itemId: 'item-1', content: 'test content' }],
@@ -380,7 +389,6 @@ describe('EditCompletionHandler', () => {
 
             assert.strictEqual(result.items.length, 1)
             sinon.assert.called(codeWhispererService.generateSuggestions)
-            shouldTriggerEditsStub.restore()
         })
 
         it('should handle active session and emit telemetry', async () => {
@@ -391,9 +399,7 @@ describe('EditCompletionHandler', () => {
             if (currentSession) {
                 sessionManager.activateSession(currentSession)
             }
-            const shouldTriggerEditsStub = sinon
-                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(true)
+            sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves(null)
             codeWhispererService.generateSuggestions.resolves({
                 suggestions: [{ itemId: 'item-1', content: 'test content' }],
@@ -410,15 +416,12 @@ describe('EditCompletionHandler', () => {
             )
 
             assert.strictEqual(currentSession?.state, 'DISCARD')
-            shouldTriggerEditsStub.restore()
         })
 
         it('should handle supplemental context when available', async () => {
             workspace.getWorkspaceFolder.returns(undefined)
 
-            const shouldTriggerEditsStub = sinon
-                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(true)
+            sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves({
                 items: [{ content: 'context', filePath: 'file.ts' }],
                 supContextData: { isUtg: false },
@@ -438,7 +441,6 @@ describe('EditCompletionHandler', () => {
             )
 
             sinon.assert.calledWith(codeWhispererService.generateSuggestions, sinon.match.has('supplementalContexts'))
-            shouldTriggerEditsStub.restore()
         })
     })
 
