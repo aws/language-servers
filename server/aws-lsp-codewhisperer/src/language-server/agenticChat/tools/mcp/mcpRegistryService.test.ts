@@ -5,40 +5,40 @@
 import { McpRegistryService } from './mcpRegistryService'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import * as https from 'https'
-
-jest.mock('https')
+import * as assert from 'assert'
+import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 
 describe('McpRegistryService', () => {
     let service: McpRegistryService
-    let mockLogging: jest.Mocked<Logging>
+    let mockLogging: StubbedInstance<Logging>
+    let httpsGetStub: sinon.SinonStub
 
     beforeEach(() => {
-        mockLogging = {
-            info: jest.fn(),
-            warn: jest.fn(),
-            error: jest.fn(),
-            debug: jest.fn(),
-            log: jest.fn(),
-        } as any
+        mockLogging = stubInterface<Logging>()
         service = new McpRegistryService(mockLogging)
+        httpsGetStub = sinon.stub(https, 'get')
+    })
+
+    afterEach(() => {
+        sinon.restore()
     })
 
     describe('validateRegistryUrl', () => {
         it('should accept valid HTTPS URLs', () => {
-            expect(service.validateRegistryUrl('https://example.com/registry.json')).toBe(true)
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry.json'), true)
         })
 
         it('should reject HTTP URLs', () => {
-            expect(service.validateRegistryUrl('http://example.com/registry.json')).toBe(false)
+            assert.strictEqual(service.validateRegistryUrl('http://example.com/registry.json'), false)
         })
 
         it('should reject URLs over 1024 characters', () => {
             const longUrl = 'https://example.com/' + 'a'.repeat(1020)
-            expect(service.validateRegistryUrl(longUrl)).toBe(false)
+            assert.strictEqual(service.validateRegistryUrl(longUrl), false)
         })
 
         it('should reject empty URLs', () => {
-            expect(service.validateRegistryUrl('')).toBe(false)
+            assert.strictEqual(service.validateRegistryUrl(''), false)
         })
     })
 
@@ -55,68 +55,68 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            const mockResponse = {
+            const mockResponse: any = {
                 statusCode: 200,
-                on: jest.fn((event, handler) => {
+                on: sinon.stub().callsFake((event: string, handler: any) => {
                     if (event === 'data') handler(JSON.stringify(mockRegistry))
                     if (event === 'end') handler()
                     return mockResponse
                 }),
             }
 
-            ;(https.get as jest.Mock).mockImplementation((url, callback) => {
+            httpsGetStub.callsFake((url, callback) => {
                 callback(mockResponse)
-                return { on: jest.fn() }
+                return { on: sinon.stub() }
             })
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
-            expect(result).not.toBeNull()
-            expect(result?.servers).toHaveLength(1)
-            expect(result?.url).toBe('https://example.com/registry.json')
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 1)
+            assert.strictEqual(result?.url, 'https://example.com/registry.json')
         })
 
         it('should return null for invalid URL', async () => {
             const result = await service.fetchRegistry('http://example.com/registry.json')
-            expect(result).toBeNull()
+            assert.strictEqual(result, null)
         })
 
         it('should return null for missing servers array', async () => {
-            const mockResponse = {
+            const mockResponse: any = {
                 statusCode: 200,
-                on: jest.fn((event, handler) => {
+                on: sinon.stub().callsFake((event: string, handler: any) => {
                     if (event === 'data') handler('{}')
                     if (event === 'end') handler()
                     return mockResponse
                 }),
             }
 
-            ;(https.get as jest.Mock).mockImplementation((url, callback) => {
+            httpsGetStub.callsFake((url, callback) => {
                 callback(mockResponse)
-                return { on: jest.fn() }
+                return { on: sinon.stub() }
             })
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
-            expect(result).toBeNull()
+            assert.strictEqual(result, null)
         })
 
         it('should handle network errors', async () => {
-            ;(https.get as jest.Mock).mockImplementation(() => {
+            httpsGetStub.callsFake(() => {
                 return {
-                    on: jest.fn((event, handler) => {
+                    on: sinon.stub().callsFake((event: string, handler: any) => {
                         if (event === 'error') handler(new Error('Network error'))
                     }),
                 }
             })
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
-            expect(result).toBeNull()
+            assert.strictEqual(result, null)
         })
     })
 
     describe('getInMemoryRegistry', () => {
         it('should return null initially', () => {
-            expect(service.getInMemoryRegistry()).toBeNull()
+            assert.strictEqual(service.getInMemoryRegistry(), null)
         })
 
         it('should return registry after successful fetch', async () => {
@@ -131,31 +131,31 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            const mockResponse = {
+            const mockResponse: any = {
                 statusCode: 200,
-                on: jest.fn((event, handler) => {
+                on: sinon.stub().callsFake((event: string, handler: any) => {
                     if (event === 'data') handler(JSON.stringify(mockRegistry))
                     if (event === 'end') handler()
                     return mockResponse
                 }),
             }
 
-            ;(https.get as jest.Mock).mockImplementation((url, callback) => {
+            httpsGetStub.callsFake((url, callback) => {
                 callback(mockResponse)
-                return { on: jest.fn() }
+                return { on: sinon.stub() }
             })
 
             await service.fetchRegistry('https://example.com/registry.json')
             const result = service.getInMemoryRegistry()
 
-            expect(result).not.toBeNull()
-            expect(result?.servers).toHaveLength(1)
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 1)
         })
     })
 
     describe('isRegistryActive', () => {
         it('should return false initially', () => {
-            expect(service.isRegistryActive()).toBe(false)
+            assert.strictEqual(service.isRegistryActive(), false)
         })
 
         it('should return true after successful fetch', async () => {
@@ -163,22 +163,22 @@ describe('McpRegistryService', () => {
                 servers: [],
             }
 
-            const mockResponse = {
+            const mockResponse: any = {
                 statusCode: 200,
-                on: jest.fn((event, handler) => {
+                on: sinon.stub().callsFake((event: string, handler: any) => {
                     if (event === 'data') handler(JSON.stringify(mockRegistry))
                     if (event === 'end') handler()
                     return mockResponse
                 }),
             }
 
-            ;(https.get as jest.Mock).mockImplementation((url, callback) => {
+            httpsGetStub.callsFake((url, callback) => {
                 callback(mockResponse)
-                return { on: jest.fn() }
+                return { on: sinon.stub() }
             })
 
             await service.fetchRegistry('https://example.com/registry.json')
-            expect(service.isRegistryActive()).toBe(true)
+            assert.strictEqual(service.isRegistryActive(), true)
         })
     })
 })

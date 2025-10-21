@@ -5,6 +5,7 @@
 
 import { McpRegistryValidator, AgentConfigValidator } from './mcpRegistryValidator'
 import { McpRegistryData } from './mcpRegistryService'
+import * as assert from 'assert'
 
 describe('McpRegistryValidator', () => {
     let validator: McpRegistryValidator
@@ -26,20 +27,20 @@ describe('McpRegistryValidator', () => {
                 ],
             }
             const result = validator.validateRegistryJson(registry)
-            expect(result.isValid).toBe(true)
-            expect(result.errors).toHaveLength(0)
+            assert.strictEqual(result.isValid, true)
+            assert.strictEqual(result.errors.length, 0)
         })
 
         it('should reject non-object registry', () => {
             const result = validator.validateRegistryJson(null)
-            expect(result.isValid).toBe(false)
-            expect(result.errors).toContain('Registry must be an object')
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.includes('Registry must be an object'))
         })
 
         it('should reject registry without servers array', () => {
             const result = validator.validateRegistryJson({})
-            expect(result.isValid).toBe(false)
-            expect(result.errors).toContain('Registry must have a servers array')
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.includes('Registry must have a servers array'))
         })
 
         it('should validate all servers in array', () => {
@@ -55,8 +56,8 @@ describe('McpRegistryValidator', () => {
                 ],
             }
             const result = validator.validateRegistryJson(registry)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('Server 1'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('Server 1')))
         })
     })
 
@@ -69,7 +70,7 @@ describe('McpRegistryValidator', () => {
                 remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
             }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should accept valid local server', () => {
@@ -87,35 +88,35 @@ describe('McpRegistryValidator', () => {
                 ],
             }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should reject server without name', () => {
             const server = { description: 'Test', version: '1.0.0', remotes: [] }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('name'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('name')))
         })
 
         it('should reject server without description', () => {
             const server = { name: 'test', version: '1.0.0', remotes: [] }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('description'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('description')))
         })
 
         it('should reject server without version', () => {
             const server = { name: 'test', description: 'Test', remotes: [] }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('version'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('version')))
         })
 
         it('should reject server without remotes or packages', () => {
             const server = { name: 'test', description: 'Test', version: '1.0.0' }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('remotes or packages'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('remotes or packages')))
         })
 
         it('should reject server with both remotes and packages', () => {
@@ -127,31 +128,31 @@ describe('McpRegistryValidator', () => {
                 packages: [{ registryType: 'npm', identifier: 'pkg', version: '1.0.0', transport: { type: 'stdio' } }],
             }
             const result = validator.validateServerDefinition(server)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('cannot have both'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('cannot have both')))
         })
     })
 
     describe('validateServerName', () => {
         it('should accept valid reverse-DNS format names', () => {
-            expect(validator.validateServerName('com.example/test').isValid).toBe(true)
-            expect(validator.validateServerName('org.acme/my-server').isValid).toBe(true)
+            assert.strictEqual(validator.validateServerName('com.example/test').isValid, true)
+            assert.strictEqual(validator.validateServerName('org.acme/my-server').isValid, true)
         })
 
         it('should accept names up to 255 characters', () => {
             const name = 'a'.repeat(255)
-            expect(validator.validateServerName(name).isValid).toBe(true)
+            assert.strictEqual(validator.validateServerName(name).isValid, true)
         })
 
         it('should reject names over 255 characters', () => {
             const name = 'a'.repeat(256)
             const result = validator.validateServerName(name)
-            expect(result.isValid).toBe(false)
+            assert.strictEqual(result.isValid, false)
         })
 
         it('should reject empty names', () => {
             const result = validator.validateServerName('')
-            expect(result.isValid).toBe(false)
+            assert.strictEqual(result.isValid, false)
         })
     })
 
@@ -159,13 +160,13 @@ describe('McpRegistryValidator', () => {
         it('should accept valid streamable-http remote', () => {
             const remotes = [{ type: 'streamable-http', url: 'https://example.com' }]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should accept valid sse remote', () => {
             const remotes = [{ type: 'sse', url: 'https://example.com' }]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should accept optional headers', () => {
@@ -180,7 +181,7 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should reject multiple remotes entries', () => {
@@ -189,29 +190,29 @@ describe('McpRegistryValidator', () => {
                 { type: 'sse', url: 'https://example2.com' },
             ]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('exactly one'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('exactly one')))
         })
 
         it('should reject invalid transport type', () => {
             const remotes = [{ type: 'invalid', url: 'https://example.com' }]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('streamable-http or sse'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('streamable-http or sse')))
         })
 
         it('should reject missing url', () => {
             const remotes = [{ type: 'sse' }]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('url'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('url')))
         })
 
         it('should reject invalid headers format', () => {
             const remotes = [{ type: 'sse', url: 'https://example.com', headers: [{ name: 'Test' }] }]
             const result = validator.validateRemoteServer(remotes)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('value'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('value')))
         })
     })
 
@@ -226,7 +227,7 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should accept valid pypi package', () => {
@@ -239,7 +240,7 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should accept optional packageArguments', () => {
@@ -256,7 +257,7 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should accept optional environmentVariables', () => {
@@ -273,7 +274,7 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should reject multiple packages entries', () => {
@@ -282,8 +283,8 @@ describe('McpRegistryValidator', () => {
                 { registryType: 'npm', identifier: 'pkg2', version: '1.0.0', transport: { type: 'stdio' } },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('exactly one'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('exactly one')))
         })
 
         it('should reject invalid registryType', () => {
@@ -291,15 +292,15 @@ describe('McpRegistryValidator', () => {
                 { registryType: 'invalid', identifier: 'pkg', version: '1.0.0', transport: { type: 'stdio' } },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('npm or pypi'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('npm or pypi')))
         })
 
         it('should reject non-stdio transport', () => {
             const packages = [{ registryType: 'npm', identifier: 'pkg', version: '1.0.0', transport: { type: 'http' } }]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('stdio'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('stdio')))
         })
 
         it('should reject invalid packageArguments', () => {
@@ -313,8 +314,8 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('positional'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('positional')))
         })
 
         it('should reject invalid environmentVariables', () => {
@@ -328,8 +329,8 @@ describe('McpRegistryValidator', () => {
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('default'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('default')))
         })
     })
 
@@ -347,7 +348,7 @@ describe('McpRegistryValidator', () => {
                 lastFetched: new Date(),
                 url: 'https://example.com/registry.json',
             }
-            expect(validator.isServerInRegistry('com.example/test', registry)).toBe(true)
+            assert.strictEqual(validator.isServerInRegistry('com.example/test', registry), true)
         })
 
         it('should return false for server not in registry', () => {
@@ -363,7 +364,7 @@ describe('McpRegistryValidator', () => {
                 lastFetched: new Date(),
                 url: 'https://example.com/registry.json',
             }
-            expect(validator.isServerInRegistry('com.other/server', registry)).toBe(false)
+            assert.strictEqual(validator.isServerInRegistry('com.other/server', registry), false)
         })
 
         it('should return false for empty registry', () => {
@@ -372,7 +373,7 @@ describe('McpRegistryValidator', () => {
                 lastFetched: new Date(),
                 url: 'https://example.com/registry.json',
             }
-            expect(validator.isServerInRegistry('com.example/test', registry)).toBe(false)
+            assert.strictEqual(validator.isServerInRegistry('com.example/test', registry), false)
         })
     })
 })
@@ -391,14 +392,14 @@ describe('AgentConfigValidator', () => {
                 'com.example/test2': { type: 'registry', enabled: false },
             }
             const result = validator.validateMcpServersField(mcpServers, ['com.example/test', 'com.example/test2'])
-            expect(result.isValid).toBe(true)
-            expect(result.errors).toHaveLength(0)
+            assert.strictEqual(result.isValid, true)
+            assert.strictEqual(result.errors.length, 0)
         })
 
         it('should reject non-object mcpServers', () => {
             const result = validator.validateMcpServersField(null, [])
-            expect(result.isValid).toBe(false)
-            expect(result.errors).toContain('mcpServers must be an object')
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.includes('mcpServers must be an object'))
         })
 
         it('should warn for registry server not in available servers', () => {
@@ -406,7 +407,7 @@ describe('AgentConfigValidator', () => {
                 'com.example/unknown': { type: 'registry', enabled: true },
             }
             const result = validator.validateMcpServersField(mcpServers, ['com.example/test'])
-            expect(result.warnings.some(w => w.includes('not found'))).toBe(true)
+            assert.ok(result.warnings.some(w => w.includes('not found')))
         })
 
         it('should warn for registry server with command/url fields', () => {
@@ -414,7 +415,7 @@ describe('AgentConfigValidator', () => {
                 'com.example/test': { type: 'registry', enabled: true, command: 'node' },
             }
             const result = validator.validateMcpServersField(mcpServers, ['com.example/test'])
-            expect(result.warnings.some(w => w.includes('should not have'))).toBe(true)
+            assert.ok(result.warnings.some(w => w.includes('should not have')))
         })
     })
 
@@ -422,29 +423,29 @@ describe('AgentConfigValidator', () => {
         it('should accept valid registry server config', () => {
             const config = { type: 'registry', enabled: true }
             const result = validator.validateServerConfig('com.example/test', config, ['com.example/test'])
-            expect(result.isValid).toBe(true)
+            assert.strictEqual(result.isValid, true)
         })
 
         it('should warn for missing enabled field', () => {
             const config = { type: 'registry' }
             const result = validator.validateServerConfig('com.example/test', config, ['com.example/test'])
-            expect(result.warnings.some(w => w.includes('missing enabled'))).toBe(true)
+            assert.ok(result.warnings.some(w => w.includes('missing enabled')))
         })
 
         it('should reject non-object config', () => {
             const result = validator.validateServerConfig('test', null, [])
-            expect(result.isValid).toBe(false)
-            expect(result.errors.some(e => e.includes('must be an object'))).toBe(true)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('must be an object')))
         })
     })
 
     describe('validateServerName', () => {
         it('should return true for server in available list', () => {
-            expect(validator.validateServerName('com.example/test', ['com.example/test'])).toBe(true)
+            assert.strictEqual(validator.validateServerName('com.example/test', ['com.example/test']), true)
         })
 
         it('should return false for server not in available list', () => {
-            expect(validator.validateServerName('com.example/unknown', ['com.example/test'])).toBe(false)
+            assert.strictEqual(validator.validateServerName('com.example/unknown', ['com.example/test']), false)
         })
     })
 })
