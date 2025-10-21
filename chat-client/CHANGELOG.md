@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.40](https://github.com/aws/language-servers/compare/chat-client/v0.1.39...chat-client/v0.1.40) (2025-10-21)
+
+
+### Features
+
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
 ## [0.1.39](https://github.com/aws/language-servers/compare/chat-client/v0.1.38...chat-client/v0.1.39) (2025-10-09)
 
 
