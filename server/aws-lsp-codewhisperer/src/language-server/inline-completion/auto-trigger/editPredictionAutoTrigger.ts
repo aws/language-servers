@@ -374,7 +374,7 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
                       } else {
                           return acc
                       }
-                  }, 0) / 5.0
+                  }, 0) / params.recentDecisions.length
 
         return {
             lastCharacter: lastCharacter,
