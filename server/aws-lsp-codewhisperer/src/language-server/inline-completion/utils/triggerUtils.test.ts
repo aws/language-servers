@@ -72,6 +72,12 @@ describe('triggerUtils', () => {
                 input: `main(`,
                 expected: `main`,
             },
+            {
+                input: `public class Main {
+                    // print foo
+                    `,
+                expected: `foo`,
+            },
         ]
 
         for (let i = 0; i < cases.length; i++) {

@@ -116,7 +116,7 @@ export function isDocumentChangedFromNewLine(s: string) {
     return /^\n[\s\t]+$/.test(s)
 }
 
-// TODO: Should refine the logic, monkey patch
+// TODO: Should refine the logic
 export function lastTokenFromString(str: string): string {
     const tokens = str.trim().split(/\s+/)
     if (tokens.length === 0) {
