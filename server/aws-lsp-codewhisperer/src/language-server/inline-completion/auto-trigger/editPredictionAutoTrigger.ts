@@ -400,12 +400,12 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
         const deletedText = deletedLines.join('\n')
         const addedText = addedLines.join('\n')
 
-        const hisotryChangedChars = EditClassifier.editDistance(deletedText, addedText)
+        const historyChangedChars = EditClassifier.editDistance(deletedText, addedText)
         const historyLineAdded = addedLines.length
         const historyLineDeleted = deletedLines.length
 
         return {
-            changedCharacters: hisotryChangedChars,
+            changedCharacters: historyChangedChars,
             addedLines: historyLineAdded,
             deletedLines: historyLineDeleted,
         }
