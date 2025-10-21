@@ -361,8 +361,7 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
         const lang = params.fileContext.programmingLanguage
 
         // 7. Keywords
-        const tokens = lastTokenFromString(params.fileContext.leftFileContent)
-        const lastToken = tokens[tokens.length - 1]
+        const lastToken = lastTokenFromString(params.fileContext.leftFileContent)
 
         // 8. User AR for last 5
         // Cold start we assume 0.3 for AR
