@@ -10,6 +10,7 @@ import { EditPredictionConfigManager } from './editPredictionConfig'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
 import { UserTriggerDecision } from '../session/sessionManager'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { lastTokenFromString } from '../utils/triggerUtils'
 
 // The sigmoid function to clamp the auto-trigger result to the (0, 1) range
 const sigmoid = (x: number) => {
@@ -360,8 +361,7 @@ ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
         const lang = params.fileContext.programmingLanguage
 
         // 7. Keywords
-        const tokens = params.fileContext.leftContextAtCurLine.trim().split(' ') // split(' ') Not strict enough?
-        const lastToken = tokens[tokens.length - 1]
+        const lastToken = lastTokenFromString(params.fileContext.leftFileContent)
 
         // 8. User AR for last 5
         // Cold start we assume 0.3 for AR
