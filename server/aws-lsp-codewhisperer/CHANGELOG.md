@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.87](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.86...lsp-codewhisperer/v0.0.87) (2025-10-21)
+
+
+### Features
+
+* **amazonq:** add user requirement to zipfile for code review tool ([#2430](https://github.com/aws/language-servers/issues/2430)) ([2c33b38](https://github.com/aws/language-servers/commit/2c33b384a0e406bcd8d3888a911d5482ce1f38ef))
+* nep auto trigger ([#2424](https://github.com/aws/language-servers/issues/2424)) ([2292bd7](https://github.com/aws/language-servers/commit/2292bd75fded0848208de9401d15d3399a9c297b))
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
+
+### Bug Fixes
+
+* classifier last token sometimes fail to capture the right values ([#2434](https://github.com/aws/language-servers/issues/2434)) ([7420d59](https://github.com/aws/language-servers/commit/7420d591a0fcf5da834f0165696aa50b99fd4d3a))
+
 ## [0.0.86](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.85...lsp-codewhisperer/v0.0.86) (2025-10-15)
 
 
