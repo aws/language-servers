@@ -358,7 +358,6 @@ describe('EditCompletionHandler', () => {
 
             const result = await handler._invoke(
                 params as any,
-                Date.now(),
                 CancellationToken.None,
                 textDocument as any,
                 'typescript',
@@ -380,7 +379,6 @@ describe('EditCompletionHandler', () => {
 
             const result = await handler._invoke(
                 params as any,
-                Date.now(),
                 CancellationToken.None,
                 textDocument as any,
                 'typescript',
@@ -408,7 +406,6 @@ describe('EditCompletionHandler', () => {
 
             await handler._invoke(
                 params as any,
-                Date.now(),
                 CancellationToken.None,
                 textDocument as any,
                 'typescript',
@@ -431,14 +428,7 @@ describe('EditCompletionHandler', () => {
                 responseContext: { requestId: 'req-1', nextToken: null },
             })
 
-            await handler._invoke(
-                params as any,
-                Date.now(),
-                CancellationToken.None,
-                textDocument as any,
-                'typescript',
-                undefined
-            )
+            await handler._invoke(params as any, CancellationToken.None, textDocument as any, 'typescript', undefined)
 
             sinon.assert.calledWith(codeWhispererService.generateSuggestions, sinon.match.has('supplementalContexts'))
         })

@@ -209,7 +209,7 @@ type EditHistoryFeature = {
 }
 
 export class EditClassifier {
-    static THRESHOLD = 0.53
+    static THRESHOLD = 0.45
     static INTERCEPT = -0.2782
 
     private _score: number | undefined
