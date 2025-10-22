@@ -4,19 +4,19 @@
 
 import { McpRegistryService } from './mcpRegistryService'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
-import * as https from 'https'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
+import { httpsUtils } from '@aws/lsp-core'
 
 describe('McpRegistryService', () => {
     let service: McpRegistryService
     let mockLogging: StubbedInstance<Logging>
-    let httpsGetStub: sinon.SinonStub
+    let requestContentStub: sinon.SinonStub
 
     beforeEach(() => {
         mockLogging = stubInterface<Logging>()
         service = new McpRegistryService(mockLogging)
-        httpsGetStub = sinon.stub(https, 'get')
+        requestContentStub = sinon.stub(httpsUtils, 'requestContent')
     })
 
     afterEach(() => {
@@ -55,19 +55,7 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            const mockResponse: any = {
-                statusCode: 200,
-                on: sinon.stub().callsFake((event: string, handler: any) => {
-                    if (event === 'data') handler(JSON.stringify(mockRegistry))
-                    if (event === 'end') handler()
-                    return mockResponse
-                }),
-            }
-
-            httpsGetStub.callsFake((url, callback) => {
-                callback(mockResponse)
-                return { on: sinon.stub() }
-            })
+            requestContentStub.resolves(JSON.stringify(mockRegistry))
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
@@ -82,32 +70,14 @@ describe('McpRegistryService', () => {
         })
 
         it('should return null for missing servers array', async () => {
-            const mockResponse: any = {
-                statusCode: 200,
-                on: sinon.stub().callsFake((event: string, handler: any) => {
-                    if (event === 'data') handler('{}')
-                    if (event === 'end') handler()
-                    return mockResponse
-                }),
-            }
-
-            httpsGetStub.callsFake((url, callback) => {
-                callback(mockResponse)
-                return { on: sinon.stub() }
-            })
+            requestContentStub.resolves('{}')
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
         })
 
         it('should handle network errors', async () => {
-            httpsGetStub.callsFake(() => {
-                return {
-                    on: sinon.stub().callsFake((event: string, handler: any) => {
-                        if (event === 'error') handler(new Error('Network error'))
-                    }),
-                }
-            })
+            requestContentStub.rejects(new Error('Network error'))
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
@@ -131,19 +101,7 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            const mockResponse: any = {
-                statusCode: 200,
-                on: sinon.stub().callsFake((event: string, handler: any) => {
-                    if (event === 'data') handler(JSON.stringify(mockRegistry))
-                    if (event === 'end') handler()
-                    return mockResponse
-                }),
-            }
-
-            httpsGetStub.callsFake((url, callback) => {
-                callback(mockResponse)
-                return { on: sinon.stub() }
-            })
+            requestContentStub.resolves(JSON.stringify(mockRegistry))
 
             await service.fetchRegistry('https://example.com/registry.json')
             const result = service.getInMemoryRegistry()
@@ -163,19 +121,7 @@ describe('McpRegistryService', () => {
                 servers: [],
             }
 
-            const mockResponse: any = {
-                statusCode: 200,
-                on: sinon.stub().callsFake((event: string, handler: any) => {
-                    if (event === 'data') handler(JSON.stringify(mockRegistry))
-                    if (event === 'end') handler()
-                    return mockResponse
-                }),
-            }
-
-            httpsGetStub.callsFake((url, callback) => {
-                callback(mockResponse)
-                return { on: sinon.stub() }
-            })
+            requestContentStub.resolves(JSON.stringify(mockRegistry))
 
             await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(service.isRegistryActive(), true)

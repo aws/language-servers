@@ -3,7 +3,8 @@
  */
 
 import { Logging } from '@aws/language-server-runtimes/server-interface'
-import https = require('https')
+import { HttpsProxyAgent } from 'hpagent'
+import { httpsUtils } from '@aws/lsp-core'
 
 export interface McpRegistryData {
     servers: McpRegistryServer[]
@@ -55,7 +56,9 @@ export class McpRegistryService {
         }
 
         try {
-            const json = await this.httpsGet(url)
+            const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
+            const agent = proxyUrl ? new HttpsProxyAgent({ proxy: proxyUrl }) : undefined
+            const json = await httpsUtils.requestContent(url, agent)
             const parsed = JSON.parse(json)
 
             if (!parsed.servers || !Array.isArray(parsed.servers)) {
@@ -91,24 +94,5 @@ export class McpRegistryService {
 
     isRegistryActive(): boolean {
         return this.inMemoryRegistry !== null
-    }
-
-    private httpsGet(url: string): Promise<string> {
-        return new Promise((resolve, reject) => {
-            https
-                .get(url, res => {
-                    if (res.statusCode !== 200) {
-                        reject(new Error(`HTTP ${res.statusCode}`))
-                        return
-                    }
-
-                    let data = ''
-                    res.on('data', chunk => {
-                        data += chunk
-                    })
-                    res.on('end', () => resolve(data))
-                })
-                .on('error', reject)
-        })
     }
 }
