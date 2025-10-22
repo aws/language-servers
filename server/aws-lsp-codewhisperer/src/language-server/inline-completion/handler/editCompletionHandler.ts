@@ -36,7 +36,7 @@ import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from '../documentChangedListener'
-import { EMPTY_RESULT } from '../contants/constants'
+import { EDIT_DEBOUNCE_INTERVAL_MS, EMPTY_RESULT } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
 import { processEditSuggestion } from '../utils/diffUtils'
 import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
@@ -81,14 +81,13 @@ export class EditCompletionHandler {
      */
     documentChanged() {
         // TODO: Remove this entirely once we are sure we dont need debounce
-        // if (this.debounceTimeout) {
-        //     if (this.isWaiting) {
-        //         this.hasDocumentChangedSinceInvocation = true
-        //     } else {
-        //         this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
-        //         this.debounceTimeout.refresh()
-        //     }
-        // }
+        if (this.debounceTimeout) {
+            if (this.isWaiting) {
+                this.hasDocumentChangedSinceInvocation = true
+            } else {
+                this.debounceTimeout.refresh()
+            }
+        }
     }
 
     async onEditCompletion(
@@ -131,7 +130,6 @@ export class EditCompletionHandler {
 
         // Not ideally to rely on a state, should improve it and simply make it a debounced API
         this.isInProgress = true
-        const startPreprocessTimestamp = Date.now()
 
         if (params.partialResultToken && currentSession) {
             // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
@@ -142,7 +140,7 @@ export class EditCompletionHandler {
             const newSession = this.sessionManager.createSession({
                 document: textDocument,
                 startPosition: params.position,
-                startPreprocessTimestamp: startPreprocessTimestamp,
+                startPreprocessTimestamp: Date.now(),
                 triggerType: 'AutoTrigger',
                 language: currentSession.language,
                 requestContext: currentSession.requestContext,
@@ -173,23 +171,43 @@ export class EditCompletionHandler {
             }
         }
 
-        try {
-            return await this._invoke(
-                params,
-                startPreprocessTimestamp,
-                token,
-                textDocument,
-                inferredLanguageId,
-                currentSession
-            )
-        } finally {
+        return new Promise<InlineCompletionListWithReferences>(async resolve => {
+            this.debounceTimeout = setTimeout(async () => {
+                try {
+                    this.isWaiting = true
+                    const result = await this._invoke(
+                        params,
+                        token,
+                        textDocument,
+                        inferredLanguageId,
+                        currentSession
+                    ).finally(() => {
+                        this.isWaiting = false
+                    })
+                    if (this.hasDocumentChangedSinceInvocation) {
+                        this.logging.info(
+                            'EditCompletionHandler - Document changed during execution, resolving empty result'
+                        )
+                        resolve({
+                            sessionId: SessionManager.getInstance('EDITS').getActiveSession()?.id ?? '',
+                            items: [],
+                        })
+                    } else {
+                        this.logging.info('EditCompletionHandler - No document changes, resolving result')
+                        resolve(result)
+                    }
+                } finally {
+                    this.debounceTimeout = undefined
+                    this.hasDocumentChangedSinceInvocation = false
+                }
+            }, EDIT_DEBOUNCE_INTERVAL_MS)
+        }).finally(() => {
             this.isInProgress = false
-        }
+        })
     }
 
     async _invoke(
         params: InlineCompletionWithReferencesParams,
-        startPreprocessTimestamp: number,
         token: CancellationToken,
         textDocument: TextDocument,
         inferredLanguageId: CodewhispererLanguage,
@@ -198,6 +216,7 @@ export class EditCompletionHandler {
         // Build request context
         const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
         const maxResults = isAutomaticLspTriggerKind ? 1 : 5
+        const startPreprocessTimestamp = Date.now()
         const fileContextClss = getFileContext({
             textDocument,
             inferredLanguageId,
@@ -205,7 +224,6 @@ export class EditCompletionHandler {
             workspaceFolder: this.workspace.getWorkspaceFolder(textDocument.uri),
         })
 
-        // TODO: Parametrize these to a util function, duplicate code as inineCompletionHandler
         const triggerCharacters = inferTriggerChar(fileContextClss, params.documentChangeParams)
 
         const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
