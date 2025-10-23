@@ -12,8 +12,17 @@ export const AWS_Q_ENDPOINTS = new Map([
     ['eu-central-1', 'https://q.eu-central-1.amazonaws.com/'],
 ])
 
+// ATX FES endpoints - using gamma for testing
+export const ATX_FES_ENDPOINTS = new Map([['us-east-1', 'https://api.transform-gamma.us-east-1.on.aws/']])
+
+export const DEFAULT_ATX_FES_ENDPOINT_URL = 'https://api.transform-gamma.us-east-1.on.aws/'
+export const DEFAULT_ATX_FES_REGION = 'us-east-1'
+
 export const AWS_Q_REGION_ENV_VAR = 'AWS_Q_REGION'
 export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'
+
+export const ATX_FES_REGION_ENV_VAR = 'ATX_FES_REGION'
+export const ATX_FES_ENDPOINT_URL_ENV_VAR = 'ATX_FES_ENDPOINT_URL'
 
 export const IDE = 'IDE'
 
