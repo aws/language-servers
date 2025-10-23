@@ -5,44 +5,8 @@
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { HttpsProxyAgent } from 'hpagent'
 import { httpsUtils } from '@aws/lsp-core'
-
-export interface McpRegistryData {
-    servers: McpRegistryServer[]
-    lastFetched: Date
-    url: string
-}
-
-export interface McpRegistryServer {
-    name: string
-    title?: string
-    description: string
-    version: string
-    remotes?: Array<{
-        type: 'streamable-http' | 'sse'
-        url: string
-        headers?: Array<{
-            name: string
-            value: string
-        }>
-    }>
-    packages?: Array<{
-        registryType: 'npm' | 'pypi'
-        registryBaseUrl?: string
-        identifier: string
-        version: string
-        transport: {
-            type: 'stdio'
-        }
-        packageArguments?: Array<{
-            type: 'positional'
-            value: string
-        }>
-        environmentVariables?: Array<{
-            name: string
-            default: string
-        }>
-    }>
-}
+import { McpRegistryData } from './mcpTypes'
+import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
 
 export class McpRegistryService {
     private inMemoryRegistry: McpRegistryData | null = null
@@ -86,7 +50,7 @@ export class McpRegistryService {
     }
 
     validateRegistryUrl(url: string): boolean {
-        if (!url || url.length > 1024) {
+        if (!url || url.length > MCP_REGISTRY_CONSTANTS.MAX_REGISTRY_URL_LENGTH) {
             return false
         }
         return url.startsWith('https://')
