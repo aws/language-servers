@@ -1,8 +1,9 @@
 import * as https from 'https'
+import { Agent } from 'https'
 
-export function requestContent(url: string): Promise<string> {
+export function requestContent(url: string, agent?: Agent): Promise<string> {
     return new Promise((resolve, reject) => {
-        const request = https.get(url, response => {
+        const request = https.get(url, { agent }, response => {
             // Handle the response
             const statusCode = response.statusCode
             if (statusCode !== 200) {
