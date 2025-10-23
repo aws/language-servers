@@ -21,6 +21,7 @@ import {
     McpPermissionType,
     MCPServerPermission,
     AgentConfig,
+    isMCPServerConfig,
 } from './mcpTypes'
 import {
     isEmptyEnv,
@@ -216,6 +217,11 @@ export class McpManager {
                 this.features.logging.info(`MCP: server '${name}' is disabled by persona settings, skipping`)
                 this.setState(name, McpServerStatus.DISABLED, 0)
                 this.emitToolsChanged(name)
+                continue
+            }
+            // Task 5 will filter registry servers in mcpUtils; for now skip them here
+            if (!isMCPServerConfig(cfg)) {
+                this.features.logging.warn(`MCP: server '${name}' is a registry server, skipping (not yet supported)`)
                 continue
             }
             serversToInit.push([name, cfg])
@@ -886,7 +892,8 @@ export class McpManager {
 
             // Update agent config
             if (this.agentConfig && unsanitizedServerName) {
-                const updatedConfig = { ...(this.agentConfig.mcpServers[unsanitizedServerName] || {}) }
+                const existingConfig = this.agentConfig.mcpServers[unsanitizedServerName]
+                const updatedConfig = { ...(isMCPServerConfig(existingConfig) ? existingConfig : {}) }
                 if (configUpdates.url !== undefined) updatedConfig.url = configUpdates.url
                 if (configUpdates.headers !== undefined) {
                     if (configUpdates.headers && Object.keys(configUpdates.headers).length) {
@@ -1100,8 +1107,9 @@ export class McpManager {
 
             // Update server enabled/disabled state (only for non-legacy servers)
             if (!isLegacyMcpServer) {
-                if (this.agentConfig.mcpServers[unsanitizedServerName]) {
-                    this.agentConfig.mcpServers[unsanitizedServerName].disabled = !perm.enabled
+                const serverCfg = this.agentConfig.mcpServers[unsanitizedServerName]
+                if (serverCfg && isMCPServerConfig(serverCfg)) {
+                    serverCfg.disabled = !perm.enabled
                 }
             }
 
@@ -1123,11 +1131,12 @@ export class McpManager {
                         tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
                     )
 
+                    const serverCfg = this.agentConfig.mcpServers[unsanitizedServerName]
                     await saveServerSpecificAgentConfig(
                         this.features.workspace,
                         this.features.logging,
                         unsanitizedServerName,
-                        this.agentConfig.mcpServers[unsanitizedServerName],
+                        isMCPServerConfig(serverCfg) ? serverCfg : null,
                         serverTools,
                         serverAllowedTools,
                         agentPath
