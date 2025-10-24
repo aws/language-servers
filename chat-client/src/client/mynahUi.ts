@@ -1417,7 +1417,8 @@ export const createMynahUi = (
     const sendToPrompt = (params: SendToPromptParams) => {
         const tabId = getOrCreateTabId()
         if (!tabId) return
-
+        chatHistoryList.close()
+        mcpMynahUi.close()
         if (params.autoSubmit && params.prompt) {
             messager.onChatPrompt({ prompt: params.prompt, tabId, context: undefined }, 'contextMenu')
             initializeChatResponse(mynahUi, tabId, params.prompt.prompt, agenticMode)
@@ -1431,7 +1432,8 @@ export const createMynahUi = (
         let tabId = getOrCreateTabId()
 
         if (!tabId) return
-
+        chatHistoryList.close()
+        mcpMynahUi.close()
         // send to a new tab if the current tab is loading
         if (getTabStore(tabId)?.loadingChat) {
             tabId = createTabId()

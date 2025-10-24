@@ -81,10 +81,15 @@ export class McpMynahUi {
     private mynahUi: MynahUI
     private messager: Messager
     private isMcpServersListActive = false
+    private mcpDetailedList: { close: () => void } | undefined
 
     constructor(mynahUi: MynahUI, messager: Messager) {
         this.mynahUi = mynahUi
         this.messager = messager
+    }
+
+    close() {
+        this.mcpDetailedList?.close()
     }
 
     /**
@@ -397,7 +402,7 @@ export class McpMynahUi {
             ;(detailedList.filterOptions[0] as any).autoFocus = true
         }
 
-        const mcpSheet = this.mynahUi.openDetailedList({
+        this.mcpDetailedList = this.mynahUi.openDetailedList({
             detailedList: detailedList,
             events: {
                 onFilterValueChange: (filterValues: Record<string, any>) => {
@@ -405,7 +410,7 @@ export class McpMynahUi {
                 },
                 onKeyPress: (e: KeyboardEvent) => {
                     if (e.key === 'Escape') {
-                        mcpSheet.close()
+                        this.mcpDetailedList?.close()
                     }
                 },
                 onItemSelect: (item: DetailedListItem) => {
@@ -426,6 +431,7 @@ export class McpMynahUi {
                 },
                 onClose: () => {
                     this.isMcpServersListActive = false
+                    this.mcpDetailedList = undefined
                 },
                 onTitleActionClick: button => {
                     this.messager.onMcpServerClick(button.id)
