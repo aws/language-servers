@@ -3,7 +3,8 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { McpRegistryData, McpRegistryServer } from './mcpRegistryService'
+import { McpRegistryData } from './mcpTypes'
+import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
 
 export interface ValidationResult {
     isValid: boolean
@@ -79,7 +80,7 @@ export class McpRegistryValidator {
     }
 
     validateServerName(name: string): ValidationResult {
-        if (!name || name.length > 255) {
+        if (!name || name.length > MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH) {
             return { isValid: false, errors: ['Server name must be 1-255 characters'] }
         }
         return { isValid: true, errors: [] }
@@ -94,7 +95,11 @@ export class McpRegistryValidator {
         }
 
         const remote = remotes[0]
-        if (!remote.type || !['streamable-http', 'sse'].includes(remote.type)) {
+        const validTypes = [
+            MCP_REGISTRY_CONSTANTS.TRANSPORT_TYPES.STREAMABLE_HTTP,
+            MCP_REGISTRY_CONSTANTS.TRANSPORT_TYPES.SSE,
+        ]
+        if (!remote.type || !validTypes.includes(remote.type)) {
             errors.push('Remote type must be streamable-http or sse')
         }
 
@@ -129,7 +134,11 @@ export class McpRegistryValidator {
         }
 
         const pkg = packages[0]
-        if (!pkg.registryType || !['npm', 'pypi'].includes(pkg.registryType)) {
+        const validRegistryTypes = [
+            MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.NPM,
+            MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.PYPI,
+        ]
+        if (!pkg.registryType || !validRegistryTypes.includes(pkg.registryType)) {
             errors.push('Package registryType must be npm or pypi')
         }
 
@@ -141,7 +150,7 @@ export class McpRegistryValidator {
             errors.push('Package must have a version field')
         }
 
-        if (!pkg.transport || pkg.transport.type !== 'stdio') {
+        if (!pkg.transport || pkg.transport.type !== MCP_REGISTRY_CONSTANTS.TRANSPORT_TYPES.STDIO) {
             errors.push('Package transport type must be stdio')
         }
 
@@ -150,7 +159,7 @@ export class McpRegistryValidator {
                 errors.push('Package packageArguments must be an array')
             } else {
                 pkg.packageArguments.forEach((arg: any, index: number) => {
-                    if (arg.type !== 'positional') {
+                    if (arg.type !== MCP_REGISTRY_CONSTANTS.PACKAGE_ARGUMENT_TYPE.POSITIONAL) {
                         errors.push(`PackageArgument ${index} type must be positional`)
                     }
                     if (!arg.value || typeof arg.value !== 'string') {

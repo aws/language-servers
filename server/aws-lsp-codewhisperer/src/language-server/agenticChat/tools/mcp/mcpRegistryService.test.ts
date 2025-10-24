@@ -7,6 +7,7 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { httpsUtils } from '@aws/lsp-core'
+import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
 
 describe('McpRegistryService', () => {
     let service: McpRegistryService
@@ -33,7 +34,7 @@ describe('McpRegistryService', () => {
         })
 
         it('should reject URLs over 1024 characters', () => {
-            const longUrl = 'https://example.com/' + 'a'.repeat(1020)
+            const longUrl = 'https://example.com/' + 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_REGISTRY_URL_LENGTH)
             assert.strictEqual(service.validateRegistryUrl(longUrl), false)
         })
 

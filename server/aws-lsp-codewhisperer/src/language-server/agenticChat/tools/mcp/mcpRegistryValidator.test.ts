@@ -4,7 +4,8 @@
  */
 
 import { McpRegistryValidator, AgentConfigValidator } from './mcpRegistryValidator'
-import { McpRegistryData } from './mcpRegistryService'
+import { McpRegistryData } from './mcpTypes'
+import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
 import * as assert from 'assert'
 
 describe('McpRegistryValidator', () => {
@@ -140,12 +141,12 @@ describe('McpRegistryValidator', () => {
         })
 
         it('should accept names up to 255 characters', () => {
-            const name = 'a'.repeat(255)
+            const name = 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH)
             assert.strictEqual(validator.validateServerName(name).isValid, true)
         })
 
         it('should reject names over 255 characters', () => {
-            const name = 'a'.repeat(256)
+            const name = 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH + 1)
             const result = validator.validateServerName(name)
             assert.strictEqual(result.isValid, false)
         })
