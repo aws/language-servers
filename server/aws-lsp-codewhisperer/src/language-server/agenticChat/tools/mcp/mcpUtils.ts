@@ -5,10 +5,19 @@
 
 import { Agent, InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
-import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType, AgentConfig } from './mcpTypes'
+import {
+    MCPServerConfig,
+    PersonaConfig,
+    MCPServerPermission,
+    McpPermissionType,
+    AgentConfig,
+    McpRegistryData,
+    isRegistryServerConfig,
+} from './mcpTypes'
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
+import { McpServerConfigConverter } from './mcpServerConfigConverter'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -229,11 +238,13 @@ const DEFAULT_PERSONA_RAW = `{
  * - Combines functionality of loadMcpServerConfigs and loadPersonaPermissions
  * - Handles server configurations and permissions from the same agent file
  * - Supports backwards compatibility with MCP config files when useLegacyMcpJson is true
+ * - Supports registry-based server configuration when registry is provided
  */
 export async function loadAgentConfig(
     workspace: Workspace,
     logging: Logger,
-    agentPaths: string[]
+    agentPaths: string[],
+    registry?: McpRegistryData | null
 ): Promise<{
     servers: Map<string, MCPServerConfig>
     serverNameMapping: Map<string, string>
@@ -384,34 +395,89 @@ export async function loadAgentConfig(
         if (json.mcpServers && typeof json.mcpServers === 'object') {
             for (const [name, entryRaw] of Object.entries(json.mcpServers)) {
                 const entry = entryRaw as any
-                const hasCmd = typeof entry.command === 'string' && entry.command.trim() !== ''
-                const hasUrl = typeof entry.url === 'string' && entry.url.trim() !== ''
 
-                if ((hasCmd && hasUrl) || (!hasCmd && !hasUrl)) {
-                    const errorMsg = `MCP server '${name}' must specify *either* command or url (not both) – skipping`
-                    logging.warn(errorMsg)
-                    configErrors.set(`${name}`, errorMsg)
-                    continue
+                // Check if this is a registry server
+                const isRegistryServer = isRegistryServerConfig(entry)
+
+                // Apply registry filtering logic
+                if (registry) {
+                    // When registry is active, only load registry servers
+                    if (!isRegistryServer) {
+                        logging.info(`MCP: registry active, ignoring manual server '${name}'`)
+                        continue
+                    }
+                } else {
+                    // When registry is not active, only load manual servers
+                    if (isRegistryServer) {
+                        logging.info(`MCP: no registry, ignoring registry server '${name}'`)
+                        continue
+                    }
                 }
 
-                // Create server config
-                const cfg: MCPServerConfig = {
-                    command: (entry as any).command,
-                    url: (entry as any).url,
-                    args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
-                    env:
-                        typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
-                    headers:
-                        typeof (entry as any).headers === 'object' && (entry as any).headers !== null
-                            ? (entry as any).headers
-                            : undefined,
-                    initializationTimeout:
-                        typeof (entry as any).initializationTimeout === 'number'
-                            ? (entry as any).initializationTimeout
-                            : undefined,
-                    timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
-                    disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
-                    __configPath__: fsPath, // Store config path for determining global vs workspace
+                let cfg: MCPServerConfig
+
+                if (isRegistryServer) {
+                    // Handle registry server: lookup in registry and convert
+                    if (!registry) {
+                        const errorMsg = `MCP Registry: Server '${name}' specified but no registry available`
+                        logging.error(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+
+                    const registryServer = registry.servers.find(s => s.name === name)
+                    if (!registryServer) {
+                        const errorMsg = `MCP Registry: Server '${name}' not found in registry`
+                        logging.error(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+
+                    // Convert registry server to MCPServerConfig
+                    const converter = new McpServerConfigConverter()
+                    try {
+                        cfg = converter.convertRegistryServer(registryServer)
+                        cfg.__configPath__ = fsPath
+                        logging.info(`MCP Registry: Successfully converted server '${name}' to MCPServerConfig`)
+                    } catch (err: any) {
+                        const errorMsg = `MCP Registry: Failed to convert server '${name}': ${err.message}`
+                        logging.error(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+                } else {
+                    // Handle manual server
+                    const hasCmd = typeof entry.command === 'string' && entry.command.trim() !== ''
+                    const hasUrl = typeof entry.url === 'string' && entry.url.trim() !== ''
+
+                    if ((hasCmd && hasUrl) || (!hasCmd && !hasUrl)) {
+                        const errorMsg = `MCP server '${name}' must specify *either* command or url (not both) – skipping`
+                        logging.warn(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+
+                    // Create server config
+                    cfg = {
+                        command: (entry as any).command,
+                        url: (entry as any).url,
+                        args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
+                        env:
+                            typeof (entry as any).env === 'object' && (entry as any).env !== null
+                                ? (entry as any).env
+                                : {},
+                        headers:
+                            typeof (entry as any).headers === 'object' && (entry as any).headers !== null
+                                ? (entry as any).headers
+                                : undefined,
+                        initializationTimeout:
+                            typeof (entry as any).initializationTimeout === 'number'
+                                ? (entry as any).initializationTimeout
+                                : undefined,
+                        timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
+                        disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
+                        __configPath__: fsPath, // Store config path for determining global vs workspace
+                    }
                 }
 
                 const sanitizedName = sanitizeName(name)

@@ -1554,3 +1554,211 @@ describe('McpManager error handling', () => {
         expect(errors).to.be.undefined
     })
 })
+
+describe('Registry Synchronization', () => {
+    let mgr: McpManager
+    let mockFeatures: any
+    let sandbox: sinon.SinonSandbox
+
+    beforeEach(async () => {
+        sandbox = sinon.createSandbox()
+        mockFeatures = {
+            logging: fakeLogging,
+            workspace: fakeWorkspace,
+            lsp: {},
+            telemetry: { emitMetric: () => {} },
+            credentialsProvider: { getConnectionMetadata: () => ({}) },
+            runtime: { serverInfo: { version: '1.0.0' } },
+            agent: { getBuiltInToolNames: () => [] },
+        }
+        stubAgentConfig()
+        mgr = await McpManager.init([], mockFeatures)
+    })
+
+    afterEach(async () => {
+        sandbox.restore()
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    describe('updateRegistryUrl', () => {
+        it('should fetch and update registry when URL provided', async () => {
+            const registry = {
+                servers: [{ name: 'test-server', description: 'Test', version: '1.0.0', remotes: [] as any }],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json')
+
+            expect(mockRegistryService.fetchRegistry.calledWith('https://example.com/registry.json')).to.be.true
+            expect((mgr as any).currentRegistry).to.equal(registry)
+        })
+
+        it('should clear current registry when fetch fails', async () => {
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(null),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json')
+
+            expect((mgr as any).currentRegistry).to.be.null
+        })
+    })
+
+    describe('syncWithRegistry', () => {
+        it('should disable servers removed from registry', async () => {
+            ;(mgr as any).mcpServers.set('test-server', {
+                command: 'npx',
+                args: ['@test/server@1.0.0'],
+                disabled: false,
+            })
+            ;(mgr as any).serverNameMapping.set('test-server', 'test-server')
+            ;(mgr as any).agentConfig = {
+                mcpServers: { 'test-server': { type: 'registry' } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+                name: 'test',
+                description: 'test',
+            }
+
+            const mockClient = { close: sandbox.stub().resolves() }
+            ;(mgr as any).clients.set('test-server', mockClient)
+
+            const registry = {
+                servers: [],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json')
+
+            expect(mockClient.close.called).to.be.true
+            const config = (mgr as any).mcpServers.get('test-server')
+            expect(config.disabled).to.be.true
+        })
+
+        it('should skip non-registry servers during sync', async () => {
+            ;(mgr as any).mcpServers.set('manual-server', {
+                command: 'npx',
+                args: ['@test/server'],
+                disabled: false,
+            })
+            ;(mgr as any).serverNameMapping.set('manual-server', 'manual-server')
+            ;(mgr as any).agentConfig = {
+                mcpServers: { 'manual-server': { command: 'npx', args: ['@test/server'] } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+                name: 'test',
+                description: 'test',
+            }
+
+            const registry = {
+                servers: [],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json')
+
+            const config = (mgr as any).mcpServers.get('manual-server')
+            expect(config.disabled).to.be.false
+        })
+    })
+
+    describe('version checking', () => {
+        it('should detect version mismatch for local servers', async () => {
+            ;(mgr as any).mcpServers.set('test-server', {
+                command: 'npx',
+                args: ['-y', '@test/server@1.0.0'],
+                disabled: false,
+            })
+            ;(mgr as any).serverNameMapping.set('test-server', 'test-server')
+            ;(mgr as any).agentConfig = {
+                mcpServers: { 'test-server': { type: 'registry' } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+                name: 'test',
+                description: 'test',
+            }
+
+            const mockClient = { close: sandbox.stub().resolves() }
+            ;(mgr as any).clients.set('test-server', mockClient)
+
+            const reinstallStub = sandbox.stub(mgr as any, 'reinstallServer').resolves()
+
+            const registry = {
+                servers: [
+                    {
+                        name: 'test-server',
+                        description: 'Test',
+                        version: '2.0.0',
+                        packages: [
+                            {
+                                registryType: 'npm',
+                                identifier: '@test/server',
+                                transport: { type: 'stdio' },
+                            },
+                        ],
+                    } as any,
+                ],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json')
+
+            expect(reinstallStub.called).to.be.true
+        })
+
+        it('should extract version from command args', () => {
+            const config = { command: 'npx', args: ['-y', '@test/server@1.2.3'] }
+            const version = (McpManager as any).prototype.extractVersionFromConfig.call({}, config)
+            expect(version).to.equal('1.2.3')
+        })
+
+        it('should extract version with pre-release tag', () => {
+            const config = { command: 'uvx', args: ['test-package@2.0.0-beta.1'] }
+            const version = (McpManager as any).prototype.extractVersionFromConfig.call({}, config)
+            expect(version).to.equal('2.0.0-beta.1')
+        })
+
+        it('should return null when no version found', () => {
+            const config = { command: 'npx', args: ['@test/server'] }
+            const version = (McpManager as any).prototype.extractVersionFromConfig.call({}, config)
+            expect(version).to.be.null
+        })
+    })
+})

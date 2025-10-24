@@ -22,6 +22,7 @@ import {
     MCPServerPermission,
     AgentConfig,
     isMCPServerConfig,
+    isRegistryServerConfig,
 } from './mcpTypes'
 import {
     isEmptyEnv,
@@ -42,6 +43,8 @@ import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
 import { AgentPermissionManager } from './agentPermissionManager'
+import { McpRegistryService } from './mcpRegistryService'
+import { McpRegistryData } from './mcpTypes'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -68,6 +71,8 @@ export class McpManager {
     private serverNameMapping: Map<string, string>
     private agentConfig!: AgentConfig
     private permissionManager!: AgentPermissionManager
+    private registryService?: McpRegistryService
+    private currentRegistry: McpRegistryData | null = null
 
     private constructor(
         private agentPaths: string[],
@@ -93,11 +98,33 @@ export class McpManager {
         features: Pick<
             Features,
             'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime' | 'agent'
-        >
+        >,
+        options?: { registryUrl?: string }
     ): Promise<McpManager> {
         if (!McpManager.#instance) {
             const mgr = new McpManager(agentPaths, features)
             McpManager.#instance = mgr
+
+            // Initialize registry service if URL provided
+            if (options?.registryUrl) {
+                try {
+                    mgr.registryService = new McpRegistryService(features.logging)
+                    const registry = await mgr.registryService.fetchRegistry(options.registryUrl)
+                    if (registry) {
+                        mgr.currentRegistry = registry
+                        features.logging.info(
+                            `MCP Registry: Initialized with ${registry.servers.length} servers from ${options.registryUrl}`
+                        )
+                    } else {
+                        features.logging.error(
+                            'MCP Registry: Failed to fetch registry during initialization - MCP functionality disabled'
+                        )
+                    }
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : String(error)
+                    features.logging.error(`MCP Registry: Error during initialization: ${errorMsg}`)
+                }
+            }
 
             const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
 
@@ -178,8 +205,13 @@ export class McpManager {
      * Load configurations and initialize each enabled server.
      */
     private async discoverAllServers(): Promise<void> {
-        // Load agent config
-        const result = await loadAgentConfig(this.features.workspace, this.features.logging, this.agentPaths)
+        // Load agent config with registry support
+        const result = await loadAgentConfig(
+            this.features.workspace,
+            this.features.logging,
+            this.agentPaths,
+            this.currentRegistry
+        )
 
         // Extract agent config and other data
         this.agentConfig = result.agentConfig
@@ -219,9 +251,8 @@ export class McpManager {
                 this.emitToolsChanged(name)
                 continue
             }
-            // Task 5 will filter registry servers in mcpUtils; for now skip them here
             if (!isMCPServerConfig(cfg)) {
-                this.features.logging.warn(`MCP: server '${name}' is a registry server, skipping (not yet supported)`)
+                this.features.logging.warn(`MCP: server '${name}' has invalid config, skipping`)
                 continue
             }
             serversToInit.push([name, cfg])
@@ -1469,5 +1500,202 @@ export class McpManager {
             return
         }
         return { requestInit: { headers } }
+    }
+
+    /**
+     * Update registry URL and refetch registry
+     */
+    public async updateRegistryUrl(registryUrl: string): Promise<void> {
+        if (!this.registryService) {
+            this.registryService = new McpRegistryService(this.features.logging)
+        }
+
+        const registry = await this.registryService.fetchRegistry(registryUrl)
+        if (registry) {
+            this.currentRegistry = registry
+            this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
+            await this.syncWithRegistry()
+        } else {
+            this.features.logging.error('MCP Registry: Failed to fetch updated registry - MCP functionality disabled')
+            this.currentRegistry = null
+        }
+    }
+
+    /**
+     * Synchronize client configurations with registry updates
+     */
+    private async syncWithRegistry(): Promise<void> {
+        if (!this.currentRegistry) {
+            this.features.logging.debug('MCP Registry: No active registry for synchronization')
+            return
+        }
+
+        this.features.logging.info('MCP Registry: Starting registry synchronization')
+        const registryServerNames = new Set(this.currentRegistry.servers.map(s => s.name))
+        const configuredServers = Array.from(this.mcpServers.entries())
+        let serversDisabled = 0
+        let versionsUpdated = 0
+
+        for (const [sanitizedName, config] of configuredServers) {
+            const unsanitizedName = this.serverNameMapping.get(sanitizedName) || sanitizedName
+            const agentConfig = this.agentConfig.mcpServers[unsanitizedName]
+
+            // Skip non-registry servers
+            if (!agentConfig || !isRegistryServerConfig(agentConfig)) {
+                continue
+            }
+
+            // Check if server still exists in registry
+            if (!registryServerNames.has(unsanitizedName)) {
+                this.features.logging.warn(
+                    `MCP Registry: Server '${unsanitizedName}' removed from registry - disabling`
+                )
+                await this.disableRemovedServer(sanitizedName, unsanitizedName)
+                serversDisabled++
+                continue
+            }
+
+            // Check version mismatch for local servers
+            const registryServer = this.currentRegistry.servers.find(s => s.name === unsanitizedName)
+            if (registryServer && registryServer.packages) {
+                const updated = await this.checkAndUpdateVersion(sanitizedName, unsanitizedName, registryServer, config)
+                if (updated) versionsUpdated++
+            }
+        }
+
+        this.features.logging.info(
+            `MCP Registry: Synchronization complete - ${serversDisabled} servers disabled, ${versionsUpdated} versions updated`
+        )
+    }
+
+    /**
+     * Disable server that was removed from registry
+     */
+    private async disableRemovedServer(sanitizedName: string, unsanitizedName: string): Promise<void> {
+        try {
+            // Terminate server process if running
+            const client = this.clients.get(sanitizedName)
+            if (client) {
+                await client.close()
+                this.clients.delete(sanitizedName)
+                this.features.logging.info(`MCP Registry: Terminated server process for '${unsanitizedName}'`)
+            }
+
+            // Remove tools
+            const toolCount = this.mcpTools.filter(t => t.serverName === sanitizedName).length
+            this.mcpTools = this.mcpTools.filter(t => t.serverName !== sanitizedName)
+            if (toolCount > 0) {
+                this.features.logging.info(`MCP Registry: Removed ${toolCount} tools from server '${unsanitizedName}'`)
+            }
+
+            // Mark as disabled in config (preserve entry)
+            const config = this.mcpServers.get(sanitizedName)
+            if (config) {
+                config.disabled = true
+            }
+
+            this.setState(sanitizedName, McpServerStatus.DISABLED, 0, 'Server removed from registry')
+            this.emitToolsChanged(sanitizedName)
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            this.features.logging.error(`MCP Registry: Error disabling server '${unsanitizedName}': ${errorMsg}`)
+        }
+    }
+
+    /**
+     * Check version and reinstall if needed
+     */
+    private async checkAndUpdateVersion(
+        sanitizedName: string,
+        unsanitizedName: string,
+        registryServer: any,
+        currentConfig: MCPServerConfig
+    ): Promise<boolean> {
+        if (!isMCPServerConfig(currentConfig)) {
+            return false
+        }
+
+        // Extract version from current command/args
+        const currentVersion = this.extractVersionFromConfig(currentConfig)
+        const registryVersion = registryServer.version
+
+        if (currentVersion && currentVersion !== registryVersion) {
+            this.features.logging.warn(
+                `MCP Registry: Server '${unsanitizedName}' version mismatch: current=${currentVersion}, registry=${registryVersion} - reinstalling`
+            )
+            try {
+                await this.reinstallServer(sanitizedName, unsanitizedName, registryServer)
+                return true
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error)
+                this.features.logging.error(
+                    `MCP Registry: Failed to reinstall server '${unsanitizedName}': ${errorMsg}`
+                )
+                return false
+            }
+        }
+        return false
+    }
+
+    /**
+     * Extract version from server config
+     */
+    private extractVersionFromConfig(config: MCPServerConfig): string | null {
+        if (!config.command) {
+            return null
+        }
+
+        // Check args for version (e.g., package@version)
+        const args = config.args || []
+        for (const arg of args) {
+            const match = arg.match(/@([\d.]+(?:-[\w.]+)?)$/)
+            if (match) {
+                return match[1]
+            }
+        }
+
+        // Check command itself
+        const cmdMatch = config.command.match(/@([\d.]+(?:-[\w.]+)?)$/)
+        if (cmdMatch) {
+            return cmdMatch[1]
+        }
+
+        return null
+    }
+
+    /**
+     * Reinstall server with new version
+     */
+    private async reinstallServer(sanitizedName: string, unsanitizedName: string, registryServer: any): Promise<void> {
+        this.features.logging.info(
+            `MCP Registry: Reinstalling server '${unsanitizedName}' with version ${registryServer.version}`
+        )
+
+        try {
+            // Terminate existing server
+            const client = this.clients.get(sanitizedName)
+            if (client) {
+                await client.close()
+                this.clients.delete(sanitizedName)
+            }
+
+            // Remove old tools
+            this.mcpTools = this.mcpTools.filter(t => t.serverName !== sanitizedName)
+
+            // Convert registry server to config
+            const converter = new (await import('./mcpServerConfigConverter')).McpServerConfigConverter()
+            const newConfig = converter.convertRegistryServer(registryServer)
+
+            // Update config
+            this.mcpServers.set(sanitizedName, newConfig)
+
+            // Reinitialize server
+            await this.initOneServer(sanitizedName, newConfig, AuthIntent.Silent)
+            this.features.logging.info(`MCP Registry: Successfully reinstalled server '${unsanitizedName}'`)
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            this.features.logging.error(`MCP Registry: Failed to reinstall server '${unsanitizedName}': ${errorMsg}`)
+            throw error
+        }
     }
 }
