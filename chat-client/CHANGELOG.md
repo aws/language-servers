@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.40](https://github.com/aws/language-servers/compare/chat-client/v0.1.39...chat-client/v0.1.40) (2025-10-21)
+
+
+### Features
+
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
 ## [0.1.39](https://github.com/aws/language-servers/compare/chat-client/v0.1.38...chat-client/v0.1.39) (2025-10-09)
 
 
@@ -496,8 +503,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.35
-- Update `@aws/language-server-runtimes-types` to 0.1.29
+- Update `@aws/chat-client-ui-types` to 0.1.63
+- Update `@aws/language-server-runtimes-types` to 0.1.57
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -521,8 +528,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.1.35
-- Update `@aws/language-server-runtimes-types` to 0.1.29
+- Update `@aws/chat-client-ui-types` to 0.1.63
+- Update `@aws/language-server-runtimes-types` to 0.1.57
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

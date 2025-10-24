@@ -50,6 +50,8 @@ export interface LocalProjectContextInitializationOptions {
 export class LocalProjectContextController {
     // Event handler for context items updated
     public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => Promise<void>) | undefined
+    // Event handler for when index is being built
+    public onIndexingInProgressChanged: ((enabled: boolean) => void) | undefined
     private static instance: LocalProjectContextController | undefined
 
     private workspaceFolders: WorkspaceFolder[]
@@ -214,6 +216,7 @@ export class LocalProjectContextController {
         }
         try {
             this._isIndexingInProgress = true
+            this.onIndexingInProgressChanged?.(this._isIndexingInProgress)
             if (this._vecLib) {
                 if (!this.workspaceFolders.length) {
                     this.log.info('skip building index because no workspace folder found')
@@ -234,6 +237,7 @@ export class LocalProjectContextController {
             this.log.error(`Error building index: ${error}`)
         } finally {
             this._isIndexingInProgress = false
+            this.onIndexingInProgressChanged?.(this._isIndexingInProgress)
         }
     }
 
