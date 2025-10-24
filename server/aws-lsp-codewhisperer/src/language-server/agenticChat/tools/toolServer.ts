@@ -341,15 +341,25 @@ export const McpToolsServer: Server = ({
                 }
             }
 
-            const mgr = await McpManager.init(allAgentPaths, {
-                logging,
-                workspace,
-                lsp,
-                telemetry,
-                credentialsProvider,
-                runtime,
-                agent,
-            })
+            // Get registry URL from profile monitor if available
+            let registryUrl: string | null = null
+            if (profileStatusMonitor) {
+                registryUrl = await profileStatusMonitor.getRegistryUrl()
+            }
+
+            const mgr = await McpManager.init(
+                allAgentPaths,
+                {
+                    logging,
+                    workspace,
+                    lsp,
+                    telemetry,
+                    credentialsProvider,
+                    runtime,
+                    agent,
+                },
+                registryUrl ? { registryUrl } : undefined
+            )
 
             McpManager.instance.clearToolNameMapping()
 
@@ -379,10 +389,19 @@ export const McpToolsServer: Server = ({
                 return
             }
 
-            profileStatusMonitor = new ProfileStatusMonitor(logging, removeAllMcpTools, async () => {
-                logging.info('MCP enabled by profile status monitor')
-                await initializeMcp()
-            })
+            profileStatusMonitor = new ProfileStatusMonitor(
+                logging,
+                removeAllMcpTools,
+                async () => {
+                    logging.info('MCP enabled by profile status monitor')
+                    await initializeMcp()
+                },
+                async (registryUrl: string | null) => {
+                    if (registryUrl && McpManager.instance) {
+                        await McpManager.instance.updateRegistryUrl(registryUrl)
+                    }
+                }
+            )
 
             // Wait for profile ARN to be available before checking MCP state
             const checkAndInitialize = async () => {

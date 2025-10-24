@@ -7,6 +7,7 @@ import * as chai from 'chai'
 import * as sinon from 'sinon'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import * as AmazonQTokenServiceManagerModule from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { McpRegistryService } from './mcpRegistryService'
 
 const { expect } = chai
 
@@ -115,7 +116,6 @@ describe('ProfileStatusMonitor', () => {
 
         it('should be accessible across different instances', () => {
             const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
-
             const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Set state through static property
@@ -134,7 +134,6 @@ describe('ProfileStatusMonitor', () => {
 
         it('should maintain state across multiple instances', () => {
             const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
-
             const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Initially true (default value)
@@ -145,6 +144,113 @@ describe('ProfileStatusMonitor', () => {
 
             // Both instances should see the same state
             expect(ProfileStatusMonitor.getMcpState()).to.be.false
+        })
+    })
+
+    describe('registry URL handling', () => {
+        let mockOnRegistryUpdate: sinon.SinonStub
+        let mockServiceManager: any
+
+        beforeEach(() => {
+            mockOnRegistryUpdate = sinon.stub().resolves()
+
+            mockServiceManager = {
+                getActiveProfileArn: sinon.stub().returns('arn:aws:iam::123456789012:profile/test'),
+                getCodewhispererService: sinon.stub().returns({
+                    getProfile: sinon.stub().resolves({
+                        profile: {
+                            optInFeatures: {
+                                mcpConfiguration: {
+                                    toggle: 'ON',
+                                },
+                            },
+                        },
+                    }),
+                }),
+                getConnectionType: sinon.stub().returns('identityCenter'),
+            }
+
+            sinon
+                .stub(AmazonQTokenServiceManagerModule.AmazonQTokenServiceManager, 'getInstance')
+                .returns(mockServiceManager as any)
+        })
+
+        it('should notify registry URL for enterprise users when MCP is enabled', async () => {
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            await profileStatusMonitor.checkInitialState()
+
+            expect(mockOnRegistryUpdate.called).to.be.true
+            expect(mockOnRegistryUpdate.firstCall.args[0]).to.be.a('string')
+        })
+
+        it('should not notify registry URL for free tier users', async () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            await profileStatusMonitor.checkInitialState()
+
+            expect(mockOnRegistryUpdate.called).to.be.false
+        })
+
+        it('should not notify registry URL when MCP toggle is OFF', async () => {
+            mockServiceManager.getCodewhispererService().getProfile.resolves({
+                profile: {
+                    optInFeatures: {
+                        mcpConfiguration: {
+                            toggle: 'OFF',
+                        },
+                    },
+                },
+            })
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            await profileStatusMonitor.checkInitialState()
+
+            expect(mockOnRegistryUpdate.called).to.be.false
+        })
+
+        it('should return registry URL from getRegistryUrl for enterprise users', async () => {
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            const registryUrl = await profileStatusMonitor.getRegistryUrl()
+            expect(registryUrl).to.be.a('string')
+        })
+
+        it('should return null from getRegistryUrl for free tier users', async () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            const registryUrl = await profileStatusMonitor.getRegistryUrl()
+            expect(registryUrl).to.be.null
         })
     })
 })
