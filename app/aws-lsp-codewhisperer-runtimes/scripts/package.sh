@@ -117,6 +117,7 @@ done
 cd ./build/private/bundle
 for config in "${configs[@]}"; do
     cd ${config}
+    cp ../../../server/aws-lsp-codewhisperer/src/shared/fileProcessingWorker.js ./fileProcessingWorker.js
     zip -r ../../../../$ARCHIVES_DIR/${config}/win-x64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/linux-x64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/mac-x64/servers.zip .
