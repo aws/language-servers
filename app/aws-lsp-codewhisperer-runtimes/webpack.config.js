@@ -90,6 +90,7 @@ const webworkerConfig = {
             tls: false,
             http2: false,
             buffer: require.resolve('buffer/'),
+            worker_threads: false,
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
