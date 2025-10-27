@@ -42,6 +42,8 @@ const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
+const ListWorkspacesCommand = 'aws/qNetTransform/listWorkspaces'
+const CreateWorkspaceCommand = 'aws/qNetTransform/createWorkspace'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -123,6 +125,36 @@ export const QNetTransformServerToken =
                         await transformHandler.cancelPollingAsync()
                         emitCancelPollingTelemetry(telemetry)
                     }
+                    case ListWorkspacesCommand: {
+                        logging.log('LSP: Received ListWorkspacesCommand request')
+                        const workspaces = await transformHandler.listWorkspaces()
+                        logging.log(`LSP: ListWorkspaces returned ${workspaces?.length || 0} workspaces`)
+                        return { workspaces }
+                    }
+                    case CreateWorkspaceCommand: {
+                        logging.log('LSP: Received CreateWorkspaceCommand request')
+                        const request = params.arguments?.[0] as { workspaceName?: string }
+                        const workspaceName = request?.workspaceName || null // Let backend generate default name
+                        logging.log(`LSP: Creating workspace with name: ${workspaceName || 'auto-generated'}`)
+
+                        try {
+                            const workspaceId = await transformHandler.createWorkspace(workspaceName)
+                            if (workspaceId) {
+                                logging.log(`LSP: CreateWorkspace returned workspaceId: ${workspaceId}`)
+                                return { workspaceId }
+                            } else {
+                                logging.error('LSP: CreateWorkspace returned null - workspace creation failed')
+                                throw new Error('Failed to create workspace - API returned null')
+                            }
+                        } catch (error) {
+                            logging.error(
+                                `LSP: CreateWorkspace error: ${error instanceof Error ? error.message : 'Unknown error'}`
+                            )
+                            throw new Error(
+                                `Workspace creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+                            )
+                        }
+                    }
                 }
                 return
             } catch (e: any) {
@@ -193,6 +225,8 @@ export const QNetTransformServerToken =
                             CancelTransformCommand,
                             DownloadArtifactsCommand,
                             CancelPollingCommand,
+                            ListWorkspacesCommand,
+                            CreateWorkspaceCommand,
                         ],
                     },
                 },

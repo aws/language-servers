@@ -219,6 +219,7 @@ export abstract class CodeWhispererServiceBase {
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     public profileArn?: string
+    public tenantUrl?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     inflightRequests: Set<AbortController> = new Set()

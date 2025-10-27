@@ -141,6 +141,10 @@ export abstract class BaseAmazonQServiceManager<
         return undefined // No-op / default implementation
     }
 
+    public isAWSTransformProfile(): boolean {
+        return false // Default implementation - not a Transform profile
+    }
+
     protected updateCachedServiceConfig(): void {
         if (this.cachedCodewhispererService) {
             const customizationArn = this.configurationCache.getProperty('customizationArn')

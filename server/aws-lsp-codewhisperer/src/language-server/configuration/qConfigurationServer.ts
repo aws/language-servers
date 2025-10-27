@@ -206,6 +206,7 @@ export class ServerConfigurationProvider {
             const profiles = await this.listAllAvailableProfilesHandler({
                 connectionType: this.credentialsProvider.getConnectionType(),
                 logging: this.logging,
+                credentialsProvider: this.credentialsProvider,
                 token: token,
             })
 
