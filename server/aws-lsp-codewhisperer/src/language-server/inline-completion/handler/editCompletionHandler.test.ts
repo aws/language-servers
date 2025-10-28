@@ -378,7 +378,7 @@ describe('EditCompletionHandler', () => {
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             const shouldTriggerEditsStub = sinon
                 .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(false)
+                .returns(true)
             codeWhispererService.constructSupplementalContext.resolves(null)
             codeWhispererService.generateSuggestions.resolves({
                 suggestions: [{ itemId: 'item-1', content: 'test content' }],
@@ -410,7 +410,7 @@ describe('EditCompletionHandler', () => {
             }
             const shouldTriggerEditsStub = sinon
                 .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(false)
+                .returns(true)
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves(null)
             codeWhispererService.generateSuggestions.resolves({
@@ -437,7 +437,7 @@ describe('EditCompletionHandler', () => {
 
             const shouldTriggerEditsStub = sinon
                 .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
-                .returns(false)
+                .returns(true)
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves({
                 items: [{ content: 'context', filePath: 'file.ts' }],
