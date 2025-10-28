@@ -190,4 +190,8 @@ export const COMMON_GITIGNORE_PATTERNS = [
     '**/.vercel/**',
     '**/node_repl_history',
     '**/php_errorlog',
+
+    // Python Specific
+    '.venv',
+    'venv',
 ]
