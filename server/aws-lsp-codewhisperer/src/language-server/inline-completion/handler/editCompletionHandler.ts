@@ -22,7 +22,7 @@ import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
-import { inferTriggerChar } from '../utils/triggerUtils'
+import { inferTriggerChar, shouldTriggerEdits } from '../utils/triggerUtils'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
@@ -212,6 +212,8 @@ export class EditCompletionHandler {
         const workspaceId = workspaceState?.webSocketClient?.isConnected() ? workspaceState.workspaceId : undefined
 
         const recentEdits = await this.recentEditsTracker.generateEditBasedContext(textDocument)
+
+        // TODO: Refactor and merge these 2 shouldTrigger into single one
         const classifier = new EditClassifier(
             {
                 fileContext: fileContextClss,
@@ -221,10 +223,22 @@ export class EditCompletionHandler {
             },
             this.logging
         )
+        const classifierBasedTrigger = classifier.shouldTriggerEdits()
 
-        const qEditsTrigger = classifier.shouldTriggerNep()
+        const ruleBasedTrigger = shouldTriggerEdits(
+            this.codeWhispererService,
+            fileContextClss.toServiceModel(),
+            params,
+            this.cursorTracker,
+            this.recentEditsTracker,
+            this.sessionManager,
+            true
+        )
 
-        if (!qEditsTrigger.shouldTrigger) {
+        // Both classifier and rule based conditions need to evaluate to true otherwise we wont fire Edits requests
+        const shouldFire = classifierBasedTrigger.shouldTrigger && ruleBasedTrigger !== undefined
+
+        if (!shouldFire) {
             return EMPTY_RESULT
         }
 
