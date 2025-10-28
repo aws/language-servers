@@ -1,7 +1,7 @@
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { ElasticGumbyFrontendClient, ListAvailableProfilesCommand } from '@amazon/elastic-gumby-frontend-client'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
-import { DEFAULT_ATX_FES_ENDPOINT_URL } from '../../shared/constants'
+import { DEFAULT_ATX_FES_ENDPOINT_URL, DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR } from '../../shared/constants'
 
 /**
  * ATX Transform Handler - Business logic for ATX FES Transform operations
@@ -20,6 +20,8 @@ export class ATXTransformHandler {
         this.workspace = workspace
         this.logging = logging
         this.runtime = runtime
+
+        this.serviceManager.registerCacheCallback(() => this.clearApplicationUrlCache())
     }
 
     /**
@@ -27,17 +29,62 @@ export class ATXTransformHandler {
      */
     private async initializeAtxClient(): Promise<boolean> {
         try {
+            let region = process.env[ATX_FES_REGION_ENV_VAR]
+
+            if (!region) {
+                region = await this.getRegionFromProfile()
+            }
+
+            if (!region) {
+                region = DEFAULT_ATX_FES_REGION
+            }
+
             const endpoint = process.env.TCP_ENDPOINT || DEFAULT_ATX_FES_ENDPOINT_URL
 
+            this.clearApplicationUrlCache()
+
             this.atxClient = new ElasticGumbyFrontendClient({
-                region: 'us-east-1',
+                region: region,
                 endpoint: endpoint,
             })
 
             return true
         } catch (error) {
-            this.logging.log(`ATX FES Client: Failed to initialize: ${error}`)
+            const region = process.env[ATX_FES_REGION_ENV_VAR] || DEFAULT_ATX_FES_REGION
+            const endpoint = process.env.TCP_ENDPOINT || DEFAULT_ATX_FES_ENDPOINT_URL
+            this.logging.log(
+                `ATX FES Client: Failed to initialize with region: ${region}, endpoint: ${endpoint}. Error: ${error}`
+            )
             return false
+        }
+    }
+
+    private async getRegionFromProfile(): Promise<string | undefined> {
+        try {
+            if (!this.serviceManager.hasValidCredentials()) {
+                return undefined
+            }
+
+            const tempClient = new ElasticGumbyFrontendClient({
+                region: DEFAULT_ATX_FES_REGION,
+                endpoint: DEFAULT_ATX_FES_ENDPOINT_URL,
+            })
+
+            const command = new ListAvailableProfilesCommand({ maxResults: 100 })
+            const response = await tempClient.send(command)
+            const profiles = response.profiles || []
+
+            const activeProfile = profiles.find((p: any) => p.arn)
+            if (activeProfile?.arn) {
+                const arnParts = activeProfile.arn.split(':')
+                if (arnParts.length >= 4) {
+                    return arnParts[3]
+                }
+            }
+
+            return undefined
+        } catch (error) {
+            return undefined
         }
     }
 
@@ -46,7 +93,7 @@ export class ATXTransformHandler {
      */
     private async addAuthToCommand(command: any): Promise<void> {
         if (!this.serviceManager.isReady()) {
-            throw new Error('ATX Token Service Manager not ready')
+            throw new Error('Please select a valid Transform profile to continue')
         }
 
         const bearerToken = await this.serviceManager.getBearerToken()
@@ -92,7 +139,6 @@ export class ATXTransformHandler {
         await this.addAuthToCommand(command)
         const response = await this.atxClient!.send(command)
 
-        this.logging.log(`ATX FES: ListAvailableProfiles returned ${response.profiles?.length || 0} profiles`)
         return { profiles: response.profiles || [] }
     }
 

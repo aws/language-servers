@@ -30,8 +30,6 @@ export const QConfigurationServerTokenProxy = QConfigurationServerToken()
 
 export const TransformConfigurationServerTokenProxy = TransformConfigurationServerToken()
 
-export const ATXHandlerServerTokenProxy = AtxNetTransformServerToken()
-
 export const QLocalProjectContextServerProxy = LocalProjectContextServer()
 
 export const WorkspaceContextServerTokenProxy = WorkspaceContextServer()

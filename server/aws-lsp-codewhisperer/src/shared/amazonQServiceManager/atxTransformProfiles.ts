@@ -38,8 +38,6 @@ export const getListAllAvailableAtxProfilesHandler =
         let allAtxProfiles: AtxTransformProfile[] = []
         const endpoints = atxEndpoints ?? ATX_FES_ENDPOINTS
 
-        logging.log(`ATX Profiles: Fetching from ${endpoints.size} regions`)
-
         if (token.isCancellationRequested) {
             return []
         }
@@ -55,10 +53,8 @@ export const getListAllAvailableAtxProfilesHandler =
         }
 
         result.forEach((settledResult, index) => {
-            const [region, endpoint] = Array.from(endpoints.entries())[index]
-            if (settledResult.status === 'fulfilled') {
-                const profiles = settledResult.value
-            } else {
+            if (settledResult.status === 'rejected') {
+                const [region] = Array.from(endpoints.entries())[index]
                 logging.error(
                     `ATX Profiles: Failed to fetch from region: ${region}, error: ${settledResult.reason?.name || 'unknown'}`
                 )
@@ -72,8 +68,6 @@ export const getListAllAvailableAtxProfilesHandler =
         }
 
         fulfilledResults.forEach(fulfilledResult => allAtxProfiles.push(...fulfilledResult.value))
-
-        logging.log(`ATX Profiles: Total profiles fetched: ${allAtxProfiles.length}`)
 
         return allAtxProfiles
     }
@@ -109,7 +103,6 @@ async function fetchAtxProfilesFromRegion(
                 nextToken: nextToken,
             })
 
-            // Add bearer token authentication
             const bearerToken = await atxTokenServiceManager.getBearerToken()
             command.middlewareStack?.add(
                 (next: any) => async (args: any) => {
@@ -130,7 +123,6 @@ async function fetchAtxProfilesFromRegion(
 
             const profiles =
                 response.profiles?.map((profile: any) => {
-                    // Strip trailing slash from applicationUrl
                     const applicationUrl = profile.applicationUrl?.replace(/\/$/, '') || profile.applicationUrl
 
                     return {

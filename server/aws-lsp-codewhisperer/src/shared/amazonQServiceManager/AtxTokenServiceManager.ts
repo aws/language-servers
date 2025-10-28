@@ -1,9 +1,15 @@
-import { CredentialsType } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsType,
+    UpdateConfigurationParams,
+    CancellationToken,
+} from '@aws/language-server-runtimes/server-interface'
 import { QServiceManagerFeatures } from './BaseAmazonQServiceManager'
+import { TRANSFORM_PROFILES_CONFIGURATION_SECTION } from '../../language-server/configuration/transformConfigurationServer'
 
 export class AtxTokenServiceManager {
     private static instance: AtxTokenServiceManager | null = null
     private features: QServiceManagerFeatures
+    private cacheCallbacks: (() => void)[] = []
 
     private constructor(features: QServiceManagerFeatures) {
         this.features = features
@@ -25,7 +31,21 @@ export class AtxTokenServiceManager {
     }
 
     public handleOnCredentialsDeleted(type: CredentialsType): void {
-        // Handle credentials cleanup if needed
+        this.clearAllCaches()
+    }
+
+    public handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken): void {
+        if (params.section === TRANSFORM_PROFILES_CONFIGURATION_SECTION) {
+            this.clearAllCaches()
+        }
+    }
+
+    public registerCacheCallback(callback: () => void): void {
+        this.cacheCallbacks.push(callback)
+    }
+
+    private clearAllCaches(): void {
+        this.cacheCallbacks.forEach(callback => callback())
     }
 
     public hasValidCredentials(): boolean {

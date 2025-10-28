@@ -44,7 +44,6 @@ export const AtxNetTransformServerToken =
                     }
                 }
             } catch (e: any) {
-                logging.log(`ATX FES: Error executing command ${params.command}: ${e}`)
                 throw e
             }
         }
@@ -84,8 +83,6 @@ export const AtxNetTransformServerToken =
         const onInitializedHandler = () => {
             atxTokenServiceManager = AtxTokenServiceManager.getInstance()
             atxTransformHandler = new ATXTransformHandler(atxTokenServiceManager, workspace, logging, runtime)
-
-            logging.log('ATX FES Server: Initialized')
         }
 
         lsp.addInitializer(onInitializeHandler)

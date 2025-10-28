@@ -11,7 +11,13 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQDeveloperProfile } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 import { ElasticGumbyFrontendClient, ListAvailableProfilesCommand } from '@amazon/elastic-gumby-frontend-client'
-import { DEFAULT_ATX_FES_ENDPOINT_URL } from '../../shared/constants'
+import {
+    DEFAULT_ATX_FES_ENDPOINT_URL,
+    DEFAULT_ATX_FES_REGION,
+    ATX_FES_REGION_ENV_VAR,
+    ATX_FES_ENDPOINT_URL_ENV_VAR,
+    ATX_FES_ENDPOINTS,
+} from '../../shared/constants'
 import { getBearerTokenFromProvider } from '../../shared/utils'
 
 // Transform Configuration Sections
@@ -27,12 +33,15 @@ export class TransformConfigurationServer {
     constructor(
         private readonly logging: Logging,
         private readonly credentialsProvider: CredentialsProvider
-    ) {}
+    ) {
+        this.logging.log('TransformConfigurationServer: Constructor called - server created')
+    }
 
     /**
      * Initialize as standalone LSP server
      */
     async initialize(params: InitializeParams): Promise<any> {
+        this.logging.log('TransformConfigurationServer: Initialize called')
         return {
             capabilities: {},
             awsServerCapabilities: {
@@ -75,17 +84,85 @@ export class TransformConfigurationServer {
                 return false
             }
 
-            // Initialize ATX FES client
+            const region = await this.getClientRegion()
+            const endpoint = this.getEndpointForRegion(region)
+
+            this.logging.log(
+                `TransformConfigurationServer: Initializing ATX client with region: ${region}, endpoint: ${endpoint}`
+            )
+
             this.atxClient = new ElasticGumbyFrontendClient({
-                region: 'us-east-1',
-                endpoint: DEFAULT_ATX_FES_ENDPOINT_URL,
+                region: region,
+                endpoint: endpoint,
             })
 
             return true
         } catch (error) {
-            this.logging.error(`TransformConfigurationServer: Failed to initialize ATX client: ${error}`)
+            const region = await this.getClientRegion()
+            const endpoint = this.getEndpointForRegion(region)
+            this.logging.warn(
+                `TransformConfigurationServer: Failed to initialize ATX client with region: ${region}, endpoint: ${endpoint}. Error: ${error}`
+            )
             return false
         }
+    }
+
+    /**
+     * Get region for ATX FES client - supports dynamic region selection
+     */
+    private async getClientRegion(): Promise<string> {
+        // Check environment variable first
+        const envRegion = process.env[ATX_FES_REGION_ENV_VAR]
+        if (envRegion) {
+            return envRegion
+        }
+
+        // Try to get region from profile
+        const profileRegion = await this.getRegionFromProfile()
+        if (profileRegion) {
+            return profileRegion
+        }
+
+        // Fall back to default
+        return DEFAULT_ATX_FES_REGION
+    }
+
+    private async getRegionFromProfile(): Promise<string | undefined> {
+        try {
+            if (!this.credentialsProvider?.hasCredentials('bearer')) {
+                return undefined
+            }
+
+            const tempClient = new ElasticGumbyFrontendClient({
+                region: DEFAULT_ATX_FES_REGION,
+                endpoint: DEFAULT_ATX_FES_ENDPOINT_URL,
+            })
+
+            const command = new ListAvailableProfilesCommand({ maxResults: 100 })
+            const response = await tempClient.send(command)
+            const profiles = response.profiles || []
+
+            const activeProfile = profiles.find((p: any) => p.arn)
+            if (activeProfile?.arn) {
+                const arnParts = activeProfile.arn.split(':')
+                if (arnParts.length >= 4) {
+                    return arnParts[3]
+                }
+            }
+
+            return undefined
+        } catch (error) {
+            return undefined
+        }
+    }
+
+    /**
+     * Get endpoint URL for the specified region
+     */
+    private getEndpointForRegion(region: string): string {
+        return (
+            process.env[ATX_FES_ENDPOINT_URL_ENV_VAR] || ATX_FES_ENDPOINTS.get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
+        )
     }
 
     /**
@@ -111,45 +188,73 @@ export class TransformConfigurationServer {
 
     /**
      * List available Transform profiles using ATX FES ListAvailableProfiles API
+     * Uses multi-region discovery similar to RTS approach
      */
     async listAvailableProfiles(token: CancellationToken): Promise<AmazonQDeveloperProfile[]> {
         try {
-            if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('TransformConfigurationServer: Failed to initialize ATX FES client')
-                return []
+            const allProfiles: AmazonQDeveloperProfile[] = []
+
+            for (const [region, endpoint] of ATX_FES_ENDPOINTS) {
+                try {
+                    if (token?.isCancellationRequested) {
+                        throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')
+                    }
+
+                    const profiles = await this.listAvailableProfilesForRegion(region, endpoint)
+                    allProfiles.push(...profiles)
+                    this.logging.log(
+                        `TransformConfigurationServer: Found ${profiles.length} profiles in region ${region}`
+                    )
+                } catch (error) {
+                    this.logging.debug(`TransformConfigurationServer: No profiles in region ${region}: ${error}`)
+                }
             }
 
-            const command = new ListAvailableProfilesCommand({
-                maxResults: 100,
-            })
-
-            await this.addBearerTokenToCommand(command)
-            const response = await this.atxClient!.send(command)
-
             this.logging.log(
-                `TransformConfigurationServer: ATX FES returned ${response.profiles?.length || 0} profiles`
+                `TransformConfigurationServer: Total ${allProfiles.length} Transform profiles found across all regions`
             )
-
-            // Convert ATX FES profiles to AmazonQDeveloperProfile format
-            const transformProfiles: AmazonQDeveloperProfile[] = (response.profiles || []).map((profile: any) => {
-                const convertedProfile = {
-                    arn: profile.arn || '',
-                    name: profile.profileName || profile.applicationUrl || 'Unnamed Transform Profile',
-                    applicationUrl: (profile.applicationUrl || '').replace(/\/$/, ''), // Strip trailing slash
-                    identityDetails: {
-                        region: profile.region || 'us-east-1',
-                        accountId: profile.accountId || '',
-                    },
-                }
-
-                return convertedProfile
-            })
-
-            return transformProfiles
+            return allProfiles
         } catch (error) {
-            this.logging.error(`TransformConfigurationServer: ListAvailableProfiles failed: ${error}`)
+            this.logging.warn(`TransformConfigurationServer: ListAvailableProfiles failed: ${error}`)
             return []
         }
+    }
+
+    /**
+     * List available profiles for a specific region (similar to RTS listAvailableCustomizationsForProfileAndRegion)
+     */
+    private async listAvailableProfilesForRegion(region: string, endpoint: string): Promise<AmazonQDeveloperProfile[]> {
+        this.logging.log(`TransformConfigurationServer: Querying region: ${region}, endpoint: ${endpoint}`)
+
+        // Create region-specific client (similar to RTS approach)
+        const regionClient = new ElasticGumbyFrontendClient({
+            region: region,
+            endpoint: endpoint,
+        })
+
+        const command = new ListAvailableProfilesCommand({
+            maxResults: 100,
+        })
+
+        await this.addBearerTokenToCommand(command)
+        const response = await regionClient.send(command)
+
+        // Convert ATX FES profiles to AmazonQDeveloperProfile format
+        const transformProfiles: AmazonQDeveloperProfile[] = (response.profiles || []).map((profile: any) => {
+            const convertedProfile = {
+                arn: profile.arn || '',
+                name: profile.profileName || profile.applicationUrl || 'Unnamed Transform Profile',
+                applicationUrl: (profile.applicationUrl || '').replace(/\/$/, ''), // Strip trailing slash
+                identityDetails: {
+                    region: region,
+                    accountId: profile.accountId || '',
+                },
+            }
+
+            return convertedProfile
+        })
+
+        return transformProfiles
     }
 }
 
@@ -167,6 +272,7 @@ export const TransformConfigurationServerToken = (): Server => {
 
         lsp.extensions.onGetConfigurationFromServer(
             async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
+                logging.log('TransformConfigurationServer: onGetConfigurationFromServer handler called')
                 return transformConfigurationServer.getConfiguration(params, token)
             }
         )
