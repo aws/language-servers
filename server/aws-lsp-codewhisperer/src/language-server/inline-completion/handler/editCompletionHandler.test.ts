@@ -345,7 +345,7 @@ describe('EditCompletionHandler', () => {
 
         function aTriggerStub(flag: boolean): EditAutotrigger.EditClassifier {
             return {
-                shouldTriggerNep: sinon
+                shouldTriggerEdits: sinon
                     .stub()
                     .returns({ score: 0, threshold: EditAutotrigger.EditClassifier.THRESHOLD, shouldTrigger: flag }),
             } as any as EditAutotrigger.EditClassifier
