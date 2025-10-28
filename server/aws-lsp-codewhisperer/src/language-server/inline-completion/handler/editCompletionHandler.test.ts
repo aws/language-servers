@@ -354,6 +354,9 @@ describe('EditCompletionHandler', () => {
         it('should return empty result when shouldTriggerEdits returns false', async () => {
             workspace.getWorkspaceFolder.returns(undefined)
 
+            const shouldTriggerEditsStub = sinon
+                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
+                .returns(false)
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(false))
 
             const result = await handler._invoke(
@@ -366,12 +369,16 @@ describe('EditCompletionHandler', () => {
             )
 
             assert.deepEqual(result, EMPTY_RESULT)
+            shouldTriggerEditsStub.restore()
         })
 
         it('should create session and call generateSuggestions when trigger is valid', async () => {
             workspace.getWorkspaceFolder.returns(undefined)
 
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
+            const shouldTriggerEditsStub = sinon
+                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
+                .returns(false)
             codeWhispererService.constructSupplementalContext.resolves(null)
             codeWhispererService.generateSuggestions.resolves({
                 suggestions: [{ itemId: 'item-1', content: 'test content' }],
@@ -389,6 +396,8 @@ describe('EditCompletionHandler', () => {
 
             assert.strictEqual(result.items.length, 1)
             sinon.assert.called(codeWhispererService.generateSuggestions)
+
+            shouldTriggerEditsStub.restore()
         })
 
         it('should handle active session and emit telemetry', async () => {
@@ -399,6 +408,9 @@ describe('EditCompletionHandler', () => {
             if (currentSession) {
                 sessionManager.activateSession(currentSession)
             }
+            const shouldTriggerEditsStub = sinon
+                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
+                .returns(false)
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves(null)
             codeWhispererService.generateSuggestions.resolves({
@@ -416,11 +428,16 @@ describe('EditCompletionHandler', () => {
             )
 
             assert.strictEqual(currentSession?.state, 'DISCARD')
+
+            shouldTriggerEditsStub.restore()
         })
 
         it('should handle supplemental context when available', async () => {
             workspace.getWorkspaceFolder.returns(undefined)
 
+            const shouldTriggerEditsStub = sinon
+                .stub(require('../utils/triggerUtils'), 'shouldTriggerEdits')
+                .returns(false)
             sinon.stub(EditAutotrigger, 'EditClassifier').returns(aTriggerStub(true))
             codeWhispererService.constructSupplementalContext.resolves({
                 items: [{ content: 'context', filePath: 'file.ts' }],
@@ -441,6 +458,8 @@ describe('EditCompletionHandler', () => {
             )
 
             sinon.assert.calledWith(codeWhispererService.generateSuggestions, sinon.match.has('supplementalContexts'))
+
+            shouldTriggerEditsStub.restore()
         })
     })
 
