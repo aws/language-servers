@@ -1234,8 +1234,8 @@ export function createNamespacedToolName(
     // Sanitize the tool name
     const sanitizedToolName = sanitizeName(toolName)
 
-    // First try to use just the tool name if it's not already in use
-    if (!allNamespacedTools.has(sanitizedToolName)) {
+    // First try to use just the tool name if it's not already in use and fits within length limit
+    if (sanitizedToolName.length <= MAX_TOOL_NAME_LENGTH && !allNamespacedTools.has(sanitizedToolName)) {
         allNamespacedTools.add(sanitizedToolName)
         toolNameMapping.set(sanitizedToolName, { serverName, toolName })
         return sanitizedToolName

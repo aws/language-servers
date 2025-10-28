@@ -543,6 +543,17 @@ describe('createNamespacedToolName', () => {
             toolName: longTool,
         })
     })
+
+    it('truncates tool name and adds suffix when it exceeds MAX_TOOL_NAME_LENGTH', () => {
+        const longTool = 'Smartanalyzerthatreadssummariescreatesmappingrulesandupdatespayloads'
+        const result = createNamespacedToolName('ConnectiveRx', longTool, tools, toolNameMapping)
+        expect(result.length).to.equal(MAX_TOOL_NAME_LENGTH)
+        expect(tools.has(result)).to.be.true
+        expect(toolNameMapping.get(result)).to.deep.equal({
+            serverName: 'ConnectiveRx',
+            toolName: longTool,
+        })
+    })
 })
 
 describe('normalizePathFromUri', () => {
