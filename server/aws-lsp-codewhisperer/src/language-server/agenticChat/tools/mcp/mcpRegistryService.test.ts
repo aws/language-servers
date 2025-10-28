@@ -128,4 +128,74 @@ describe('McpRegistryService', () => {
             assert.strictEqual(service.isRegistryActive(), true)
         })
     })
+
+    describe('error handling and logging', () => {
+        it('should log error for empty URL', async () => {
+            const result = await service.fetchRegistry('')
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith('MCP Registry: URL is empty or undefined'))
+        })
+
+        it('should log error for URL exceeding max length', async () => {
+            const longUrl = 'https://' + 'a'.repeat(1100) + '.com/registry.json'
+            const result = await service.fetchRegistry(longUrl)
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith(sinon.match(/exceeds maximum length/)))
+        })
+
+        it('should log network error for ENOTFOUND', async () => {
+            const error = new Error('getaddrinfo ENOTFOUND invalid-domain.com')
+            requestContentStub.rejects(error)
+            const result = await service.fetchRegistry('https://invalid-domain.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith(sinon.match(/Network error - unable to reach/)))
+        })
+
+        it('should log network error for ECONNREFUSED', async () => {
+            const error = new Error('connect ECONNREFUSED 127.0.0.1:443')
+            requestContentStub.rejects(error)
+            const result = await service.fetchRegistry('https://localhost/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith(sinon.match(/Network error - unable to reach/)))
+        })
+
+        it('should log error for invalid JSON', async () => {
+            requestContentStub.resolves('{ invalid json }')
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith(sinon.match(/Invalid JSON format/)))
+        })
+
+        it('should log error for non-array servers field', async () => {
+            requestContentStub.resolves('{"servers": "not-an-array"}')
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith(sinon.match(/missing or invalid 'servers' array/)))
+        })
+
+        it('should log success message with server count', async () => {
+            const validRegistry = JSON.stringify({
+                servers: [
+                    {
+                        name: 'test-server',
+                        description: 'Test server',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
+                    },
+                ],
+            })
+            requestContentStub.resolves(validRegistry)
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.ok(result !== null)
+            assert.ok(mockLogging.info.calledWith(sinon.match(/Successfully fetched registry.*with 1 servers/)))
+        })
+
+        it('should log generic error for unknown failures', async () => {
+            const error = new Error('Unknown error occurred')
+            requestContentStub.rejects(error)
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(mockLogging.error.calledWith(sinon.match(/Failed to fetch registry.*Unknown error occurred/)))
+        })
+    })
 })
