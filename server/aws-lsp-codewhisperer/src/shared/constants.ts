@@ -17,7 +17,6 @@ export const DEFAULT_ATX_FES_REGION = 'us-east-1'
 export const ATX_FES_ENDPOINTS = new Map([
     [DEFAULT_ATX_FES_REGION, `https://api.transform-prod.${DEFAULT_ATX_FES_REGION}.on.aws/`],
     ['us-west-2', 'https://api.transform-prod.us-west-2.on.aws/'],
-    ['eu-central-1', 'https://api.transform-prod.eu-central-1.on.aws/'],
 ])
 
 export const DEFAULT_ATX_FES_ENDPOINT_URL = `https://api.transform-prod.${DEFAULT_ATX_FES_REGION}.on.aws/`
