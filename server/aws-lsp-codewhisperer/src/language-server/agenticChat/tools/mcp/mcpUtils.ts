@@ -1215,23 +1215,6 @@ export async function migrateAgentConfigToCLIFormat(
 export const MAX_TOOL_NAME_LENGTH = 64
 
 /**
- * Check if registry contains only AgentCore Gateway endpoint
- */
-export function isACGMode(registry: McpRegistryData | null): boolean {
-    if (!registry || registry.servers.length !== 1) {
-        return false
-    }
-
-    const server = registry.servers[0]
-    // ACG is identified by having remotes with specific naming pattern
-    return (
-        server.remotes !== undefined &&
-        server.remotes.length === 1 &&
-        (server.name.toLowerCase().includes('agentcore') || server.name.toLowerCase().includes('acg'))
-    )
-}
-
-/**
  * Create a namespaced tool name from server and tool names.
  * Handles truncation and conflicts according to specific rules.
  * Also stores the mapping from namespaced name back to original names.

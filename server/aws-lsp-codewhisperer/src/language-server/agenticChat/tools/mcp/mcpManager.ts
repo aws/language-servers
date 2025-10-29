@@ -33,7 +33,6 @@ import {
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
-    isACGMode,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
@@ -1528,10 +1527,6 @@ export class McpManager {
         if (registry) {
             this.currentRegistry = registry
             this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
-
-            if (isACGMode(registry)) {
-                this.features.logging.info('MCP Registry: AgentCore Gateway mode detected')
-            }
 
             // Only sync during periodic updates, not at startup
             if (isPeriodicSync) {
