@@ -1618,7 +1618,7 @@ describe('Registry Synchronization', () => {
         it('should disable servers removed from registry', async () => {
             ;(mgr as any).mcpServers.set('test-server', {
                 command: 'npx',
-                args: ['@test/server@1.0.0'],
+                args: ['-y', '@test/server@1.0.0'],
                 disabled: false,
             })
             ;(mgr as any).serverNameMapping.set('test-server', 'test-server')
@@ -1647,7 +1647,7 @@ describe('Registry Synchronization', () => {
             }
             ;(mgr as any).registryService = mockRegistryService
 
-            await mgr.updateRegistryUrl('https://example.com/registry.json')
+            await mgr.updateRegistryUrl('https://example.com/registry.json', true)
 
             expect(mockClient.close.called).to.be.true
             const config = (mgr as any).mcpServers.get('test-server')
@@ -1683,7 +1683,7 @@ describe('Registry Synchronization', () => {
             }
             ;(mgr as any).registryService = mockRegistryService
 
-            await mgr.updateRegistryUrl('https://example.com/registry.json')
+            await mgr.updateRegistryUrl('https://example.com/registry.json', true)
 
             const config = (mgr as any).mcpServers.get('manual-server')
             expect(config.disabled).to.be.false
@@ -1696,6 +1696,7 @@ describe('Registry Synchronization', () => {
                 command: 'npx',
                 args: ['-y', '@test/server@1.0.0'],
                 disabled: false,
+                __cachedVersion__: '1.0.0',
             })
             ;(mgr as any).serverNameMapping.set('test-server', 'test-server')
             ;(mgr as any).agentConfig = {
@@ -1738,7 +1739,7 @@ describe('Registry Synchronization', () => {
             }
             ;(mgr as any).registryService = mockRegistryService
 
-            await mgr.updateRegistryUrl('https://example.com/registry.json')
+            await mgr.updateRegistryUrl('https://example.com/registry.json', true)
 
             expect(reinstallStub.called).to.be.true
         })
