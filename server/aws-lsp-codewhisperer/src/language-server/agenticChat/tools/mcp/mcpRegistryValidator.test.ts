@@ -3,7 +3,7 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { McpRegistryValidator, AgentConfigValidator } from './mcpRegistryValidator'
+import { McpRegistryValidator } from './mcpRegistryValidator'
 import { McpRegistryData } from './mcpTypes'
 import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
 import * as assert from 'assert'
@@ -135,7 +135,13 @@ describe('McpRegistryValidator', () => {
     })
 
     describe('validateServerName', () => {
-        it('should accept valid reverse-DNS format names', () => {
+        it('should accept simple identifier names', () => {
+            assert.strictEqual(validator.validateServerName('mcp-fs').isValid, true)
+            assert.strictEqual(validator.validateServerName('everything').isValid, true)
+            assert.strictEqual(validator.validateServerName('server-name').isValid, true)
+        })
+
+        it('should accept reverse-DNS format names', () => {
             assert.strictEqual(validator.validateServerName('com.example/test').isValid, true)
             assert.strictEqual(validator.validateServerName('org.acme/my-server').isValid, true)
         })
@@ -149,11 +155,65 @@ describe('McpRegistryValidator', () => {
             const name = 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH + 1)
             const result = validator.validateServerName(name)
             assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('1-255 characters')))
         })
 
         it('should reject empty names', () => {
             const result = validator.validateServerName('')
             assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes('cannot be empty')))
+        })
+    })
+
+    describe('validateServerNameUniqueness', () => {
+        it('should accept registry with unique server names', () => {
+            const servers = [
+                { name: 'mcp-fs', description: 'Test 1', version: '1.0.0' },
+                { name: 'everything', description: 'Test 2', version: '1.0.0' },
+                { name: 'server-three', description: 'Test 3', version: '1.0.0' },
+            ]
+            const result = validator.validateServerNameUniqueness(servers)
+            assert.strictEqual(result.isValid, true)
+            assert.strictEqual(result.errors.length, 0)
+        })
+
+        it('should reject registry with duplicate server names', () => {
+            const servers = [
+                { name: 'mcp-fs', description: 'Test 1', version: '1.0.0' },
+                { name: 'everything', description: 'Test 2', version: '1.0.0' },
+                { name: 'mcp-fs', description: 'Duplicate', version: '2.0.0' },
+            ]
+            const result = validator.validateServerNameUniqueness(servers)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes("Duplicate server name 'mcp-fs'")))
+        })
+
+        it('should detect multiple duplicates', () => {
+            const servers = [
+                { name: 'server-a', description: 'Test 1', version: '1.0.0' },
+                { name: 'server-b', description: 'Test 2', version: '1.0.0' },
+                { name: 'server-a', description: 'Duplicate A', version: '2.0.0' },
+                { name: 'server-b', description: 'Duplicate B', version: '2.0.0' },
+            ]
+            const result = validator.validateServerNameUniqueness(servers)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes("Duplicate server name 'server-a'")))
+            assert.ok(result.errors.some(e => e.includes("Duplicate server name 'server-b'")))
+        })
+
+        it('should handle empty servers array', () => {
+            const result = validator.validateServerNameUniqueness([])
+            assert.strictEqual(result.isValid, true)
+            assert.strictEqual(result.errors.length, 0)
+        })
+
+        it('should handle servers without name field', () => {
+            const servers = [
+                { name: 'valid-server', description: 'Test', version: '1.0.0' },
+                { description: 'No name', version: '1.0.0' },
+            ]
+            const result = validator.validateServerNameUniqueness(servers)
+            assert.strictEqual(result.isValid, true)
         })
     })
 
@@ -335,118 +395,84 @@ describe('McpRegistryValidator', () => {
         })
     })
 
-    describe('isServerInRegistry', () => {
-        it('should return true for server in registry', () => {
-            const registry: McpRegistryData = {
+    describe('registry validation with uniqueness check', () => {
+        it('should reject registry with duplicate server names', () => {
+            const registry = {
                 servers: [
                     {
-                        name: 'com.example/test',
-                        description: 'Test',
+                        name: 'mcp-fs',
+                        description: 'First',
                         version: '1.0.0',
                         remotes: [{ type: 'sse', url: 'https://example.com' }],
                     },
-                ],
-                lastFetched: new Date(),
-                url: 'https://example.com/registry.json',
-            }
-            assert.strictEqual(validator.isServerInRegistry('com.example/test', registry), true)
-        })
-
-        it('should return false for server not in registry', () => {
-            const registry: McpRegistryData = {
-                servers: [
                     {
-                        name: 'com.example/test',
-                        description: 'Test',
+                        name: 'everything',
+                        description: 'Second',
                         version: '1.0.0',
-                        remotes: [{ type: 'sse', url: 'https://example.com' }],
+                        packages: [
+                            { registryType: 'npm', identifier: 'pkg', version: '1.0.0', transport: { type: 'stdio' } },
+                        ],
+                    },
+                    {
+                        name: 'mcp-fs',
+                        description: 'Duplicate',
+                        version: '2.0.0',
+                        remotes: [{ type: 'sse', url: 'https://other.com' }],
                     },
                 ],
-                lastFetched: new Date(),
-                url: 'https://example.com/registry.json',
             }
-            assert.strictEqual(validator.isServerInRegistry('com.other/server', registry), false)
-        })
-
-        it('should return false for empty registry', () => {
-            const registry: McpRegistryData = {
-                servers: [],
-                lastFetched: new Date(),
-                url: 'https://example.com/registry.json',
-            }
-            assert.strictEqual(validator.isServerInRegistry('com.example/test', registry), false)
+            const result = validator.validateRegistryJson(registry)
+            assert.strictEqual(result.isValid, false)
+            assert.ok(result.errors.some(e => e.includes("Duplicate server name 'mcp-fs'")))
         })
     })
-})
 
-describe('AgentConfigValidator', () => {
-    let validator: AgentConfigValidator
-
-    beforeEach(() => {
-        validator = new AgentConfigValidator()
-    })
-
-    describe('validateMcpServersField', () => {
-        it('should accept valid mcpServers with registry servers', () => {
-            const mcpServers = {
-                'com.example/test': { type: 'registry', enabled: true },
-                'com.example/test2': { type: 'registry', enabled: false },
-            }
-            const result = validator.validateMcpServersField(mcpServers, ['com.example/test', 'com.example/test2'])
+    describe('validateTimeout', () => {
+        it('should accept valid timeout values', () => {
+            const result = validator.validateTimeout(5000)
             assert.strictEqual(result.isValid, true)
             assert.strictEqual(result.errors.length, 0)
         })
 
-        it('should reject non-object mcpServers', () => {
-            const result = validator.validateMcpServersField(null, [])
-            assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.includes('mcpServers must be an object'))
+        it('should accept any positive integer', () => {
+            assert.strictEqual(validator.validateTimeout(1).isValid, true)
+            assert.strictEqual(validator.validateTimeout(1000).isValid, true)
+            assert.strictEqual(validator.validateTimeout(60000).isValid, true)
+            assert.strictEqual(validator.validateTimeout(300000).isValid, true)
         })
 
-        it('should warn for registry server not in available servers', () => {
-            const mcpServers = {
-                'com.example/unknown': { type: 'registry', enabled: true },
-            }
-            const result = validator.validateMcpServersField(mcpServers, ['com.example/test'])
-            assert.ok(result.warnings.some(w => w.includes('not found')))
-        })
-
-        it('should warn for registry server with command/url fields', () => {
-            const mcpServers = {
-                'com.example/test': { type: 'registry', enabled: true, command: 'node' },
-            }
-            const result = validator.validateMcpServersField(mcpServers, ['com.example/test'])
-            assert.ok(result.warnings.some(w => w.includes('should not have')))
-        })
-    })
-
-    describe('validateServerConfig', () => {
-        it('should accept valid registry server config', () => {
-            const config = { type: 'registry', enabled: true }
-            const result = validator.validateServerConfig('com.example/test', config, ['com.example/test'])
+        it('should accept undefined timeout', () => {
+            const result = validator.validateTimeout(undefined)
             assert.strictEqual(result.isValid, true)
+            assert.strictEqual(result.errors.length, 0)
         })
 
-        it('should warn for missing enabled field', () => {
-            const config = { type: 'registry' }
-            const result = validator.validateServerConfig('com.example/test', config, ['com.example/test'])
-            assert.ok(result.warnings.some(w => w.includes('missing enabled')))
-        })
-
-        it('should reject non-object config', () => {
-            const result = validator.validateServerConfig('test', null, [])
+        it('should reject non-integer timeout', () => {
+            const result = validator.validateTimeout(5000.5)
             assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.some(e => e.includes('must be an object')))
-        })
-    })
-
-    describe('validateServerName', () => {
-        it('should return true for server in available list', () => {
-            assert.strictEqual(validator.validateServerName('com.example/test', ['com.example/test']), true)
+            assert.strictEqual(result.errors.length, 1)
+            assert.ok(result.errors[0].includes('positive integer'))
         })
 
-        it('should return false for server not in available list', () => {
-            assert.strictEqual(validator.validateServerName('com.example/unknown', ['com.example/test']), false)
+        it('should reject string timeout', () => {
+            const result = validator.validateTimeout('5000' as any)
+            assert.strictEqual(result.isValid, false)
+            assert.strictEqual(result.errors.length, 1)
+            assert.ok(result.errors[0].includes('positive integer'))
+        })
+
+        it('should reject negative timeout', () => {
+            const result = validator.validateTimeout(-5000)
+            assert.strictEqual(result.isValid, false)
+            assert.strictEqual(result.errors.length, 1)
+            assert.ok(result.errors[0].includes('positive integer'))
+        })
+
+        it('should reject zero timeout', () => {
+            const result = validator.validateTimeout(0)
+            assert.strictEqual(result.isValid, false)
+            assert.strictEqual(result.errors.length, 1)
+            assert.ok(result.errors[0].includes('positive integer'))
         })
     })
 })

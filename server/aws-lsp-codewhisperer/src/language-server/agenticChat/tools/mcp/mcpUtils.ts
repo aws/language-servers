@@ -3,7 +3,8 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { Agent, InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Agent, InitializeParams, Workspace } from '@aws/language-server-runtimes/server-interface'
+import type { Logger } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import {
     MCPServerConfig,
@@ -438,6 +439,12 @@ export async function loadAgentConfig(
                     try {
                         cfg = converter.convertRegistryServer(registryServer)
                         cfg.__configPath__ = fsPath
+
+                        // Apply timeout from registry server config if provided
+                        if (typeof entry.timeout === 'number') {
+                            cfg.timeout = entry.timeout
+                        }
+
                         logging.info(`MCP Registry: Successfully converted server '${name}' to MCPServerConfig`)
                     } catch (err: any) {
                         const errorMsg = `MCP Registry: Failed to convert server '${name}': ${err.message}`

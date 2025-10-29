@@ -11,12 +11,6 @@ export interface ValidationResult {
     errors: string[]
 }
 
-export interface AgentConfigValidationResult {
-    isValid: boolean
-    errors: string[]
-    warnings: string[]
-}
-
 export class McpRegistryValidator {
     validateRegistryJson(json: any): ValidationResult {
         const errors: string[] = []
@@ -30,6 +24,10 @@ export class McpRegistryValidator {
             errors.push('Registry must have a servers array')
             return { isValid: false, errors }
         }
+
+        // Validate server name uniqueness
+        const uniquenessResult = this.validateServerNameUniqueness(json.servers)
+        errors.push(...uniquenessResult.errors)
 
         json.servers.forEach((server: any, index: number) => {
             const serverErrors = this.validateServerDefinition(server).errors
@@ -80,10 +78,44 @@ export class McpRegistryValidator {
     }
 
     validateServerName(name: string): ValidationResult {
-        if (!name || name.length > MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH) {
-            return { isValid: false, errors: ['Server name must be 1-255 characters'] }
+        const errors: string[] = []
+
+        if (!name || name.length === 0) {
+            errors.push('Server name cannot be empty')
+        } else if (name.length > MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH) {
+            errors.push('Server name must be 1-255 characters')
         }
-        return { isValid: true, errors: [] }
+
+        return { isValid: errors.length === 0, errors }
+    }
+
+    validateServerNameUniqueness(servers: any[]): ValidationResult {
+        const errors: string[] = []
+        const nameSet = new Set<string>()
+
+        servers.forEach((server, index) => {
+            if (server && server.name) {
+                if (nameSet.has(server.name)) {
+                    errors.push(`Duplicate server name '${server.name}' at index ${index}`)
+                } else {
+                    nameSet.add(server.name)
+                }
+            }
+        })
+
+        return { isValid: errors.length === 0, errors }
+    }
+
+    validateTimeout(timeout: any): ValidationResult {
+        const errors: string[] = []
+
+        if (timeout !== undefined) {
+            if (typeof timeout !== 'number' || !Number.isInteger(timeout) || timeout <= 0) {
+                errors.push('Timeout must be a positive integer')
+            }
+        }
+
+        return { isValid: errors.length === 0, errors }
     }
 
     validateRemoteServer(remotes: any[]): ValidationResult {
@@ -188,58 +220,6 @@ export class McpRegistryValidator {
     }
 
     isServerInRegistry(serverName: string, registry: McpRegistryData): boolean {
-        return registry.servers.some(server => server.name === serverName)
-    }
-}
-
-export class AgentConfigValidator {
-    validateMcpServersField(mcpServers: any, availableServers: string[]): AgentConfigValidationResult {
-        const errors: string[] = []
-        const warnings: string[] = []
-
-        if (!mcpServers || typeof mcpServers !== 'object') {
-            errors.push('mcpServers must be an object')
-            return { isValid: false, errors, warnings }
-        }
-
-        for (const [serverName, config] of Object.entries(mcpServers)) {
-            const result = this.validateServerConfig(serverName, config as any, availableServers)
-            errors.push(...result.errors)
-            warnings.push(...result.warnings)
-        }
-
-        return { isValid: errors.length === 0, errors, warnings }
-    }
-
-    validateServerConfig(serverName: string, config: any, availableServers: string[]): AgentConfigValidationResult {
-        const errors: string[] = []
-        const warnings: string[] = []
-
-        if (!config || typeof config !== 'object') {
-            errors.push(`Server '${serverName}' config must be an object`)
-            return { isValid: false, errors, warnings }
-        }
-
-        const isRegistry = config.type === 'registry'
-
-        if (isRegistry) {
-            if (typeof config.enabled !== 'boolean') {
-                warnings.push(`Registry server '${serverName}' missing enabled field, treating as disabled`)
-            }
-
-            if (!this.validateServerName(serverName, availableServers)) {
-                warnings.push(`Registry server '${serverName}' not found in available servers`)
-            }
-
-            if (config.command || config.url || config.args || config.env || config.headers) {
-                warnings.push(`Registry server '${serverName}' should not have command/url/args/env/headers fields`)
-            }
-        }
-
-        return { isValid: errors.length === 0, errors, warnings }
-    }
-
-    validateServerName(serverName: string, availableServers: string[]): boolean {
-        return availableServers.includes(serverName)
+        return registry.servers.some(s => s.name === serverName)
     }
 }

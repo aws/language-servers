@@ -73,6 +73,7 @@ export class McpManager {
     private permissionManager!: AgentPermissionManager
     private registryService?: McpRegistryService
     private currentRegistry: McpRegistryData | null = null
+    private isPeriodicSync: boolean = false
 
     private constructor(
         private agentPaths: string[],
@@ -520,6 +521,18 @@ export class McpManager {
                     description: sanitizeInput(t.description ?? ''),
                     inputSchema: t.inputSchema ?? {},
                 })
+            }
+
+            // Cache version for registry servers
+            if (this.currentRegistry) {
+                const unsanitizedName = this.serverNameMapping.get(serverName) || serverName
+                const registryServer = this.currentRegistry.servers.find(s => s.name === unsanitizedName)
+                if (registryServer) {
+                    cfg.__cachedVersion__ = registryServer.version
+                    this.features.logging.debug(
+                        `MCP Registry: Cached version ${registryServer.version} for server '${unsanitizedName}'`
+                    )
+                }
             }
 
             this.setState(serverName, McpServerStatus.ENABLED, resp.tools.length)
@@ -1505,7 +1518,7 @@ export class McpManager {
     /**
      * Update registry URL and refetch registry
      */
-    public async updateRegistryUrl(registryUrl: string): Promise<void> {
+    public async updateRegistryUrl(registryUrl: string, isPeriodicSync: boolean = false): Promise<void> {
         if (!this.registryService) {
             this.registryService = new McpRegistryService(this.features.logging)
         }
@@ -1514,7 +1527,13 @@ export class McpManager {
         if (registry) {
             this.currentRegistry = registry
             this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
-            await this.syncWithRegistry()
+
+            // Only sync during periodic updates, not at startup
+            if (isPeriodicSync) {
+                this.isPeriodicSync = true
+                await this.syncWithRegistry()
+                this.isPeriodicSync = false
+            }
         } else {
             this.features.logging.error('MCP Registry: Failed to fetch updated registry - MCP functionality disabled')
             this.currentRegistry = null
@@ -1523,6 +1542,7 @@ export class McpManager {
 
     /**
      * Synchronize client configurations with registry updates
+     * Note: Version checking only works with explicit versions, not "latest"
      */
     private async syncWithRegistry(): Promise<void> {
         if (!this.currentRegistry) {
@@ -1530,7 +1550,7 @@ export class McpManager {
             return
         }
 
-        this.features.logging.info('MCP Registry: Starting registry synchronization')
+        this.features.logging.info('MCP Registry: Starting periodic registry synchronization')
         const registryServerNames = new Set(this.currentRegistry.servers.map(s => s.name))
         const configuredServers = Array.from(this.mcpServers.entries())
         let serversDisabled = 0
@@ -1548,14 +1568,14 @@ export class McpManager {
             // Check if server still exists in registry
             if (!registryServerNames.has(unsanitizedName)) {
                 this.features.logging.warn(
-                    `MCP Registry: Server '${unsanitizedName}' removed from registry - disabling`
+                    `MCP Registry: Server '${unsanitizedName}' removed from registry during periodic sync`
                 )
-                await this.disableRemovedServer(sanitizedName, unsanitizedName)
+                await this.disableRemovedServer(sanitizedName, unsanitizedName, true)
                 serversDisabled++
                 continue
             }
 
-            // Check version mismatch for local servers
+            // Check version mismatch for local servers during periodic sync
             const registryServer = this.currentRegistry.servers.find(s => s.name === unsanitizedName)
             if (registryServer && registryServer.packages) {
                 const updated = await this.checkAndUpdateVersion(sanitizedName, unsanitizedName, registryServer, config)
@@ -1564,21 +1584,29 @@ export class McpManager {
         }
 
         this.features.logging.info(
-            `MCP Registry: Synchronization complete - ${serversDisabled} servers disabled, ${versionsUpdated} versions updated`
+            `MCP Registry: Periodic synchronization complete - ${serversDisabled} servers disabled, ${versionsUpdated} versions updated`
         )
     }
 
     /**
      * Disable server that was removed from registry
      */
-    private async disableRemovedServer(sanitizedName: string, unsanitizedName: string): Promise<void> {
+    private async disableRemovedServer(
+        sanitizedName: string,
+        unsanitizedName: string,
+        showWarning: boolean = false
+    ): Promise<void> {
         try {
             // Terminate server process if running
             const client = this.clients.get(sanitizedName)
             if (client) {
                 await client.close()
                 this.clients.delete(sanitizedName)
-                this.features.logging.info(`MCP Registry: Terminated server process for '${unsanitizedName}'`)
+                const msg = `MCP Registry: Server '${unsanitizedName}' was removed from registry and has been terminated`
+                this.features.logging.warn(msg)
+                if (showWarning) {
+                    this.features.logging.warn(`WARNING: ${msg}`)
+                }
             }
 
             // Remove tools
@@ -1604,6 +1632,7 @@ export class McpManager {
 
     /**
      * Check version and reinstall if needed
+     * Note: Version checking doesn't work with "latest" versions - only explicit versions are supported
      */
     private async checkAndUpdateVersion(
         sanitizedName: string,
@@ -1615,14 +1644,16 @@ export class McpManager {
             return false
         }
 
-        // Extract version from current command/args
-        const currentVersion = this.extractVersionFromConfig(currentConfig)
+        // Use cached version for comparison
+        const cachedVersion = currentConfig.__cachedVersion__
         const registryVersion = registryServer.version
 
-        if (currentVersion && currentVersion !== registryVersion) {
-            this.features.logging.warn(
-                `MCP Registry: Server '${unsanitizedName}' version mismatch: current=${currentVersion}, registry=${registryVersion} - reinstalling`
-            )
+        if (cachedVersion && cachedVersion !== registryVersion) {
+            const msg = `MCP Registry: Server '${unsanitizedName}' version changed from ${cachedVersion} to ${registryVersion} - reinstalling`
+            this.features.logging.warn(msg)
+            if (this.isPeriodicSync) {
+                this.features.logging.warn(`WARNING: ${msg}`)
+            }
             try {
                 await this.reinstallServer(sanitizedName, unsanitizedName, registryServer)
                 return true
@@ -1685,6 +1716,9 @@ export class McpManager {
             // Convert registry server to config
             const converter = new (await import('./mcpServerConfigConverter')).McpServerConfigConverter()
             const newConfig = converter.convertRegistryServer(registryServer)
+
+            // Cache the new version
+            newConfig.__cachedVersion__ = registryServer.version
 
             // Update config
             this.mcpServers.set(sanitizedName, newConfig)

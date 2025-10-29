@@ -949,6 +949,58 @@ describe('loadAgentConfig with registry support', () => {
         expect(server.command).to.equal('npx')
         expect(server.args).to.deep.equal(['-y', '@test/server@1.0.0'])
     })
+
+    it('should apply timeout from registry server config', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry', timeout: 60000 },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+        expect(server.timeout).to.equal(60000)
+    })
+
+    it('should not set timeout if not provided in registry server config', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry' },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+        expect(server.timeout).to.be.undefined
+    })
 })
 
 describe('saveServerSpecificAgentConfig', () => {

@@ -37,10 +37,12 @@ export interface MCPServerConfig {
     headers?: Record<string, string>
     disabled?: boolean
     __configPath__?: string
+    __cachedVersion__?: string // Cached version from registry for version sync
 }
 
 export interface RegistryServerConfig {
     type: 'registry'
+    timeout?: number // Optional request timeout in milliseconds
 }
 
 export function isRegistryServerConfig(config: MCPServerConfig | RegistryServerConfig): config is RegistryServerConfig {

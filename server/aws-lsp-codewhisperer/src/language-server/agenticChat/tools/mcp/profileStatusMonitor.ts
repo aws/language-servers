@@ -25,13 +25,13 @@ export class ProfileStatusMonitor {
     private static readonly MCP_CACHE_FILE = path.join(ProfileStatusMonitor.MCP_CACHE_DIR, 'mcp-state.json')
     private static eventEmitter = new EventEmitter()
     private static logging?: Logging
-    private onRegistryUpdate?: (registryUrl: string | null) => Promise<void>
+    private onRegistryUpdate?: (registryUrl: string | null, isPeriodicSync?: boolean) => Promise<void>
 
     constructor(
         private logging: Logging,
         private onMcpDisabled: () => void,
         private onMcpEnabled?: () => void,
-        onRegistryUpdate?: (registryUrl: string | null) => Promise<void>
+        onRegistryUpdate?: (registryUrl: string | null, isPeriodicSync?: boolean) => Promise<void>
     ) {
         ProfileStatusMonitor.logging = logging
         ProfileStatusMonitor.loadMcpStateFromDisk()
@@ -59,7 +59,7 @@ export class ProfileStatusMonitor {
         }
 
         this.intervalId = setInterval(() => {
-            void this.isMcpEnabled()
+            void this.isMcpEnabled(true) // Pass true for periodic check
         }, this.CHECK_INTERVAL)
 
         this.logging.info('ProfileStatusMonitor started - checking MCP configuration every 24 hours')
@@ -73,7 +73,7 @@ export class ProfileStatusMonitor {
         }
     }
 
-    private async isMcpEnabled(): Promise<boolean | undefined> {
+    private async isMcpEnabled(isPeriodicCheck: boolean = false): Promise<boolean | undefined> {
         try {
             const serviceManager = AmazonQTokenServiceManager.getInstance()
             const profileArn = this.getProfileArn(serviceManager)
@@ -93,10 +93,12 @@ export class ProfileStatusMonitor {
 
             // Fetch registry URL if MCP is enabled and user is enterprise
             if (isMcpEnabled && this.isEnterpriseUser(serviceManager)) {
-                const registryFetchSuccess = await this.fetchRegistryIfNeeded(response)
+                const registryFetchSuccess = await this.fetchRegistryIfNeeded(response, isPeriodicCheck)
                 if (!registryFetchSuccess) {
                     isMcpEnabled = false
                 }
+            } else if (isMcpEnabled && !this.isEnterpriseUser(serviceManager)) {
+                this.logging.info('MCP Governance: Free Tier user - falling back to legacy MCP configuration')
             }
 
             if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
@@ -174,12 +176,7 @@ export class ProfileStatusMonitor {
         ProfileStatusMonitor.eventEmitter.emit(AUTH_SUCCESS_EVENT)
     }
 
-    private isEnterpriseUser(serviceManager: AmazonQTokenServiceManager): boolean {
-        const connectionType = serviceManager.getConnectionType()
-        return connectionType === 'identityCenter'
-    }
-
-    private async fetchRegistryIfNeeded(response: any): Promise<boolean> {
+    private async fetchRegistryIfNeeded(response: any, isPeriodicSync: boolean = false): Promise<boolean> {
         if (!this.onRegistryUpdate) {
             return true
         }
@@ -190,13 +187,15 @@ export class ProfileStatusMonitor {
 
         if (!registryUrl) {
             this.logging.debug('MCP Registry: No registry URL configured')
-            await this.onRegistryUpdate(null)
+            await this.onRegistryUpdate(null, isPeriodicSync)
             return true
         }
 
         try {
-            this.logging.info(`MCP Registry: Notifying MCP Manager of registry URL: ${registryUrl}`)
-            await this.onRegistryUpdate(registryUrl)
+            this.logging.info(
+                `MCP Registry: Notifying MCP Manager of registry URL: ${registryUrl}${isPeriodicSync ? ' (periodic sync)' : ''}`
+            )
+            await this.onRegistryUpdate(registryUrl, isPeriodicSync)
             return true
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
@@ -205,9 +204,22 @@ export class ProfileStatusMonitor {
         }
     }
 
+    private isEnterpriseUser(serviceManager: AmazonQTokenServiceManager): boolean {
+        const connectionType = serviceManager.getConnectionType()
+        const isEnterprise = connectionType === 'identityCenter'
+
+        if (!isEnterprise) {
+            this.logging.info('MCP Governance: User is not on Pro Tier/IdC - governance features unavailable')
+        }
+
+        return isEnterprise
+    }
+
     private getDummyRegistryUrl(): string | null {
         // Temporary dummy URL for testing until getProfile API integration is complete
-        return process.env.MCP_REGISTRY_URL || 'https://d2orqesgordx5o.cloudfront.net/test-mcp-registry.json'
+        const dummyUrl = process.env.MCP_REGISTRY_URL || 'https://d2orqesgordx5o.cloudfront.net/test-mcp-registry.json'
+        this.logging.info(`MCP Registry: Using dummy/test registry URL: ${dummyUrl}`)
+        return dummyUrl
     }
 
     async getRegistryUrl(): Promise<string | null> {

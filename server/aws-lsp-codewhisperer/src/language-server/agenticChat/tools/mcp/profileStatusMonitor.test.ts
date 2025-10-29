@@ -253,4 +253,41 @@ describe('ProfileStatusMonitor', () => {
             expect(registryUrl).to.be.null
         })
     })
+
+    describe('isEnterpriseUser', () => {
+        let mockServiceManager: any
+
+        beforeEach(() => {
+            mockServiceManager = {
+                getConnectionType: sinon.stub(),
+            }
+        })
+
+        it('should return true for identityCenter connection type', () => {
+            mockServiceManager.getConnectionType.returns('identityCenter')
+
+            const result = (profileStatusMonitor as any).isEnterpriseUser(mockServiceManager)
+
+            expect(result).to.be.true
+            expect(mockLogging.info.called).to.be.false
+        })
+
+        it('should return false for builderId connection type', () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            const result = (profileStatusMonitor as any).isEnterpriseUser(mockServiceManager)
+
+            expect(result).to.be.false
+            expect(mockLogging.info.calledWith(sinon.match('not on Pro Tier/IdC'))).to.be.true
+        })
+
+        it('should log governance unavailable message for non-enterprise users', () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            const result = (profileStatusMonitor as any).isEnterpriseUser(mockServiceManager)
+
+            expect(result).to.be.false
+            expect(mockLogging.info.calledWith(sinon.match('governance features unavailable'))).to.be.true
+        })
+    })
 })
