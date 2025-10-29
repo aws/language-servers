@@ -170,7 +170,9 @@ describe('McpRegistryService', () => {
             requestContentStub.resolves('{"servers": "not-an-array"}')
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
-            assert.ok(mockLogging.error.calledWith(sinon.match(/missing or invalid 'servers' array/)))
+            assert.ok(
+                mockLogging.error.calledWith(sinon.match(/Invalid registry format.*Registry must have a servers array/))
+            )
         })
 
         it('should log success message with server count', async () => {
@@ -196,6 +198,42 @@ describe('McpRegistryService', () => {
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
             assert.ok(mockLogging.error.calledWith(sinon.match(/Failed to fetch registry.*Unknown error occurred/)))
+        })
+
+        it('should log authentication error for 401 Unauthorized', async () => {
+            const error = new Error('HTTP 401 Unauthorized')
+            requestContentStub.rejects(error)
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(
+                mockLogging.error.calledWith(
+                    sinon.match(/Authentication required - registry URL must be accessible without credentials/)
+                )
+            )
+        })
+
+        it('should log authentication error for 403 Forbidden', async () => {
+            const error = new Error('HTTP 403 Forbidden')
+            requestContentStub.rejects(error)
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(
+                mockLogging.error.calledWith(
+                    sinon.match(/Authentication required - registry URL must be accessible without credentials/)
+                )
+            )
+        })
+
+        it('should log authentication error for Unauthorized message', async () => {
+            const error = new Error('Request failed: Unauthorized access')
+            requestContentStub.rejects(error)
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+            assert.strictEqual(result, null)
+            assert.ok(
+                mockLogging.error.calledWith(
+                    sinon.match(/Authentication required - registry URL must be accessible without credentials/)
+                )
+            )
         })
     })
 })

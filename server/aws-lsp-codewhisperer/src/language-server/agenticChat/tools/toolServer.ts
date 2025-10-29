@@ -396,9 +396,9 @@ export const McpToolsServer: Server = ({
                     logging.info('MCP enabled by profile status monitor')
                     await initializeMcp()
                 },
-                async (registryUrl: string | null) => {
+                async (registryUrl: string | null, isPeriodicSync: boolean = false) => {
                     if (registryUrl && McpManager.instance) {
-                        await McpManager.instance.updateRegistryUrl(registryUrl)
+                        await McpManager.instance.updateRegistryUrl(registryUrl, isPeriodicSync)
                     }
                 }
             )

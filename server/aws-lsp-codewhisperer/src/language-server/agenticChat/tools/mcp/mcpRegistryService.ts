@@ -7,11 +7,15 @@ import { HttpsProxyAgent } from 'hpagent'
 import { httpsUtils } from '@aws/lsp-core'
 import { McpRegistryData } from './mcpTypes'
 import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
+import { McpRegistryValidator } from './mcpRegistryValidator'
 
 export class McpRegistryService {
     private inMemoryRegistry: McpRegistryData | null = null
+    private validator: McpRegistryValidator
 
-    constructor(private logging: Logging) {}
+    constructor(private logging: Logging) {
+        this.validator = new McpRegistryValidator()
+    }
 
     async fetchRegistry(url: string): Promise<McpRegistryData | null> {
         if (!this.validateRegistryUrl(url)) {
@@ -25,9 +29,10 @@ export class McpRegistryService {
             const json = await httpsUtils.requestContent(url, agent)
             const parsed = JSON.parse(json)
 
-            if (!parsed.servers || !Array.isArray(parsed.servers)) {
+            const validationResult = this.validator.validateRegistryJson(parsed)
+            if (!validationResult.isValid) {
                 this.logging.error(
-                    `MCP Registry: Invalid registry format - missing or invalid 'servers' array in ${url}`
+                    `MCP Registry: Invalid registry format in ${url}: ${validationResult.errors.join(', ')}`
                 )
                 return null
             }
@@ -47,6 +52,15 @@ export class McpRegistryService {
             const errorMsg = error instanceof Error ? error.message : String(error)
             if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
                 this.logging.error(`MCP Registry: Network error - unable to reach ${url}: ${errorMsg}`)
+            } else if (
+                errorMsg.includes('401') ||
+                errorMsg.includes('403') ||
+                errorMsg.includes('Unauthorized') ||
+                errorMsg.includes('Forbidden')
+            ) {
+                this.logging.error(
+                    `MCP Registry: Authentication required - registry URL must be accessible without credentials: ${url}`
+                )
             } else if (errorMsg.includes('JSON')) {
                 this.logging.error(`MCP Registry: Invalid JSON format in registry at ${url}: ${errorMsg}`)
             } else {

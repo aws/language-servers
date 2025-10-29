@@ -938,6 +938,58 @@ describe('loadAgentConfig with registry support', () => {
         expect(server.command).to.equal('npx')
         expect(server.args).to.deep.equal(['-y', '@test/server@1.0.0'])
     })
+
+    it('should apply timeout from registry server config', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry', timeout: 60000 },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+        expect(server.timeout).to.equal(60000)
+    })
+
+    it('should not set timeout if not provided in registry server config', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry' },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+        expect(server.timeout).to.be.undefined
+    })
 })
 
 describe('saveServerSpecificAgentConfig', () => {
@@ -1082,5 +1134,113 @@ describe('saveServerSpecificAgentConfig', () => {
         )
 
         expect(fs.existsSync(configPath)).to.be.true
+    })
+})
+
+describe('isACGMode', () => {
+    it('should return true for ACG-only registry with agentcore in name', () => {
+        const { isACGMode } = require('./mcpUtils')
+        const registry: any = {
+            servers: [
+                {
+                    name: 'agentcore-gateway',
+                    description: 'AgentCore Gateway',
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: 'https://acg.example.com/mcp' }],
+                },
+            ],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+        expect(isACGMode(registry)).to.be.true
+    })
+
+    it('should return true for ACG-only registry with acg in name', () => {
+        const { isACGMode } = require('./mcpUtils')
+        const registry: any = {
+            servers: [
+                {
+                    name: 'acg-proxy',
+                    description: 'ACG Proxy',
+                    version: '1.0.0',
+                    remotes: [{ type: 'sse', url: 'https://acg.example.com/mcp' }],
+                },
+            ],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+        expect(isACGMode(registry)).to.be.true
+    })
+
+    it('should return false for null registry', () => {
+        const { isACGMode } = require('./mcpUtils')
+        expect(isACGMode(null)).to.be.false
+    })
+
+    it('should return false for registry with multiple servers', () => {
+        const { isACGMode } = require('./mcpUtils')
+        const registry: any = {
+            servers: [
+                {
+                    name: 'agentcore-gateway',
+                    description: 'AgentCore Gateway',
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: 'https://acg.example.com/mcp' }],
+                },
+                {
+                    name: 'other-server',
+                    description: 'Other Server',
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: 'https://other.example.com/mcp' }],
+                },
+            ],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+        expect(isACGMode(registry)).to.be.false
+    })
+
+    it('should return false for single server without ACG naming', () => {
+        const { isACGMode } = require('./mcpUtils')
+        const registry: any = {
+            servers: [
+                {
+                    name: 'regular-server',
+                    description: 'Regular Server',
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: 'https://example.com/mcp' }],
+                },
+            ],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+        expect(isACGMode(registry)).to.be.false
+    })
+
+    it('should return false for local server with ACG naming', () => {
+        const { isACGMode } = require('./mcpUtils')
+        const registry: any = {
+            servers: [
+                {
+                    name: 'agentcore-local',
+                    description: 'Local ACG',
+                    version: '1.0.0',
+                    packages: [{ registryType: 'npm', identifier: '@acg/server', transport: { type: 'stdio' } }],
+                },
+            ],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+        expect(isACGMode(registry)).to.be.false
+    })
+
+    it('should return false for empty registry', () => {
+        const { isACGMode } = require('./mcpUtils')
+        const registry: any = {
+            servers: [],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+        expect(isACGMode(registry)).to.be.false
     })
 })
