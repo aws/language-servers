@@ -221,7 +221,7 @@ export class EditClassifier {
         this.features = this.prepareFeatures(params)
     }
 
-    shouldTriggerNep(): { shouldTrigger: boolean; threshold: number; score: number } {
+    shouldTriggerEdits(): { shouldTrigger: boolean; threshold: number; score: number } {
         const s = this.score()
         return {
             score: s,
