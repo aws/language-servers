@@ -404,10 +404,119 @@ export class LocalProjectContextController {
         }
 
         this.log.info(`Processing ${workspaceFolders.length} workspace folders...`)
+        const startTime = Date.now()
 
         maxFileSizeMB = Math.min(maxFileSizeMB ?? Infinity, this.DEFAULT_MAX_FILE_SIZE_MB)
         maxIndexSizeMB = Math.min(maxIndexSizeMB ?? Infinity, this.DEFAULT_MAX_INDEX_SIZE_MB)
 
+        try {
+            const { Worker } = await import('worker_threads')
+            const workerPath = path.join(__dirname, 'fileProcessingWorker.js')
+
+            if (!fs.existsSync(workerPath)) {
+                throw new Error(`Worker file not found: ${workerPath}`)
+            }
+
+            this.log.info(`Processing ${workspaceFolders.length} workspace folders in worker thread`)
+            const worker = new Worker(workerPath)
+
+            return await new Promise<string[]>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    void worker.terminate()
+                    reject(new Error('Worker timeout after 5 minutes'))
+                }, 300_000)
+
+                let batchesInProgress = 0
+
+                worker.on('message', msg => {
+                    if (msg.type === 'ready') {
+                        // Worker initialized, start sending batches
+                        sendBatches().catch(reject)
+                    } else if (msg.type === 'batchComplete') {
+                        batchesInProgress--
+                    } else if (msg.type === 'result') {
+                        clearTimeout(timeout)
+                        void worker.terminate()
+                        const { files, filesExceedingMaxSize, reachedLimit } = msg.data
+                        const duration = Date.now() - startTime
+                        if (reachedLimit) {
+                            this.log.info(
+                                `Reaching max file collection size limit ${maxIndexSizeMB} MB. ${files.length} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB (took ${duration}ms)`
+                            )
+                        } else {
+                            this.log.info(
+                                `ProcessWorkspaceFolders complete. ${files.length} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB (took ${duration}ms using worker thread)`
+                            )
+                        }
+                        resolve(files)
+                    } else if (msg.type === 'error') {
+                        clearTimeout(timeout)
+                        void worker.terminate()
+                        reject(new Error(msg.error))
+                    }
+                })
+
+                worker.on('error', err => {
+                    clearTimeout(timeout)
+                    void worker.terminate()
+                    reject(err)
+                })
+
+                async function sendBatches() {
+                    const BATCH_SIZE = 10000
+
+                    for (const folder of workspaceFolders!) {
+                        const folderPath = path.resolve(URI.parse(folder.uri).fsPath)
+                        const filesInFolder = await listFilesWithGitignore(folderPath)
+
+                        for (let i = 0; i < filesInFolder.length; i += BATCH_SIZE) {
+                            const batch = filesInFolder.slice(i, i + BATCH_SIZE)
+                            batchesInProgress++
+                            worker.postMessage({
+                                type: 'processBatch',
+                                data: { files: batch, fileExtensions },
+                            })
+
+                            // Wait if too many batches in progress
+                            while (batchesInProgress > 5) {
+                                await sleep(10)
+                            }
+                        }
+                    }
+
+                    // Wait for all batches to complete
+                    while (batchesInProgress > 0) {
+                        await sleep(10)
+                    }
+
+                    worker.postMessage({ type: 'complete' })
+                }
+
+                worker.postMessage({
+                    type: 'init',
+                    data: { maxFileSizeMB, maxIndexSizeMB },
+                })
+            })
+        } catch (error) {
+            this.log.warn(`Worker thread failed, falling back to main thread: ${error}`)
+            const result = await this.processWorkspaceFoldersFallback(
+                workspaceFolders,
+                maxFileSizeMB,
+                maxIndexSizeMB,
+                fileExtensions
+            )
+            const duration = Date.now() - startTime
+            this.log.info(`Processing completed in ${duration}ms (fallback)`)
+            return result
+        }
+    }
+
+    private async processWorkspaceFoldersFallback(
+        workspaceFolders: WorkspaceFolder[],
+        maxFileSizeMB: number,
+        maxIndexSizeMB: number,
+        fileExtensions?: string[]
+    ): Promise<string[]> {
         const sizeConstraints: SizeConstraints = {
             maxFileSize: maxFileSizeMB * this.MB_TO_BYTES,
             remainingIndexSize: maxIndexSizeMB * this.MB_TO_BYTES,
@@ -429,7 +538,7 @@ export class LocalProjectContextController {
                                 sizeConstraints.remainingIndexSize = sizeConstraints.remainingIndexSize - fileSize
                             } else {
                                 this.log.info(
-                                    `Reaching max file collection size limit ${this.maxIndexSizeMB} MB. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB `
+                                    `Reaching max file collection size limit ${maxIndexSizeMB} MB. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB `
                                 )
                                 return [...uniqueFilesToIndex]
                             }
@@ -446,7 +555,7 @@ export class LocalProjectContextController {
         }
 
         this.log.info(
-            `ProcessWorkspaceFolders complete. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB`
+            `ProcessWorkspaceFolders complete. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB (fallback)`
         )
         return [...uniqueFilesToIndex]
     }
