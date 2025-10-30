@@ -28,6 +28,8 @@ import {
     GetTransformPlanRequest,
     GetTransformRequest,
     StartTransformRequest,
+    GetEditablePlanRequest,
+    UploadEditablePlanRequest,
 } from './models'
 import { TransformHandler } from './transformHandler'
 
@@ -44,6 +46,8 @@ const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
 const ListWorkspacesCommand = 'aws/qNetTransform/listWorkspaces'
 const CreateWorkspaceCommand = 'aws/qNetTransform/createWorkspace'
+const GetEditablePlanCommand = 'aws/qNetTransform/getEditablePlan'
+const UploadEditablePlanCommand = 'aws/qNetTransform/uploadEditablePlan'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -155,6 +159,20 @@ export const QNetTransformServerToken =
                             )
                         }
                     }
+                    case GetEditablePlanCommand: {
+                        logging.log('LSP: Received GetEditablePlanCommand request')
+                        const request = params as GetEditablePlanRequest
+                        const response = await transformHandler.getEditablePlan(request)
+
+                        return response
+                    }
+                    case UploadEditablePlanCommand: {
+                        logging.log('LSP: Received UploadEditablePlanCommand request')
+                        const request = params as UploadEditablePlanRequest
+                        const response = await transformHandler.uploadEditablePlan(request)
+
+                        return response
+                    }
                 }
                 return
             } catch (e: any) {
@@ -227,6 +245,8 @@ export const QNetTransformServerToken =
                             CancelPollingCommand,
                             ListWorkspacesCommand,
                             CreateWorkspaceCommand,
+                            GetEditablePlanCommand,
+                            UploadEditablePlanCommand,
                         ],
                     },
                 },
