@@ -29,6 +29,7 @@
         "postinstall": "node ./script/install_transitive_dep.js"
     },
     "dependencies": {
+        "@amazon/elastic-gumby-frontend-client": "file:../../core/atx-fes-client/amazon-elastic-gumby-frontend-client-1.0.0.tgz",
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
         "@amzn/codewhisperer": "file:../../core/codewhisperer/amzn-codewhisperer-1.0.0.tgz",
         "@amzn/codewhisperer-runtime": "file:../../core/codewhisperer-runtime/amzn-codewhisperer-runtime-1.0.0.tgz",
@@ -106,6 +107,7 @@
         "@amzn/codewhisperer",
         "@amzn/codewhisperer-runtime",
         "@amzn/codewhisperer-streaming",
-        "@amzn/amazon-q-developer-streaming-client"
+        "@amzn/amazon-q-developer-streaming-client",
+        "@amazon/elastic-gumby-frontend-client"
     ]
 }
