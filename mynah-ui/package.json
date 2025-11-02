@@ -46,9 +46,7 @@
         "tests:e2e:trace": "cd ./ui-tests && npm run trace",
         "tests:unit": "jest --collect-coverage",
         "api-docs": "npx typedoc src/main.ts --out ./api-docs",
-        "api-doc-deploy": "npx typedoc src/main.ts --out ./example/dist/api-doc",
-        "postinstall": "node postinstall.js",
-        "prepare": "npx husky"
+        "api-doc-deploy": "npx typedoc src/main.ts --out ./example/dist/api-doc"
     },
     "dependencies": {
         "escape-html": "^1.0.3",
