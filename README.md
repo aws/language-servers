@@ -11,9 +11,15 @@ Language servers for integration with IDEs and Editors, which implement the prot
     - For a more complex (real-world) example, see the [Amazon Q language server](server/aws-lsp-codewhisperer).
 - To create a new protocol feature (LSP extension) for all language servers: contribute to the [language-server-runtimes](https://github.com/aws/language-server-runtimes/tree/main) repo.
 
+## Documentation
+
+- **[Documentation Index](docs/README.md)** - Complete documentation
+- **[Monorepo Structure](docs/monorepo-structure.md)** - Detailed structure guide
+- **[Mynah UI Integration](docs/mynah-ui-integration.md)** - UI component integration
+
 ## Structure
 
-Monorepo
+Monorepo with npm workspaces:
 
 - [app/](app) - bundled javascript runtime applications for distribution and integration into IDEs
     - [aws-lsp-buildspec-runtimes/](app/aws-lsp-buildspec-runtimes) - application containing the buildspec language server
@@ -26,6 +32,11 @@ Monorepo
 - [core/](core) - contains supporting libraries used by app and server packages
     - [aws-lsp-core](core/aws-lsp-core) - core support code
 - [script](script) - loose scripts used to create `npm foo` commands in the root folder
+- [chat-client/](chat-client) - Chat client implementation consuming mynah-ui
+- [mynah-ui/](mynah-ui) - UI component library for chat interfaces
+    - Integrated as workspace package
+    - Built with webpack, generates Flare manifest
+    - See [integration docs](docs/mynah-ui-integration.md)
 - [server](server) - packages that contain Language Server implementations
     - [aws-lsp-buildspec](server/aws-lsp-buildspec) - Language Server that wraps a JSON Schema for CodeBuild buildspec
     - [aws-lsp-cloudformation](server/aws-lsp-cloudformation) - Language Server that wraps a JSON Schema for CloudFormation
