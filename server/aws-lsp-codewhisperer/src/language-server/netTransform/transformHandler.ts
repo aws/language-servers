@@ -69,19 +69,14 @@ export class TransformHandler {
     private logging: Logging
     private runtime: Runtime
     private cancelPollingEnabled: Boolean = false
-    /**
-     * Helper function to log ATX FES API responses for debugging
-     */
     private logATXFESResponse(apiName: string, response: any): void {
-        this.logging.log(`=== ATX FES ${apiName} RESPONSE ===`)
-        this.logging.log(JSON.stringify(response, null, 2))
-        this.logging.log(`=== END ${apiName} RESPONSE ===`)
+        this.logging.log(`ATX FES ${apiName} response received`)
     }
 
-    private currentWorkspaceId: string | null = null // Store workspace ID for GetJob calls
-    private cachedApplicationUrl: string | null = null // Cache applicationUrl to avoid profile discovery
-    private fesClient: any = null // FES TypeScript client instance
-    private atxClient: ElasticGumbyFrontendClient | null = null // Official ATX client
+    private currentWorkspaceId: string | null = null
+    private cachedApplicationUrl: string | null = null
+    private fesClient: any = null
+    private atxClient: ElasticGumbyFrontendClient | null = null
 
     constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -99,12 +94,10 @@ export class TransformHandler {
         }
 
         try {
-            // Use gamma API endpoint for ATX client (not applicationUrl which is for web UI)
             const endpoint = process.env.TCP_ENDPOINT || DEFAULT_ATX_FES_ENDPOINT
 
-            this.logging.log(`ATX client initializing with gamma API endpoint: ${endpoint}`)
+            this.logging.log(`ATX client initializing with endpoint: ${endpoint}`)
 
-            // Initialize client without credentials - we'll add bearer token per request
             this.atxClient = new ElasticGumbyFrontendClient({
                 region: DEFAULT_ATX_FES_REGION,
                 endpoint: endpoint,
@@ -130,7 +123,6 @@ export class TransformHandler {
         const credentials = await credentialsProvider.getCredentials('bearer')
         if (!credentials?.token) return
 
-        // Get applicationUrl for Origin header
         const applicationUrl = await this.getActiveTransformProfileApplicationUrl()
         const cleanOrigin = applicationUrl
             ? applicationUrl.endsWith('/')
@@ -138,7 +130,6 @@ export class TransformHandler {
                 : applicationUrl
             : ''
 
-        // Add middleware to inject bearer token and Origin header
         command.middlewareStack?.add(
             (next: any) => async (args: any) => {
                 if (!args.request.headers) {
@@ -148,42 +139,35 @@ export class TransformHandler {
                 if (cleanOrigin) {
                     args.request.headers['Origin'] = cleanOrigin
                 }
-                // Ensure required headers match manual HTTP implementation
+
+                try {
+                    if (cleanOrigin) {
+                        const tenantMatch = cleanOrigin.match(/https:\/\/([^.]+)\./)
+                        if (tenantMatch) {
+                            args.request.headers['x-tenant-id'] = tenantMatch[1]
+                        }
+                    }
+
+                    const profileArn = await this.getActiveTransformProfileArn()
+                    if (profileArn) {
+                        args.request.headers['x-amzn-qt-profileArn'] = profileArn
+
+                        const accountMatch = profileArn.match(/arn:aws:transform:[^:]+:([^:]+):/)
+                        if (accountMatch) {
+                            args.request.headers['x-amzn-qt-accountId'] = accountMatch[1]
+                        }
+                    }
+                } catch (error) {
+                    this.logging.log(
+                        `Warning: Could not extract tenant/profile headers: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    )
+                }
+
                 args.request.headers['Content-Type'] = 'application/json; charset=UTF-8'
                 args.request.headers['Content-Encoding'] = 'amz-1.0'
                 return next(args)
             },
             { step: 'build', name: 'addBearerTokenAndOriginAndHeaders' }
-        )
-    }
-
-    /**
-     * Add Origin header to command (for commands that don't need bearer token)
-     */
-    private async addOriginToCommand(command: any): Promise<void> {
-        // Get applicationUrl for Origin header
-        const applicationUrl = await this.getActiveTransformProfileApplicationUrl()
-        const cleanOrigin = applicationUrl
-            ? applicationUrl.endsWith('/')
-                ? applicationUrl.slice(0, -1)
-                : applicationUrl
-            : ''
-
-        // Add middleware to inject Origin header and other required headers
-        command.middlewareStack?.add(
-            (next: any) => async (args: any) => {
-                if (!args.request.headers) {
-                    args.request.headers = {}
-                }
-                if (cleanOrigin) {
-                    args.request.headers['Origin'] = cleanOrigin
-                }
-                // Ensure required headers match manual HTTP implementation
-                args.request.headers['Content-Type'] = 'application/json; charset=UTF-8'
-                args.request.headers['Content-Encoding'] = 'amz-1.0'
-                return next(args)
-            },
-            { step: 'build', name: 'addOriginAndHeaders' }
         )
     }
 
@@ -262,7 +246,6 @@ export class TransformHandler {
         this.logging.log('=== ATX FES Transformation Flow ===')
 
         try {
-            // Step 0: Create payload zip file
             const artifactManager = new ArtifactManager(
                 this.workspace,
                 this.logging,
@@ -272,26 +255,22 @@ export class TransformHandler {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
             this.logging.log('Payload path: ' + payloadFilePath)
 
-            // Step 1: Get applicationUrl for active Transform profile
             const applicationUrl = await this.getActiveTransformProfileApplicationUrl()
             if (!applicationUrl) {
                 throw new Error('Could not get applicationUrl for active Transform profile')
             }
 
-            // Step 2: Get existing workspace or create new one
-            this.logging.log('Step 2: Getting or creating ATX FES workspace...')
+            this.logging.log('Getting or creating ATX FES workspace...')
             this.logging.log(`Requested workspace ID: ${userInputrequest.WorkspaceId || 'none specified'}`)
             const workspaceResult = await this.getOrCreateWorkspace(applicationUrl, userInputrequest.WorkspaceId)
             if (!workspaceResult) {
                 throw new Error('Failed to create ATX FES workspace')
             }
 
-            // Store workspace ID for later GetJob calls
             this.currentWorkspaceId = workspaceResult.workspaceId
             this.logging.log(`ATX FES Workspace created successfully: ${workspaceResult.workspaceId}`)
 
-            // Step 3: CreateJob with workspace ID (using FES client)
-            this.logging.log('Step 3: Creating ATX FES job with DOTNET_IDE...')
+            this.logging.log('Creating ATX FES job with DOTNET_IDE...')
             const jobResult = await this.createJobFESClient(workspaceResult.workspaceId)
             if (!jobResult) {
                 throw new Error('Failed to create ATX FES job')
@@ -299,8 +278,7 @@ export class TransformHandler {
 
             this.logging.log(`ATX FES Job created successfully: ${jobResult.jobId}`)
 
-            // Step 4: CreateArtifactUploadUrl (using FES client)
-            this.logging.log('Step 4: Creating ATX FES artifact upload URL...')
+            this.logging.log('Creating ATX FES artifact upload URL...')
             const uploadResult = await this.createArtifactUploadUrlFESClient(
                 workspaceResult.workspaceId,
                 jobResult.jobId,
@@ -312,8 +290,7 @@ export class TransformHandler {
 
             this.logging.log(`ATX FES Upload URL created successfully: ${uploadResult.uploadId}`)
 
-            // Step 5: Upload to S3
-            this.logging.log('Step 5: Uploading artifact to S3...')
+            this.logging.log('Uploading artifact to S3...')
             const uploadSuccess = await this.uploadArtifactToS3ATX(
                 payloadFilePath,
                 uploadResult.uploadUrl,
@@ -325,8 +302,7 @@ export class TransformHandler {
 
             this.logging.log('ATX FES S3 upload completed successfully')
 
-            // Step 6: CompleteArtifactUpload (using FES client)
-            this.logging.log('Step 6: Completing ATX FES artifact upload...')
+            this.logging.log('Completing ATX FES artifact upload...')
             const completeResult = await this.completeArtifactUploadFESClient(
                 workspaceResult.workspaceId,
                 jobResult.jobId,
@@ -338,8 +314,7 @@ export class TransformHandler {
 
             this.logging.log('ATX FES artifact upload completed successfully')
 
-            // Step 7: StartJob (using FES client)
-            this.logging.log('Step 7: Starting ATX FES transformation job...')
+            this.logging.log('Starting ATX FES transformation job...')
             const startResult = await this.startJobFESClient(workspaceResult.workspaceId, jobResult.jobId)
             if (!startResult) {
                 throw new Error('Failed to start ATX FES transformation job')
@@ -353,7 +328,6 @@ export class TransformHandler {
             this.logging.log(`Job ID: ${jobResult.jobId}`)
             this.logging.log(`Job Status: ${jobResult.status}`)
 
-            // Return response with real job ID
             return {
                 TransformationJobId: jobResult.jobId,
                 UploadId: uploadResult.uploadId,
@@ -430,6 +404,17 @@ export class TransformHandler {
                 this.logging.error('GetOrCreateWorkspace: Failed to initialize ATX client')
                 return null
             }
+
+            // First verify session to establish tenant mapping (required for all ATX operations)
+            this.logging.log('GetOrCreateWorkspace: Calling verifySession first to establish tenant mapping...')
+            const sessionResult = await this.verifyATXFESSession(applicationUrl)
+
+            if (!sessionResult) {
+                this.logging.error('GetOrCreateWorkspace: VerifySession failed - cannot establish tenant mapping')
+                return null
+            }
+
+            this.logging.log('GetOrCreateWorkspace: Session verified, proceeding with workspace operations...')
 
             // If a specific workspace was selected, use it
             if (selectedWorkspaceId) {
@@ -508,21 +493,6 @@ export class TransformHandler {
             const bearerToken = credentials.token
             this.logging.log(`CreateWorkspace: Got bearer token, making API call`)
 
-            // DEBUG LOGGING - Compare with working curl
-            this.logging.log(`=== DETAILED DEBUG INFO ===`)
-            this.logging.log(`Bearer token length: ${bearerToken.length}`)
-            this.logging.log(`Bearer token prefix: ${bearerToken.substring(0, 30)}...`)
-            this.logging.log(`Bearer token suffix: ...${bearerToken.substring(bearerToken.length - 30)}`)
-            this.logging.log(`ApplicationUrl received: ${applicationUrl}`)
-            this.logging.log(`=== END DEBUG INFO ===`)
-
-            // Check if token has correct scope for ATX Transform
-            this.logging.log(
-                `Token preview: ${bearerToken.substring(0, 50)}...${bearerToken.substring(bearerToken.length - 20)}`
-            )
-            this.logging.log('SCOPE CHECK: This token needs transform_test:read_write scope for gamma environment')
-            this.logging.log('If this fails with 403 INVALID_SESSION, the IDE is using wrong scopes')
-
             // ATX FES endpoint
             const endpoint = process.env.TCP_ENDPOINT || DEFAULT_ATX_FES_ENDPOINT
             const url = new URL(endpoint)
@@ -546,26 +516,6 @@ export class TransformHandler {
                 Origin: cleanApplicationUrl,
                 'Content-Length': Buffer.byteLength(requestBody).toString(),
             }
-
-            // DETAILED REQUEST LOGGING
-            this.logging.log(`=== REQUEST COMPARISON WITH WORKING CURL ===`)
-            this.logging.log(`Endpoint: ${endpoint}`)
-            this.logging.log(`Path: /workspaces`)
-            this.logging.log(`Method: POST`)
-            this.logging.log(`Original applicationUrl: "${applicationUrl}"`)
-            this.logging.log(`Cleaned Origin header: "${cleanApplicationUrl}"`)
-            this.logging.log(`Request body: ${requestBody}`)
-            this.logging.log(`Headers comparison:`)
-            Object.entries(headers).forEach(([key, value]) => {
-                if (key === 'Authorization') {
-                    this.logging.log(
-                        `  ${key}: Bearer ${bearerToken.substring(0, 20)}...${bearerToken.substring(bearerToken.length - 20)}`
-                    )
-                } else {
-                    this.logging.log(`  ${key}: "${value}"`)
-                }
-            })
-            this.logging.log(`=== END REQUEST COMPARISON ===`)
 
             const path = `/workspaces`
             this.logging.log(`CreateWorkspace: Making request to ${endpoint}${path}`)
@@ -610,18 +560,6 @@ export class TransformHandler {
             this.logging.log(`CreateWorkspace: Response status: ${response.statusCode} ${response.statusMessage}`)
             this.logging.log(`CreateWorkspace: Raw response: ${response.data}`)
 
-            // DETAILED ERROR ANALYSIS
-            if (response.statusCode === 403) {
-                this.logging.error(`=== 403 ERROR ANALYSIS ===`)
-                this.logging.error(`This is the same error as the working curl example should NOT get`)
-                this.logging.error(`Comparing our request vs working curl:`)
-                this.logging.error(`- Endpoint: ${endpoint} (should match curl)`)
-                this.logging.error(`- Origin: "${cleanApplicationUrl}" (should match TENANT_URL)`)
-                this.logging.error(`- Bearer token: ${bearerToken.substring(0, 20)}... (should match BEARER_TOKEN)`)
-                this.logging.error(`- Target: CreateWorkspace (curl uses same target)`)
-                this.logging.error(`=== END 403 ANALYSIS ===`)
-            }
-
             if (response.statusCode < 200 || response.statusCode >= 300) {
                 this.logging.error(`CreateWorkspace: API call failed: ${response.statusCode} ${response.statusMessage}`)
                 this.logging.error(`CreateWorkspace: Error response: ${response.data}`)
@@ -631,7 +569,6 @@ export class TransformHandler {
             const data = JSON.parse(response.data)
             this.logging.log(`CreateWorkspace: Parsed response: ${JSON.stringify(data)}`)
 
-            // Handle nested workspace object in response
             const workspaceId = data.workspace?.id || data.workspaceId
             const name = data.workspace?.name || data.name
 
@@ -680,24 +617,8 @@ export class TransformHandler {
                 idempotencyToken: generateUUID(),
             })
 
-            this.logging.log(`CreateWorkspace: FES client response: ${JSON.stringify(result)}`)
-            this.logging.log(
-                `CreateWorkspace: Response type: ${typeof result}, keys: ${Object.keys(result || {}).join(', ')}`
-            )
+            this.logging.log(`CreateWorkspace: FES client response received`)
 
-            // Log the raw response structure for debugging
-            if (result && result.data) {
-                this.logging.log(`CreateWorkspace: Response.data keys: ${Object.keys(result.data).join(', ')}`)
-                if (result.data.workspace) {
-                    this.logging.log(
-                        `CreateWorkspace: Response.data.workspace keys: ${Object.keys(result.data.workspace).join(', ')}`
-                    )
-                }
-            }
-
-            this.logging.log(`CreateWorkspace: FES client response: ${JSON.stringify(result)}`)
-
-            // Handle both nested workspace object and direct field responses (like manual HTTP version)
             if (result && result.success && result.data) {
                 const workspaceId = result.data.workspace?.id || result.data.workspaceId
                 const name = result.data.workspace?.name || result.data.name
@@ -720,66 +641,6 @@ export class TransformHandler {
             }
         } catch (error) {
             this.logging.error(`Error in CreateWorkspace: ${error instanceof Error ? error.message : 'Unknown error'}`)
-            return null
-        }
-    }
-
-    /**
-     * Creates an artifact upload URL using ATX FES API with FES TypeScript client
-     */
-    private async createArtifactUploadUrl(
-        workspaceId: string,
-        jobId: string,
-        payloadFilePath: string
-    ): Promise<{ uploadId: string; uploadUrl: string; requestHeaders?: any } | null> {
-        try {
-            this.logging.log('=== ATX FES CreateArtifactUploadUrl Operation (FES Client) ===')
-            this.logging.log(`Creating upload URL for job: ${jobId}`)
-
-            if (!(await this.ensureATXClient())) {
-                this.logging.error('CreateArtifactUploadUrl: Failed to initialize FES client')
-                return null
-            }
-
-            // Calculate file checksum
-            const sha256 = await ArtifactManager.getSha256Async(payloadFilePath)
-
-            // Call FES client createArtifactUploadUrl method
-            const result = await this.fesClient.createArtifactUploadUrl({
-                workspaceId: workspaceId,
-                jobId: jobId,
-                contentDigest: {
-                    Sha256: sha256,
-                },
-                artifactReference: {
-                    artifactType: {
-                        categoryType: 'CUSTOMER_OUTPUT', // ✅ Fixed: User uploads source code
-                        fileType: 'ZIP',
-                    },
-                },
-            })
-
-            this.logging.log(`CreateArtifactUploadUrl: FES client response: ${JSON.stringify(result)}`)
-
-            const artifactId = result.artifactId
-            const s3PreSignedUrl = result.s3PreSignedUrl
-            const requestHeaders = result.requestHeaders
-
-            if (artifactId && s3PreSignedUrl) {
-                this.logging.log(`CreateArtifactUploadUrl: SUCCESS - Upload URL created with artifactId: ${artifactId}`)
-                return {
-                    uploadId: artifactId,
-                    uploadUrl: s3PreSignedUrl,
-                    requestHeaders: requestHeaders,
-                }
-            } else {
-                this.logging.error(`CreateArtifactUploadUrl: No artifactId or s3PreSignedUrl in response`)
-                return null
-            }
-        } catch (error) {
-            this.logging.error(
-                `Error in CreateArtifactUploadUrl: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
             return null
         }
     }
@@ -843,43 +704,6 @@ export class TransformHandler {
                 }
             }
 
-            return false
-        }
-    }
-
-    /**
-     * Completes artifact upload notification to ATX FES using FES TypeScript client
-     */
-    private async completeArtifactUpload(workspaceId: string, jobId: string, artifactId: string): Promise<boolean> {
-        try {
-            this.logging.log('=== ATX FES CompleteArtifactUpload Operation (FES Client) ===')
-            this.logging.log(`Completing upload for artifactId: ${artifactId}`)
-
-            if (!(await this.ensureATXClient())) {
-                this.logging.error('CompleteArtifactUpload: Failed to initialize FES client')
-                return false
-            }
-
-            // Call FES client completeArtifactUpload method
-            const result = await this.fesClient.completeArtifactUpload({
-                workspaceId: workspaceId,
-                jobId: jobId,
-                artifactId: artifactId,
-            })
-
-            this.logging.log(`CompleteArtifactUpload: FES client response: ${JSON.stringify(result)}`)
-
-            if (result.artifact) {
-                this.logging.log(`CompleteArtifactUpload: SUCCESS - Artifact upload completed`)
-                return true
-            } else {
-                this.logging.error(`CompleteArtifactUpload: No artifact in response`)
-                return false
-            }
-        } catch (error) {
-            this.logging.error(
-                `Error in CompleteArtifactUpload: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
             return false
         }
     }
@@ -1170,6 +994,29 @@ export class TransformHandler {
     }
 
     /**
+     * Gets the ARN for the active Transform profile
+     */
+    private async getActiveTransformProfileArn(): Promise<string | null> {
+        try {
+            // Get active profile ARN directly from service manager
+            const activeProfileArn = this.serviceManager.getActiveProfileArn()
+
+            // Verify it's a Transform profile
+            if (activeProfileArn && activeProfileArn.includes(':transform:')) {
+                return activeProfileArn
+            }
+
+            this.logging.log(`Active profile ${activeProfileArn} is not a Transform profile`)
+            return null
+        } catch (error) {
+            this.logging.error(
+                `Error getting active Transform profile ARN: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+            return null
+        }
+    }
+
+    /**
      * Refreshes the bearer token when it expires (403 errors)
      */
     private async refreshBearerToken(): Promise<boolean> {
@@ -1244,7 +1091,7 @@ export class TransformHandler {
      */
     private async getATXFESJobStatus(jobId: string): Promise<{ status: string; createdAt?: string } | null> {
         try {
-            this.logging.log('=== ATX FES GetJob Operation (Manual HTTP) ===')
+            this.logging.log('=== ATX FES GetJob Operation (FES Client) ===')
             this.logging.log(`Getting status for job: ${jobId}`)
 
             const credentialsProvider = (this.serviceManager as any).features?.credentialsProvider
@@ -1345,41 +1192,15 @@ export class TransformHandler {
     }
 
     /**
-     * Handle COMPLETED status - download transformation artifacts
+     * Handle COMPLETED status - job completed, ready for download
      */
     private async handleCompletedStatus(workspaceId: string, jobId: string): Promise<void> {
         try {
-            this.logging.log(`ATX FES Job ${jobId} completed - preparing to download artifacts...`)
+            this.logging.log(`ATX FES Job ${jobId} completed - transformation finished successfully`)
+            this.logging.log(`ATX FES Job ${jobId} - Artifacts are ready for download when IDE requests them`)
 
-            // List available CUSTOMER_OUTPUT artifacts using FES client
-            const artifacts = await this.listArtifactsFESClient(workspaceId, jobId)
-            if (artifacts && artifacts.length > 0) {
-                this.logging.log(
-                    `ATX FES Job ${jobId} - Found ${artifacts.length} CUSTOMER_OUTPUT artifacts available for download`
-                )
-
-                // Download each artifact using FES client
-                for (const artifact of artifacts) {
-                    if (artifact.artifactId) {
-                        this.logging.log(
-                            `ATX FES Job ${jobId} - Creating download URL for artifact: ${artifact.artifactId}`
-                        )
-                        const downloadResult = await this.createArtifactDownloadUrlFESClient(
-                            workspaceId,
-                            jobId,
-                            artifact.artifactId
-                        )
-                        if (downloadResult && downloadResult.downloadUrl) {
-                            this.logging.log(
-                                `ATX FES Job ${jobId} - Artifact download URL created: ${downloadResult.downloadUrl}`
-                            )
-                            // Note: Actual download would be handled by the IDE
-                        }
-                    }
-                }
-            } else {
-                this.logging.log(`ATX FES Job ${jobId} - No CUSTOMER_OUTPUT artifacts available for download`)
-            }
+            // Note: Actual download will happen when IDE calls downloadExportResultArchive
+            // We don't download here to avoid duplicate operations
         } catch (error) {
             this.logging.error(
                 `Error handling completed status for job ${jobId}: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -1453,6 +1274,7 @@ export class TransformHandler {
 
     /**
      * Get job plan steps from ATX FES ListJobPlanSteps API using FES TypeScript client
+     * Only returns steps if job status >= PLANNED
      */
     private async getATXFESJobPlanSteps(jobId: string): Promise<any[] | null> {
         try {
@@ -1462,10 +1284,40 @@ export class TransformHandler {
                 return null
             }
 
+            // First check job status - only get plan steps if job is PLANNED or later
+            this.logging.log('ATX FES: Checking job status before getting plan steps...')
+            const jobResponse = await this.getJobFESClient(workspaceId, jobId)
+
+            if (!jobResponse || !jobResponse.job || !jobResponse.job.statusDetails) {
+                this.logging.error('ATX FES: Could not get job status - invalid response structure')
+                return null
+            }
+
+            const currentStatus = jobResponse.job.statusDetails.status.toUpperCase()
+            this.logging.log(`ATX FES: Current job status: ${currentStatus}`)
+
+            // Only get plan steps if job has reached PLANNED status or later (per Smithy model)
+            const plannedStatuses = [
+                'PLANNED',
+                'EXECUTING',
+                'AWAITING_HUMAN_INPUT',
+                'COMPLETED',
+                'FAILED',
+                'STOPPING',
+                'STOPPED',
+            ]
+            if (!plannedStatuses.includes(currentStatus)) {
+                this.logging.log(
+                    `ATX FES: Job status ${currentStatus} - plan steps not available yet. Need status >= PLANNED`
+                )
+                return null // Return null so IDE knows plan isn't ready yet
+            }
+
+            this.logging.log(`ATX FES: Job status ${currentStatus} - getting plan steps with substeps...`)
             const result = await this.listJobPlanStepsFESClient(workspaceId, jobId)
             if (result) {
                 const steps = result || []
-                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${steps.length} plan steps`)
+                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${steps.length} plan steps with substeps`)
                 return steps
             }
             return null
@@ -1582,8 +1434,8 @@ export class TransformHandler {
                             ErrorCode: TransformationErrorCode.NONE,
                         } as GetTransformResponse
                     } else {
-                        // Fallback to placeholder if API call fails
-                        this.logging.log('ATX FES GetJob failed, using placeholder')
+                        // Fallback if API call fails
+                        this.logging.log('ATX FES GetJob failed, using fallback response')
                         return {
                             TransformationJob: {
                                 jobId: request.TransformationJobId,
@@ -1597,7 +1449,7 @@ export class TransformHandler {
                     this.logging.error(
                         `ATX FES GetJob error: ${error instanceof Error ? error.message : 'Unknown error'}`
                     )
-                    // Return placeholder on error
+                    // Return fallback response on error
                     return {
                         TransformationJob: {
                             jobId: request.TransformationJobId,
@@ -1647,38 +1499,123 @@ export class TransformHandler {
             this.logging.log('Using ATX FES for Transform profile - real ListJobPlanSteps')
 
             try {
-                // Get real plan steps from ATX FES
+                // Get real plan steps from ATX FES (only if job status >= PLANNED)
                 const planSteps = await this.getATXFESJobPlanSteps(request.TransformationJobId)
 
                 if (planSteps) {
                     this.logging.log(`ATX FES: Found ${planSteps.length} transformation steps`)
 
+                    // Sort steps by score (primary) and startTime (tiebreaker) to match RTS ordering
+                    planSteps.sort((a: any, b: any) => {
+                        const scoreDiff = (a.score || 0) - (b.score || 0)
+                        if (scoreDiff !== 0) return scoreDiff
+
+                        // Tiebreaker for identical scores: sort by startTime
+                        const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
+                        const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
+                        return timeA - timeB
+                    })
+
                     // Return in exact same format as RTS with all required fields
                     const mappedResponse = {
                         TransformationPlan: {
-                            transformationSteps: planSteps.map((step: any) => ({
-                                id: step.stepId || 'unknown',
-                                name: step.stepName || 'Unknown Step',
-                                description: step.description || '',
-                                status: step.status || 'NOT_STARTED',
-                                progressUpdates: [],
-                                startTime: step.startTime ? new Date(step.startTime * 1000) : undefined,
-                                endTime: step.endTime ? new Date(step.endTime * 1000) : undefined,
-                            })),
+                            transformationSteps: planSteps.map((step: any, index: number) => {
+                                try {
+                                    // Map substeps to ProgressUpdates for IDE display
+                                    const progressUpdates = (step.substeps || []).map((substep: any) => {
+                                        // Map ATX substep status to IDE TransformationProgressUpdateStatus enum values
+                                        let substepStatus = 'IN_PROGRESS' // Default - no NOT_STARTED in this enum
+                                        switch (substep.status) {
+                                            case 'SUCCEEDED':
+                                            case 'COMPLETED':
+                                                substepStatus = 'COMPLETED'
+                                                break
+                                            case 'IN_PROGRESS':
+                                            case 'RUNNING':
+                                                substepStatus = 'IN_PROGRESS'
+                                                break
+                                            case 'FAILED':
+                                                substepStatus = 'FAILED'
+                                                break
+                                            case 'SKIPPED':
+                                                substepStatus = 'SKIPPED'
+                                                break
+                                            case 'NOT_STARTED':
+                                            case 'CREATED':
+                                            default:
+                                                substepStatus = 'IN_PROGRESS' // No NOT_STARTED option in ProgressUpdate enum
+                                                break
+                                        }
+
+                                        return {
+                                            name: substep.stepName || 'Unknown Substep',
+                                            description: substep.description || '',
+                                            status: substepStatus,
+                                            startTime: substep.startTime ? new Date(substep.startTime) : undefined,
+                                            endTime: substep.endTime ? new Date(substep.endTime) : undefined,
+                                        }
+                                    })
+
+                                    // Use ATX status directly - IDE supports most values, minimal mapping needed
+                                    let mappedStatus = step.status || 'NOT_STARTED'
+                                    // Only map the few values IDE doesn't have
+                                    if (mappedStatus === 'SUCCEEDED') {
+                                        mappedStatus = 'COMPLETED'
+                                    } else if (mappedStatus === 'RUNNING') {
+                                        mappedStatus = 'IN_PROGRESS'
+                                    } else if (mappedStatus === 'CREATED') {
+                                        mappedStatus = 'NOT_STARTED'
+                                    }
+
+                                    // Use ATX step data directly without hardcoded ordering
+                                    const stepNumber = index + 1
+                                    const stepName = `Step ${stepNumber} - ${step.stepName || 'Unknown Step'}`
+
+                                    this.logging.log(
+                                        `ATX Step ${stepNumber}: ${step.stepName} (${step.status} → ${mappedStatus}) with ${progressUpdates.length} substeps`
+                                    )
+
+                                    return {
+                                        id: step.stepId || `step-${stepNumber}`,
+                                        name: stepName,
+                                        description: step.description || '',
+                                        status: mappedStatus,
+                                        progressUpdates: progressUpdates,
+                                        startTime: step.startTime ? new Date(step.startTime) : undefined,
+                                        endTime: step.endTime ? new Date(step.endTime) : undefined,
+                                    }
+                                } catch (error) {
+                                    this.logging.error(
+                                        `ATX FES: Error mapping step ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`
+                                    )
+                                    // Return a safe fallback step
+                                    const stepNumber = index + 1
+                                    return {
+                                        id: step.stepId || `fallback-${stepNumber}`,
+                                        name: `Step ${stepNumber} - ${step.stepName || `Step ${stepNumber}`}`,
+                                        description: step.description || '',
+                                        status: 'NOT_STARTED',
+                                        progressUpdates: [],
+                                        startTime: undefined,
+                                        endTime: undefined,
+                                    }
+                                }
+                            }),
                         },
                     } as GetTransformPlanResponse
 
                     this.logging.log(
-                        `ATX FES: Returning mapped response with ${mappedResponse.TransformationPlan.transformationSteps?.length || 0} steps`
+                        `ATX FES: Successfully mapped ${mappedResponse.TransformationPlan.transformationSteps?.length || 0} steps`
                     )
-                    this.logging.log(
-                        `ATX FES: First step mapped - id: ${mappedResponse.TransformationPlan.transformationSteps?.[0]?.id}, name: ${mappedResponse.TransformationPlan.transformationSteps?.[0]?.name}`
-                    )
+                    if (mappedResponse.TransformationPlan.transformationSteps?.[0]) {
+                        this.logging.log(
+                            `ATX FES: First step mapped - id: ${mappedResponse.TransformationPlan.transformationSteps[0].id}, name: ${mappedResponse.TransformationPlan.transformationSteps[0].name}`
+                        )
+                    }
 
                     return mappedResponse
                 } else {
-                    // Fallback to empty plan if API call fails
-                    this.logging.log('ATX FES ListJobPlanSteps failed, returning empty plan')
+                    this.logging.log('ATX FES: No plan steps available yet - returning empty plan')
                     return {
                         TransformationPlan: {
                             transformationSteps: [] as any,
@@ -1839,8 +1776,8 @@ export class TransformHandler {
                         ErrorCode: TransformationErrorCode.NONE,
                     } as GetTransformResponse
                 } else {
-                    // Fallback to placeholder if API call fails
-                    this.logging.log('ATX FES polling failed, using placeholder')
+                    // Fallback if API call fails
+                    this.logging.log('ATX FES polling failed, using fallback response')
                     return {
                         TransformationJob: {
                             jobId: request.TransformationJobId,
@@ -1852,7 +1789,7 @@ export class TransformHandler {
                 }
             } catch (error) {
                 this.logging.error(`ATX FES polling error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-                // Return placeholder on error
+                // Return fallback response on error
                 return {
                     TransformationJob: {
                         jobId: request.TransformationJobId,
@@ -1942,53 +1879,76 @@ export class TransformHandler {
     /**
      * ATX FES version of downloadExportResultArchive
      */
-    async downloadExportResultArchiveATXFES(artifactId: string, saveToDir: string) {
+    async downloadExportResultArchiveATXFES(exportId: string, saveToDir: string): Promise<DownloadArtifactsResponse> {
         try {
             this.logging.log('=== ATX FES Download Export Result Archive ===')
+            this.logging.log(`Called with exportId: ${exportId}, saveToDir: ${saveToDir}`)
 
             // Get workspace and job IDs from cached data
             const workspaceId = this.currentWorkspaceId
-            const jobId = artifactId // In ATX FES, artifactId might be the jobId
+            const jobId = exportId // In ATX FES context, exportId should be the jobId
+
+            this.logging.log(`Using workspaceId: ${workspaceId}, jobId: ${jobId}`)
 
             if (!workspaceId) {
                 throw new Error('No workspace ID available for ATX FES download')
             }
 
-            // Step 1: Get download URL
+            this.logging.log(`Listing CUSTOMER_OUTPUT artifacts for job: ${jobId}`)
+            const artifacts = await this.listArtifactsFESClient(workspaceId, jobId)
+            if (!artifacts || artifacts.length === 0) {
+                throw new Error('No CUSTOMER_OUTPUT artifacts available for download')
+            }
+
+            const artifact = artifacts[0]
+            const artifactId = artifact.artifactId
+            this.logging.log(`Found artifact: ${artifactId}, size: ${artifact.sizeInBytes} bytes`)
+
+            this.logging.log(`Creating download URL for artifactId: ${artifactId}`)
             const downloadInfo = await this.createArtifactDownloadUrlFESClient(workspaceId, jobId, artifactId)
             if (!downloadInfo) {
                 throw new Error('Failed to get ATX FES download URL')
             }
 
-            this.logging.log('ATX FES: Got download URL, downloading artifact...')
+            this.logging.log(`Got S3 download URL`)
+            this.logging.log(`Request headers: ${JSON.stringify(Object.keys(downloadInfo.requestHeaders || {}))}`)
 
-            // Step 2: Download from S3
+            this.logging.log('Starting S3 download...')
             const got = await import('got')
-            const response = await got.default.get(downloadInfo.downloadUrl, {
+            const s3Response = await got.default.get(downloadInfo.downloadUrl, {
                 headers: downloadInfo.requestHeaders || {},
-                timeout: { request: 300000 }, // 5 minutes
+                timeout: { request: 300000 },
+                responseType: 'buffer',
             })
 
-            // Step 3: Process like RTS (save and extract)
-            const buffer = [Buffer.from(response.body)]
+            this.logging.log(
+                `S3 download completed - Status: ${s3Response.statusCode}, Size: ${s3Response.body.length} bytes`
+            )
+
+            const buffer = [s3Response.body]
             const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
-            this.logging.log(`ATX FES: Saving artifacts to ${saveToDir}`)
+            this.logging.log(`Saving artifacts to workspace: ${saveToWorkspace}`)
 
             const pathContainingArchive = await this.archivePathGenerator(artifactId, buffer, saveToWorkspace)
-            this.logging.log('ATX FES: PathContainingArchive: ' + pathContainingArchive)
+            this.logging.log(`Archive extracted to: ${pathContainingArchive}`)
 
-            return {
+            const downloadResponse = {
                 PathTosave: pathContainingArchive,
             } as DownloadArtifactsResponse
+
+            this.logging.log(`=== ATX FES Download SUCCESS ===`)
+            this.logging.log(`Returning response to IDE: ${JSON.stringify(downloadResponse)}`)
+            return downloadResponse
         } catch (error) {
             this.logging.error(`ATX FES download failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            this.logging.error(`Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`)
             return {
                 Error: error instanceof Error ? error.message : 'ATX FES download failed',
             } as DownloadArtifactsResponse
         }
     }
 
-    async downloadExportResultArchive(exportId: string, saveToDir: string) {
+    async downloadExportResultArchive(exportId: string, saveToDir: string): Promise<DownloadArtifactsResponse> {
         // Check if we should use ATX FES or RTS
         if (this.serviceManager.isAWSTransformProfile()) {
             this.logging.log('Using ATX FES for artifact download')
@@ -2245,7 +2205,7 @@ export class TransformHandler {
                 contentDigest: { Sha256: sha256 },
                 artifactReference: {
                     artifactType: {
-                        categoryType: 'CUSTOMER_OUTPUT', // ✅ Fixed: User uploads source code
+                        categoryType: 'CUSTOMER_INPUT',
                         fileType: 'ZIP',
                     },
                 },
@@ -2297,7 +2257,8 @@ export class TransformHandler {
             })
 
             await this.addBearerTokenToCommand(command)
-            await this.atxClient!.send(command)
+            const result = await this.atxClient!.send(command)
+            this.logATXFESResponse('CompleteArtifactUpload', result)
 
             this.logging.log(`CompleteArtifactUpload: SUCCESS`)
             return true
@@ -2310,7 +2271,7 @@ export class TransformHandler {
     }
 
     /**
-     * Lists job plan steps using FES client
+     * Lists job plan steps using FES client with recursive substep fetching
      */
     private async listJobPlanStepsFESClient(workspaceId: string, jobId: string): Promise<any[] | null> {
         try {
@@ -2321,21 +2282,79 @@ export class TransformHandler {
                 return null
             }
 
+            // Get root steps first
+            const rootSteps = await this.getStepsRecursive(workspaceId, jobId, 'root')
+
+            if (rootSteps && rootSteps.length > 0) {
+                // For each root step, get its substeps
+                for (const step of rootSteps) {
+                    this.logging.log(`Getting substeps for step: ${step.stepName} (ID: ${step.stepId})`)
+                    const substeps = await this.getStepsRecursive(workspaceId, jobId, step.stepId)
+                    step.substeps = substeps || []
+
+                    // Sort substeps by score (primary) and startTime (tiebreaker) to match RTS ordering
+                    if (step.substeps.length > 0) {
+                        step.substeps.sort((a: any, b: any) => {
+                            const scoreDiff = (a.score || 0) - (b.score || 0)
+                            if (scoreDiff !== 0) return scoreDiff
+
+                            // Tiebreaker for identical scores: sort by startTime
+                            const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
+                            const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
+                            return timeA - timeB
+                        })
+                    }
+
+                    this.logging.log(`Step ${step.stepName}: Found ${step.substeps.length} substeps`)
+
+                    // Log substep details for debugging
+                    if (step.substeps.length > 0) {
+                        step.substeps.forEach((substep: any, index: number) => {
+                            this.logging.log(
+                                `  Substep ${index + 1}: ${substep.stepName} (${substep.status || 'No status'})`
+                            )
+                        })
+                    }
+                }
+
+                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${rootSteps.length} steps with substeps`)
+                return rootSteps
+            }
+
+            this.logging.log('ListJobPlanSteps: No root steps found')
+            return null
+        } catch (error) {
+            this.logging.error(`ListJobPlanSteps error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Recursively gets steps for a given parent step ID
+     */
+    private async getStepsRecursive(workspaceId: string, jobId: string, parentStepId: string): Promise<any[] | null> {
+        try {
             const command = new ListJobPlanStepsCommand({
                 workspaceId: workspaceId,
                 jobId: jobId,
-                parentStepId: 'root',
+                parentStepId: parentStepId,
                 maxResults: 100,
             })
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('ListJobPlanSteps', result)
+            this.logATXFESResponse(`ListJobPlanSteps(${parentStepId})`, result)
 
-            this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${result.steps?.length || 0} steps`)
-            return result.steps || []
+            if (result && result.steps && result.steps.length > 0) {
+                this.logging.log(`Found ${result.steps.length} steps for parent: ${parentStepId}`)
+                return result.steps
+            }
+
+            return null
         } catch (error) {
-            this.logging.error(`ListJobPlanSteps error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            this.logging.error(
+                `Error getting steps for parent ${parentStepId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
             return null
         }
     }
@@ -2433,9 +2452,17 @@ export class TransformHandler {
 
             if (result && result.s3PreSignedUrl) {
                 this.logging.log(`CreateArtifactDownloadUrl: SUCCESS - Download URL created`)
+
+                const normalizedHeaders: Record<string, string> = {}
+                if (result.requestHeaders) {
+                    for (const [key, value] of Object.entries(result.requestHeaders)) {
+                        normalizedHeaders[key] = Array.isArray(value) ? value[0] : value
+                    }
+                }
+
                 return {
                     downloadUrl: result.s3PreSignedUrl,
-                    requestHeaders: result.requestHeaders,
+                    requestHeaders: normalizedHeaders,
                 }
             } else {
                 this.logging.error('CreateArtifactDownloadUrl: Missing s3PreSignedUrl in response')
@@ -2467,7 +2494,6 @@ export class TransformHandler {
 
             this.logging.log(`ListWorkspaces: SUCCESS - Found ${response.items?.length || 0} workspaces`)
 
-            // Convert ATX response format to expected format
             const workspaces = (response.items || []).map(workspace => ({
                 Id: workspace.id,
                 Name: workspace.name,
@@ -2494,25 +2520,62 @@ export class TransformHandler {
                 return null
             }
 
-            const command = new CreateWorkspaceCommand({
-                name: name || undefined, // Let backend generate name if null
-                idempotencyToken: uuidv4(),
-            })
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    this.logging.log(`CreateWorkspace: Attempt ${attempt}/3`)
 
-            await this.addBearerTokenToCommand(command)
-            const response = await this.atxClient!.send(command)
+                    this.logging.log('CreateWorkspace: Calling verifySession first to establish tenant mapping...')
+                    const verifyCommand = new VerifySessionCommand({})
+                    await this.addBearerTokenToCommand(verifyCommand)
+                    const sessionResult = await this.atxClient!.send(verifyCommand)
 
-            const workspaceId = response.workspace?.id
-            const workspaceName = response.workspace?.name
-            this.logging.log(`CreateWorkspace: SUCCESS - Created workspace ${workspaceId}`)
-            this.logging.log(`CreateWorkspace: Workspace name: ${workspaceName || 'not provided'}`)
+                    if (!sessionResult || !sessionResult.userId) {
+                        this.logging.error('CreateWorkspace: VerifySession failed - cannot establish tenant mapping')
+                        if (attempt === 3) return null
+                        continue
+                    }
 
-            // Return both ID and name as JSON string (temporary solution)
-            // Format: "workspaceId|workspaceName"
-            if (workspaceId && workspaceName) {
-                return `${workspaceId}|${workspaceName}`
+                    this.logging.log('CreateWorkspace: Session verified, proceeding with CreateWorkspace...')
+
+                    await new Promise(resolve => setTimeout(resolve, 100))
+
+                    const command = new CreateWorkspaceCommand({
+                        name: name || undefined,
+                        idempotencyToken: uuidv4(),
+                    })
+
+                    await this.addBearerTokenToCommand(command)
+                    const response = await this.atxClient!.send(command)
+
+                    const workspaceId = response.workspace?.id
+                    const workspaceName = response.workspace?.name
+                    this.logging.log(`CreateWorkspace: SUCCESS - Created workspace ${workspaceId}`)
+                    this.logging.log(`CreateWorkspace: Workspace name: ${workspaceName || 'not provided'}`)
+
+                    if (workspaceId && workspaceName) {
+                        return `${workspaceId}|${workspaceName}`
+                    }
+                    return workspaceId || null
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                    this.logging.error(`CreateWorkspace attempt ${attempt} error: ${errorMessage}`)
+
+                    if (errorMessage.includes('User to tenant mapping does not exist') && attempt < 3) {
+                        this.logging.log(`Retrying CreateWorkspace due to tenant mapping error...`)
+                        this.atxClient = null
+                        this.cachedApplicationUrl = null
+                        await this.ensureATXClient()
+                        continue
+                    }
+
+                    if (attempt === 3) {
+                        this.logging.error(`CreateWorkspace failed after ${attempt} attempts`)
+                        return null
+                    }
+                }
             }
-            return workspaceId || null
+
+            return null
         } catch (error) {
             this.logging.error(`CreateWorkspace error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return null
