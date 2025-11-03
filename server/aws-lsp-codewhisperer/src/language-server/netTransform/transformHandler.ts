@@ -2482,11 +2482,12 @@ export class TransformHandler {
 
             const command = new ListWorklogsCommand({
                 workspaceId: workspaceId,
-                objective: JSON.stringify({ target_framework: '.NET 8.0' }),
-                jobType: 'DOTNET_IDE' as any, // Now available in package 2
-                jobName: jobId,
-                intent: 'LANGUAGE_UPGRADE',
-                idempotencyToken: uuidv4(),
+                jobId: jobId,
+                // objective: JSON.stringify({ target_framework: '.NET 8.0' }),
+                // jobType: 'DOTNET_IDE' as any, // Now available in package 2
+                // jobName: jobId,
+                // intent: 'LANGUAGE_UPGRADE',
+                // idempotencyToken: uuidv4(),
             })
 
             await this.addBearerTokenToCommand(command)
