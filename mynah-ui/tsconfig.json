@@ -9,7 +9,7 @@
         "outDir": "./dist",
         "sourceMap": true,
         "declaration": true,
-        "strict": true,
+        "strict": false,
         "skipLibCheck": true,
         "preserveConstEnums": true,
         "typeRoots": ["./node_modules/@types"],
