@@ -34,6 +34,7 @@ import {
 import { TransformHandler } from './transformHandler'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
+export const validStatesForAssessment = ['Planning', 'AWAITING_HUMAN_INPUT']
 export const validStatesForComplete = ['COMPLETED']
 export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
 const StartTransformCommand = 'aws/qNetTransform/startTransform'
@@ -48,6 +49,7 @@ const ListWorkspacesCommand = 'aws/qNetTransform/listWorkspaces'
 const CreateWorkspaceCommand = 'aws/qNetTransform/createWorkspace'
 const GetEditablePlanCommand = 'aws/qNetTransform/getEditablePlan'
 const UploadEditablePlanCommand = 'aws/qNetTransform/uploadEditablePlan'
+const PollTransformForAssessmentCommand = 'aws/qNetTransform/pollTransformForAssessment'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -171,6 +173,17 @@ export const QNetTransformServerToken =
                         const request = params as UploadEditablePlanRequest
                         const response = await transformHandler.uploadEditablePlan(request)
 
+                        return response
+                    }
+                    case PollTransformForAssessmentCommand: {
+                        logging.log('LSP: Received PollTransform For Assessment request')
+                        const request = params as GetTransformRequest
+
+                        const response = await transformHandler.pollTransformation(
+                            request,
+                            validStatesForAssessment,
+                            failureStates
+                        )
                         return response
                     }
                 }

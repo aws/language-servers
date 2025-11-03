@@ -1780,14 +1780,17 @@ export class TransformHandler {
         if (this.serviceManager.isAWSTransformProfile()) {
             this.logging.log('Using ATX FES for Transform profile - real polling')
 
+            if (!validExitStatus.includes('Planning')) {
+                validExitStatus = ['AWAITING_HUMAN_INPUT']
+            }
+
             try {
                 // Get real job status from ATX FES
-
                 var count = 0
                 while (count < 300) {
                     const jobStatus = await this.getATXFESJobStatus(request.TransformationJobId)
 
-                    if (jobStatus && jobStatus.originalStatus == 'AWAITING_HUMAN_INPUT') {
+                    if (jobStatus && validExitStatus.includes(jobStatus.originalStatus)) {
                         return {
                             TransformationJob: {
                                 jobId: request.TransformationJobId,
@@ -1796,7 +1799,7 @@ export class TransformHandler {
                             } as any,
                             ErrorCode: TransformationErrorCode.NONE,
                         } as GetTransformResponse
-                    } else if (jobStatus && jobStatus.originalStatus == 'FAILED') {
+                    } else if (jobStatus && failureStates.includes(jobStatus.originalStatus)) {
                         // Fallback to placeholder if API call fails
                         this.logging.log('ATX FES polling failed, using placeholder')
                         return {
