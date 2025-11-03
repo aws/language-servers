@@ -1,9 +1,14 @@
 import { ExportIntent } from '@amzn/codewhisperer-streaming'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
+import * as archiver from 'archiver'
 import got from 'got'
 import { v4 as uuidv4 } from 'uuid'
-import { ElasticGumbyFrontendClient } from '@amazon/elastic-gumby-frontend-client'
+import {
+    ElasticGumbyFrontendClient,
+    GetHitlTaskCommand,
+    UpdateHitlTaskResponse,
+} from '@amazon/elastic-gumby-frontend-client'
 import {
     VerifySessionCommand,
     ListWorkspacesCommand,
@@ -18,6 +23,11 @@ import {
     CompleteArtifactUploadCommand,
     ListAvailableProfilesCommand,
     ListArtifactsCommand,
+    CategoryType,
+    ListHitlTasksCommand,
+    SubmitStandardHitlTaskCommand,
+    UpdateHitlTaskCommand,
+    FileType,
     ListWorklogsCommand,
 } from '@amazon/elastic-gumby-frontend-client'
 import {
@@ -42,6 +52,10 @@ import {
     TransformProjectMetadata,
     PollTransformationStatus,
     TransformationErrorCode,
+    GetEditablePlanRequest,
+    GetEditablePlanResponse,
+    UploadEditablePlanRequest,
+    UploadEditablePlanResponse,
 } from './models'
 import * as validation from './validation'
 import path = require('path')
@@ -78,6 +92,7 @@ export class TransformHandler {
     private cachedApplicationUrl: string | null = null
     private fesClient: any = null
     private atxClient: ElasticGumbyFrontendClient | null = null
+    private cachedHitlId: string | null = null
 
     constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -1090,7 +1105,9 @@ export class TransformHandler {
     /**
      * Get job status from ATX FES GetJob API with complete workflow handling
      */
-    private async getATXFESJobStatus(jobId: string): Promise<{ status: string; createdAt?: string } | null> {
+    private async getATXFESJobStatus(
+        jobId: string
+    ): Promise<{ status: string; createdAt?: string; originalStatus: string } | null> {
         try {
             this.logging.log('=== ATX FES GetJob Operation (FES Client) ===')
             this.logging.log(`Getting status for job: ${jobId}`)
@@ -1125,6 +1142,7 @@ export class TransformHandler {
                 return {
                     status: mappedStatus,
                     createdAt: result.job?.creationTime || result.creationTime,
+                    originalStatus: atxStatus,
                 }
             } else {
                 this.logging.error('GetJob: Failed to get job status')
@@ -1770,30 +1788,41 @@ export class TransformHandler {
         if (this.serviceManager.isAWSTransformProfile()) {
             this.logging.log('Using ATX FES for Transform profile - real polling')
 
+            if (!validExitStatus.includes('Planning')) {
+                validExitStatus = ['AWAITING_HUMAN_INPUT']
+            }
+
             try {
                 // Get real job status from ATX FES
-                const jobStatus = await this.getATXFESJobStatus(request.TransformationJobId)
+                var count = 0
+                while (count < 300) {
+                    const jobStatus = await this.getATXFESJobStatus(request.TransformationJobId)
 
-                if (jobStatus) {
-                    return {
-                        TransformationJob: {
-                            jobId: request.TransformationJobId,
-                            status: jobStatus.status,
-                            creationTime: jobStatus.createdAt ? new Date(jobStatus.createdAt) : new Date(),
-                        } as any,
-                        ErrorCode: TransformationErrorCode.NONE,
-                    } as GetTransformResponse
-                } else {
-                    // Fallback if API call fails
-                    this.logging.log('ATX FES polling failed, using fallback response')
-                    return {
-                        TransformationJob: {
-                            jobId: request.TransformationJobId,
-                            status: 'IN_PROGRESS',
-                            creationTime: new Date(),
-                        } as any,
-                        ErrorCode: TransformationErrorCode.NONE,
-                    } as GetTransformResponse
+                    if (jobStatus && validExitStatus.includes(jobStatus.originalStatus)) {
+                        return {
+                            TransformationJob: {
+                                jobId: request.TransformationJobId,
+                                status: jobStatus.status,
+                                creationTime: jobStatus.createdAt ? new Date(jobStatus.createdAt) : new Date(),
+                            } as any,
+                            ErrorCode: TransformationErrorCode.NONE,
+                        } as GetTransformResponse
+                    } else if (jobStatus && failureStates.includes(jobStatus.originalStatus)) {
+                        // Fallback to placeholder if API call fails
+                        this.logging.log('ATX FES polling failed, using placeholder')
+                        return {
+                            TransformationJob: {
+                                jobId: request.TransformationJobId,
+                                status: 'IN_PROGRESS',
+                                creationTime: new Date(),
+                            } as any,
+                            ErrorCode: TransformationErrorCode.NONE,
+                        } as GetTransformResponse
+                    } else {
+                        this.logging.log('ATX FES polling in progress....')
+                        await this.sleep(10 * 1000)
+                        count++
+                    }
                 }
             } catch (error) {
                 this.logging.error(`ATX FES polling error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -2194,7 +2223,9 @@ export class TransformHandler {
     private async createArtifactUploadUrlFESClient(
         workspaceId: string,
         jobId: string,
-        payloadFilePath: string
+        payloadFilePath: string,
+        categoryType: CategoryType = 'CUSTOMER_INPUT',
+        fileType: FileType = 'ZIP'
     ): Promise<{ uploadId: string; uploadUrl: string; requestHeaders?: any } | null> {
         try {
             this.logging.log('=== ATX FES CreateArtifactUploadUrl Operation (FES Client) ===')
@@ -2213,8 +2244,8 @@ export class TransformHandler {
                 contentDigest: { Sha256: sha256 },
                 artifactReference: {
                     artifactType: {
-                        categoryType: 'CUSTOMER_OUTPUT',
-                        fileType: 'ZIP',
+                        categoryType: categoryType, // ✅ Fixed: User uploads source code
+                        fileType: fileType,
                     },
                 },
             })
@@ -2398,9 +2429,13 @@ export class TransformHandler {
     }
 
     /**
-     * Lists artifacts using FES client with CUSTOMER_OUTPUT filtering
+     * Lists artifacts using FES client with filtering - default to CUSTOMER_OUTPUT
      */
-    private async listArtifactsFESClient(workspaceId: string, jobId: string): Promise<any[] | null> {
+    private async listArtifactsFESClient(
+        workspaceId: string,
+        jobId: string,
+        filter: CategoryType = 'CUSTOMER_OUTPUT'
+    ): Promise<any[] | null> {
         try {
             this.logging.log('=== ATX FES ListArtifacts Operation (FES Client) ===')
             this.logging.log(`Listing artifacts for job: ${jobId} in workspace: ${workspaceId}`)
@@ -2414,7 +2449,7 @@ export class TransformHandler {
                 workspaceId: workspaceId,
                 jobFilter: {
                     jobId: jobId,
-                    categoryType: 'CUSTOMER_OUTPUT', // Server-side filtering for customer output artifacts
+                    categoryType: filter, // Server-side filtering for customer output artifacts
                 },
             })
 
@@ -2447,11 +2482,12 @@ export class TransformHandler {
 
             const command = new ListWorklogsCommand({
                 workspaceId: workspaceId,
-                objective: JSON.stringify({ target_framework: '.NET 8.0' }),
-                jobType: 'DOTNET_IDE' as any, // Now available in package 2
-                jobName: jobId,
-                intent: 'LANGUAGE_UPGRADE',
-                idempotencyToken: uuidv4(),
+                jobId: jobId,
+                // objective: JSON.stringify({ target_framework: '.NET 8.0' }),
+                // jobType: 'DOTNET_IDE' as any, // Now available in package 2
+                // jobName: jobId,
+                // intent: 'LANGUAGE_UPGRADE',
+                // idempotencyToken: uuidv4(),
             })
 
             await this.addBearerTokenToCommand(command)
@@ -2626,5 +2662,374 @@ export class TransformHandler {
             this.logging.error(`CreateWorkspace error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return null
         }
+    }
+
+    /**
+     * Lists Hitls using FES client
+     */
+    private async listHitlsFESClient(workspaceId: string, jobId: string): Promise<any[] | null> {
+        try {
+            this.logging.log('=== ATX FES ListHitls Operation (FES Client) ===')
+            this.logging.log(`Listing Hitls for job: ${jobId} in workspace: ${workspaceId}`)
+
+            if (!(await this.ensureATXClient())) {
+                this.logging.error('ListHitls: Failed to initialize ATX client')
+                return null
+            }
+
+            const command = new ListHitlTasksCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                taskType: 'NORMAL',
+            })
+
+            await this.addBearerTokenToCommand(command)
+            const result = await this.atxClient!.send(command)
+            this.logATXFESResponse('ListHitls', result)
+
+            this.logging.log(`ListHitls: SUCCESS - Found ${result.hitlTasks?.length || 0} HITL_FROM_USER artifacts`)
+            return result.hitlTasks || []
+        } catch (error) {
+            this.logging.error(`ListHitls error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Update Hitl using FES client
+     */
+    private async updateHitlFESClient(
+        workspaceId: string,
+        jobId: string,
+        taskId: string,
+        humanArtifactId: string
+    ): Promise<UpdateHitlTaskResponse | null> {
+        try {
+            this.logging.log('=== ATX FES UpdateHitl Operation (FES Client) ===')
+            this.logging.log(`Updating Hitl: ${taskId} for job: ${jobId} in workspace: ${workspaceId}`)
+
+            if (!(await this.ensureATXClient())) {
+                this.logging.error('UpdateHitl: Failed to initialize ATX client')
+                return null
+            }
+
+            const command = new UpdateHitlTaskCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                taskId: taskId,
+                humanArtifact: {
+                    artifactId: humanArtifactId,
+                },
+                postUpdateAction: 'SEND_FOR_APPROVAL',
+            })
+
+            await this.addBearerTokenToCommand(command)
+            const result = await this.atxClient!.send(command)
+            this.logATXFESResponse('UpdateHitl', result)
+
+            this.logging.log(`UpdateHitl: SUCCESS - task status: ${result.status || 'UNKNOWN'} `)
+            return result
+        } catch (error) {
+            this.logging.error(`ListHitls error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    private async getHitlStatusFES(workspaceId: string, jobId: string, taskId: string): Promise<any | null> {
+        try {
+            this.logging.log('=== ATX FES Get Hitl Operation (FES Client) ===')
+            this.logging.log(`Getting Hitl: ${jobId} in workspace: ${workspaceId}`)
+
+            if (!(await this.ensureATXClient())) {
+                this.logging.error('GetHitl: Failed to initialize ATX client')
+                return null
+            }
+
+            const command = new GetHitlTaskCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                taskId: taskId,
+            })
+
+            await this.addBearerTokenToCommand(command)
+            const result = await this.atxClient!.send(command)
+            this.logATXFESResponse('Get Hitl', result)
+
+            this.logging.log(`GetHitl: SUCCESS - Job data received`)
+            return result.task || null
+        } catch (error) {
+            this.logging.error(`GetHitl error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    private async pollHitlFESClient(workspaceId: string, jobId: string, taskId: string): Promise<boolean> {
+        this.logging.log('Starting polling for hitl after upload')
+
+        try {
+            var count = 0
+            while (count < 300) {
+                const jobStatus = await this.getHitlStatusFES(workspaceId, jobId, taskId)
+
+                if (jobStatus && jobStatus.status == 'CLOSED') {
+                    this.logging.log('Hitl Polling get status CLOSED')
+                    return true
+                } else if (jobStatus && jobStatus.status == 'CANCELED') {
+                    // Fallback to placeholder if API call fails
+                    this.logging.log('Hitl Polling get status CANCELED')
+                    return false
+                } else {
+                    this.logging.log('Hitl polling in progress....')
+                    await this.sleep(10 * 1000)
+                    count++
+                }
+            }
+
+            this.logging.log('Returning false, 300 polls and no approve or reject')
+            return false
+        } catch (error) {
+            this.logging.error(`Hitl polling error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            // Return placeholder on error
+            return false
+        }
+    }
+
+    async getEditablePlan(request: GetEditablePlanRequest): Promise<GetEditablePlanResponse> {
+        this.logging.log('Getting editable plan for path')
+
+        try {
+            this.logging.log('=== ATX FES Get Editable Plan ===')
+
+            // Get workspace and job IDs from cached data
+            const workspaceId = this.currentWorkspaceId
+            const jobId = request.TransformationJobId
+
+            if (!workspaceId) {
+                throw new Error('No workspace ID available for ATX FES download')
+            }
+
+            // List hitls
+
+            const hitls = await this.listHitlsFESClient(workspaceId, jobId)
+
+            if (hitls && hitls.length != 1) {
+                this.logging.log(`ATX FES Job ${jobId} - Found ${hitls.length} hitls`)
+            } else if (!hitls) {
+                this.logging.log(`ATX FES Job ${jobId} - no or many hitls available for download (expects 1 hitl)`)
+
+                // Need to remove this later
+
+                return {
+                    Status: true,
+                    PlanPath: path.join(
+                        request.SolutionRootPath,
+                        workspaceFolderName,
+                        'temp',
+                        'transformation-plan.md'
+                    ),
+                    ReportPath: path.join(
+                        request.SolutionRootPath,
+                        workspaceFolderName,
+                        'temp',
+                        'assessment-report.json'
+                    ),
+                } as GetEditablePlanResponse
+
+                // throw new Error("no or many HITLE_FROM_USER artifacts available for download (expects 1 artifact)")
+            }
+
+            const hitl = hitls[0]
+
+            this.cachedHitlId = hitl.taskId
+
+            const downloadInfo = await this.createArtifactDownloadUrlFESClient(
+                workspaceId,
+                jobId,
+                hitl.agentArtifact.artifactId
+            )
+
+            if (!downloadInfo) {
+                throw new Error('Failed to get ATX FES download URL')
+            }
+
+            this.logging.log(`ATX FES Job ${jobId} - Artifact download URL created: ${downloadInfo.downloadUrl}`)
+
+            const headers = {}
+            if (downloadInfo.requestHeaders) {
+                downloadInfo.requestHeaders.host =
+                    downloadInfo.requestHeaders.host?.[0] ?? downloadInfo.requestHeaders.host
+            }
+
+            // Download from S3
+            const got = await import('got')
+            const response = await got.default.get(downloadInfo.downloadUrl, {
+                headers: downloadInfo.requestHeaders || {},
+                timeout: { request: 300000 }, // 5 minutes
+            })
+
+            // Save, extract, and return paths
+            const buffer = [Buffer.from(response.body)]
+
+            const tempDir = path.join(request.SolutionRootPath, workspaceFolderName, request.TransformationJobId)
+            await this.directoryExists(tempDir)
+            const pathToArchive = path.join(tempDir, 'downloaded-transformation-plans.json')
+            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+            this.logging.log(`Downloaded plan to ${pathToArchive}`)
+
+            // Temporary
+            const pathToPlan = pathToArchive
+            const pathToReport = pathToArchive
+            // let pathContainingArchive = ''
+            // pathContainingArchive = path.dirname(pathToArchive)
+            // const zip = new AdmZip(pathToArchive)
+            // const zipEntries = zip.getEntries()
+            // await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+
+            // const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
+
+            // const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'transformation-plan.md')
+            // const pathToReport = extractedPaths.find(filePath => path.basename(filePath) === 'assessment-report.json')
+
+            return {
+                Status: true,
+                PlanPath: pathToPlan,
+                ReportPath: pathToReport,
+            } as GetEditablePlanResponse
+        } catch (error) {
+            this.logging.error(`ATX FES download failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return {
+                Status: false,
+            } as GetEditablePlanResponse
+        }
+    }
+
+    async uploadEditablePlan(request: UploadEditablePlanRequest): Promise<UploadEditablePlanResponse> {
+        this.logging.log('Uploading editable plan with')
+        this.logging.log(JSON.stringify(request, null, 2))
+        try {
+            // zip transformation-plan
+            const pathToPlan = request.PlanPath
+            // const pathToZip = path.join(tempDir, 'transformation-plan.zip')
+
+            // await this.zipFile(pathToPlan, pathToZip)
+
+            const workspaceId = this.currentWorkspaceId
+            const jobId = request.TransformationJobId
+
+            if (!workspaceId) {
+                throw new Error('No workspace ID available for ATX FES download')
+            }
+
+            // List Hitls
+
+            // const hitls = await this.listHitlsFESClient(workspaceId, jobId)
+
+            // if (hitls && hitls.length != 1) {
+            //     this.logging.log(`ATX FES Job ${jobId} - Found ${hitls.length} hitls`)
+            // } else if (!hitls) {
+            //     this.logging.log(`ATX FES Job ${jobId} - no or many hitls available (expects 1 hitl)`)
+            //     throw new Error('no or many hitls available (expects 1 hitl)')
+            // }
+
+            // const hitl = hitls[0]
+
+            // createartifactuploadurl
+
+            this.logging.log('Creating ATX FES artifact upload URL for transformation-plan.zip...')
+
+            const uploadResult = await this.createArtifactUploadUrlFESClient(
+                this.currentWorkspaceId!,
+                request.TransformationJobId,
+                pathToPlan,
+                'HITL_FROM_USER',
+                'JSON'
+            )
+            if (!uploadResult) {
+                throw new Error('Failed to create ATX FES artifact upload URL')
+            }
+
+            this.logging.log(`ATX FES Upload URL created successfully: ${uploadResult.uploadId}`)
+
+            //  Upload to S3
+            this.logging.log('Uploading transformationplan to S3...')
+            const uploadSuccess = await this.uploadArtifactToS3ATX(
+                pathToPlan,
+                uploadResult.uploadUrl,
+                uploadResult.requestHeaders
+            )
+            if (!uploadSuccess) {
+                throw new Error('Failed to upload artifact to S3')
+            }
+
+            this.logging.log('ATX FES S3 upload completed successfully')
+
+            // CompleteArtifactUpload (using FES client)
+            this.logging.log('Completing ATX FES artifact upload for transformation plan')
+            const completeResult = await this.completeArtifactUploadFESClient(
+                this.currentWorkspaceId!,
+                request.TransformationJobId,
+                uploadResult.uploadId
+            )
+            if (!completeResult) {
+                throw new Error('Failed to complete ATX FES artifact upload')
+            }
+
+            // Update Hitl Task
+
+            this.logging.log('Updating Hitl Task')
+            const updateResult = await this.updateHitlFESClient(
+                this.currentWorkspaceId!,
+                request.TransformationJobId,
+                this.cachedHitlId!,
+                uploadResult.uploadId
+            )
+            if (!updateResult) {
+                throw new Error('Failed to update hitl')
+            }
+
+            this.logging.log('ATX FES Updated hitl successfully')
+        } catch (error) {
+            this.logging.error(
+                `Upload transformation plan failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+
+            // Return error response
+            return {
+                VerificationStatus: false,
+            } as UploadEditablePlanResponse
+        }
+
+        // validate plan
+
+        const validation = await this.pollHitlFESClient(
+            this.currentWorkspaceId!,
+            request.TransformationJobId,
+            this.cachedHitlId!
+        )
+
+        if (validation) {
+            return {
+                VerificationStatus: true,
+            } as UploadEditablePlanResponse
+        }
+
+        return {
+            VerificationStatus: false,
+        } as UploadEditablePlanResponse
+    }
+
+    private async zipFile(sourceFilePath: string, outputZipPath: string): Promise<void> {
+        const archive = archiver('zip', { zlib: { level: 9 } })
+        const stream = fs.createWriteStream(outputZipPath)
+
+        return new Promise<void>((resolve, reject) => {
+            archive
+                .file(sourceFilePath, { name: path.basename(sourceFilePath) })
+                .on('error', err => reject(err))
+                .pipe(stream)
+
+            stream.on('close', () => resolve())
+            archive.finalize()
+        })
     }
 }

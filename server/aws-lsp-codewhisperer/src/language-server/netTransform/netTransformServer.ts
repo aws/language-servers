@@ -28,10 +28,13 @@ import {
     GetTransformPlanRequest,
     GetTransformRequest,
     StartTransformRequest,
+    GetEditablePlanRequest,
+    UploadEditablePlanRequest,
 } from './models'
 import { TransformHandler } from './transformHandler'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
+export const validStatesForAssessment = ['Planning', 'AWAITING_HUMAN_INPUT']
 export const validStatesForComplete = ['COMPLETED']
 export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
 const StartTransformCommand = 'aws/qNetTransform/startTransform'
@@ -44,6 +47,9 @@ const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
 const ListWorkspacesCommand = 'aws/qNetTransform/listWorkspaces'
 const CreateWorkspaceCommand = 'aws/qNetTransform/createWorkspace'
+const GetEditablePlanCommand = 'aws/qNetTransform/getEditablePlan'
+const UploadEditablePlanCommand = 'aws/qNetTransform/uploadEditablePlan'
+const PollTransformForAssessmentCommand = 'aws/qNetTransform/pollTransformForAssessment'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -155,6 +161,31 @@ export const QNetTransformServerToken =
                             )
                         }
                     }
+                    case GetEditablePlanCommand: {
+                        logging.log('LSP: Received GetEditablePlanCommand request')
+                        const request = params as GetEditablePlanRequest
+                        const response = await transformHandler.getEditablePlan(request)
+
+                        return response
+                    }
+                    case UploadEditablePlanCommand: {
+                        logging.log('LSP: Received UploadEditablePlanCommand request')
+                        const request = params as UploadEditablePlanRequest
+                        const response = await transformHandler.uploadEditablePlan(request)
+
+                        return response
+                    }
+                    case PollTransformForAssessmentCommand: {
+                        logging.log('LSP: Received PollTransform For Assessment request')
+                        const request = params as GetTransformRequest
+
+                        const response = await transformHandler.pollTransformation(
+                            request,
+                            validStatesForAssessment,
+                            failureStates
+                        )
+                        return response
+                    }
                 }
                 return
             } catch (e: any) {
@@ -227,6 +258,8 @@ export const QNetTransformServerToken =
                             CancelPollingCommand,
                             ListWorkspacesCommand,
                             CreateWorkspaceCommand,
+                            GetEditablePlanCommand,
+                            UploadEditablePlanCommand,
                         ],
                     },
                 },

@@ -76,6 +76,26 @@ export interface DownloadArtifactsRequest extends ExecuteCommandParams {
     SolutionRootPath: string
 }
 
+export interface GetEditablePlanRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    SolutionRootPath: string
+}
+
+export interface GetEditablePlanResponse {
+    Status: boolean
+    PlanPath: string
+    ReportPath: string
+}
+
+export interface UploadEditablePlanRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    PlanPath: string
+}
+
+export interface UploadEditablePlanResponse {
+    VerificationStatus: boolean
+}
+
 export enum CancellationJobStatus {
     NOT_STARTED,
     IN_PROGRESS,
