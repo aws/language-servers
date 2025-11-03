@@ -2771,10 +2771,11 @@ export class TransformHandler {
                 const jobStatus = await this.getHitlStatusFES(workspaceId, jobId, taskId)
 
                 if (jobStatus && jobStatus.status == 'CLOSED') {
+                    this.logging.log('Hitl Polling get status CLOSED')
                     return true
-                } else if (jobStatus && jobStatus.action == 'REJECT') {
+                } else if (jobStatus && jobStatus.status == 'CANCELED') {
                     // Fallback to placeholder if API call fails
-                    this.logging.log('Hitl Polling get action reject')
+                    this.logging.log('Hitl Polling get status CANCELED')
                     return false
                 } else {
                     this.logging.log('Hitl polling in progress....')
