@@ -89,11 +89,11 @@ export interface GetEditablePlanResponse {
 
 export interface UploadEditablePlanRequest extends ExecuteCommandParams {
     TransformationJobId: string
-    SolutionRootPath: string
+    PlanPath: string
 }
 
 export interface UploadEditablePlanResponse {
-    Status: boolean
+    VerificationStatus: boolean
 }
 
 export enum CancellationJobStatus {
