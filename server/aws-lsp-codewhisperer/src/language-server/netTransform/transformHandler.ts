@@ -28,6 +28,7 @@ import {
     SubmitStandardHitlTaskCommand,
     UpdateHitlTaskCommand,
     FileType,
+    ListWorklogsCommand,
 } from '@amazon/elastic-gumby-frontend-client'
 import {
     CreateUploadUrlResponse,
@@ -1621,6 +1622,13 @@ export class TransformHandler {
                             }),
                         },
                     } as GetTransformPlanResponse
+                    try {
+                        await this.listWorklogsFESClient(this.currentWorkspaceId || '', request.TransformationJobId)
+                    } catch (e) {
+                        this.logging.log(
+                            `ATX FES: Could not get worklog for workspaces: ${this.currentWorkspaceId}, job id: ${request.TransformationJobId}`
+                        )
+                    }
 
                     this.logging.log(
                         `ATX FES: Successfully mapped ${mappedResponse.TransformationPlan.transformationSteps?.length || 0} steps`
@@ -2453,6 +2461,44 @@ export class TransformHandler {
                 `ListArtifacts: SUCCESS - Found ${result.artifacts?.length || 0} CUSTOMER_OUTPUT artifacts`
             )
             return result.artifacts || []
+        } catch (error) {
+            this.logging.error(`ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Lists artifacts using FES client with CUSTOMER_OUTPUT filtering
+     */
+    private async listWorklogsFESClient(workspaceId: string, jobId: string): Promise<any[] | null> {
+        try {
+            this.logging.log('=== ATX FES ListWorklog Operation (FES Client) ===')
+            this.logging.log(`Listing ListWorklog for job: ${jobId} in workspace: ${workspaceId}`)
+
+            if (!(await this.ensureATXClient())) {
+                this.logging.error('ListWorklog: Failed to initialize ATX client')
+                return null
+            }
+
+            const command = new ListWorklogsCommand({
+                workspaceId: workspaceId,
+                objective: JSON.stringify({ target_framework: '.NET 8.0' }),
+                jobType: 'DOTNET_IDE' as any, // Now available in package 2
+                jobName: jobId,
+                intent: 'LANGUAGE_UPGRADE',
+                idempotencyToken: uuidv4(),
+            })
+
+            await this.addBearerTokenToCommand(command)
+            const result = await this.atxClient!.send(command)
+            this.logATXFESResponse('ListWorklog', result)
+
+            this.logging.log(`ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries`)
+            result.worklogs?.forEach((value, index) => {
+                this.logging.log('worklog entry' + value.description)
+            })
+
+            return result.worklogs || []
         } catch (error) {
             this.logging.error(`ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return null
