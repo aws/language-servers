@@ -23,8 +23,8 @@ export const ATX_FES_ENDPOINTS = new Map([
 ])
 
 // ATX FES Configuration - Change these values to switch environments
-export const DEFAULT_ATX_FES_REGION = 'us-west-2'
-export const DEFAULT_ATX_FES_ENDPOINT = 'https://api.transform-gamma.us-west-2.on.aws'
+export const DEFAULT_ATX_FES_REGION = 'us-east-1'
+export const DEFAULT_ATX_FES_ENDPOINT = 'https://api.transform-gamma.us-east-1.on.aws'
 
 export const AWS_Q_REGION_ENV_VAR = 'AWS_Q_REGION'
 export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'

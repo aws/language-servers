@@ -2844,6 +2844,7 @@ export class TransformHandler {
             const response = await got.default.get(downloadInfo.downloadUrl, {
                 headers: downloadInfo.requestHeaders || {},
                 timeout: { request: 300000 }, // 5 minutes
+                responseType: 'buffer',
             })
 
             // Save, extract, and return paths
