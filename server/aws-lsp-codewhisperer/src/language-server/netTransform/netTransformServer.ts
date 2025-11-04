@@ -34,7 +34,7 @@ import {
 import { TransformHandler } from './transformHandler'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
-export const validStatesForAssessment = ['Planning', 'AWAITING_HUMAN_INPUT']
+export const validStatesForAssessment = ['PLANNING', 'AWAITING_HUMAN_INPUT']
 export const validStatesForComplete = ['COMPLETED']
 export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
 const StartTransformCommand = 'aws/qNetTransform/startTransform'
@@ -260,6 +260,7 @@ export const QNetTransformServerToken =
                             CreateWorkspaceCommand,
                             GetEditablePlanCommand,
                             UploadEditablePlanCommand,
+                            PollTransformForAssessmentCommand,
                         ],
                     },
                 },

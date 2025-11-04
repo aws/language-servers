@@ -1803,7 +1803,7 @@ export class TransformHandler {
                         return {
                             TransformationJob: {
                                 jobId: request.TransformationJobId,
-                                status: jobStatus.status,
+                                status: jobStatus.originalStatus,
                                 creationTime: jobStatus.createdAt ? new Date(jobStatus.createdAt) : new Date(),
                             } as any,
                             ErrorCode: TransformationErrorCode.NONE,
