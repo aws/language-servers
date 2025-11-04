@@ -6,7 +6,7 @@ on:
             - main
 
 permissions:
-    id-token: write # This is required for requesting the JWT (aws-actions/configure-aws-credentials)
+    id-token: write # Required for OIDC authentication with npm
     contents: write # to create release commit (google-github-actions/release-please-action)
     pull-requests: write # to create release PR (google-github-actions/release-please-action)
 
@@ -31,32 +31,12 @@ jobs:
                   persist-credentials: false
               if: ${{ fromJson(steps.release.outputs.releases_created) }}
 
-            - name: Configure AWS Credentials
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                  role-to-assume: arn:aws:iam::935785792371:role/GithubNpmPublishAction
-                  role-session-name: language-servers-github
-                  aws-region: us-east-1
-              if: ${{ fromJson(steps.release.outputs.releases_created) }}
-
-            - name: Get npm access token
-              uses: aws-actions/aws-secretsmanager-get-secrets@v2
-              with:
-                  secret-ids: |
-                      npmjs/github_automation
-                  parse-json-secrets: true
-              if: ${{ fromJson(steps.release.outputs.releases_created) }}
-
             - name: Setup Nodejs
               uses: actions/setup-node@v4
               with:
                   node-version: '24.x'
                   registry-url: 'https://registry.npmjs.org'
                   scope: '@aws'
-              if: ${{ fromJson(steps.release.outputs.releases_created) }}
-
-            - name: Set token
-              run: echo "NODE_AUTH_TOKEN=${{ env.NPMJS_GITHUB_AUTOMATION_TOKEN }}" >> $GITHUB_ENV
               if: ${{ fromJson(steps.release.outputs.releases_created) }}
 
             - name: Compile and test packages
