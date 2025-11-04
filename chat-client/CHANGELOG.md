@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.41](https://github.com/aws/language-servers/compare/chat-client/v0.1.40...chat-client/v0.1.41) (2025-11-04)
+
+
+### Bug Fixes
+
+* **amazonq:** mcp tool panel blocks amazon q chat interface when using right-click context menu ([#2442](https://github.com/aws/language-servers/issues/2442)) ([11900ca](https://github.com/aws/language-servers/commit/11900ca371adee2611698427dbec7c9323ef8e01))
+
 ## [0.1.40](https://github.com/aws/language-servers/compare/chat-client/v0.1.39...chat-client/v0.1.40) (2025-10-21)
 
 
