@@ -16,8 +16,8 @@ export const AWS_Q_ENDPOINTS = new Map([
 // ATX FES endpoints for Transform profiles
 // Only IAD (us-east-1) and FRA (eu-central-1) are supported by IDE
 export const ATX_FES_ENDPOINTS = new Map([
-    ['us-west-2', 'https://api.transform-gamma.us-west-2.on.aws/'], // PDX
-    // ['us-east-1', 'https://api.transform-gamma.us-east-1.on.aws/'], // IAD
+    //['us-west-2', 'https://api.transform-gamma.us-west-2.on.aws/'], // PDX
+    ['us-east-1', 'https://api.transform-gamma.us-east-1.on.aws/'], // IAD
     // Note: FRA (eu-central-1) endpoint may not be available yet in gamma stage
     // ['eu-central-1', 'https://api.transform-gamma.eu-central-1.on.aws/'], // FRA
 ])

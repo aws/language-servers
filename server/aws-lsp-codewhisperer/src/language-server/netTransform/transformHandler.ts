@@ -93,6 +93,7 @@ export class TransformHandler {
     private fesClient: any = null
     private atxClient: ElasticGumbyFrontendClient | null = null
     private cachedHitlId: string | null = null
+    private hitlFileType: string | null = null
 
     constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -2850,26 +2851,48 @@ export class TransformHandler {
 
             const tempDir = path.join(request.SolutionRootPath, workspaceFolderName, request.TransformationJobId)
             await this.directoryExists(tempDir)
-            const pathToArchive = path.join(tempDir, 'transformation-plans.zip')
-            await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
-            this.logging.log(`Downloaded plan to ${pathToArchive}`)
 
-            let pathContainingArchive = ''
-            pathContainingArchive = path.dirname(pathToArchive)
-            const zip = new AdmZip(pathToArchive)
-            const zipEntries = zip.getEntries()
-            await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+            try {
+                const pathToArchive = path.join(tempDir, 'transformation-plans.zip')
+                await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+                this.logging.log(`Downloaded plan to ${pathToArchive}`)
 
-            const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
+                let pathContainingArchive = ''
+                pathContainingArchive = path.dirname(pathToArchive)
+                const zip = new AdmZip(pathToArchive)
+                const zipEntries = zip.getEntries()
+                await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
 
-            const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'transformation-plan.md')
-            const pathToReport = extractedPaths.find(filePath => path.basename(filePath) === 'assessment-report.json')
+                const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
 
-            return {
-                Status: true,
-                PlanPath: pathToPlan,
-                ReportPath: pathToReport,
-            } as GetEditablePlanResponse
+                const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'plan.md')
+                const pathToReport = extractedPaths.find(
+                    filePath => path.basename(filePath) === 'assessment-report.json'
+                )
+
+                this.hitlFileType = 'ZIP'
+
+                return {
+                    Status: true,
+                    PlanPath: pathToPlan,
+                    ReportPath: pathToReport,
+                } as GetEditablePlanResponse
+            } catch (error) {
+                const pathToArchive = path.join(tempDir, 'transformation-plans.json')
+                await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+                this.logging.log(`Downloaded plan to ${pathToArchive}`)
+
+                const pathToPlan = pathToArchive
+                const pathToReport = pathToArchive
+
+                this.hitlFileType = 'JSON'
+
+                return {
+                    Status: true,
+                    PlanPath: pathToPlan,
+                    ReportPath: pathToReport,
+                } as GetEditablePlanResponse
+            }
         } catch (error) {
             this.logging.error(`ATX FES download failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return {
@@ -2884,9 +2907,15 @@ export class TransformHandler {
         try {
             // zip transformation-plan
             const pathToPlan = request.PlanPath
-            const pathToZip = path.join(path.dirname(pathToPlan), 'transformation-plan.zip')
 
-            await this.zipFile(pathToPlan, pathToZip)
+            let pathToSubmit = pathToPlan
+
+            if (this.hitlFileType == 'ZIP') {
+                const pathToZip = path.join(path.dirname(pathToPlan), 'transformation-plan.zip')
+                await this.zipFile(pathToPlan, pathToZip)
+
+                pathToSubmit = pathToZip
+            }
 
             const workspaceId = this.currentWorkspaceId
             const jobId = request.TransformationJobId
@@ -2902,7 +2931,7 @@ export class TransformHandler {
             const uploadResult = await this.createArtifactUploadUrlFESClient(
                 this.currentWorkspaceId!,
                 request.TransformationJobId,
-                pathToZip,
+                pathToSubmit,
                 'HITL_FROM_USER',
                 'JSON'
             )
@@ -2915,7 +2944,7 @@ export class TransformHandler {
             //  Upload to S3
             this.logging.log('Uploading transformationplan to S3...')
             const uploadSuccess = await this.uploadArtifactToS3ATX(
-                pathToZip,
+                pathToSubmit,
                 uploadResult.uploadUrl,
                 uploadResult.requestHeaders
             )
