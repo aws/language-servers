@@ -2816,25 +2816,9 @@ export class TransformHandler {
                 this.logging.log(`ATX FES Job ${jobId} - Found ${hitls.length} hitls`)
             } else if (!hitls) {
                 this.logging.log(`ATX FES Job ${jobId} - no or many hitls available for download (expects 1 hitl)`)
-
-                // Need to remove this later
-
                 return {
-                    Status: true,
-                    PlanPath: path.join(
-                        request.SolutionRootPath,
-                        workspaceFolderName,
-                        'temp',
-                        'transformation-plan.md'
-                    ),
-                    ReportPath: path.join(
-                        request.SolutionRootPath,
-                        workspaceFolderName,
-                        'temp',
-                        'assessment-report.json'
-                    ),
+                    Status: false,
                 } as GetEditablePlanResponse
-
                 // throw new Error("no or many HITLE_FROM_USER artifacts available for download (expects 1 artifact)")
             }
 
@@ -2854,12 +2838,6 @@ export class TransformHandler {
 
             this.logging.log(`ATX FES Job ${jobId} - Artifact download URL created: ${downloadInfo.downloadUrl}`)
 
-            const headers = {}
-            if (downloadInfo.requestHeaders) {
-                downloadInfo.requestHeaders.host =
-                    downloadInfo.requestHeaders.host?.[0] ?? downloadInfo.requestHeaders.host
-            }
-
             // Download from S3
             const got = await import('got')
             const response = await got.default.get(downloadInfo.downloadUrl, {
@@ -2872,23 +2850,20 @@ export class TransformHandler {
 
             const tempDir = path.join(request.SolutionRootPath, workspaceFolderName, request.TransformationJobId)
             await this.directoryExists(tempDir)
-            const pathToArchive = path.join(tempDir, 'downloaded-transformation-plans.json')
+            const pathToArchive = path.join(tempDir, 'transformation-plans.zip')
             await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
             this.logging.log(`Downloaded plan to ${pathToArchive}`)
 
-            // Temporary
-            const pathToPlan = pathToArchive
-            const pathToReport = pathToArchive
-            // let pathContainingArchive = ''
-            // pathContainingArchive = path.dirname(pathToArchive)
-            // const zip = new AdmZip(pathToArchive)
-            // const zipEntries = zip.getEntries()
-            // await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+            let pathContainingArchive = ''
+            pathContainingArchive = path.dirname(pathToArchive)
+            const zip = new AdmZip(pathToArchive)
+            const zipEntries = zip.getEntries()
+            await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
 
-            // const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
+            const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
 
-            // const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'transformation-plan.md')
-            // const pathToReport = extractedPaths.find(filePath => path.basename(filePath) === 'assessment-report.json')
+            const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'transformation-plan.md')
+            const pathToReport = extractedPaths.find(filePath => path.basename(filePath) === 'assessment-report.json')
 
             return {
                 Status: true,
@@ -2909,9 +2884,9 @@ export class TransformHandler {
         try {
             // zip transformation-plan
             const pathToPlan = request.PlanPath
-            // const pathToZip = path.join(tempDir, 'transformation-plan.zip')
+            const pathToZip = path.join(path.dirname(pathToPlan), 'transformation-plan.zip')
 
-            // await this.zipFile(pathToPlan, pathToZip)
+            await this.zipFile(pathToPlan, pathToZip)
 
             const workspaceId = this.currentWorkspaceId
             const jobId = request.TransformationJobId
@@ -2920,19 +2895,6 @@ export class TransformHandler {
                 throw new Error('No workspace ID available for ATX FES download')
             }
 
-            // List Hitls
-
-            // const hitls = await this.listHitlsFESClient(workspaceId, jobId)
-
-            // if (hitls && hitls.length != 1) {
-            //     this.logging.log(`ATX FES Job ${jobId} - Found ${hitls.length} hitls`)
-            // } else if (!hitls) {
-            //     this.logging.log(`ATX FES Job ${jobId} - no or many hitls available (expects 1 hitl)`)
-            //     throw new Error('no or many hitls available (expects 1 hitl)')
-            // }
-
-            // const hitl = hitls[0]
-
             // createartifactuploadurl
 
             this.logging.log('Creating ATX FES artifact upload URL for transformation-plan.zip...')
@@ -2940,7 +2902,7 @@ export class TransformHandler {
             const uploadResult = await this.createArtifactUploadUrlFESClient(
                 this.currentWorkspaceId!,
                 request.TransformationJobId,
-                pathToPlan,
+                pathToZip,
                 'HITL_FROM_USER',
                 'JSON'
             )
@@ -2953,7 +2915,7 @@ export class TransformHandler {
             //  Upload to S3
             this.logging.log('Uploading transformationplan to S3...')
             const uploadSuccess = await this.uploadArtifactToS3ATX(
-                pathToPlan,
+                pathToZip,
                 uploadResult.uploadUrl,
                 uploadResult.requestHeaders
             )
