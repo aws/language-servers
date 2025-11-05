@@ -73,6 +73,7 @@ export class McpManager {
     private permissionManager!: AgentPermissionManager
     private registryService?: McpRegistryService
     private currentRegistry: McpRegistryData | null = null
+    private registryUrlProvided: boolean = false
     private isPeriodicSync: boolean = false
 
     private constructor(
@@ -108,18 +109,17 @@ export class McpManager {
 
             // Initialize registry service if URL provided
             if (options?.registryUrl) {
+                mgr.registryUrlProvided = true
                 try {
                     mgr.registryService = new McpRegistryService(features.logging)
                     const registry = await mgr.registryService.fetchRegistry(options.registryUrl)
                     if (registry) {
                         mgr.currentRegistry = registry
                         features.logging.info(
-                            `MCP Registry: Initialized with ${registry.servers.length} servers from ${options.registryUrl}`
+                            `MCP Registry: Registry mode ACTIVE - ${registry.servers.length} servers from ${options.registryUrl}`
                         )
                     } else {
-                        features.logging.error(
-                            'MCP Registry: Failed to fetch registry during initialization - MCP functionality disabled'
-                        )
+                        features.logging.error('MCP Registry: Failed to fetch registry')
                     }
                 } catch (error) {
                     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -205,13 +205,14 @@ export class McpManager {
     /**
      * Load configurations and initialize each enabled server.
      */
-    private async discoverAllServers(): Promise<void> {
+    public async discoverAllServers(): Promise<void> {
         // Load agent config with registry support
         const result = await loadAgentConfig(
             this.features.workspace,
             this.features.logging,
             this.agentPaths,
-            this.currentRegistry
+            this.currentRegistry,
+            this.isRegistryModeActive()
         )
 
         // Extract agent config and other data
@@ -693,6 +694,44 @@ export class McpManager {
     }
 
     /**
+     * Add a registry server: persist config, register in memory, and initialize.
+     */
+    public async addRegistryServer(serverName: string, cfg: MCPServerConfig, configPath: string): Promise<void> {
+        const sanitizedName = sanitizeName(serverName)
+        if (
+            this.mcpServers.has(sanitizedName) &&
+            this.getServerState(sanitizedName)?.status == McpServerStatus.ENABLED
+        ) {
+            throw new Error(`MCP: server '${sanitizedName}' already exists`)
+        }
+
+        // Save registry server config with type: 'registry'
+        const registryServerConfig = { type: 'registry' as const, timeout: cfg.timeout }
+        this.agentConfig.mcpServers[serverName] = registryServerConfig
+
+        const serverPrefix = `@${serverName}`
+        if (!this.agentConfig.tools.includes(serverPrefix)) {
+            this.agentConfig.tools.push(serverPrefix)
+        }
+
+        await saveServerSpecificAgentConfig(
+            this.features.workspace,
+            this.features.logging,
+            serverName,
+            registryServerConfig,
+            [serverPrefix],
+            [],
+            configPath
+        )
+
+        const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
+        this.mcpServers.set(sanitizedName, newCfg)
+        this.serverNameMapping.set(sanitizedName, serverName)
+
+        await this.initOneServer(sanitizedName, newCfg, AuthIntent.Interactive)
+    }
+
+    /**
      * Add a new server: persist config, register in memory, and initialize.
      */
     public async addServer(
@@ -702,6 +741,13 @@ export class McpManager {
         isLegacyMcpServer: boolean = false
     ): Promise<void> {
         try {
+            // Reject manual server addition when registry is active
+            if (this.isRegistryModeActive()) {
+                throw new Error(
+                    'MCP: Cannot add servers manually when registry mode is active. Please install servers from the registry.'
+                )
+            }
+
             const sanitizedName = sanitizeName(serverName)
             if (
                 this.mcpServers.has(sanitizedName) &&
@@ -1516,6 +1562,27 @@ export class McpManager {
     }
 
     /**
+     * Get the registry service instance
+     */
+    public getRegistryService(): McpRegistryService | undefined {
+        return this.registryService
+    }
+
+    /**
+     * Check if registry mode is active
+     */
+    public isRegistryModeActive(): boolean {
+        return this.registryUrlProvided
+    }
+
+    /**
+     * Set registry mode active state
+     */
+    public setRegistryActive(active: boolean): void {
+        this.registryUrlProvided = active
+    }
+
+    /**
      * Update registry URL and refetch registry
      */
     public async updateRegistryUrl(registryUrl: string, isPeriodicSync: boolean = false): Promise<void> {
@@ -1523,10 +1590,17 @@ export class McpManager {
             this.registryService = new McpRegistryService(this.features.logging)
         }
 
+        const wasActive = this.registryUrlProvided
+
         const registry = await this.registryService.fetchRegistry(registryUrl)
         if (registry) {
             this.currentRegistry = registry
-            this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
+
+            if (!wasActive) {
+                this.features.logging.info(`MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`)
+            } else {
+                this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
+            }
 
             // Only sync during periodic updates, not at startup
             if (isPeriodicSync) {
@@ -1535,7 +1609,7 @@ export class McpManager {
                 this.isPeriodicSync = false
             }
         } else {
-            this.features.logging.error('MCP Registry: Failed to fetch updated registry - MCP functionality disabled')
+            this.features.logging.error('MCP Registry: Failed to fetch registry')
             this.currentRegistry = null
         }
     }

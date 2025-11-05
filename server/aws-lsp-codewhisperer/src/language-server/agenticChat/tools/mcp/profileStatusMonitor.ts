@@ -95,7 +95,12 @@ export class ProfileStatusMonitor {
             if (isMcpEnabled && this.isEnterpriseUser(serviceManager)) {
                 const registryFetchSuccess = await this.fetchRegistryIfNeeded(response, isPeriodicCheck)
                 if (!registryFetchSuccess) {
-                    isMcpEnabled = false
+                    this.logging.error('MCP Registry: Failed to fetch registry - disabling MCP')
+                    ProfileStatusMonitor.setMcpState(false)
+                    if (ProfileStatusMonitor.lastMcpState) {
+                        this.onMcpDisabled()
+                    }
+                    return false
                 }
             } else if (isMcpEnabled && !this.isEnterpriseUser(serviceManager)) {
                 this.logging.info('MCP Governance: Free Tier user - falling back to legacy MCP configuration')

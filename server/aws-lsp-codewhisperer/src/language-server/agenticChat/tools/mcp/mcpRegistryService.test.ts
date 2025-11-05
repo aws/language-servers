@@ -48,7 +48,7 @@ describe('McpRegistryService', () => {
             const mockRegistry = {
                 servers: [
                     {
-                        name: 'com.example/test-server',
+                        name: 'test-server',
                         description: 'Test server',
                         version: '1.0.0',
                         remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
@@ -62,6 +62,30 @@ describe('McpRegistryService', () => {
 
             assert.notStrictEqual(result, null)
             assert.strictEqual(result?.servers.length, 1)
+            assert.strictEqual(result?.url, 'https://example.com/registry.json')
+        })
+
+        it('should handle registry with server wrapper structure', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        server: {
+                            name: 'test-server',
+                            description: 'Test server',
+                            version: '1.0.0',
+                            remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
+                        },
+                    },
+                ],
+            }
+
+            requestContentStub.resolves(JSON.stringify(mockRegistry))
+
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 1)
+            assert.strictEqual(result?.servers[0].name, 'test-server')
             assert.strictEqual(result?.url, 'https://example.com/registry.json')
         })
 
@@ -234,6 +258,88 @@ describe('McpRegistryService', () => {
                     sinon.match(/Authentication required - registry URL must be accessible without credentials/)
                 )
             )
+        })
+    })
+
+    describe('performance with large registries', () => {
+        it('should handle registry with 200 servers efficiently', async () => {
+            const servers = []
+            for (let i = 0; i < 200; i++) {
+                servers.push({
+                    name: `server-${i}`,
+                    description: `Server ${i}`,
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: `https://example.com/${i}` }],
+                })
+            }
+
+            requestContentStub.resolves(JSON.stringify({ servers }))
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 200)
+
+            // Verify lookup works
+            const server = service.getServerByName('server-150')
+            assert.notStrictEqual(server, undefined)
+            assert.strictEqual(server.name, 'server-150')
+        })
+
+        it('should handle registry with 500 servers efficiently', async () => {
+            const servers = []
+            for (let i = 0; i < 500; i++) {
+                servers.push({
+                    name: `server-${i}`,
+                    description: `Server ${i}`,
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: `https://example.com/${i}` }],
+                })
+            }
+
+            requestContentStub.resolves(JSON.stringify({ servers }))
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 500)
+
+            // Verify lookup works
+            const server = service.getServerByName('server-499')
+            assert.notStrictEqual(server, undefined)
+            assert.strictEqual(server.name, 'server-499')
+        })
+
+        it('should handle registry with mixed server types', async () => {
+            const servers = []
+            for (let i = 0; i < 200; i++) {
+                if (i % 2 === 0) {
+                    servers.push({
+                        name: `server-${i}`,
+                        description: `Remote server ${i}`,
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: `https://example.com/${i}` }],
+                    })
+                } else {
+                    servers.push({
+                        name: `server-${i}`,
+                        description: `Local server ${i}`,
+                        version: '1.0.0',
+                        packages: [
+                            {
+                                registryType: 'npm',
+                                identifier: `@test/server-${i}`,
+                                version: '1.0.0',
+                                transport: { type: 'stdio' },
+                            },
+                        ],
+                    })
+                }
+            }
+
+            requestContentStub.resolves(JSON.stringify({ servers }))
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 200)
         })
     })
 })

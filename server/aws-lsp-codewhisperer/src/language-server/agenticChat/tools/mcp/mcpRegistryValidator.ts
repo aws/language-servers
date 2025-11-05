@@ -25,11 +25,17 @@ export class McpRegistryValidator {
             return { isValid: false, errors }
         }
 
+        // Extract servers from wrapper structure if present
+        const servers = json.servers.map((item: any) => {
+            // Support both direct server objects and {server: {...}} wrapper
+            return item.server || item
+        })
+
         // Validate server name uniqueness
-        const uniquenessResult = this.validateServerNameUniqueness(json.servers)
+        const uniquenessResult = this.validateServerNameUniqueness(servers)
         errors.push(...uniquenessResult.errors)
 
-        json.servers.forEach((server: any, index: number) => {
+        servers.forEach((server: any, index: number) => {
             const serverErrors = this.validateServerDefinition(server).errors
             serverErrors.forEach(err => errors.push(`Server ${index}: ${err}`))
         })
@@ -82,8 +88,10 @@ export class McpRegistryValidator {
 
         if (!name || name.length === 0) {
             errors.push('Server name cannot be empty')
-        } else if (name.length > MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH) {
-            errors.push('Server name must be 1-255 characters')
+        } else if (name.length < 3 || name.length > MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH) {
+            errors.push('Server name must be 3-200 characters')
+        } else if (!MCP_REGISTRY_CONSTANTS.SERVER_NAME_PATTERN.test(name)) {
+            errors.push('Server name must match pattern ^[a-zA-Z0-9._-]+$ (simple identifier)')
         }
 
         return { isValid: errors.length === 0, errors }
@@ -169,21 +177,30 @@ export class McpRegistryValidator {
         const validRegistryTypes = [
             MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.NPM,
             MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.PYPI,
+            MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.OCI,
         ]
         if (!pkg.registryType || !validRegistryTypes.includes(pkg.registryType)) {
-            errors.push('Package registryType must be npm or pypi')
+            errors.push('Package registryType must be npm, pypi, or oci')
         }
 
         if (!pkg.identifier || typeof pkg.identifier !== 'string') {
             errors.push('Package must have an identifier field')
         }
 
-        if (!pkg.version || typeof pkg.version !== 'string') {
-            errors.push('Package must have a version field')
+        if (!pkg.transport || !pkg.transport.type) {
+            errors.push('Package must have a transport field with type')
         }
 
-        if (!pkg.transport || pkg.transport.type !== MCP_REGISTRY_CONSTANTS.TRANSPORT_TYPES.STDIO) {
-            errors.push('Package transport type must be stdio')
+        if (pkg.runtimeArguments) {
+            if (!Array.isArray(pkg.runtimeArguments)) {
+                errors.push('Package runtimeArguments must be an array')
+            } else {
+                pkg.runtimeArguments.forEach((arg: any, index: number) => {
+                    if (!arg.value || typeof arg.value !== 'string') {
+                        errors.push(`RuntimeArgument ${index} must have a value field`)
+                    }
+                })
+            }
         }
 
         if (pkg.packageArguments) {
@@ -191,9 +208,6 @@ export class McpRegistryValidator {
                 errors.push('Package packageArguments must be an array')
             } else {
                 pkg.packageArguments.forEach((arg: any, index: number) => {
-                    if (arg.type !== MCP_REGISTRY_CONSTANTS.PACKAGE_ARGUMENT_TYPE.POSITIONAL) {
-                        errors.push(`PackageArgument ${index} type must be positional`)
-                    }
                     if (!arg.value || typeof arg.value !== 'string') {
                         errors.push(`PackageArgument ${index} must have a value field`)
                     }
@@ -208,9 +222,6 @@ export class McpRegistryValidator {
                 pkg.environmentVariables.forEach((envVar: any, index: number) => {
                     if (!envVar.name || typeof envVar.name !== 'string') {
                         errors.push(`EnvironmentVariable ${index} must have a name field`)
-                    }
-                    if (!envVar.default || typeof envVar.default !== 'string') {
-                        errors.push(`EnvironmentVariable ${index} must have a default field`)
                     }
                 })
             }

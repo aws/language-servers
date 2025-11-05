@@ -226,12 +226,16 @@ export interface McpRegistryServer {
         }>
     }>
     packages?: Array<{
-        registryType: 'npm' | 'pypi'
+        registryType: 'npm' | 'pypi' | 'oci'
         registryBaseUrl?: string
         identifier: string
         transport: {
             type: 'stdio'
         }
+        runtimeArguments?: Array<{
+            type: 'positional'
+            value: string
+        }>
         packageArguments?: Array<{
             type: 'positional'
             value: string
