@@ -101,19 +101,6 @@ export class LocalProjectContextController {
         }
     }
 
-    public static createFallbackInstance(
-        clientName: string,
-        workspaceFolders: WorkspaceFolder[],
-        logging: Logging
-    ): LocalProjectContextController {
-        if (!this.instance) {
-            const fallbackInstance = new LocalProjectContextController(clientName, workspaceFolders, logging)
-            this.instance = fallbackInstance
-            logging.warn('Created fallback LocalProjectContextController instance without vector library')
-        }
-        return this.instance
-    }
-
     public async init({
         vectorLib,
         ignoreFilePatterns = [],
@@ -172,32 +159,22 @@ export class LocalProjectContextController {
 
             // initialize vecLib and index if needed
             const libraryPath = this.getVectorLibraryPath()
-            try {
-                const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
-                if (vecLib) {
-                    this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
-                    if (enableIndexing) {
-                        this.buildIndex('all').catch(e => {
-                            this.log.error(`Error building index on init with indexing enabled: ${e}`)
-                        })
-                    } else {
-                        this.buildIndex('default').catch(e => {
-                            this.log.error(`Error building index on init with indexing disabled: ${e}`)
-                        })
-                    }
-                    this._isIndexingEnabled = enableIndexing
+            const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
+            if (vecLib) {
+                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
+                if (enableIndexing) {
+                    this.buildIndex('all').catch(e => {
+                        this.log.error(`Error building index on init with indexing enabled: ${e}`)
+                    })
                 } else {
-                    this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
+                    this.buildIndex('default').catch(e => {
+                        this.log.error(`Error building index on init with indexing disabled: ${e}`)
+                    })
                 }
-            } catch (importError) {
-                this.log.warn(
-                    `Failed to import vector library from ${libraryPath}: ${importError}. Local indexing will be disabled.`
-                )
-            }
-
-            // Always set the instance, even if vector library failed to load
-            if (!LocalProjectContextController.instance) {
                 LocalProjectContextController.instance = this
+                this._isIndexingEnabled = enableIndexing
+            } else {
+                this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
