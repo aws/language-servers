@@ -93,6 +93,7 @@ export class TransformHandler {
     private fesClient: any = null
     private atxClient: ElasticGumbyFrontendClient | null = null
     private cachedHitlId: string | null = null
+    private solutionRootPath: string | null = null
     private hitlFileType: string | null = null
 
     constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
@@ -189,6 +190,9 @@ export class TransformHandler {
     }
 
     async startTransformation(userInputrequest: StartTransformRequest): Promise<StartTransformResponse> {
+        // Store SolutionRootPath globally
+        this.solutionRootPath = userInputrequest.SolutionRootPath
+
         var unsupportedProjects: string[] = []
         const isProject = validation.isProject(userInputrequest)
         const containsUnsupportedViews = await validation.checkForUnsupportedViews(
@@ -925,10 +929,10 @@ export class TransformHandler {
     private async getActiveTransformProfileApplicationUrl(): Promise<string | null> {
         try {
             // Return cached URL if available (avoids expensive profile discovery)
-            if (this.cachedApplicationUrl) {
-                this.logging.log(`Using cached applicationUrl: ${this.cachedApplicationUrl}`)
-                return this.cachedApplicationUrl
-            }
+            // if (this.cachedApplicationUrl) {
+            //     this.logging.log(`Using cached applicationUrl: ${this.cachedApplicationUrl}`)
+            //     return this.cachedApplicationUrl
+            // }
 
             this.logging.log('Getting applicationUrl for active Transform profile...')
 
@@ -1536,6 +1540,7 @@ export class TransformHandler {
                         return timeA - timeB
                     })
 
+                    this.logging.log(`PlanSteps response: ` + JSON.stringify(planSteps))
                     // Return in exact same format as RTS with all required fields
                     const mappedResponse = {
                         TransformationPlan: {
@@ -1625,6 +1630,24 @@ export class TransformHandler {
                     } as GetTransformPlanResponse
                     try {
                         await this.listWorklogsFESClient(this.currentWorkspaceId || '', request.TransformationJobId)
+
+                        // Save worklogs for each step
+                        // if (planSteps && planSteps.length > 0) {
+                        //     for (const step of planSteps) {
+                        //         if (step.stepId && step.description) {
+                        //             await this.saveWorklogsToJson(request.TransformationJobId, step.stepId, step.description)
+                        //         }
+
+                        //         // Save worklogs for substeps
+                        //         if (step.substeps && step.substeps.length > 0) {
+                        //             for (const substep of step.substeps) {
+                        //                 if (substep.stepId && substep.description) {
+                        //                     await this.saveWorklogsToJson(request.TransformationJobId, substep.stepId, substep.description)
+                        //                 }
+                        //             }
+                        //         }
+                        //     }
+                        // }
                     } catch (e) {
                         this.logging.log(
                             `ATX FES: Could not get worklog for workspaces: ${this.currentWorkspaceId}, job id: ${request.TransformationJobId}`
@@ -2471,7 +2494,7 @@ export class TransformHandler {
     /**
      * Lists artifacts using FES client with CUSTOMER_OUTPUT filtering
      */
-    private async listWorklogsFESClient(workspaceId: string, jobId: string): Promise<any[] | null> {
+    private async listWorklogsFESClient(workspaceId: string, jobId: string, stepId?: string): Promise<any[] | null> {
         try {
             this.logging.log('=== ATX FES ListWorklog Operation (FES Client) ===')
             this.logging.log(`Listing ListWorklog for job: ${jobId} in workspace: ${workspaceId}`)
@@ -2484,6 +2507,13 @@ export class TransformHandler {
             const command = new ListWorklogsCommand({
                 workspaceId: workspaceId,
                 jobId: jobId,
+                ...(stepId && {
+                    worklogFilter: {
+                        stepIdFilter: {
+                            stepId: stepId,
+                        },
+                    },
+                }),
                 // objective: JSON.stringify({ target_framework: '.NET 8.0' }),
                 // jobType: 'DOTNET_IDE' as any, // Now available in package 2
                 // jobName: jobId,
@@ -2495,15 +2525,62 @@ export class TransformHandler {
             const result = await this.atxClient!.send(command)
             this.logATXFESResponse('ListWorklog', result)
 
-            this.logging.log(`ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries`)
-            result.worklogs?.forEach((value, index) => {
-                this.logging.log('worklog entry' + value.description)
+            this.logging.log(
+                `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries for step ${stepId}`
+            )
+            result.worklogs?.forEach(async (value, index) => {
+                const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
+                this.logging.log(`worklog entry: ${value.description}`)
+                await this.saveWorklogsToJson(jobId, currentStepId, value.description || '')
             })
 
             return result.worklogs || []
         } catch (error) {
             this.logging.error(`ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return null
+        }
+    }
+
+    /**
+     * Saves worklogs to JSON file with stepId as key and description as value
+     */
+    private async saveWorklogsToJson(jobId: string, stepId: string | null, description: string): Promise<void> {
+        try {
+            if (!this.solutionRootPath) return
+
+            const worklogDir = path.join(this.solutionRootPath, workspaceFolderName, jobId)
+            const worklogPath = path.join(worklogDir, 'worklogs.json')
+
+            await this.directoryExists(worklogDir)
+
+            let worklogData: Record<string, string[]> = {}
+
+            // Read existing worklog if it exists
+            if (fs.existsSync(worklogPath)) {
+                const existingData = fs.readFileSync(worklogPath, 'utf8')
+                worklogData = JSON.parse(existingData)
+            }
+
+            if (stepId == null) {
+                stepId = 'Progress'
+            }
+
+            // Initialize array if stepId doesn't exist
+            if (!worklogData[stepId]) {
+                worklogData[stepId] = []
+            }
+
+            // Add description if not already present
+            if (!worklogData[stepId].includes(description)) {
+                worklogData[stepId].push(description)
+            }
+
+            // Write back to file
+            fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
+
+            this.logging.log(`Worklog saved to: ${worklogPath}`)
+        } catch (error) {
+            this.logging.error(`Error saving worklog: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
     }
 
@@ -3021,7 +3098,7 @@ export class TransformHandler {
                 .pipe(stream)
 
             stream.on('close', () => resolve())
-            archive.finalize()
+            void archive.finalize()
         })
     }
 }
