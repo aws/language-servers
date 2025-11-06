@@ -1526,6 +1526,7 @@ export class TransformHandler {
             try {
                 // Get real plan steps from ATX FES (only if job status >= PLANNED)
                 const planSteps = await this.getATXFESJobPlanSteps(request.TransformationJobId)
+                this.logging.log(`dbu ListWorklog all ${JSON.stringify(planSteps)}`)
 
                 if (planSteps) {
                     this.logging.log(`ATX FES: Found ${planSteps.length} transformation steps`)
@@ -1576,6 +1577,45 @@ export class TransformHandler {
                                             `this is progres update for step ${JSON.stringify(step)} and has substep is ${JSON.stringify(substep)}`
                                         )
 
+                                        // Map nested progress updates (3rd level)
+                                        const nestedProgressUpdates = (substep.substeps || []).map(
+                                            (nestedUpdate: any) => {
+                                                this.logging.log(
+                                                    `Found nested progress update: ${nestedUpdate.stepName} with status: ${nestedUpdate.status}`
+                                                )
+                                                let nestedStatus = 'IN_PROGRESS'
+                                                switch (nestedUpdate.status) {
+                                                    case 'SUCCEEDED':
+                                                    case 'COMPLETED':
+                                                        nestedStatus = 'COMPLETED'
+                                                        break
+                                                    case 'IN_PROGRESS':
+                                                    case 'RUNNING':
+                                                        nestedStatus = 'IN_PROGRESS'
+                                                        break
+                                                    case 'FAILED':
+                                                        nestedStatus = 'FAILED'
+                                                        break
+                                                    case 'SKIPPED':
+                                                        nestedStatus = 'SKIPPED'
+                                                        break
+                                                    default:
+                                                        nestedStatus = 'IN_PROGRESS'
+                                                        break
+                                                }
+                                                return {
+                                                    name: nestedUpdate.stepName || 'Unknown Nested Update',
+                                                    description: nestedUpdate.description || '',
+                                                    status: nestedStatus,
+                                                    stepId: nestedUpdate.stepId ?? undefined,
+                                                }
+                                            }
+                                        )
+
+                                        this.logging.log(
+                                            `Substep ${substep.stepName} has ${nestedProgressUpdates.length} nested progress updates`
+                                        )
+
                                         return {
                                             name: substep.stepName || 'Unknown Substep',
                                             description: substep.description || '',
@@ -1583,6 +1623,7 @@ export class TransformHandler {
                                             startTime: substep.startTime ? new Date(substep.startTime) : undefined,
                                             endTime: substep.endTime ? new Date(substep.endTime) : undefined,
                                             stepId: substep.stepId ?? undefined,
+                                            progressUpdates: nestedProgressUpdates,
                                         }
                                     })
 
@@ -2371,6 +2412,37 @@ export class TransformHandler {
                             const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
                             return timeA - timeB
                         })
+                        for (const substep of step.substeps) {
+                            this.logging.log(
+                                `Getting superSubstep for step: ${substep.stepName} (ID: ${substep.stepId})`
+                            )
+                            const superSubsteps = await this.getStepsRecursive(workspaceId, jobId, substep.stepId)
+                            substep.substeps = superSubsteps || []
+
+                            // Sort substeps by score (primary) and startTime (tiebreaker) to match RTS ordering
+                            if (substep.substeps.length > 0) {
+                                substep.substeps.sort((a: any, b: any) => {
+                                    const scoreDiff = (a.score || 0) - (b.score || 0)
+                                    if (scoreDiff !== 0) return scoreDiff
+
+                                    // Tiebreaker for identical scores: sort by startTime
+                                    const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
+                                    const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
+                                    return timeA - timeB
+                                })
+                            }
+
+                            this.logging.log(`Step ${substep.stepName}: Found ${substep.substeps.length} substeps`)
+
+                            // Log substep details for debugging
+                            if (substep.substeps.length > 0) {
+                                substep.substeps.forEach((superSubstep: any, index: number) => {
+                                    this.logging.log(
+                                        `  SuperSubstep ${index + 1}: ${superSubstep.stepName} (${superSubstep.status || 'No status'})`
+                                    )
+                                })
+                            }
+                        }
                     }
 
                     this.logging.log(`Step ${step.stepName}: Found ${step.substeps.length} substeps`)
@@ -2529,6 +2601,7 @@ export class TransformHandler {
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
             this.logATXFESResponse('ListWorklog', result)
+            this.logging.log(`dbu ListWorklog all ${JSON.stringify(result)}`)
 
             this.logging.log(
                 `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries for step ${stepId}`
