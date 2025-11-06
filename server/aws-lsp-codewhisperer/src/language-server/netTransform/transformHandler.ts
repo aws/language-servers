@@ -2929,7 +2929,7 @@ export class TransformHandler {
 
                 const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
 
-                const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'plan.md')
+                const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'transformation-plan.md')
                 const pathToReport = extractedPaths.find(filePath => path.basename(filePath) === 'assessment-report.md')
 
                 this.hitlFileType = 'ZIP'
