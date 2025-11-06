@@ -1333,6 +1333,7 @@ export class TransformHandler {
             if (result) {
                 const steps = result || []
                 this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${steps.length} plan steps with substeps`)
+                this.logging.log(`PlanSteps are  ${JSON.stringify(result)}`)
                 return steps
             }
             return null
@@ -1562,6 +1563,9 @@ export class TransformHandler {
                                                 substepStatus = 'IN_PROGRESS' // No NOT_STARTED option in ProgressUpdate enum
                                                 break
                                         }
+                                        this.logging.log(
+                                            `this is progres update for step ${JSON.stringify(step)} and has substep is ${JSON.stringify(substep)}`
+                                        )
 
                                         return {
                                             name: substep.stepName || 'Unknown Substep',
@@ -1569,6 +1573,7 @@ export class TransformHandler {
                                             status: substepStatus,
                                             startTime: substep.startTime ? new Date(substep.startTime) : undefined,
                                             endTime: substep.endTime ? new Date(substep.endTime) : undefined,
+                                            stepId: substep.stepId ?? undefined,
                                         }
                                     })
 
