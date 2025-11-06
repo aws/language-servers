@@ -84,9 +84,6 @@ export class TransformHandler {
     private logging: Logging
     private runtime: Runtime
     private cancelPollingEnabled: Boolean = false
-    private logATXFESResponse(apiName: string, response: any): void {
-        this.logging.log(`ATX FES ${apiName} response received`)
-    }
 
     private currentWorkspaceId: string | null = null
     private cachedApplicationUrl: string | null = null
@@ -121,7 +118,6 @@ export class TransformHandler {
                 endpoint: endpoint,
             })
 
-            this.logging.log('ATX client initialized successfully')
             return true
         } catch (error) {
             this.logging.error(
@@ -206,7 +202,6 @@ export class TransformHandler {
         const isTransformProfile = activeProfileArn?.includes(':transform:') ?? false
 
         this.logging.log(`Active profile: ${activeProfileArn}`)
-        this.logging.log(`Is Transform profile: ${isTransformProfile}`)
 
         if (isTransformProfile) {
             this.logging.log('=== Using ATX FES Flow for Transform Profile ===')
@@ -385,7 +380,6 @@ export class TransformHandler {
             const command = new VerifySessionCommand({})
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('VerifySession', result)
 
             this.logging.log(`VerifySession: SUCCESS - Session verified`)
             return { userId: result.userId || 'verified' }
@@ -450,7 +444,6 @@ export class TransformHandler {
             const listCommand = new ListWorkspacesCommand({ maxResults: 10 })
             await this.addBearerTokenToCommand(listCommand)
             const listResult = await this.atxClient!.send(listCommand)
-            this.logATXFESResponse('ListWorkspaces', listResult)
 
             if (listResult.items && listResult.items.length > 0) {
                 // Use the first existing workspace as fallback
@@ -468,7 +461,6 @@ export class TransformHandler {
             })
             await this.addBearerTokenToCommand(createCommand)
             const createResult = await this.atxClient!.send(createCommand)
-            this.logATXFESResponse('CreateWorkspace', createResult)
 
             if (createResult.workspace) {
                 this.logging.log(
@@ -757,7 +749,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('StopJob', result)
 
             this.logging.log(`StopJob: FES client response: ${JSON.stringify(result)}`)
             this.logging.log(`StopJob: SUCCESS - Job stop request submitted`)
@@ -1858,7 +1849,7 @@ export class TransformHandler {
         if (this.serviceManager.isAWSTransformProfile()) {
             this.logging.log('Using ATX FES for Transform profile - real polling')
 
-            if (!validExitStatus.includes('Planning')) {
+            if (!validExitStatus.includes('PLANNING')) {
                 validExitStatus = ['AWAITING_HUMAN_INPUT']
             }
 
@@ -2210,7 +2201,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('CreateJob', result)
 
             if (result && result.jobId && result.status) {
                 this.logging.log(`CreateJob: SUCCESS - Job created with ID: ${result.jobId}, Status: ${result.status}`)
@@ -2246,7 +2236,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('StartJob', result)
 
             this.logging.log(`StartJob: SUCCESS - Status: ${result.status}`)
             return true
@@ -2277,7 +2266,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('GetJob', result)
 
             this.logging.log(`GetJob: SUCCESS - Job data received`)
             return result
@@ -2322,7 +2310,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('CreateArtifactUploadUrl', result)
 
             if (result && result.artifactId && result.s3PreSignedUrl) {
                 this.logging.log(`CreateArtifactUploadUrl: SUCCESS - Upload URL created`)
@@ -2367,7 +2354,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('CompleteArtifactUpload', result)
 
             this.logging.log(`CompleteArtifactUpload: SUCCESS`)
             return true
@@ -2483,7 +2469,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse(`ListJobPlanSteps(${parentStepId})`, result)
 
             if (result && result.steps && result.steps.length > 0) {
                 this.logging.log(`Found ${result.steps.length} steps for parent: ${parentStepId}`)
@@ -2517,7 +2502,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('ListAvailableProfiles', result)
 
             this.logging.log(`ListAvailableProfiles: SUCCESS - Found ${result.profiles?.length || 0} profiles`)
             return result.profiles || []
@@ -2556,7 +2540,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('ListArtifacts', result)
 
             this.logging.log(
                 `ListArtifacts: SUCCESS - Found ${result.artifacts?.length || 0} CUSTOMER_OUTPUT artifacts`
@@ -2600,7 +2583,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('ListWorklog', result)
             this.logging.log(`dbu ListWorklog all ${JSON.stringify(result)}`)
 
             this.logging.log(
@@ -2686,7 +2668,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('CreateArtifactDownloadUrl', result)
 
             if (result && result.s3PreSignedUrl) {
                 this.logging.log(`CreateArtifactDownloadUrl: SUCCESS - Download URL created`)
@@ -2837,11 +2818,13 @@ export class TransformHandler {
                 workspaceId: workspaceId,
                 jobId: jobId,
                 taskType: 'NORMAL',
+                taskFilter: {
+                    taskStatuses: ['AWAITING_HUMAN_INPUT'],
+                },
             })
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('ListHitls', result)
 
             this.logging.log(`ListHitls: SUCCESS - Found ${result.hitlTasks?.length || 0} HITL_FROM_USER artifacts`)
             return result.hitlTasks || []
@@ -2881,7 +2864,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('UpdateHitl', result)
 
             this.logging.log(`UpdateHitl: SUCCESS - task status: ${result.status || 'UNKNOWN'} `)
             return result
@@ -2909,7 +2891,6 @@ export class TransformHandler {
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logATXFESResponse('Get Hitl', result)
 
             this.logging.log(`GetHitl: SUCCESS - Job data received`)
             return result.task || null
@@ -2930,9 +2911,9 @@ export class TransformHandler {
                 if (jobStatus && jobStatus.status == 'CLOSED') {
                     this.logging.log('Hitl Polling get status CLOSED')
                     return true
-                } else if (jobStatus && jobStatus.status == 'CANCELED') {
+                } else if (jobStatus && jobStatus.status == 'CLOSED_PENDING_NEXT_TASK') {
                     // Fallback to placeholder if API call fails
-                    this.logging.log('Hitl Polling get status CANCELED')
+                    this.logging.log('Hitl Polling get status CLOSED_PENDING_NEXT_TASK')
                     return false
                 } else {
                     this.logging.log('Hitl polling in progress....')
@@ -3022,9 +3003,7 @@ export class TransformHandler {
                 const extractedPaths = zipEntries.map(entry => path.join(pathContainingArchive, entry.entryName))
 
                 const pathToPlan = extractedPaths.find(filePath => path.basename(filePath) === 'plan.md')
-                const pathToReport = extractedPaths.find(
-                    filePath => path.basename(filePath) === 'assessment-report.json'
-                )
+                const pathToReport = extractedPaths.find(filePath => path.basename(filePath) === 'assessment-report.md')
 
                 this.hitlFileType = 'ZIP'
 

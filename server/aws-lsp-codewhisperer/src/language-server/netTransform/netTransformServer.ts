@@ -132,16 +132,12 @@ export const QNetTransformServerToken =
                         emitCancelPollingTelemetry(telemetry)
                     }
                     case ListWorkspacesCommand: {
-                        logging.log('LSP: Received ListWorkspacesCommand request')
                         const workspaces = await transformHandler.listWorkspaces()
-                        logging.log(`LSP: ListWorkspaces returned ${workspaces?.length || 0} workspaces`)
                         return { workspaces }
                     }
                     case CreateWorkspaceCommand: {
-                        logging.log('LSP: Received CreateWorkspaceCommand request')
                         const request = params.arguments?.[0] as { workspaceName?: string }
                         const workspaceName = request?.workspaceName || null // Let backend generate default name
-                        logging.log(`LSP: Creating workspace with name: ${workspaceName || 'auto-generated'}`)
 
                         try {
                             const workspaceId = await transformHandler.createWorkspace(workspaceName)
@@ -149,7 +145,6 @@ export const QNetTransformServerToken =
                                 logging.log(`LSP: CreateWorkspace returned workspaceId: ${workspaceId}`)
                                 return { workspaceId }
                             } else {
-                                logging.error('LSP: CreateWorkspace returned null - workspace creation failed')
                                 throw new Error('Failed to create workspace - API returned null')
                             }
                         } catch (error) {
@@ -162,21 +157,18 @@ export const QNetTransformServerToken =
                         }
                     }
                     case GetEditablePlanCommand: {
-                        logging.log('LSP: Received GetEditablePlanCommand request')
                         const request = params as GetEditablePlanRequest
                         const response = await transformHandler.getEditablePlan(request)
 
                         return response
                     }
                     case UploadEditablePlanCommand: {
-                        logging.log('LSP: Received UploadEditablePlanCommand request')
                         const request = params as UploadEditablePlanRequest
                         const response = await transformHandler.uploadEditablePlan(request)
 
                         return response
                     }
                     case PollTransformForAssessmentCommand: {
-                        logging.log('LSP: Received PollTransform For Assessment request')
                         const request = params as GetTransformRequest
 
                         const response = await transformHandler.pollTransformation(
