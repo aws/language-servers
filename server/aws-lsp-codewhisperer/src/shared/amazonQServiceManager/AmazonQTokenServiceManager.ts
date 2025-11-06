@@ -633,6 +633,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.serviceFactory
     }
 
+    public override isAWSTransformProfile(): boolean {
+        return this.activeIdcProfile?.arn?.includes(':transform:') || false
+    }
+
     public getEnableDeveloperProfileSupport(): boolean {
         return this.enableDeveloperProfileSupport === undefined ? false : this.enableDeveloperProfileSupport
     }

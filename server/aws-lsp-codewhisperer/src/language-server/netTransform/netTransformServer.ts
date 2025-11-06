@@ -28,10 +28,13 @@ import {
     GetTransformPlanRequest,
     GetTransformRequest,
     StartTransformRequest,
+    GetEditablePlanRequest,
+    UploadEditablePlanRequest,
 } from './models'
 import { TransformHandler } from './transformHandler'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
+export const validStatesForAssessment = ['Planning', 'AWAITING_HUMAN_INPUT']
 export const validStatesForComplete = ['COMPLETED']
 export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
 const StartTransformCommand = 'aws/qNetTransform/startTransform'
@@ -42,6 +45,11 @@ const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
+const ListWorkspacesCommand = 'aws/qNetTransform/listWorkspaces'
+const CreateWorkspaceCommand = 'aws/qNetTransform/createWorkspace'
+const GetEditablePlanCommand = 'aws/qNetTransform/getEditablePlan'
+const UploadEditablePlanCommand = 'aws/qNetTransform/uploadEditablePlan'
+const PollTransformForAssessmentCommand = 'aws/qNetTransform/pollTransformForAssessment'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -123,6 +131,61 @@ export const QNetTransformServerToken =
                         await transformHandler.cancelPollingAsync()
                         emitCancelPollingTelemetry(telemetry)
                     }
+                    case ListWorkspacesCommand: {
+                        logging.log('LSP: Received ListWorkspacesCommand request')
+                        const workspaces = await transformHandler.listWorkspaces()
+                        logging.log(`LSP: ListWorkspaces returned ${workspaces?.length || 0} workspaces`)
+                        return { workspaces }
+                    }
+                    case CreateWorkspaceCommand: {
+                        logging.log('LSP: Received CreateWorkspaceCommand request')
+                        const request = params.arguments?.[0] as { workspaceName?: string }
+                        const workspaceName = request?.workspaceName || null // Let backend generate default name
+                        logging.log(`LSP: Creating workspace with name: ${workspaceName || 'auto-generated'}`)
+
+                        try {
+                            const workspaceId = await transformHandler.createWorkspace(workspaceName)
+                            if (workspaceId) {
+                                logging.log(`LSP: CreateWorkspace returned workspaceId: ${workspaceId}`)
+                                return { workspaceId }
+                            } else {
+                                logging.error('LSP: CreateWorkspace returned null - workspace creation failed')
+                                throw new Error('Failed to create workspace - API returned null')
+                            }
+                        } catch (error) {
+                            logging.error(
+                                `LSP: CreateWorkspace error: ${error instanceof Error ? error.message : 'Unknown error'}`
+                            )
+                            throw new Error(
+                                `Workspace creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+                            )
+                        }
+                    }
+                    case GetEditablePlanCommand: {
+                        logging.log('LSP: Received GetEditablePlanCommand request')
+                        const request = params as GetEditablePlanRequest
+                        const response = await transformHandler.getEditablePlan(request)
+
+                        return response
+                    }
+                    case UploadEditablePlanCommand: {
+                        logging.log('LSP: Received UploadEditablePlanCommand request')
+                        const request = params as UploadEditablePlanRequest
+                        const response = await transformHandler.uploadEditablePlan(request)
+
+                        return response
+                    }
+                    case PollTransformForAssessmentCommand: {
+                        logging.log('LSP: Received PollTransform For Assessment request')
+                        const request = params as GetTransformRequest
+
+                        const response = await transformHandler.pollTransformation(
+                            request,
+                            validStatesForAssessment,
+                            failureStates
+                        )
+                        return response
+                    }
                 }
                 return
             } catch (e: any) {
@@ -193,6 +256,10 @@ export const QNetTransformServerToken =
                             CancelTransformCommand,
                             DownloadArtifactsCommand,
                             CancelPollingCommand,
+                            ListWorkspacesCommand,
+                            CreateWorkspaceCommand,
+                            GetEditablePlanCommand,
+                            UploadEditablePlanCommand,
                         ],
                     },
                 },
