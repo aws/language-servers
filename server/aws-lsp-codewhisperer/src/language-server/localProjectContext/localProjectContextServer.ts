@@ -165,7 +165,7 @@ export const LocalProjectContextServer =
             logging.log('Updating configuration of local context server')
             try {
                 if (updatedConfig.isDefaultConfig === true) {
-                    logging.log('Skipping init for default config')
+                    logging.log('Skipping local project context initialization for default config')
                     return
                 }
 
