@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import {
     ElasticGumbyFrontendClient,
     GetHitlTaskCommand,
-    UpdateHitlTaskResponse,
+    SubmitCriticalHitlTaskResponse,
 } from '@amazon/elastic-gumby-frontend-client'
 import {
     VerifySessionCommand,
@@ -25,8 +25,7 @@ import {
     ListArtifactsCommand,
     CategoryType,
     ListHitlTasksCommand,
-    SubmitStandardHitlTaskCommand,
-    UpdateHitlTaskCommand,
+    SubmitCriticalHitlTaskCommand,
     FileType,
     ListWorklogsCommand,
 } from '@amazon/elastic-gumby-frontend-client'
@@ -2355,7 +2354,7 @@ export class TransformHandler {
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(`CompleteArtifactUpload: SUCCESS`)
+            this.logging.log(`CompleteArtifactUpload: SUCCESS ${result}`)
             return true
         } catch (error) {
             this.logging.error(
@@ -2835,37 +2834,37 @@ export class TransformHandler {
     }
 
     /**
-     * Update Hitl using FES client
+     * Submit Hitl using FES client
      */
-    private async updateHitlFESClient(
+    private async submitHitlFESClient(
         workspaceId: string,
         jobId: string,
         taskId: string,
         humanArtifactId: string
-    ): Promise<UpdateHitlTaskResponse | null> {
+    ): Promise<SubmitCriticalHitlTaskResponse | null> {
         try {
-            this.logging.log('=== ATX FES UpdateHitl Operation (FES Client) ===')
+            this.logging.log('=== ATX FES SubmitHitl Operation (FES Client) ===')
             this.logging.log(`Updating Hitl: ${taskId} for job: ${jobId} in workspace: ${workspaceId}`)
 
             if (!(await this.ensureATXClient())) {
-                this.logging.error('UpdateHitl: Failed to initialize ATX client')
+                this.logging.error('SubmitHitl: Failed to initialize ATX client')
                 return null
             }
 
-            const command = new UpdateHitlTaskCommand({
+            const command = new SubmitCriticalHitlTaskCommand({
                 workspaceId: workspaceId,
                 jobId: jobId,
                 taskId: taskId,
+                action: 'APPROVE',
                 humanArtifact: {
                     artifactId: humanArtifactId,
                 },
-                postUpdateAction: 'SEND_FOR_APPROVAL',
             })
 
             await this.addBearerTokenToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(`UpdateHitl: SUCCESS - task status: ${result.status || 'UNKNOWN'} `)
+            this.logging.log(`SubmitHitl: SUCCESS - task status: ${result.status || 'UNKNOWN'} `)
             return result
         } catch (error) {
             this.logging.error(`ListHitls error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -3100,10 +3099,10 @@ export class TransformHandler {
                 throw new Error('Failed to complete ATX FES artifact upload')
             }
 
-            // Update Hitl Task
+            // Submit Hitl Task
 
-            this.logging.log('Updating Hitl Task')
-            const updateResult = await this.updateHitlFESClient(
+            this.logging.log('Submitting Hitl Task')
+            const updateResult = await this.submitHitlFESClient(
                 this.currentWorkspaceId!,
                 request.TransformationJobId,
                 this.cachedHitlId!,
