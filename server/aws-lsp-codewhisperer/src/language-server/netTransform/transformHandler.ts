@@ -2192,7 +2192,7 @@ export class TransformHandler {
 
             const command = new CreateJobCommand({
                 workspaceId: workspaceId,
-                objective: JSON.stringify({ target_framework: '.NET 8.0' }),
+                objective: JSON.stringify({ target_framework: 'net8.0' }),
                 jobType: 'DOTNET_IDE' as any, // Now available in package 2
                 jobName: `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
