@@ -102,7 +102,13 @@ export class McpEventHandler {
      */
     async onListMcpServers(params: ListMcpServersParams) {
         this.#currentEditingServerName = undefined
-        const mcpManager = McpManager.instance
+        let mcpManager
+        try {
+            mcpManager = McpManager.instance
+        } catch (error) {
+            this.#features.logging.debug('McpManager not initialized, returning empty list')
+            return { header: { title: 'MCP Servers', description: '', actions: [] }, list: [] }
+        }
 
         // Check for errors in loading MCP config files
         const configLoadErrors = mcpManager.getConfigLoadErrors()
@@ -176,7 +182,13 @@ export class McpEventHandler {
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
             const toolsWithPermissions = mcpManager.getAllToolsWithPermissions(serverName)
             const toolsCount = toolsWithPermissions.length
-            const serverState = McpManager.instance.getServerState(serverName)
+            let serverState
+            try {
+                serverState = McpManager.instance.getServerState(serverName)
+            } catch (error) {
+                this.#features.logging.debug('McpManager not initialized for getServerState')
+                serverState = undefined
+            }
 
             // Check if this server has validation errors
             const hasValidationErrors = serversWithErrors.has(serverName)
@@ -386,14 +398,24 @@ export class McpEventHandler {
         if (existingValues.name) {
             const serverName = existingValues.name
             const sanitizedServerName = sanitizeName(serverName)
-            const serverState = McpManager.instance.getAllServerConfigs().get(sanitizedServerName)
-            // Check if the server exists in McpManager
-            const mcpManager = McpManager.instance
-            const serverConfig = mcpManager.getAllServerConfigs().get(sanitizedServerName)
+            let serverConfig
+            try {
+                serverConfig = McpManager.instance.getAllServerConfigs().get(sanitizedServerName)
+            } catch (error) {
+                this.#features.logging.debug('McpManager not initialized for getAllServerConfigs')
+                serverConfig = undefined
+            }
 
             if (serverConfig) {
                 // Use the helper method to determine if the server is global
-                existingValues.scope = mcpManager.isServerGlobal(sanitizedServerName) ? 'global' : 'workspace'
+                try {
+                    existingValues.scope = McpManager.instance.isServerGlobal(sanitizedServerName)
+                        ? 'global'
+                        : 'workspace'
+                } catch (error) {
+                    this.#features.logging.debug('McpManager not initialized for isServerGlobal')
+                    existingValues.scope = 'global'
+                }
             } else {
                 // Default to global scope for new servers
                 existingValues.scope = 'global'
@@ -591,8 +613,15 @@ export class McpEventHandler {
             errors.push('Server name cannot be empty')
         } else {
             if (checkExistingServerName) {
-                const existingServers = McpManager.instance.getAllServerConfigs()
-                const serverState = McpManager.instance.getServerState(values.name)
+                let existingServers, serverState
+                try {
+                    existingServers = McpManager.instance.getAllServerConfigs()
+                    serverState = McpManager.instance.getServerState(values.name)
+                } catch (error) {
+                    this.#features.logging.debug('McpManager not initialized for validation')
+                    existingServers = new Map()
+                    serverState = undefined
+                }
 
                 if (
                     existingServers.has(values.name) &&
@@ -688,7 +717,12 @@ export class McpEventHandler {
         const serverName = params.optionsValues.name
         const sanitizedServerName = sanitizeName(serverName)
         const originalServerName = this.#currentEditingServerName
-        const isEditMode = !!(originalServerName && McpManager.instance.getAllServerConfigs().has(originalServerName))
+        let isEditMode = false
+        try {
+            isEditMode = !!(originalServerName && McpManager.instance.getAllServerConfigs().has(originalServerName))
+        } catch (error) {
+            this.#features.logging.debug('McpManager not initialized for isEditMode check')
+        }
 
         // Validate form values
         const validation = this.#validateMcpServerForm(
@@ -789,14 +823,30 @@ export class McpEventHandler {
         try {
             if (isEditMode && originalServerName) {
                 const serverToRemove = this.#serverNameBeforeUpdate || originalServerName
-                const serverConfig = McpManager.instance.getAllServerConfigs().get(serverToRemove)
+                let serverConfig
+                try {
+                    serverConfig = McpManager.instance.getAllServerConfigs().get(serverToRemove)
+                } catch (error) {
+                    this.#features.logging.error('McpManager not initialized for server removal')
+                    throw error
+                }
                 const isLegacyMcpServer = serverConfig?.__configPath__?.endsWith('mcp.json') ?? false
                 const configPath = isLegacyMcpServer ? await this.#getMcpConfigPath(isGlobal) : agentPath
-                await McpManager.instance.removeServer(serverToRemove)
-                await McpManager.instance.addServer(serverName, config, configPath, isLegacyMcpServer)
+                try {
+                    await McpManager.instance.removeServer(serverToRemove)
+                    await McpManager.instance.addServer(serverName, config, configPath, isLegacyMcpServer)
+                } catch (error) {
+                    this.#features.logging.error('McpManager operation failed')
+                    throw error
+                }
             } else {
                 // Create new server
-                await McpManager.instance.addServer(serverName, config, agentPath)
+                try {
+                    await McpManager.instance.addServer(serverName, config, agentPath)
+                } catch (error) {
+                    this.#features.logging.error('McpManager not initialized for addServer')
+                    throw error
+                }
                 this.#newlyAddedServers.add(serverName)
             }
         } catch (error) {
@@ -809,19 +859,29 @@ export class McpEventHandler {
         // need to check server state now, as there is possibility of error during server initialization
         const serverStatusError = this.#getServerStatusError(serverName)
 
+        let numTools = 0
+        try {
+            numTools = McpManager.instance.getAllToolsWithPermissions(sanitizedServerName).length
+        } catch (error) {
+            this.#features.logging.debug('McpManager not initialized for getAllToolsWithPermissions')
+        }
         this.#telemetryController?.emitMCPServerInitializeEvent({
             source: isEditMode ? 'updateServer' : 'addServer',
             command: selectedTransport === TransportType.STDIO ? params.optionsValues.command : undefined,
             url: selectedTransport === TransportType.HTTP ? params.optionsValues.url : undefined,
             enabled: true,
-            numTools: McpManager.instance.getAllToolsWithPermissions(sanitizedServerName).length,
+            numTools,
             scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
             transportType: selectedTransport,
             languageServerVersion: this.#features.runtime.serverInfo.version,
         })
 
         if (serverStatusError) {
-            await McpManager.instance.removeServerFromConfigFile(serverName)
+            try {
+                await McpManager.instance.removeServerFromConfigFile(serverName)
+            } catch (error) {
+                this.#features.logging.error('McpManager not initialized for removeServerFromConfigFile')
+            }
 
             if (this.#newlyAddedServers.has(serverName)) {
                 this.#newlyAddedServers.delete(serverName)
@@ -865,7 +925,12 @@ export class McpEventHandler {
         if (serverName === 'Built-in') {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-            const mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
+            let mcpToolNames = new Set<string>()
+            try {
+                mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
+            } catch (error) {
+                this.#features.logging.debug('McpManager not initialized for getAllTools')
+            }
             const builtInTools = allTools
                 .filter(tool => !mcpToolNames.has(tool.toolSpecification.name))
                 .map(tool => {
@@ -896,7 +961,12 @@ export class McpEventHandler {
             }
         } else {
             // Handle regular MCP servers
-            const toolsWithPermissions = McpManager.instance.getAllToolsWithPermissions(serverName)
+            let toolsWithPermissions: { tool: any; permission: any }[] = []
+            try {
+                toolsWithPermissions = McpManager.instance.getAllToolsWithPermissions(serverName)
+            } catch (error) {
+                this.#features.logging.debug('McpManager not initialized for getAllToolsWithPermissions')
+            }
             filterOptions = this.#buildServerFilterOptions(serverName, toolsWithPermissions)
 
             return {
@@ -933,9 +1003,15 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
-        const mcpManager = McpManager.instance
-        // Get the appropriate agent path
-        const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
+        let mcpManager, agentPath
+        try {
+            mcpManager = McpManager.instance
+            // Get the appropriate agent path
+            agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
+        } catch (error) {
+            this.#features.logging.error('McpManager not initialized for enable server')
+            return { id: params.id }
+        }
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
 
@@ -961,9 +1037,15 @@ export class McpEventHandler {
         if (!serverName) {
             return { id: params.id }
         }
-        const mcpManager = McpManager.instance
-        // Set flag to ignore file changes during permission update
-        const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
+        let mcpManager, agentPath
+        try {
+            mcpManager = McpManager.instance
+            // Set flag to ignore file changes during permission update
+            agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
+        } catch (error) {
+            this.#features.logging.error('McpManager not initialized for disable server')
+            return { id: params.id }
+        }
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
         try {
@@ -994,7 +1076,12 @@ export class McpEventHandler {
         this.#isProgrammaticChange = true
 
         try {
-            await McpManager.instance.removeServer(serverName)
+            try {
+                await McpManager.instance.removeServer(serverName)
+            } catch (error) {
+                this.#features.logging.error('McpManager not initialized for removeServer')
+                throw error
+            }
             this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         } catch (error) {
@@ -1019,7 +1106,24 @@ export class McpEventHandler {
         }
         this.#currentEditingServerName = serverName
 
-        const config = McpManager.instance.getAllServerConfigs().get(serverName)
+        let config
+        try {
+            config = McpManager.instance.getAllServerConfigs().get(serverName)
+        } catch (error) {
+            this.#features.logging.error('McpManager not initialized for getAllServerConfigs')
+            return {
+                id: params.id,
+                header: {
+                    title: 'Edit MCP Server',
+                    status: {
+                        title: 'MCP Manager not initialized',
+                        icon: 'cancel-circle',
+                        status: 'error' as Status,
+                    },
+                },
+                list: [],
+            }
+        }
         if (!config) {
             return {
                 id: params.id,
@@ -1209,7 +1313,13 @@ export class McpEventHandler {
 
         try {
             // Skip server config check for Built-in server
-            const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+            let serverConfig
+            try {
+                serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+            } catch (error) {
+                this.#features.logging.error('McpManager not initialized for getAllServerConfigs')
+                return { id: params.id }
+            }
             if (serverName !== 'Built-in') {
                 if (!serverConfig) {
                     throw new Error(`Server '${serverName}' not found`)
@@ -1254,11 +1364,21 @@ export class McpEventHandler {
             const { serverName, permission } = this.#pendingPermissionConfig
 
             // Apply the stored permission changes
-            await McpManager.instance.updateServerPermission(serverName, permission)
+            try {
+                await McpManager.instance.updateServerPermission(serverName, permission)
+            } catch (error) {
+                this.#features.logging.error('McpManager not initialized for updateServerPermission')
+                throw error
+            }
             this.#emitMCPConfigEvent()
 
             // Get server config to emit telemetry
-            const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+            let serverConfig
+            try {
+                serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+            } catch (error) {
+                this.#features.logging.debug('McpManager not initialized for getAllServerConfigs')
+            }
             if (serverConfig) {
                 // Emit server initialize event after permission change
                 const transportType = serverConfig.command?.trim() ? TransportType.STDIO : TransportType.HTTP
@@ -1267,7 +1387,14 @@ export class McpEventHandler {
                     command: transportType === TransportType.STDIO ? serverConfig.command : undefined,
                     url: transportType === TransportType.HTTP ? serverConfig.url : undefined,
                     enabled: true,
-                    numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                    numTools: (() => {
+                        try {
+                            return McpManager.instance.getAllToolsWithPermissions(serverName).length
+                        } catch (error) {
+                            this.#features.logging.debug('McpManager not initialized for getAllToolsWithPermissions')
+                            return 0
+                        }
+                    })(),
                     scope:
                         serverConfig.__configPath__ ===
                             getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir()) ||
@@ -1295,8 +1422,14 @@ export class McpEventHandler {
 
     #emitMCPConfigEvent() {
         // Emit MCP config event after reinitialization
-        const mcpManager = McpManager.instance
-        const serverConfigs = mcpManager.getAllServerConfigs()
+        let mcpManager, serverConfigs
+        try {
+            mcpManager = McpManager.instance
+            serverConfigs = mcpManager.getAllServerConfigs()
+        } catch (error) {
+            this.#features.logging.debug('McpManager not initialized for emitMCPConfigEvent')
+            return
+        }
         const activeServers = Array.from(serverConfigs.entries()).filter(
             ([name, _]) => !mcpManager.isServerDisabled(name)
         )
@@ -1367,7 +1500,12 @@ export class McpEventHandler {
         this.#isProgrammaticChange = isProgrammatic
 
         try {
-            await McpManager.instance.reinitializeMcpServers()
+            try {
+                await McpManager.instance.reinitializeMcpServers()
+            } catch (error) {
+                this.#features.logging.error('McpManager not initialized for reinitializeMcpServers')
+                throw error
+            }
             this.#emitMCPConfigEvent()
 
             // Reset flag after reinitialization
@@ -1487,7 +1625,13 @@ export class McpEventHandler {
      * Gets the UI status object for a specific MCP server
      */
     #getServerStatusError(serverName: string): { title: string; icon: string; status: Status } | undefined {
-        const serverStates = McpManager.instance.getAllServerStates()
+        let serverStates
+        try {
+            serverStates = McpManager.instance.getAllServerStates()
+        } catch (error) {
+            this.#features.logging.debug('McpManager not initialized for getAllServerStates')
+            return undefined
+        }
         const key = serverName ? sanitizeName(serverName) : serverName
         const serverState = key ? serverStates.get(key) : undefined
 

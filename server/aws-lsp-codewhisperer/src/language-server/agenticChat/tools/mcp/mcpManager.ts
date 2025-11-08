@@ -98,14 +98,21 @@ export class McpManager {
             const mgr = new McpManager(agentPaths, features)
             McpManager.#instance = mgr
 
-            const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
+            try {
+                const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
 
-            if (shouldDiscoverServers) {
-                await mgr.discoverAllServers()
-                features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
-            } else {
-                // MCP is disabled - create empty instance without connecting to any servers
-                features.logging.info('MCP: initialized without server discovery (MCP disabled)')
+                if (shouldDiscoverServers) {
+                    await mgr.discoverAllServers()
+                    features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
+                } else {
+                    // MCP is disabled - create empty instance without connecting to any servers
+                    features.logging.info('MCP: initialized without server discovery (MCP disabled)')
+                }
+            } catch (error) {
+                // Log error but keep the empty instance to prevent crashes
+                features.logging.error(
+                    `MCP: initialization failed: ${error instanceof Error ? error.message : String(error)}`
+                )
             }
 
             // Emit MCP configuration metrics
@@ -150,7 +157,7 @@ export class McpManager {
                 })
             }
         }
-        return McpManager.#instance
+        return McpManager.#instance!
     }
 
     public static get instance(): McpManager {
@@ -158,6 +165,13 @@ export class McpManager {
             throw new Error('McpManager not initialized—call McpManager.init(...) first')
         }
         return McpManager.#instance
+    }
+
+    /**
+     * Check if McpManager has been initialized
+     */
+    public static isInitialized(): boolean {
+        return !!McpManager.#instance
     }
 
     /**
