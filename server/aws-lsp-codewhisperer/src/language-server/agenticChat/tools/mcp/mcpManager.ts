@@ -104,7 +104,8 @@ export class McpManager {
                 await mgr.discoverAllServers()
                 features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
             } else {
-                features.logging.info('MCP: initialized without server discovery')
+                // MCP is disabled - create empty instance without connecting to any servers
+                features.logging.info('MCP: initialized without server discovery (MCP disabled)')
             }
 
             // Emit MCP configuration metrics
