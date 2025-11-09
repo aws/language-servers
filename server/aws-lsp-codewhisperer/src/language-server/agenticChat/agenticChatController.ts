@@ -166,7 +166,7 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
+import { commandCategories, ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
@@ -233,7 +233,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { McpPermissionType } from './tools/mcp/mcpTypes'
+import { McpPermissionType, MCPServerPermission } from './tools/mcp/mcpTypes'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
@@ -407,24 +407,23 @@ export class AgenticChatController implements ChatHandlers {
             if (params.buttonId === BUTTON_TRUST_COMMAND) {
                 // get result from metadata
                 const toolName = params.metadata!['toolName']
-                const newPermission = params.metadata!['permission']
+                const new_permission = params.metadata!['permission']
                 const serverName = params.metadata!['serverName']
 
-                const currentPermission = McpManager.instance.getToolPerm(serverName, toolName)
+                const current_permission = McpManager.instance.getToolPerm(serverName, toolName)
                 // only trigger update if curren != previous
-                if (currentPermission !== newPermission) {
+                if (current_permission !== new_permission) {
                     // generate perm object
                     const perm = await this.#mcpEventHandler.generateEmptyBuiltInToolPermission()
 
                     // load updated permission
-                    perm.toolPerms[toolName] = newPermission as McpPermissionType
+                    perm.toolPerms[toolName] = new_permission as McpPermissionType
 
                     // update permission
                     try {
                         await McpManager.instance.updateServerPermission(serverName, perm)
                         // if the new permission is asks --> only update permission, dont continue
-                        // this only happen on a completed card
-                        if (newPermission === 'ask') {
+                        if (new_permission === 'ask') {
                             return {
                                 success: true,
                             }
@@ -449,7 +448,6 @@ export class AgenticChatController implements ChatHandlers {
                 params.messageId.endsWith(SUFFIX_PERMISSION)
                     ? params.messageId.replace(SUFFIX_PERMISSION, '')
                     : params.messageId
-
             const handler = session.data.getDeferredToolExecution(messageId)
             if (!handler?.reject || !handler.resolve) {
                 if (params.buttonId === BUTTON_TRUST_COMMAND) {
@@ -1460,6 +1458,18 @@ export class AgenticChatController implements ChatHandlers {
                 metric.setDimension('requestIds', metric.metric.requestIds)
                 const toolNames = this.#toolUseLatencies.map(item => item.toolName)
                 const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
+
+                const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
+                const permission: string[] = []
+
+                for (const toolName of toolNames) {
+                    if (builtInToolNames.has(toolName)) {
+                        permission.push(McpManager.instance.getToolPerm('Built-in', toolName))
+                    } else {
+                        // TODO: determine mcp-server of the current tool to get permission
+                    }
+                }
+
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
@@ -1475,7 +1485,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#timeBetweenChunks,
                     session.pairProgrammingMode,
                     this.#abTestingAllocation?.experimentName,
-                    this.#abTestingAllocation?.userVariation
+                    this.#abTestingAllocation?.userVariation,
+                    permission
                 )
             } else {
                 // Send an error card to UI?
@@ -1708,6 +1719,7 @@ export class AgenticChatController implements ChatHandlers {
         promptBlockId: number,
         session: ChatSessionService,
         toolName: string,
+        commandCategory?: CommandCategory,
         tabId?: string
     ) {
         const deferred = this.#createDeferred()
@@ -1716,7 +1728,7 @@ export class AgenticChatController implements ChatHandlers {
         await deferred.promise
         // Note: we want to overwrite the button block because it already exists in the stream.
         await resultStream.overwriteResultBlock(
-            this.#getUpdateToolConfirmResult(toolUse, true, toolName, tabId),
+            this.#getUpdateToolConfirmResult(toolUse, true, toolName, undefined, commandCategory, tabId),
             promptBlockId
         )
     }
@@ -1772,6 +1784,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                     }
                 }
+
+                // for later use
+                let finalCommandCategory: CommandCategory | undefined
+
                 switch (toolUse.name) {
                     case FS_READ:
                     case LIST_DIRECTORY:
@@ -1807,6 +1823,8 @@ export class AgenticChatController implements ChatHandlers {
                             approvedPaths
                         )
 
+                        finalCommandCategory = commandCategory
+
                         const isExecuteBash = toolUse.name === EXECUTE_BASH
 
                         // check if tool execution's path is out of workspace
@@ -1837,7 +1855,7 @@ export class AgenticChatController implements ChatHandlers {
                                 warning,
                                 commandCategory,
                                 toolUse.name,
-                                undefined,
+                                builtInPermission,
                                 tabId
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
@@ -1859,6 +1877,7 @@ export class AgenticChatController implements ChatHandlers {
                                     cachedButtonBlockId,
                                     session,
                                     toolUse.name,
+                                    commandCategory,
                                     tabId
                                 )
                             }
@@ -1913,7 +1932,7 @@ export class AgenticChatController implements ChatHandlers {
                                         requiresAcceptance,
                                         warning,
                                         undefined,
-                                        toolName, // Pass the original tool name here
+                                        toolName, // Pass the original tool name here,
                                         undefined,
                                         tabId
                                     )
@@ -1924,6 +1943,7 @@ export class AgenticChatController implements ChatHandlers {
                                         cachedButtonBlockId,
                                         session,
                                         toolName,
+                                        undefined,
                                         tabId
                                     )
                                 }
@@ -1976,7 +1996,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.addApprovedPath(inputPath)
                 }
 
-                const ws = this.#getWritableStream(chatResultStream, toolUse)
+                const ws = this.#getWritableStream(chatResultStream, toolUse, finalCommandCategory)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 let toolResultContent: ToolResultContentBlock
@@ -2394,7 +2414,11 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+    #getWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse,
+        commandCategory?: CommandCategory
+    ): WritableStream | undefined {
         if (toolUse.name === CodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
@@ -2413,7 +2437,14 @@ export class AgenticChatController implements ChatHandlers {
 
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
-            status: { status: 'success', icon: 'ok', text: 'Completed' },
+            status: {
+                status: 'success',
+                icon: 'ok',
+                text: 'Completed',
+                ...(toolUse.name === EXECUTE_BASH
+                    ? { description: this.#getCommandCategoryDescription(commandCategory ?? CommandCategory.ReadOnly) }
+                    : {}),
+            },
             buttons: [],
         }
 
@@ -2465,10 +2496,11 @@ export class AgenticChatController implements ChatHandlers {
         isAccept: boolean,
         originalToolName: string,
         toolType?: string,
+        commandCategory?: CommandCategory,
         tabId?: string
     ): ChatResult {
         const toolName = originalToolName ?? (toolType || toolUse.name)
-
+        const quickSettings = this.#buildQuickSettings(toolUse, toolName!, toolType, tabId)
         // Handle bash commands with special formatting
         if (toolName === EXECUTE_BASH) {
             return {
@@ -2488,6 +2520,7 @@ export class AgenticChatController implements ChatHandlers {
                           }),
                     buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
+                quickSettings,
             }
         }
 
@@ -2775,13 +2808,8 @@ export class AgenticChatController implements ChatHandlers {
         const quickSettings = this.#buildQuickSettings(toolUse, toolName!, toolType, tabId)
         // Configure tool-specific UI elements
         switch (toolName) {
-            case EXECUTE_BASH: {
+            case 'executeBash': {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                // get feature flag
-                const shortcut =
-                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
-                        ?.shortcut
-
                 const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
                 const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
 
@@ -2817,16 +2845,12 @@ export class AgenticChatController implements ChatHandlers {
                           : undefined
 
                 header = {
-                    status: requiresAcceptance
-                        ? {
-                              icon: statusIcon,
-                              status: statusType,
-                              position: 'left',
-                              description: this.#getCommandCategoryDescription(
-                                  commandCategory ?? CommandCategory.ReadOnly
-                              ),
-                          }
-                        : {},
+                    status: {
+                        icon: statusIcon,
+                        status: statusType,
+                        position: 'left',
+                        description: this.#getCommandCategoryDescription(commandCategory ?? CommandCategory.ReadOnly),
+                    },
                     body: 'shell',
                     buttons,
                 }
@@ -2944,6 +2968,7 @@ export class AgenticChatController implements ChatHandlers {
                 messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                 header,
                 body: warning ? (toolName === EXECUTE_BASH ? '' : '\n\n') + body : body,
+                quickSettings,
             }
         } else {
             return {

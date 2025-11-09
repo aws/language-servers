@@ -34,7 +34,7 @@ import { URI } from 'vscode-uri'
 interface PermissionOption {
     label: string
     value: string
-    description?: string
+    description: string
 }
 
 export class McpEventHandler {
@@ -1165,7 +1165,7 @@ export class McpEventHandler {
             case 'fsWrite':
             case 'fsReplace':
                 return 'Create or edit files.'
-            case 'qCodeReview':
+            case 'codeReview':
                 return 'Review tool analyzes code for security vulnerabilities, quality issues, and best practices across multiple programming languages.'
             default:
                 return ''
@@ -1177,12 +1177,6 @@ export class McpEventHandler {
      */
     async #handleMcpPermissionChange(params: McpServerClickParams) {
         const serverName = params.title
-
-        // combine fsWrite and fsReplace into fsWrite
-        if (serverName === 'Built-in' && params.optionsValues?.fsWrite) {
-            // add fsReplace along
-            params.optionsValues.fsReplace = params.optionsValues.fsWrite
-        }
 
         const updatedPermissionConfig = params.optionsValues
         if (!serverName || !updatedPermissionConfig) {
@@ -1258,6 +1252,33 @@ export class McpEventHandler {
                     transportType: transportType,
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
+            } else {
+                // it's mean built-in tool, but do another extra check to confirm
+                if (serverName === 'Built-in') {
+                    let toolName: string[] = []
+                    let perm: string[] = []
+
+                    for (const [key, val] of Object.entries(permission.toolPerms)) {
+                        toolName.push(key)
+                        perm.push(val)
+                    }
+
+                    this.#telemetryController?.emitMCPServerInitializeEvent({
+                        source: 'updatePermission',
+                        command: 'Built-in',
+                        enabled: true,
+                        numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                        scope:
+                            permission.__configPath__ ===
+                            getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                                ? 'global'
+                                : 'workspace',
+                        transportType: '',
+                        languageServerVersion: this.#features.runtime.serverInfo.version,
+                        toolName: toolName,
+                        permission: perm,
+                    })
+                }
             }
 
             // Clear the pending permission config after applying
@@ -1398,10 +1419,11 @@ export class McpEventHandler {
      * Processes permission updates from the UI
      */
     async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
+        const builtInToolAgentPath = await this.#getAgentPath()
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},
-            __configPath__: agentPath,
+            __configPath__: serverName === 'Built-in' ? builtInToolAgentPath : agentPath,
         }
 
         // Process each tool permission setting

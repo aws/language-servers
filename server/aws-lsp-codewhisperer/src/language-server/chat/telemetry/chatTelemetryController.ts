@@ -195,7 +195,8 @@ export class ChatTelemetryController {
         cwsprChatTimeBetweenChunks?: number[],
         agenticCodingMode?: boolean,
         experimentName?: string,
-        userVariation?: string
+        userVariation?: string,
+        permission?: string[]
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.AgencticLoop_InvokeLLM,
@@ -216,6 +217,7 @@ export class ChatTelemetryController {
                 modelId,
                 experimentName: experimentName,
                 userVariation: userVariation,
+                permission: permission?.join(',') ?? '',
             },
         })
     }
@@ -385,6 +387,8 @@ export class ChatTelemetryController {
         source?: string
         transportType?: string
         languageServerVersion?: string
+        toolName?: string[]
+        permission?: string[]
     }) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.MCPServerInit,
@@ -399,6 +403,8 @@ export class ChatTelemetryController {
                 scope: data?.scope,
                 source: data?.source,
                 transportType: data?.transportType,
+                toolName: data?.toolName?.join(',') ?? '',
+                permission: data?.permission?.join(',') ?? '',
             },
         })
     }
