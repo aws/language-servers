@@ -43,6 +43,8 @@ export interface ChatEventHandler
         | 'onPromptTopBarItemAdded'
         | 'onPromptTopBarItemRemoved'
         | 'onPromptTopBarButtonClick'
+        | 'onDropDownOptionChange'
+        | 'onDropDownLinkClick'
     > {}
 
 /**

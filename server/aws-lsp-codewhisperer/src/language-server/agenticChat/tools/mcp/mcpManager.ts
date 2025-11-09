@@ -448,7 +448,7 @@ export class McpManager {
      */
     public isToolDisabled(server: string, tool: string): boolean {
         // built-in tools cannot be disabled
-        if (server === 'builtIn') {
+        if (server === 'Built-in') {
             return false
         }
 
