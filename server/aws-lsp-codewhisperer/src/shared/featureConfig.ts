@@ -45,6 +45,8 @@ export class FeatureConfigProvider {
     private lastFetchTime = 0
     private readonly minFetchInterval = 5000 // 5 seconds minimum between fetches
 
+    private lastApiResponse: ListFeatureEvaluationsCommandOutput | undefined
+
     static #instance: FeatureConfigProvider
 
     constructor(
@@ -94,6 +96,7 @@ export class FeatureConfigProvider {
         this.logging?.debug('amazonq: Fetching feature configs')
         try {
             const response = await this.listFeatureEvaluations()
+            this.lastApiResponse = response
             if (!response.featureEvaluations) {
                 return
             }

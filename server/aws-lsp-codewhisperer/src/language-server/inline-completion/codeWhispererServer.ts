@@ -27,6 +27,8 @@ import { EditCompletionHandler } from './handler/editCompletionHandler'
 import { InlineCompletionHandler } from './handler/inlineCompletionHandler'
 import { SessionResultsHandler } from './handler/sessionResultsHandler'
 import { isUsingIAMAuth } from '../../shared/utils'
+import { FeatureConfigProvider } from '../../shared/featureConfig'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
 export const CodewhispererServerFactory =
     (serviceManager: (credentialsProvider?: any) => AmazonQBaseServiceManager): Server =>
@@ -96,6 +98,7 @@ export const CodewhispererServerFactory =
 
         const onInitializedHandler = async () => {
             amazonQServiceManager = serviceManager(credentialsProvider)
+            const service = amazonQServiceManager.getCodewhispererService()
 
             const clientParams = safeGet(
                 lsp.getClientInitializeParams(),
@@ -110,9 +113,19 @@ export const CodewhispererServerFactory =
                     ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
-            telemetryService.updateUserContext(
-                makeUserContextObject(clientParams, runtime.platform, 'INLINE', amazonQServiceManager.serverInfo)
+            const usrContext = makeUserContextObject(
+                clientParams,
+                runtime.platform,
+                'INLINE',
+                amazonQServiceManager.serverInfo
             )
+
+            telemetryService.updateUserContext(usrContext)
+
+            if (service && service instanceof CodeWhispererServiceToken) {
+                // initilize feature config instance
+                const featConfig = new FeatureConfigProvider(usrContext, logging, service)
+            }
 
             codePercentageTracker = new CodePercentageTracker(telemetryService)
             codeDiffTracker = new CodeDiffTracker(
