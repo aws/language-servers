@@ -48,6 +48,7 @@ import {
     CreateWorkspaceRequest,
     DeleteWorkspaceCommand,
     DeleteWorkspaceRequest,
+    FeatureEvaluation,
     GenerateCompletionsCommand,
     GenerateCompletionsRequest,
     GenerateCompletionsResponse,
@@ -68,6 +69,7 @@ import {
     ListCodeAnalysisFindingsCommand,
     ListCodeAnalysisFindingsRequest,
     ListFeatureEvaluationsCommand,
+    ListFeatureEvaluationsCommandOutput,
     ListFeatureEvaluationsRequest,
     ListWorkspaceMetadataCommand,
     ListWorkspaceMetadataRequest,
@@ -81,6 +83,7 @@ import {
     StopTransformationRequest,
     SupplementalContext,
     SupplementalContextType,
+    UserContext,
 } from '@amzn/codewhisperer-runtime'
 import {
     GenerateRecommendationsCommand,
@@ -88,6 +91,8 @@ import {
     GenerateRecommendationsResponse,
     Recommendation,
 } from '@amzn/codewhisperer'
+
+const featureConfigPollIntervalInMs = 180 * 60 * 1000 // 180 mins
 
 // Type guards for request classification
 export function isTokenRequest(request: GenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
@@ -221,6 +226,16 @@ export abstract class CodeWhispererServiceBase {
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
+    private _userContext: UserContext | undefined
+    set userContext(u: UserContext | undefined) {
+        this._userContext = u
+    }
+    get userContext(): UserContext | undefined {
+        return this._userContext
+    }
+
+    protected lastFeatureConfigResp: ListFeatureEvaluationsCommandOutput | undefined
+
     inflightRequests: Set<AbortController> = new Set()
 
     abortInflightRequests() {
@@ -250,6 +265,8 @@ export abstract class CodeWhispererServiceBase {
           }
         | undefined
     >
+
+    abstract scheduleABTestingFetching(): Promise<void>
 
     constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
@@ -318,6 +335,10 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     getCredentialsType(): CredentialsType {
         return 'iam'
+    }
+
+    override async scheduleABTestingFetching(): Promise<void> {
+        return
     }
 
     async constructSupplementalContext(
@@ -389,6 +410,16 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
+    #abTestingFetchingTimeout: NodeJS.Timeout | undefined
+    #abTestingAllocation:
+        | {
+              experimentName: string
+              userVariation: string
+          }
+        | undefined
+
+    #features: FeatureEvaluation[] | undefined
+
     constructor(
         private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -396,6 +427,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator,
+        userContext: UserContext | undefined,
         customUserAgent?: string
     ) {
         super(codeWhispererRegion, codeWhispererEndpoint)
@@ -421,10 +453,51 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             credentialsProvider,
             this.shareCodeWhispererContentWithAWS
         )
+        this.userContext = userContext
+        this.scheduleABTestingFetching()
+            .then()
+            .catch(e => {})
     }
 
     getCredentialsType(): CredentialsType {
         return 'bearer'
+    }
+
+    override async scheduleABTestingFetching(): Promise<void> {
+        const userContext = this.userContext
+        if (!userContext) {
+            this.logging.error(`empty user context, skipping ab config fetching`)
+            return
+        }
+
+        let logstr = ''
+        try {
+            this.#features = (await this.listFeatureEvaluations({ userContext: userContext })).featureEvaluations
+            logstr += `abconfig: ${JSON.stringify(this.#features)}`
+        } catch (e) {
+            logstr += `abconfig error: ${e}`
+        } finally {
+            this.logging.info(logstr)
+        }
+
+        this.#abTestingFetchingTimeout = setInterval(() => {
+            let logs = `abconfig: pulling latest result after ${featureConfigPollIntervalInMs}ms:`
+            clearInterval(this.#abTestingFetchingTimeout)
+            this.#abTestingFetchingTimeout = undefined
+
+            this.listFeatureEvaluations({ userContext })
+                .then(result => {
+                    const features = result.featureEvaluations
+                    this.#features = features
+                    logs += `${JSON.stringify(features)}`
+                })
+                .catch(error => {
+                    logs += `${(error as Error).message}`
+                })
+                .finally(() => {
+                    this.logging.info(logs)
+                })
+        }, featureConfigPollIntervalInMs)
     }
 
     async constructSupplementalContext(
