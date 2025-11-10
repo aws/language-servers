@@ -179,4 +179,82 @@ describe('SessionResultsHandler', () => {
         sinon.assert.called(rejectedEditTracker.recordRejectedEdit)
         assert.equal(session.state, 'CLOSED')
     })
+
+    describe('userDecisionReason', () => {
+        it('should set ImplicitReject when reason is IMPLICIT_REJECT and suggestion was seen', async () => {
+            const session = completionSessionManager.createSession(sessionData)
+            completionSessionManager.activateSession(session)
+            session.id = 'test-session-id'
+            session.suggestions = [{ itemId: 'item-1', content: 'test' }]
+
+            const implicitRejectData = {
+                ...sessionResultData,
+                completionSessionResult: { 'item-1': { seen: true, accepted: false, discarded: false } },
+                reason: 'IMPLICIT_REJECT',
+            }
+
+            await handler.handleSessionResults(implicitRejectData)
+
+            sinon.assert.calledOnce(telemetryService.emitUserTriggerDecision)
+            const call = telemetryService.emitUserTriggerDecision.getCall(0)
+            assert.equal(call.args[8], 'IMPLICIT_REJECT')
+        })
+
+        it('should set ExplicitReject when reason is not IMPLICIT_REJECT and suggestion was seen', async () => {
+            const session = completionSessionManager.createSession(sessionData)
+            completionSessionManager.activateSession(session)
+            session.id = 'test-session-id'
+            session.suggestions = [{ itemId: 'item-1', content: 'test' }]
+
+            const explicitRejectData = {
+                ...sessionResultData,
+                completionSessionResult: { 'item-1': { seen: true, accepted: false, discarded: false } },
+                reason: undefined,
+            }
+
+            await handler.handleSessionResults(explicitRejectData)
+
+            sinon.assert.calledOnce(telemetryService.emitUserTriggerDecision)
+            const call = telemetryService.emitUserTriggerDecision.getCall(0)
+            assert.equal(call.args[8], 'EXPLICIT_REJECT')
+        })
+
+        it('should not set userDecisionReason when suggestion was not seen (discard)', async () => {
+            const session = completionSessionManager.createSession(sessionData)
+            completionSessionManager.activateSession(session)
+            session.id = 'test-session-id'
+            session.suggestions = [{ itemId: 'item-1', content: 'test' }]
+
+            const discardData = {
+                ...sessionResultData,
+                completionSessionResult: { 'item-1': { seen: false, accepted: false, discarded: true } },
+                reason: 'IMPLICIT_REJECT',
+            }
+
+            await handler.handleSessionResults(discardData)
+
+            sinon.assert.calledOnce(telemetryService.emitUserTriggerDecision)
+            const call = telemetryService.emitUserTriggerDecision.getCall(0)
+            assert.equal(call.args[8], undefined)
+        })
+
+        it('should not set userDecisionReason when suggestion was accepted', async () => {
+            const session = completionSessionManager.createSession(sessionData)
+            completionSessionManager.activateSession(session)
+            session.id = 'test-session-id'
+            session.suggestions = [{ itemId: 'item-1', content: 'test', insertText: 'test' }]
+
+            const acceptedData = {
+                ...sessionResultData,
+                completionSessionResult: { 'item-1': { seen: true, accepted: true, discarded: false } },
+                reason: undefined,
+            }
+
+            await handler.handleSessionResults(acceptedData)
+
+            sinon.assert.calledOnce(telemetryService.emitUserTriggerDecision)
+            const call = telemetryService.emitUserTriggerDecision.getCall(0)
+            assert.equal(call.args[8], undefined)
+        })
+    })
 })
