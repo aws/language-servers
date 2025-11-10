@@ -166,8 +166,14 @@ export const LocalProjectContextServer =
             try {
                 localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
                 if (process.env.DISABLE_INDEXING_LIBRARY === 'true') {
-                    logging.log('Skipping local project context initialization')
+                    logging.log('Skipping local project context initialization due to DISABLE_INDEXING_LIBRARY=true')
                     localProjectContextEnabled = false
+                    // Ensure instance is set even when disabled
+                    LocalProjectContextController.createFallbackInstance(
+                        'vscode',
+                        workspace.getAllWorkspaceFolders() || [],
+                        logging
+                    )
                 } else {
                     logging.log(
                         `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
@@ -183,7 +189,13 @@ export const LocalProjectContextServer =
                     })
                 }
             } catch (error) {
-                logging.error(`Error handling configuration change: ${error}`)
+                logging.error(`Error handling configuration change: ${error}. Creating fallback instance.`)
+                // Create fallback instance if initialization fails
+                LocalProjectContextController.createFallbackInstance(
+                    'vscode',
+                    workspace.getAllWorkspaceFolders() || [],
+                    logging
+                )
             }
         }
 
