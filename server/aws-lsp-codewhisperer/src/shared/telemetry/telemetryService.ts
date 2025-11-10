@@ -27,6 +27,7 @@ import {
     CompletionType,
     InlineChatUserDecision,
     AgenticChatEventStatus,
+    UserDecisionReason,
 } from '@amzn/codewhisperer-runtime'
 import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
@@ -201,7 +202,8 @@ export class TelemetryService {
         deletedCharacterCount?: number,
         addedIdeDiagnostics?: IdeDiagnostic[],
         removedIdeDiagnostics?: IdeDiagnostic[],
-        streakLength?: number
+        streakLength?: number,
+        userDecisionReason?: UserDecisionReason
     ) {
         session.decisionMadeTimestamp = Date.now()
         // Toolkit telemetry API
@@ -291,6 +293,7 @@ export class TelemetryService {
             removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength ?? 0,
             suggestionType: session.predictionType,
+            userDecisionReason: userDecisionReason,
         }
         this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent:
             "requestId": ${event.requestId}
@@ -302,7 +305,8 @@ export class TelemetryService {
             "preprocessLatency": ${session.preprocessLatency},
             "triggerToResponseLatencyMilliseconds: ${event.triggerToResponseLatencyMilliseconds}",
             "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds},
-            "suggestionType": ${event.suggestionType}`)
+            "suggestionType": ${event.suggestionType}
+            "userDecisionReason": ${event.userDecisionReason}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })
