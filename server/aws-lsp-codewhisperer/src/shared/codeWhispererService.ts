@@ -94,6 +94,8 @@ import {
 
 const featureConfigPollIntervalInMs = 180 * 60 * 1000 // 180 mins
 
+const experimentName = 'MHS_TO_MPS_BEDROCK_INFERENCE_MIGRATION_30b'
+
 // Type guards for request classification
 export function isTokenRequest(request: GenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
     return 'editorState' in request || 'predictionTypes' in request || 'supplementalContexts' in request
@@ -411,13 +413,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
     #abTestingFetchingTimeout: NodeJS.Timeout | undefined
-    #abTestingAllocation:
-        | {
-              experimentName: string
-              userVariation: string
-          }
-        | undefined
-
     #features: FeatureEvaluation[] | undefined
 
     constructor(
@@ -516,6 +511,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
           }
         | undefined
     > {
+        const getRepomapTarget = () => {
+            const feat = this.#features?.find(f => {
+                f.feature === experimentName
+            })
+            const group = feat?.variation
+            return group === 'TREATMENT' ? 'codemap-2hop' : 'codemap'
+        }
+
         const items: SupplementalContext[] = []
 
         const projectContext = await fetchSupplementalContext(
