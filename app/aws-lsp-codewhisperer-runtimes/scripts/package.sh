@@ -122,7 +122,7 @@ for config in "${configs[@]}"; do
     zip -r ../../../../$ARCHIVES_DIR/${config}/mac-x64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/linux-arm64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/mac-arm64/servers.zip .
-    zip -r ../../../../scripts/dummy-package.json ./package.json
+    cp -r ../../../../scripts/dummy-package.json ./package.json
 
     cd ..
 done
