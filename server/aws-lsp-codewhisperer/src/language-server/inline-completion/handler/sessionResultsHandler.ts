@@ -162,10 +162,8 @@ export class SessionResultsHandler {
             if (wasSeen) {
                 if (reason === 'IMPLICIT_REJECT') {
                     userDecisionReason = UserDecisionReason.ImplicitReject
-                    this.logging.log(`[USER_DECISION] → Implicit reject`)
                 } else {
                     userDecisionReason = UserDecisionReason.ExplicitReject
-                    this.logging.log(`[USER_DECISION] → Explicit reject`)
                 }
             }
         }
