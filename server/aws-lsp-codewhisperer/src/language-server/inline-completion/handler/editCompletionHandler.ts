@@ -38,6 +38,7 @@ import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../sha
 import { DocumentChangedListener } from '../documentChangedListener'
 import { EMPTY_RESULT } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
+import { UserDecisionReason } from '@amzn/codewhisperer-runtime'
 import { processEditSuggestion } from '../utils/diffUtils'
 import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
 
@@ -284,6 +285,7 @@ export class EditCompletionHandler {
         // Close ACTIVE session and record Discard trigger decision immediately
         if (currentSession && currentSession.state === 'ACTIVE') {
             // Emit user trigger decision at session close time for active session
+            // This is a discard, no userDecisionReason needed
             this.sessionManager.discardSession(currentSession)
             const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
@@ -296,6 +298,7 @@ export class EditCompletionHandler {
                 [],
                 [],
                 streakLength
+                // No itemId, no userDecisionReason
             )
         }
 
@@ -358,6 +361,7 @@ export class EditCompletionHandler {
             session.discardInflightSessionOnNewInvocation = false
             this.sessionManager.discardSession(session)
             const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
+            // This is a discard, no userDecisionReason needed
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -368,6 +372,7 @@ export class EditCompletionHandler {
                 [],
                 [],
                 streakLength
+                // No itemId, no userDecisionReason
             )
         }
 
