@@ -117,12 +117,12 @@ done
 cd ./build/private/bundle
 for config in "${configs[@]}"; do
     cd ${config}
+    cp -r ../../../../scripts/dummy-package.json ./package.json
     zip -r ../../../../$ARCHIVES_DIR/${config}/win-x64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/linux-x64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/mac-x64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/linux-arm64/servers.zip .
     zip -r ../../../../$ARCHIVES_DIR/${config}/mac-arm64/servers.zip .
-    cp -r ../../../../scripts/dummy-package.json ./package.json
 
     cd ..
 done
