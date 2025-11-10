@@ -245,8 +245,8 @@ export async function loadAgentConfig(
     workspace: Workspace,
     logging: Logger,
     agentPaths: string[],
-    registry?: McpRegistryData | null,
-    registryActive?: boolean
+    registry: McpRegistryData | null,
+    registryActive: boolean
 ): Promise<{
     servers: Map<string, MCPServerConfig>
     serverNameMapping: Map<string, string>

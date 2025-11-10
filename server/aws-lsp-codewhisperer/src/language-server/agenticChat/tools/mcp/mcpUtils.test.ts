@@ -219,7 +219,7 @@ describe('loadAgentConfig', () => {
     it('creates a default agent config when none exists', async () => {
         // Add the global agent path to the paths array
         const agentPath = getGlobalAgentConfigPath(tmpDir)
-        const result = await loadAgentConfig(workspace, logger, [agentPath])
+        const result = await loadAgentConfig(workspace, logger, [agentPath], null, false)
 
         // Check that the agent config has the expected structure
         expect(result.agentConfig).to.have.property('name')
@@ -256,7 +256,7 @@ describe('loadAgentConfig', () => {
 
         await workspace.fs.writeFile(agentPath, JSON.stringify(agentConfig))
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath])
+        const result = await loadAgentConfig(workspace, logger, [agentPath], null, false)
 
         // Check that the server was loaded correctly
         expect(result.servers.size).to.equal(1)
@@ -865,7 +865,7 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
 
         expect(result.servers.size).to.equal(1)
         expect(result.servers.has('test-remote')).to.be.true
@@ -893,7 +893,7 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath], null)
+        const result = await loadAgentConfig(workspace, logger, [agentPath], null, false)
 
         expect(result.servers.size).to.equal(1)
         expect(result.servers.has('test-remote')).to.be.false
@@ -920,7 +920,7 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, errorLogger, [agentPath], testRegistry)
+        const result = await loadAgentConfig(workspace, errorLogger, [agentPath], testRegistry, true)
 
         expect(result.servers.size).to.equal(0)
         expect(errors.some(e => e.includes('not found in registry'))).to.be.true
@@ -942,7 +942,7 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
 
         expect(result.servers.size).to.equal(1)
         const server = result.servers.get('test-local')!
@@ -968,7 +968,7 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
 
         expect(result.servers.size).to.equal(1)
         const server = result.servers.get('test-remote')!
@@ -994,7 +994,7 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry)
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
 
         expect(result.servers.size).to.equal(1)
         const server = result.servers.get('test-remote')!
