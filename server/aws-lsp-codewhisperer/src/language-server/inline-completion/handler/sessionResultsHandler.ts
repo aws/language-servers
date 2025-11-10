@@ -3,7 +3,7 @@ import {
     LogInlineCompletionSessionResultsParams,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
+import { IdeDiagnostic, UserDecisionReason } from '@amzn/codewhisperer-runtime'
 import { SessionManager } from '../session/sessionManager'
 import { CodePercentageTracker } from '../tracker/codePercentageTracker'
 import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
@@ -62,6 +62,7 @@ export class SessionResultsHandler {
             isInlineEdit,
             addedDiagnostics,
             removedDiagnostics,
+            reason,
         } = params
 
         // Comment this out because Edit request might return Completion as well so we can't rely on this flag
@@ -153,6 +154,20 @@ export class SessionResultsHandler {
         // Always emit user trigger decision at session close
         sessionManager.closeSession(session)
         const streakLength = this.getEditsEnabled() ? this.streakTracker.getAndUpdateStreakLength(isAccepted) : 0
+
+        let userDecisionReason: UserDecisionReason | undefined
+        if (!isAccepted) {
+            const wasSeen = Object.values(params.completionSessionResult).some(result => result.seen === true)
+
+            if (wasSeen) {
+                if (reason === 'IMPLICIT_REJECT') {
+                    userDecisionReason = UserDecisionReason.ImplicitReject
+                } else {
+                    userDecisionReason = UserDecisionReason.ExplicitReject
+                }
+            }
+        }
+
         await emitUserTriggerDecisionTelemetry(
             this.telemetry,
             this.telemetryService,
@@ -163,7 +178,8 @@ export class SessionResultsHandler {
             addedDiagnostics as IdeDiagnostic[],
             removedDiagnostics as IdeDiagnostic[],
             streakLength,
-            Object.keys(params.completionSessionResult)[0]
+            Object.keys(params.completionSessionResult)[0],
+            userDecisionReason
         )
     }
 }
