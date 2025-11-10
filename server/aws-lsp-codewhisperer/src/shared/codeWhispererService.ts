@@ -527,6 +527,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             workspace,
             logging,
             cancellationToken,
+            getRepomapTarget(),
             opentabs
         )
         if (projectContext) {
