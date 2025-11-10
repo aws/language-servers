@@ -56,7 +56,7 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            requestContentStub.resolves(JSON.stringify(mockRegistry))
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
@@ -79,7 +79,7 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            requestContentStub.resolves(JSON.stringify(mockRegistry))
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
@@ -95,7 +95,7 @@ describe('McpRegistryService', () => {
         })
 
         it('should return null for missing servers array', async () => {
-            requestContentStub.resolves('{}')
+            requestContentStub.resolves({ content: '{}', contentType: 'application/json' })
 
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
@@ -126,7 +126,7 @@ describe('McpRegistryService', () => {
                 ],
             }
 
-            requestContentStub.resolves(JSON.stringify(mockRegistry))
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
 
             await service.fetchRegistry('https://example.com/registry.json')
             const result = service.getInMemoryRegistry()
@@ -146,7 +146,7 @@ describe('McpRegistryService', () => {
                 servers: [],
             }
 
-            requestContentStub.resolves(JSON.stringify(mockRegistry))
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
 
             await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(service.isRegistryActive(), true)
@@ -184,14 +184,14 @@ describe('McpRegistryService', () => {
         })
 
         it('should log error for invalid JSON', async () => {
-            requestContentStub.resolves('{ invalid json }')
+            requestContentStub.resolves({ content: '{ invalid json }', contentType: 'application/json' })
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
             assert.ok(mockLogging.error.calledWith(sinon.match(/Invalid JSON format/)))
         })
 
         it('should log error for non-array servers field', async () => {
-            requestContentStub.resolves('{"servers": "not-an-array"}')
+            requestContentStub.resolves({ content: '{"servers": "not-an-array"}', contentType: 'application/json' })
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.strictEqual(result, null)
             assert.ok(
@@ -210,7 +210,7 @@ describe('McpRegistryService', () => {
                     },
                 ],
             })
-            requestContentStub.resolves(validRegistry)
+            requestContentStub.resolves({ content: validRegistry, contentType: 'application/json' })
             const result = await service.fetchRegistry('https://example.com/registry.json')
             assert.ok(result !== null)
             assert.ok(mockLogging.info.calledWith(sinon.match(/Successfully fetched registry.*with 1 servers/)))
@@ -273,7 +273,7 @@ describe('McpRegistryService', () => {
                 })
             }
 
-            requestContentStub.resolves(JSON.stringify({ servers }))
+            requestContentStub.resolves({ content: JSON.stringify({ servers }), contentType: 'application/json' })
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
             assert.notStrictEqual(result, null)
@@ -296,7 +296,7 @@ describe('McpRegistryService', () => {
                 })
             }
 
-            requestContentStub.resolves(JSON.stringify({ servers }))
+            requestContentStub.resolves({ content: JSON.stringify({ servers }), contentType: 'application/json' })
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
             assert.notStrictEqual(result, null)
@@ -335,7 +335,7 @@ describe('McpRegistryService', () => {
                 }
             }
 
-            requestContentStub.resolves(JSON.stringify({ servers }))
+            requestContentStub.resolves({ content: JSON.stringify({ servers }), contentType: 'application/json' })
             const result = await service.fetchRegistry('https://example.com/registry.json')
 
             assert.notStrictEqual(result, null)

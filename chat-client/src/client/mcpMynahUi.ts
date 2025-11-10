@@ -461,11 +461,18 @@ export class McpMynahUi {
             const detailedList = isRegistryView
                 ? {
                       selectable: false,
-                      textDirection: 'column' as const,
+                      textDirection: 'row' as const,
                       header: {
                           title: typedParams.header?.title || 'Add MCP Server',
                           description: typedParams.header?.description || '',
+                          status: typedParams.header?.status,
+                          actions: typedParams.header?.actions?.map(action => ({
+                              ...action,
+                              icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                          })),
                       },
+                      filterOptions: this.processFilterOptions(typedParams.filterOptions),
+                      filterActions: typedParams.filterActions,
                       list: typedParams.list?.map(group => ({
                           groupName: group.groupName,
                           children: group.children?.map((item: any) => ({
