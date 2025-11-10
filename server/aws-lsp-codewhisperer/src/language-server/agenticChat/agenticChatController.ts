@@ -2027,7 +2027,9 @@ export class AgenticChatController implements ChatHandlers {
                             originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
                         } catch (error) {
                             // McpManager not initialized, skip MCP tool handling
-                            this.#features.logging.debug('McpManager not initialized, skipping MCP tool handling')
+                            this.#features.logging.debug(
+                                `McpManager not initialized, skipping MCP tool handling with error: ${error}`
+                            )
                             originalNames = undefined
                         }
 
@@ -2051,7 +2053,9 @@ export class AgenticChatController implements ChatHandlers {
                                     .getAllTools()
                                     .find(d => d.serverName === serverName && d.toolName === toolName)
                             } catch (error) {
-                                this.#features.logging.debug('McpManager not initialized, cannot get tool definitions')
+                                this.#features.logging.debug(
+                                    `McpManager not initialized, cannot get tool definitions with error: ${error}`
+                                )
                                 def = undefined
                             }
                             if (def) {
@@ -2346,7 +2350,9 @@ export class AgenticChatController implements ChatHandlers {
                     originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
                 } catch (error) {
                     // McpManager not initialized, skip MCP error handling
-                    this.#features.logging.debug('McpManager not initialized, skipping MCP error handling')
+                    this.#features.logging.debug(
+                        `McpManager not initialized, skipping MCP error handling with error: ${error}`
+                    )
                     originalNames = undefined
                 }
                 if (originalNames && toolUse.toolUseId) {
@@ -4674,7 +4680,9 @@ export class AgenticChatController implements ChatHandlers {
             McpManager.instance.clearToolNameMapping()
         } catch (error) {
             // McpManager not initialized, return tools without MCP
-            this.#features.logging.debug('McpManager not initialized in #getTools, returning non-MCP tools')
+            this.#features.logging.debug(
+                `McpManager not initialized in #getTools, returning non-MCP tools with error: ${error}`
+            )
             return session.pairProgrammingMode
                 ? allTools
                 : allTools.filter(tool => !builtInWriteTools.has(tool.toolSpecification?.name || ''))
@@ -4697,7 +4705,7 @@ export class AgenticChatController implements ChatHandlers {
             )
         } catch (error) {
             // McpManager not initialized, use empty set
-            this.#features.logging.debug('McpManager not initialized, cannot get MCP tools')
+            this.#features.logging.debug(`McpManager not initialized, cannot get MCP tools because of error: ${error}`)
             mcpToolSpecNames = new Set()
         }
 
@@ -4705,7 +4713,9 @@ export class AgenticChatController implements ChatHandlers {
             McpManager.instance.setToolNameMapping(tempMapping)
         } catch (error) {
             // McpManager not initialized, skip setting mapping
-            this.#features.logging.debug('McpManager not initialized, cannot set tool name mapping')
+            this.#features.logging.debug(
+                `McpManager not initialized, cannot set tool name mapping because of error: ${error}`
+            )
         }
 
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...builtInWriteTools])
@@ -4760,7 +4770,9 @@ export class AgenticChatController implements ChatHandlers {
             originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
         } catch (error) {
             // McpManager not initialized, skip MCP tool result handling
-            this.#features.logging.debug('McpManager not initialized, cannot handle MCP tool result')
+            this.#features.logging.debug(
+                `McpManager not initialized, cannot handle MCP tool result because of error: ${error}`
+            )
             originalNames = undefined
         }
 
@@ -4772,7 +4784,9 @@ export class AgenticChatController implements ChatHandlers {
                     .getAllTools()
                     .find(d => d.serverName === serverName && d.toolName === toolName)
             } catch (error) {
-                this.#features.logging.debug('McpManager not initialized, cannot get tool definitions')
+                this.#features.logging.debug(
+                    `McpManager not initialized, cannot get tool definitions because of error: ${error}`
+                )
                 def = undefined
             }
             if (def) {
