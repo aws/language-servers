@@ -36,27 +36,59 @@ export class McpServerConfigConverter {
         const pkg = packages![0]
         const isNpm = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.NPM
         const isPypi = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.PYPI
+        const isOci = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.OCI
 
-        const config: MCPServerConfig = {
-            command: isNpm ? MCP_REGISTRY_CONSTANTS.NPM.COMMAND : MCP_REGISTRY_CONSTANTS.PYPI.COMMAND,
-            args: isNpm
-                ? [MCP_REGISTRY_CONSTANTS.NPM.FLAG, `${pkg.identifier}@${version}`]
-                : [`${pkg.identifier}@${version}`],
-            env: {},
+        const args: string[] = []
+
+        if (isNpm) {
+            args.push(MCP_REGISTRY_CONSTANTS.NPM.FLAG)
+        } else if (isOci) {
+            args.push(MCP_REGISTRY_CONSTANTS.OCI.FLAG)
         }
 
-        if (pkg.registryBaseUrl) {
-            if (isNpm) {
-                config.env![MCP_REGISTRY_CONSTANTS.NPM.ENV_VAR] = pkg.registryBaseUrl
-            } else if (isPypi) {
-                config.env![MCP_REGISTRY_CONSTANTS.PYPI.ENV_VAR] = pkg.registryBaseUrl
-            }
+        if (isPypi && pkg.registryBaseUrl) {
+            args.push('--default-index')
+            args.push(pkg.registryBaseUrl)
+        }
+
+        if (pkg.runtimeArguments && pkg.runtimeArguments.length > 0) {
+            pkg.runtimeArguments.forEach((arg: { type: string; value: string }) => {
+                args.push(arg.value)
+            })
+        }
+
+        if (isOci) {
+            const imageRef = pkg.registryBaseUrl
+                ? `${pkg.registryBaseUrl}/${pkg.identifier}:${version}`
+                : `${pkg.identifier}:${version}`
+            args.push(imageRef)
+        } else {
+            args.push(`${pkg.identifier}@${version}`)
         }
 
         if (pkg.packageArguments && pkg.packageArguments.length > 0) {
             pkg.packageArguments.forEach((arg: { type: string; value: string }) => {
-                config.args!.push(arg.value)
+                args.push(arg.value)
             })
+        }
+
+        let command: string
+        if (isNpm) {
+            command = MCP_REGISTRY_CONSTANTS.NPM.COMMAND
+        } else if (isPypi) {
+            command = MCP_REGISTRY_CONSTANTS.PYPI.COMMAND
+        } else {
+            command = MCP_REGISTRY_CONSTANTS.OCI.COMMAND
+        }
+
+        const config: MCPServerConfig = {
+            command,
+            args,
+            env: {},
+        }
+
+        if (pkg.registryBaseUrl && isNpm) {
+            config.env![MCP_REGISTRY_CONSTANTS.NPM.ENV_VAR] = pkg.registryBaseUrl
         }
 
         if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {

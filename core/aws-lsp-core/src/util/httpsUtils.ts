@@ -1,10 +1,9 @@
 import * as https from 'https'
 import { Agent } from 'https'
 
-export function requestContent(url: string, agent?: Agent): Promise<string> {
+export function requestContent(url: string, agent?: Agent): Promise<{ content: string; contentType?: string }> {
     return new Promise((resolve, reject) => {
         const request = https.get(url, { agent }, response => {
-            // Handle the response
             const statusCode = response.statusCode
             if (statusCode !== 200) {
                 reject(new Error(`Request failed with status code ${statusCode}`))
@@ -12,6 +11,7 @@ export function requestContent(url: string, agent?: Agent): Promise<string> {
                 return
             }
 
+            const contentType = response.headers['content-type']
             let rawData = ''
             response.setEncoding('utf8')
 
@@ -20,8 +20,7 @@ export function requestContent(url: string, agent?: Agent): Promise<string> {
             })
 
             response.on('end', () => {
-                // File download completed
-                resolve(rawData)
+                resolve({ content: rawData, contentType })
             })
         })
 

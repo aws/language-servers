@@ -57,6 +57,8 @@ export type McpFilterOption = {
 export type McpListItem = {
     title: string
     description?: string
+    icon?: string
+    actions?: any[]
     groupActions?: any
 }
 
@@ -132,6 +134,8 @@ export class McpMynahUi {
             return {
                 title: item.title,
                 description: item.description,
+                icon: item.icon ? toMynahIcon(item.icon) : undefined,
+                actions: item.groupActions,
             }
         })
 
@@ -215,6 +219,7 @@ export class McpMynahUi {
 
         // Process header if present
         if (params.header) {
+            const isRegistryActive = (params as any).isRegistryActive
             detailedList.header = {
                 title: params.header.title,
                 description: params.header.description,
@@ -225,10 +230,14 @@ export class McpMynahUi {
                     ...(action.id === MCP_IDS.DETAILS_MENU
                         ? {
                               items: [
-                                  {
-                                      id: MCP_IDS.DISABLE_SERVER,
-                                      text: `Disable MCP server`,
-                                  },
+                                  ...(isRegistryActive !== true
+                                      ? [
+                                            {
+                                                id: MCP_IDS.DISABLE_SERVER,
+                                                text: `Disable MCP server`,
+                                            },
+                                        ]
+                                      : []),
                                   {
                                       id: MCP_IDS.DELETE_SERVER,
                                       confirmation: {
@@ -452,42 +461,86 @@ export class McpMynahUi {
             const initial = uiFilters.find(f => f.id === 'transport')
             let _lastTransport = initial?.value as unknown as string
 
-            const detailedList = this.createAddMcpServerDetailedList(typedParams)
+            // Check if this is registry view (has list) or manual form (has filterOptions)
+            const isRegistryView = typedParams.list && typedParams.list.length > 0
 
-            const events = {
-                onBackClick: () => {
-                    this.messager.onListMcpServers()
-                },
-                onFilterValueChange: (filterValues: Record<string, any>) => {
-                    const newTransport = filterValues?.transport
-                    if (!newTransport || newTransport === _lastTransport) {
-                        return
-                    }
+            const detailedList = isRegistryView
+                ? {
+                      selectable: false,
+                      textDirection: 'row' as const,
+                      header: {
+                          title: typedParams.header?.title || 'Add MCP Server',
+                          description: typedParams.header?.description || '',
+                          status: typedParams.header?.status,
+                          actions: typedParams.header?.actions?.map(action => ({
+                              ...action,
+                              icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                          })),
+                      },
+                      filterOptions: this.processFilterOptions(typedParams.filterOptions),
+                      filterActions: typedParams.filterActions,
+                      list: typedParams.list?.map(group => ({
+                          groupName: group.groupName,
+                          children: group.children?.map((item: any) => ({
+                              title: item.title,
+                              description: item.description,
+                              icon: toMynahIcon(item.icon || 'folder'),
+                              actions: (item.actions || []).map((action: any) => ({
+                                  id: action.id,
+                                  text: action.text,
+                                  status: action.status,
+                                  disabled: action.disabled,
+                              })),
+                              groupActions: item.groupActions,
+                          })),
+                      })),
+                  }
+                : this.createAddMcpServerDetailedList(typedParams)
 
-                    _lastTransport = newTransport
-                    this.messager.onMcpServerClick(MCP_IDS.CHANGE_TRANSPORT, filterValues.name, filterValues)
-                },
-                onFilterActionClick: (
-                    actionParams: McpServerClickResult,
-                    filterValues?: Record<string, string>,
-                    isValid?: boolean
-                ) => {
-                    if (actionParams.id === MCP_IDS.CANCEL) {
-                        this.messager.onListMcpServers()
-                        return
-                    }
+            const events = isRegistryView
+                ? {
+                      onBackClick: () => this.messager.onListMcpServers(),
+                      onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
+                          if (action.id === 'install-registry-server') {
+                              this.mynahUi.toggleSplashLoader(true, '**Installing MCP Server**')
+                              this.messager.onMcpServerClick(action.id, item?.title)
+                          }
+                      },
+                  }
+                : {
+                      onBackClick: () => {
+                          this.messager.onListMcpServers()
+                      },
+                      onFilterValueChange: (filterValues: Record<string, any>) => {
+                          const newTransport = filterValues?.transport
+                          if (!newTransport || newTransport === _lastTransport) {
+                              return
+                          }
 
-                    // new and update will share the same save-mcp
-                    if (actionParams.id === MCP_IDS.SAVE) {
-                        this.mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
-                        this.messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
-                    }
-                },
-                onTitleActionClick: (action: ChatItemButton) => {
-                    const serverName = (action as any).data?.serverName
-                    this.messager.onMcpServerClick(action.id, serverName)
-                },
-            }
+                          _lastTransport = newTransport
+                          this.messager.onMcpServerClick(MCP_IDS.CHANGE_TRANSPORT, filterValues.name, filterValues)
+                      },
+                      onFilterActionClick: (
+                          actionParams: McpServerClickResult,
+                          filterValues?: Record<string, string>,
+                          isValid?: boolean
+                      ) => {
+                          if (actionParams.id === MCP_IDS.CANCEL) {
+                              this.messager.onListMcpServers()
+                              return
+                          }
+
+                          // new and update will share the same save-mcp
+                          if (actionParams.id === MCP_IDS.SAVE) {
+                              this.mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
+                              this.messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
+                          }
+                      },
+                      onTitleActionClick: (action: ChatItemButton) => {
+                          const serverName = (action as any).data?.serverName
+                          this.messager.onMcpServerClick(action.id, serverName)
+                      },
+                  }
             this.mynahUi.openDetailedList({ detailedList, events }, true)
         } else if (params.id === MCP_IDS.OPEN_SERVER) {
             //turning off splash loader in case of being on when new server is added

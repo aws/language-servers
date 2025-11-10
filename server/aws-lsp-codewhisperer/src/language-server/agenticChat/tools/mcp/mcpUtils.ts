@@ -245,7 +245,8 @@ export async function loadAgentConfig(
     workspace: Workspace,
     logging: Logger,
     agentPaths: string[],
-    registry?: McpRegistryData | null
+    registry: McpRegistryData | null,
+    registryActive: boolean
 ): Promise<{
     servers: Map<string, MCPServerConfig>
     serverNameMapping: Map<string, string>
@@ -401,7 +402,7 @@ export async function loadAgentConfig(
                 const isRegistryServer = isRegistryServerConfig(entry)
 
                 // Apply registry filtering logic
-                if (registry) {
+                if (registryActive) {
                     // When registry is active, only load registry servers
                     if (!isRegistryServer) {
                         logging.info(`MCP: registry active, ignoring manual server '${name}'`)
@@ -426,7 +427,7 @@ export async function loadAgentConfig(
                         continue
                     }
 
-                    const registryServer = registry.servers.find(s => s.name === name)
+                    const registryServer = findServerInRegistry(registry, name)
                     if (!registryServer) {
                         const errorMsg = `MCP Registry: Server '${name}' not found in registry`
                         logging.error(errorMsg)
@@ -558,8 +559,9 @@ export async function loadAgentConfig(
     // Set final useLegacyMcpJson value - default to true if not specified anywhere
     agentConfig.useLegacyMcpJson = useLegacyMcpJsonValue !== undefined ? useLegacyMcpJsonValue : true
 
-    // Load MCP config files if useLegacyMcpJson is true
-    if (agentConfig.useLegacyMcpJson) {
+    // Load MCP config files if useLegacyMcpJson is true and registry mode is not active
+    // Legacy MCP configs are always manual servers, so skip them when registry is active
+    if (agentConfig.useLegacyMcpJson && !registryActive) {
         const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
         const mcpPaths = [...getWorkspaceMcpConfigPaths(wsUris), getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())]
 
@@ -1213,6 +1215,14 @@ export async function migrateAgentConfigToCLIFormat(
 }
 
 export const MAX_TOOL_NAME_LENGTH = 64
+
+/**
+ * Find a server in the registry by name with O(1) lookup performance.
+ * Uses Map-based lookup for large registries (200+ servers).
+ */
+export function findServerInRegistry(registry: McpRegistryData, serverName: string): any | undefined {
+    return registry.servers.find(s => s.name === serverName)
+}
 
 /**
  * Create a namespaced tool name from server and tool names.

@@ -11,6 +11,7 @@ import { McpRegistryValidator } from './mcpRegistryValidator'
 
 export class McpRegistryService {
     private inMemoryRegistry: McpRegistryData | null = null
+    private serverLookupMap: Map<string, any> | null = null
     private validator: McpRegistryValidator
 
     constructor(private logging: Logging) {
@@ -26,8 +27,21 @@ export class McpRegistryService {
         try {
             const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
             const agent = proxyUrl ? new HttpsProxyAgent({ proxy: proxyUrl }) : undefined
-            const json = await httpsUtils.requestContent(url, agent)
-            const parsed = JSON.parse(json)
+            const response = await httpsUtils.requestContent(url, agent)
+
+            // Validate content type to prevent HTML/JavaScript injection
+            if (
+                response.contentType &&
+                !response.contentType.includes('application/json') &&
+                !response.contentType.includes('text/plain')
+            ) {
+                this.logging.error(
+                    `MCP Registry: Invalid content type '${response.contentType}' from ${url}. Expected JSON.`
+                )
+                return null
+            }
+
+            const parsed = JSON.parse(response.content)
 
             const validationResult = this.validator.validateRegistryJson(parsed)
             if (!validationResult.isValid) {
@@ -37,13 +51,17 @@ export class McpRegistryService {
                 return null
             }
 
+            // Extract servers from wrapper structure if present
+            const servers = parsed.servers.map((item: any) => item.server || item)
+
             const registryData: McpRegistryData = {
-                servers: parsed.servers,
+                servers,
                 lastFetched: new Date(),
                 url,
             }
 
             this.inMemoryRegistry = registryData
+            this.serverLookupMap = this.buildServerLookupMap(servers)
             this.logging.info(
                 `MCP Registry: Successfully fetched registry from ${url} with ${registryData.servers.length} servers`
             )
@@ -94,5 +112,19 @@ export class McpRegistryService {
 
     isRegistryActive(): boolean {
         return this.inMemoryRegistry !== null
+    }
+
+    getServerByName(name: string): any | undefined {
+        return this.serverLookupMap?.get(name)
+    }
+
+    private buildServerLookupMap(servers: any[]): Map<string, any> {
+        const map = new Map<string, any>()
+        for (const server of servers) {
+            if (server.name) {
+                map.set(server.name, server)
+            }
+        }
+        return map
     }
 }

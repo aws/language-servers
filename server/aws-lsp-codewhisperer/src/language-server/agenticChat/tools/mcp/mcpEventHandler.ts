@@ -29,6 +29,8 @@ import {
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
+import { McpRegistryService } from './mcpRegistryService'
+import { McpServerConfigConverter } from './mcpServerConfigConverter'
 
 interface PermissionOption {
     label: string
@@ -55,6 +57,7 @@ export class McpEventHandler {
     #debounceTimer: NodeJS.Timeout | null = null
     #lastProgrammaticState: boolean = false
     #serverNameBeforeUpdate: string | undefined
+    #converter: McpServerConfigConverter = new McpServerConfigConverter()
 
     #releaseProgrammaticAfterDebounce(padMs = 500) {
         setTimeout(() => {
@@ -315,6 +318,7 @@ export class McpEventHandler {
             'mcp-disable-server': () => this.#handleDisableMcpServer(params),
             'mcp-delete-server': () => this.#handleDeleteMcpServer(params),
             'mcp-fix-server': () => this.#handleEditMcpServer(params),
+            'install-registry-server': () => this.#handleInstallRegistryServer(params),
         }
 
         // Execute the appropriate handler or return default response
@@ -342,7 +346,18 @@ export class McpEventHandler {
         }
     }
 
-    async #handleAddNewMcp(params: McpServerClickParams, error?: string) {
+    async #handleAddNewMcp(params: McpServerClickParams, error?: string): Promise<any> {
+        // Check if registry is active (but skip if editing existing server)
+        const isRegistryModeActive = McpManager.instance.getRegistryService()?.isRegistryActive()
+        const isEditingExistingServer = !!(
+            params.optionsValues?.name &&
+            McpManager.instance.getAllServerConfigs().has(sanitizeName(params.optionsValues.name))
+        )
+
+        if (isRegistryModeActive && !error && !isEditingExistingServer) {
+            return this.#handleShowRegistryServers(params)
+        }
+
         const existingValues = params.optionsValues || {}
 
         // Arguments (stdio)
@@ -684,11 +699,18 @@ export class McpEventHandler {
             return this.#getDefaultMcpResponse(params.id)
         }
 
-        const selectedTransport = params.optionsValues.transport
+        const isRegistryModeActive = McpManager.instance.getRegistryService()?.isRegistryActive()
         const serverName = params.optionsValues.name
         const sanitizedServerName = sanitizeName(serverName)
         const originalServerName = this.#currentEditingServerName
         const isEditMode = !!(originalServerName && McpManager.instance.getAllServerConfigs().has(originalServerName))
+
+        // Handle registry server updates (headers/env only)
+        if (isRegistryModeActive) {
+            return this.#handleSaveRegistryMcp(params)
+        }
+
+        const selectedTransport = params.optionsValues.transport
 
         // Validate form values
         const validation = this.#validateMcpServerForm(
@@ -899,8 +921,10 @@ export class McpEventHandler {
             const toolsWithPermissions = McpManager.instance.getAllToolsWithPermissions(serverName)
             filterOptions = this.#buildServerFilterOptions(serverName, toolsWithPermissions)
 
+            const isRegistryActive = McpManager.instance.getRegistryService()?.isRegistryActive()
             return {
                 id: params.id,
+                isRegistryActive,
                 header: {
                     title: serverName,
                     status: serverStatusError || {},
@@ -1008,11 +1032,18 @@ export class McpEventHandler {
      * Handles edit MCP configuration
      */
     async #handleEditMcpServer(params: McpServerClickParams, error?: string) {
+        const serverName = params.title
+        if (!serverName) return { id: params.id }
+
+        const isRegistryModeActive = McpManager.instance.getRegistryService()?.isRegistryActive()
+        if (isRegistryModeActive) {
+            return this.#handleEditRegistryMcpServer(params, error)
+        }
+
         // Set programmatic change flag to true to prevent file watcher triggers
         this.#isProgrammaticChange = true
         await this.#handleSavePermissionChange({ id: 'save-mcp-permission' })
 
-        const serverName = params.title
         if (!serverName) {
             this.#isProgrammaticChange = false
             return { id: params.id }
@@ -1079,6 +1110,161 @@ export class McpEventHandler {
             view.header.title = 'Edit MCP Server'
         }
         return view
+    }
+
+    /**
+     * Handles edit registry MCP server (read-only view)
+     */
+    async #handleEditRegistryMcpServer(params: McpServerClickParams, error?: string) {
+        this.#isProgrammaticChange = true
+        await this.#handleSavePermissionChange({ id: 'save-mcp-permission' })
+
+        const serverName = params.title!
+        this.#currentEditingServerName = serverName
+
+        const config = McpManager.instance.getAllServerConfigs().get(serverName)
+        if (!config) {
+            return {
+                id: params.id,
+                header: {
+                    title: 'Edit MCP Server',
+                    status: {
+                        title: `Server "${serverName}" not found`,
+                        icon: 'cancel-circle',
+                        status: 'error' as Status,
+                    },
+                },
+                list: [],
+            }
+        }
+
+        const transport = config.url ? TransportType.HTTP : TransportType.STDIO
+        const argsList = (config.args ?? []).map(a => ({ arg_key: a }))
+        const envList = Object.entries(config.env ?? {}).map(([k, v]) => ({ env_var_name: k, env_var_value: v }))
+        const headersList = Object.entries(config.headers ?? {}).map(([k, v]) => ({ key: k, value: v }))
+        const timeoutInSeconds = Math.floor((config.timeout ?? 60000) / 1000).toString()
+
+        const argsValue = argsList.map((arg, index) => ({ persistent: index === 0, value: arg }))
+        const envVarsValue = envList.map((env, index) => ({ persistent: index === 0, value: env }))
+        const headersValue = headersList.map(hdr => ({ persistent: false, value: hdr }))
+
+        const mcpManager = McpManager.instance
+        const scope = mcpManager.isServerGlobal(sanitizeName(serverName)) ? 'global' : 'workspace'
+
+        const common = [
+            {
+                type: 'radiogroup',
+                id: 'scope',
+                title: 'Scope',
+                options: [
+                    { label: 'Global - Used globally.', value: 'global' },
+                    { label: 'This workspace - Only used in this workspace.', value: 'workspace' },
+                ],
+                value: scope,
+            },
+            {
+                type: 'textinput',
+                id: 'name',
+                title: 'Name',
+                value: serverName,
+                disabled: true,
+            },
+            {
+                type: 'select',
+                id: 'transport',
+                title: 'Transport',
+                options: [
+                    { label: TransportType.STDIO, value: TransportType.STDIO },
+                    { label: TransportType.HTTP, value: TransportType.HTTP },
+                ],
+                value: transport,
+                disabled: true,
+            },
+        ]
+
+        const filterOptions =
+            transport === TransportType.HTTP
+                ? [
+                      ...common,
+                      {
+                          type: 'textinput',
+                          id: 'url',
+                          title: 'URL',
+                          value: config.url || '',
+                          disabled: true,
+                      },
+                      {
+                          type: 'list',
+                          id: 'headers',
+                          title: 'Headers - optional',
+                          items: [
+                              { id: 'key', title: 'Key', type: 'textinput' },
+                              { id: 'value', title: 'Value', type: 'textinput' },
+                          ],
+                          ...(headersValue.length > 0 ? { value: headersValue } : {}),
+                          disabled: true,
+                      },
+                      {
+                          type: 'numericinput',
+                          id: 'timeout',
+                          title: 'Timeout - use 0 to disable',
+                          value: timeoutInSeconds,
+                          disabled: true,
+                      },
+                  ]
+                : [
+                      ...common,
+                      {
+                          type: 'textinput',
+                          id: 'command',
+                          title: 'Command',
+                          value: config.command || '',
+                          disabled: true,
+                      },
+                      {
+                          type: 'list',
+                          id: 'args',
+                          title: 'Arguments - optional',
+                          items: [{ id: 'arg_key', type: 'textinput' }],
+                          value: argsValue,
+                          disabled: true,
+                      },
+                      {
+                          type: 'list',
+                          id: 'env_variables',
+                          title: 'Environment variables - optional',
+                          items: [
+                              { id: 'env_var_name', title: 'Name', type: 'textinput' },
+                              { id: 'env_var_value', title: 'Value', type: 'textinput' },
+                          ],
+                          value: envVarsValue,
+                          disabled: true,
+                      },
+                      {
+                          type: 'numericinput',
+                          id: 'timeout',
+                          title: 'Timeout - use 0 to disable',
+                          value: timeoutInSeconds,
+                          disabled: true,
+                      },
+                  ]
+
+        return {
+            id: params.id,
+            header: {
+                title: 'Edit MCP Server',
+                status: error
+                    ? { title: error, icon: 'cancel-circle', status: 'error' as Status }
+                    : this.#getServerStatusError(serverName) || {},
+                actions: [],
+            },
+            list: [],
+            filterActions: [
+                { id: 'cancel-mcp', text: 'Cancel' },
+                { id: 'save-mcp', text: 'Save', status: error ? ('error' as Status) : 'primary' },
+            ],
+            filterOptions,
+        }
     }
 
     /**
@@ -1560,6 +1746,144 @@ export class McpEventHandler {
                 this.#debounceTimer = null
             }, McpEventHandler.FILE_WATCH_DEBOUNCE_MS)
         })
+    }
+
+    /**
+     * Shows registry servers for installation
+     */
+    async #handleShowRegistryServers(params: McpServerClickParams): Promise<any> {
+        const registry = McpManager.instance.getRegistryService()?.getInMemoryRegistry()
+        if (!registry) {
+            return this.#handleAddNewMcp(params, 'Registry not available')
+        }
+
+        const installedServers = McpManager.instance.getAllServerConfigs()
+
+        return {
+            id: 'add-new-mcp',
+            header: {
+                title: 'Add MCP Server',
+                description: 'Select a server from the registry',
+            },
+            filterOptions: [],
+            list: [
+                {
+                    children: registry.servers.map(server => {
+                        const isInstalled = installedServers.has(server.name)
+                        const isRemote = !!server.remotes
+
+                        return {
+                            title: `${server.name} ${server.version || ''}`,
+                            description: server.description || 'No description available',
+                            icon: isRemote ? 'globe' : 'desktop',
+                            actions: [
+                                {
+                                    id: 'install-registry-server',
+                                    text: isInstalled ? 'Installed' : 'Install',
+                                    status: isInstalled ? 'clear' : 'main',
+                                    disabled: isInstalled,
+                                },
+                            ],
+                            groupActions: false,
+                        }
+                    }),
+                },
+            ],
+        }
+    }
+
+    /**
+     * Handles saving registry MCP server (headers/env updates only)
+     */
+    async #handleSaveRegistryMcp(params: McpServerClickParams) {
+        const serverName = params.optionsValues!.name
+        const sanitizedServerName = sanitizeName(serverName)
+        const registryService = McpManager.instance.getRegistryService()
+        const registryServer = registryService?.getServerByName(sanitizedServerName)
+        if (!registryServer) {
+            return this.#handleEditRegistryMcpServer(params, 'Server not found')
+        }
+
+        const isRemote = !!registryServer.remotes
+        let headers: Record<string, string> | undefined
+        let env: Record<string, string> | undefined
+
+        // Parse headers for remote servers only
+        if (isRemote && params.optionsValues!.headers) {
+            const raw = Array.isArray(params.optionsValues!.headers) ? params.optionsValues!.headers : []
+            headers = raw.reduce((acc: Record<string, string>, item: any) => {
+                const k = item.key?.toString().trim() ?? ''
+                const v = item.value?.toString().trim() ?? ''
+                if (k && v) acc[k] = v
+                return acc
+            }, {})
+        }
+
+        // Parse env for local servers only
+        if (!isRemote && params.optionsValues!.env_variables) {
+            const envVars = Array.isArray(params.optionsValues!.env_variables)
+                ? params.optionsValues!.env_variables
+                : []
+            env = envVars.reduce((acc: Record<string, string>, item: any) => {
+                if (item && 'env_var_name' in item && 'env_var_value' in item) {
+                    acc[String(item.env_var_name)] = String(item.env_var_value)
+                }
+                return acc
+            }, {})
+        }
+
+        const timeoutInMs = (parseInt(params.optionsValues!.timeout) ?? 60) * 1000
+        const agentPath = await this.#getAgentPath(params.optionsValues!.scope === 'global')
+
+        const config = this.#converter.convertRegistryServer(registryServer)
+        config.__cachedVersion__ = registryServer.version
+        config.timeout = timeoutInMs
+        if (headers) config.headers = headers
+        if (env) config.env = env
+
+        this.#isProgrammaticChange = true
+
+        try {
+            await McpManager.instance.removeServer(sanitizedServerName)
+            await McpManager.instance.addRegistryServer(sanitizedServerName, config, agentPath)
+            this.#releaseProgrammaticAfterDebounce()
+            return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
+        } catch (error) {
+            this.#features.logging.error(`Failed to update registry server: ${error}`)
+            this.#releaseProgrammaticAfterDebounce()
+            return this.#handleEditRegistryMcpServer(params, String(error))
+        }
+    }
+
+    /**
+     * Installs a server from the registry
+     */
+    async #handleInstallRegistryServer(params: McpServerClickParams) {
+        const serverName = params.title?.split(' ')[0]
+        if (!serverName) return
+
+        const registryService = McpManager.instance.getRegistryService()
+        const registryServer = registryService?.getServerByName(serverName)
+        if (!registryServer) {
+            this.#features.logging.error(`Registry server not found: ${serverName}`)
+            return this.#handleShowRegistryServers(params)
+        }
+
+        const config = this.#converter.convertRegistryServer(registryServer)
+        config.__cachedVersion__ = registryServer.version
+
+        const agentPath = await this.#getAgentPath(true)
+        this.#isProgrammaticChange = true
+
+        try {
+            await McpManager.instance.addRegistryServer(serverName, config, agentPath)
+            this.#releaseProgrammaticAfterDebounce()
+            return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
+        } catch (error) {
+            this.#features.logging.error(`Failed to install registry server: ${error}`)
+            this.#releaseProgrammaticAfterDebounce()
+            return this.#handleShowRegistryServers(params)
+        }
     }
 
     /**

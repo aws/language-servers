@@ -20,10 +20,28 @@ describe('McpRegistryValidator', () => {
             const registry = {
                 servers: [
                     {
-                        name: 'com.example/test',
+                        name: 'mcp-fs',
                         description: 'Test server',
                         version: '1.0.0',
                         remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
+                    },
+                ],
+            }
+            const result = validator.validateRegistryJson(registry)
+            assert.strictEqual(result.isValid, true)
+            assert.strictEqual(result.errors.length, 0)
+        })
+
+        it('should accept registry with server wrapper structure', () => {
+            const registry = {
+                servers: [
+                    {
+                        server: {
+                            name: 'mcp-fs',
+                            description: 'Test server',
+                            version: '1.0.0',
+                            remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
+                        },
                     },
                 ],
             }
@@ -65,7 +83,7 @@ describe('McpRegistryValidator', () => {
     describe('validateServerDefinition', () => {
         it('should accept valid remote server', () => {
             const server = {
-                name: 'com.example/test',
+                name: 'mcp-fs',
                 description: 'Test server',
                 version: '1.0.0',
                 remotes: [{ type: 'streamable-http', url: 'https://example.com' }],
@@ -76,7 +94,7 @@ describe('McpRegistryValidator', () => {
 
         it('should accept valid local server', () => {
             const server = {
-                name: 'com.example/test',
+                name: 'everything',
                 description: 'Test server',
                 version: '1.0.0',
                 packages: [
@@ -141,27 +159,64 @@ describe('McpRegistryValidator', () => {
             assert.strictEqual(validator.validateServerName('server-name').isValid, true)
         })
 
-        it('should accept reverse-DNS format names', () => {
-            assert.strictEqual(validator.validateServerName('com.example/test').isValid, true)
-            assert.strictEqual(validator.validateServerName('org.acme/my-server').isValid, true)
+        it('should accept names with dots, underscores, and hyphens', () => {
+            assert.strictEqual(validator.validateServerName('server.name').isValid, true)
+            assert.strictEqual(validator.validateServerName('server_name').isValid, true)
+            assert.strictEqual(validator.validateServerName('server-name').isValid, true)
+            assert.strictEqual(validator.validateServerName('server.name_test-123').isValid, true)
         })
 
-        it('should accept names up to 255 characters', () => {
+        it('should reject names with slashes', () => {
+            const result1 = validator.validateServerName('com.example/test')
+            assert.strictEqual(result1.isValid, false)
+            assert.ok(result1.errors.some(e => e.includes('simple identifier')))
+
+            const result2 = validator.validateServerName('org.acme/my-server')
+            assert.strictEqual(result2.isValid, false)
+            assert.ok(result2.errors.some(e => e.includes('simple identifier')))
+        })
+
+        it('should reject names with special characters', () => {
+            const result1 = validator.validateServerName('server@name')
+            assert.strictEqual(result1.isValid, false)
+            assert.ok(result1.errors.some(e => e.includes('simple identifier')))
+
+            const result2 = validator.validateServerName('server name')
+            assert.strictEqual(result2.isValid, false)
+            assert.ok(result2.errors.some(e => e.includes('simple identifier')))
+        })
+
+        it('should accept names up to 200 characters', () => {
             const name = 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH)
             assert.strictEqual(validator.validateServerName(name).isValid, true)
         })
 
-        it('should reject names over 255 characters', () => {
+        it('should reject names over 200 characters', () => {
             const name = 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_SERVER_NAME_LENGTH + 1)
             const result = validator.validateServerName(name)
             assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.some(e => e.includes('1-255 characters')))
+            assert.ok(result.errors.some(e => e.includes('3-200 characters')))
         })
 
         it('should reject empty names', () => {
             const result = validator.validateServerName('')
             assert.strictEqual(result.isValid, false)
             assert.ok(result.errors.some(e => e.includes('cannot be empty')))
+        })
+
+        it('should reject names shorter than 3 characters', () => {
+            const result1 = validator.validateServerName('ab')
+            assert.strictEqual(result1.isValid, false)
+            assert.ok(result1.errors.some(e => e.includes('3-200 characters')))
+
+            const result2 = validator.validateServerName('a')
+            assert.strictEqual(result2.isValid, false)
+            assert.ok(result2.errors.some(e => e.includes('3-200 characters')))
+        })
+
+        it('should accept names with exactly 3 characters', () => {
+            const result = validator.validateServerName('abc')
+            assert.strictEqual(result.isValid, true)
         })
     })
 
@@ -283,7 +338,6 @@ describe('McpRegistryValidator', () => {
                 {
                     registryType: 'npm',
                     identifier: '@example/package',
-                    version: '1.0.0',
                     transport: { type: 'stdio' },
                 },
             ]
@@ -296,7 +350,6 @@ describe('McpRegistryValidator', () => {
                 {
                     registryType: 'pypi',
                     identifier: 'example-package',
-                    version: '1.0.0',
                     transport: { type: 'stdio' },
                 },
             ]
@@ -309,12 +362,8 @@ describe('McpRegistryValidator', () => {
                 {
                     registryType: 'npm',
                     identifier: 'pkg',
-                    version: '1.0.0',
                     transport: { type: 'stdio' },
-                    packageArguments: [
-                        { type: 'positional', value: 'arg1' },
-                        { type: 'positional', value: 'arg2' },
-                    ],
+                    packageArguments: [{ value: 'arg1' }, { value: 'arg2' }],
                 },
             ]
             const result = validator.validateLocalServer(packages)
@@ -326,11 +375,10 @@ describe('McpRegistryValidator', () => {
                 {
                     registryType: 'npm',
                     identifier: 'pkg',
-                    version: '1.0.0',
                     transport: { type: 'stdio' },
                     environmentVariables: [
-                        { name: 'API_KEY', default: 'default-key' },
-                        { name: 'ENV', default: 'production' },
+                        { name: 'API_KEY', value: 'default-key' },
+                        { name: 'ENV', value: 'production' },
                     ],
                 },
             ]
@@ -340,8 +388,8 @@ describe('McpRegistryValidator', () => {
 
         it('should reject multiple packages entries', () => {
             const packages = [
-                { registryType: 'npm', identifier: 'pkg1', version: '1.0.0', transport: { type: 'stdio' } },
-                { registryType: 'npm', identifier: 'pkg2', version: '1.0.0', transport: { type: 'stdio' } },
+                { registryType: 'npm', identifier: 'pkg1', transport: { type: 'stdio' } },
+                { registryType: 'npm', identifier: 'pkg2', transport: { type: 'stdio' } },
             ]
             const result = validator.validateLocalServer(packages)
             assert.strictEqual(result.isValid, false)
@@ -349,49 +397,67 @@ describe('McpRegistryValidator', () => {
         })
 
         it('should reject invalid registryType', () => {
-            const packages = [
-                { registryType: 'invalid', identifier: 'pkg', version: '1.0.0', transport: { type: 'stdio' } },
-            ]
+            const packages = [{ registryType: 'invalid', identifier: 'pkg', transport: { type: 'stdio' } }]
             const result = validator.validateLocalServer(packages)
             assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.some(e => e.includes('npm or pypi')))
+            assert.ok(result.errors.some(e => e.includes('npm, pypi, or oci')))
         })
 
-        it('should reject non-stdio transport', () => {
-            const packages = [{ registryType: 'npm', identifier: 'pkg', version: '1.0.0', transport: { type: 'http' } }]
-            const result = validator.validateLocalServer(packages)
-            assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.some(e => e.includes('stdio')))
-        })
-
-        it('should reject invalid packageArguments', () => {
+        it('should accept oci registryType', () => {
             const packages = [
                 {
-                    registryType: 'npm',
-                    identifier: 'pkg',
-                    version: '1.0.0',
+                    registryType: 'oci',
+                    identifier: 'mcp/filesystem',
                     transport: { type: 'stdio' },
-                    packageArguments: [{ type: 'named', value: 'arg' }],
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.some(e => e.includes('positional')))
+            assert.strictEqual(result.isValid, true)
         })
 
-        it('should reject invalid environmentVariables', () => {
+        it('should accept non-stdio transport types', () => {
+            const packages = [{ registryType: 'npm', identifier: 'pkg', transport: { type: 'streamable-http' } }]
+            const result = validator.validateLocalServer(packages)
+            assert.strictEqual(result.isValid, true)
+        })
+
+        it('should accept packageArguments with only value field', () => {
             const packages = [
                 {
                     registryType: 'npm',
                     identifier: 'pkg',
-                    version: '1.0.0',
+                    transport: { type: 'stdio' },
+                    packageArguments: [{ value: 'arg' }],
+                },
+            ]
+            const result = validator.validateLocalServer(packages)
+            assert.strictEqual(result.isValid, true)
+        })
+
+        it('should accept runtimeArguments', () => {
+            const packages = [
+                {
+                    registryType: 'npm',
+                    identifier: 'pkg',
+                    transport: { type: 'stdio' },
+                    runtimeArguments: [{ value: '--silent' }],
+                },
+            ]
+            const result = validator.validateLocalServer(packages)
+            assert.strictEqual(result.isValid, true)
+        })
+
+        it('should accept environmentVariables with only name field', () => {
+            const packages = [
+                {
+                    registryType: 'npm',
+                    identifier: 'pkg',
                     transport: { type: 'stdio' },
                     environmentVariables: [{ name: 'VAR' }],
                 },
             ]
             const result = validator.validateLocalServer(packages)
-            assert.strictEqual(result.isValid, false)
-            assert.ok(result.errors.some(e => e.includes('default')))
+            assert.strictEqual(result.isValid, true)
         })
     })
 
@@ -409,9 +475,7 @@ describe('McpRegistryValidator', () => {
                         name: 'everything',
                         description: 'Second',
                         version: '1.0.0',
-                        packages: [
-                            { registryType: 'npm', identifier: 'pkg', version: '1.0.0', transport: { type: 'stdio' } },
-                        ],
+                        packages: [{ registryType: 'npm', identifier: 'pkg', transport: { type: 'stdio' } }],
                     },
                     {
                         name: 'mcp-fs',
