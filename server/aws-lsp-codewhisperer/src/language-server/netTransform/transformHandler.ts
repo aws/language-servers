@@ -2024,7 +2024,7 @@ export class TransformHandler {
             const saveToWorkspace = path.join(saveToDir, workspaceFolderName)
             this.logging.log(`Saving artifacts to workspace: ${saveToWorkspace}`)
 
-            const pathContainingArchive = await this.archivePathGenerator(artifactId, buffer, saveToWorkspace)
+            const pathContainingArchive = await this.archivePathGenerator(jobId, buffer, saveToWorkspace)
             this.logging.log(`Archive extracted to: ${pathContainingArchive}`)
 
             const downloadResponse = {
