@@ -34,7 +34,6 @@ import {
 import { TransformHandler } from './transformHandler'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
-export const validStatesForAssessment = ['PLANNING', 'AWAITING_HUMAN_INPUT']
 export const validStatesForComplete = ['COMPLETED']
 export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
 const StartTransformCommand = 'aws/qNetTransform/startTransform'
@@ -49,7 +48,6 @@ const ListWorkspacesCommand = 'aws/qNetTransform/listWorkspaces'
 const CreateWorkspaceCommand = 'aws/qNetTransform/createWorkspace'
 const GetEditablePlanCommand = 'aws/qNetTransform/getEditablePlan'
 const UploadEditablePlanCommand = 'aws/qNetTransform/uploadEditablePlan'
-const PollTransformForAssessmentCommand = 'aws/qNetTransform/pollTransformForAssessment'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -168,16 +166,6 @@ export const QNetTransformServerToken =
 
                         return response
                     }
-                    case PollTransformForAssessmentCommand: {
-                        const request = params as GetTransformRequest
-
-                        const response = await transformHandler.pollTransformation(
-                            request,
-                            validStatesForAssessment,
-                            failureStates
-                        )
-                        return response
-                    }
                 }
                 return
             } catch (e: any) {
@@ -252,7 +240,6 @@ export const QNetTransformServerToken =
                             CreateWorkspaceCommand,
                             GetEditablePlanCommand,
                             UploadEditablePlanCommand,
-                            PollTransformForAssessmentCommand,
                         ],
                     },
                 },

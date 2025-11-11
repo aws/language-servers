@@ -1848,9 +1848,7 @@ export class TransformHandler {
         if (this.serviceManager.isAWSTransformProfile()) {
             this.logging.log('Using ATX FES for Transform profile - real polling')
 
-            if (!validExitStatus.includes('PLANNING')) {
-                validExitStatus = ['AWAITING_HUMAN_INPUT']
-            }
+            validExitStatus = ['AWAITING_HUMAN_INPUT']
 
             try {
                 // Get real job status from ATX FES
