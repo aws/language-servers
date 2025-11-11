@@ -7,10 +7,9 @@ import {
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
 
-// ATX FES Commands
-const AtxListAvailableProfilesCommand = 'aws/atxNetTransform/listAvailableProfiles'
+// ATX FES Commands - Transform Operations Only (profiles handled by transformConfigurationServer)
 
-// TODO: Phase 2 - Add remaining ATX FES APIs
+// TODO: Phase 2 - Add ATX FES Transform APIs
 // const AtxVerifySessionCommand = 'aws/atxNetTransform/verifySession' // LSP-only implementation
 // const AtxListWorkspacesCommand = 'aws/atxNetTransform/listWorkspaces'
 // const AtxCreateWorkspaceCommand = 'aws/atxNetTransform/createWorkspace'
@@ -24,7 +23,6 @@ const AtxListAvailableProfilesCommand = 'aws/atxNetTransform/listAvailableProfil
 // const AtxListArtifactsCommand = 'aws/atxNetTransform/listArtifacts'
 // const AtxListJobStepPlansCommand = 'aws/atxNetTransform/listJobStepPlans'
 
-// TODO: Phase 2 - Add remaining ATX FES APIs
 export const AtxNetTransformServerToken =
     (): Server =>
     ({ workspace, logging, lsp, telemetry, runtime }) => {
@@ -34,11 +32,7 @@ export const AtxNetTransformServerToken =
         const runAtxTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
-                    case AtxListAvailableProfilesCommand: {
-                        const maxResults = (params as any).maxResults || 100
-                        const response = await atxTransformHandler.listAvailableProfiles(maxResults)
-                        return response
-                    }
+                    // TODO: Phase 2 - Add Transform operation commands here
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -60,8 +54,7 @@ export const AtxNetTransformServerToken =
                 capabilities: {
                     executeCommandProvider: {
                         commands: [
-                            AtxListAvailableProfilesCommand,
-                            // TODO: Phase 2: Add remaining ATX FES APIs
+                            // TODO: Phase 2: Add ATX FES Transform operation commands
                             // AtxVerifySessionCommand, // LSP-only implementation
                             // AtxListWorkspacesCommand,
                             // AtxCreateWorkspaceCommand,
