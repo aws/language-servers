@@ -13,13 +13,23 @@ export const AWS_Q_ENDPOINTS = new Map([
 ])
 
 export const DEFAULT_ATX_FES_REGION = 'us-east-1'
+export const DEFAULT_ATX_FES_ENDPOINT_URL = 'https://api.transform.us-east-1.on.aws/'
 
 export const ATX_FES_ENDPOINTS = new Map([
-    [DEFAULT_ATX_FES_REGION, `https://api.transform-prod.${DEFAULT_ATX_FES_REGION}.on.aws/`],
-    ['us-west-2', 'https://api.transform-prod.us-west-2.on.aws/'],
+    [DEFAULT_ATX_FES_REGION, DEFAULT_ATX_FES_ENDPOINT_URL],
+    ['us-west-2', 'https://api.transform.us-west-2.on.aws/'],
+    ['eu-central-1', 'https://api.transform.eu-central-1.on.aws/'],
 ])
 
-export const DEFAULT_ATX_FES_ENDPOINT_URL = `https://api.transform-prod.${DEFAULT_ATX_FES_REGION}.on.aws/`
+export const ATX_FES_GAMMA_ENDPOINTS = new Map([
+    [DEFAULT_ATX_FES_REGION, 'https://api.transform-gamma.us-east-1.on.aws/'],
+    ['us-west-2', 'https://api.transform-gamma.us-west-2.on.aws/'],
+    ['eu-central-1', 'https://api.transform-gamma.eu-central-1.on.aws/'],
+])
+
+export function getATXEndpoints(): Map<string, string> {
+    return process.env.TRANSFORM_ENV === 'GAMMA' ? ATX_FES_GAMMA_ENDPOINTS : ATX_FES_ENDPOINTS
+}
 
 export const AWS_Q_REGION_ENV_VAR = 'AWS_Q_REGION'
 export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'

@@ -16,7 +16,7 @@ import {
     DEFAULT_ATX_FES_REGION,
     ATX_FES_REGION_ENV_VAR,
     ATX_FES_ENDPOINT_URL_ENV_VAR,
-    ATX_FES_ENDPOINTS,
+    getATXEndpoints,
 } from '../../shared/constants'
 import { getBearerTokenFromProvider } from '../../shared/utils'
 
@@ -42,6 +42,16 @@ export class TransformConfigurationServer {
      */
     async initialize(params: InitializeParams): Promise<any> {
         this.logging.log('TransformConfigurationServer: Initialize called')
+
+        const profileType = (params.initializationOptions as any)?.aws?.profileType
+
+        if (profileType !== 'transform') {
+            return {
+                capabilities: {},
+                awsServerCapabilities: {},
+            }
+        }
+
         return {
             capabilities: {},
             awsServerCapabilities: {
@@ -161,7 +171,7 @@ export class TransformConfigurationServer {
      */
     private getEndpointForRegion(region: string): string {
         return (
-            process.env[ATX_FES_ENDPOINT_URL_ENV_VAR] || ATX_FES_ENDPOINTS.get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
+            process.env[ATX_FES_ENDPOINT_URL_ENV_VAR] || getATXEndpoints().get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
         )
     }
 
@@ -194,7 +204,7 @@ export class TransformConfigurationServer {
         try {
             const allProfiles: AmazonQDeveloperProfile[] = []
 
-            for (const [region, endpoint] of ATX_FES_ENDPOINTS) {
+            for (const [region, endpoint] of getATXEndpoints()) {
                 try {
                     if (token?.isCancellationRequested) {
                         throw new ResponseError(LSPErrorCodes.RequestCancelled, 'Request cancelled')

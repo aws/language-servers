@@ -1,6 +1,6 @@
 import { CancellationToken, Logging, SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from './AtxTokenServiceManager'
-import { ATX_FES_ENDPOINTS } from '../constants'
+import { getATXEndpoints } from '../constants'
 
 export interface AtxTransformProfile {
     arn: string | undefined
@@ -36,7 +36,7 @@ export const getListAllAvailableAtxProfilesHandler =
         }
 
         let allAtxProfiles: AtxTransformProfile[] = []
-        const endpoints = atxEndpoints ?? ATX_FES_ENDPOINTS
+        const endpoints = atxEndpoints ?? getATXEndpoints()
 
         if (token.isCancellationRequested) {
             return []
