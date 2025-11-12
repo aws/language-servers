@@ -513,7 +513,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     > {
         const getRepomapTarget = () => {
             const feat = this.#features?.find(f => {
-                f.feature === experimentName
+                return f.feature === experimentName
             })
             const group = feat?.variation
             return group === 'TREATMENT' ? 'codemap-2hop' : 'codemap'
