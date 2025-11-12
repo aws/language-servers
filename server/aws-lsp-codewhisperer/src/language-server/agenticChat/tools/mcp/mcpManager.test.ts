@@ -9,6 +9,7 @@ import { AGENT_TOOLS_CHANGED, MCP_SERVER_STATUS_CHANGED, McpManager } from './mc
 import * as mcpUtils from './mcpUtils'
 import { McpPermissionType, McpServerStatus, type MCPServerConfig, type MCPServerPermission } from './mcpTypes'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 const fakeLogging = {
     log: () => {},
@@ -1552,5 +1553,178 @@ describe('McpManager error handling', () => {
         // Verify errors are cleared
         errors = mgr.getConfigLoadErrors()
         expect(errors).to.be.undefined
+    })
+})
+
+describe('McpManager Initialization Fix', () => {
+    const mockFeatures = {
+        logging: {
+            info: sinon.spy(),
+            debug: sinon.spy(),
+            warn: sinon.spy(),
+            error: sinon.spy(),
+        },
+        workspace: {
+            getAllWorkspaceFolders: sinon.stub().returns([]),
+            fs: {
+                getUserHomeDir: sinon.stub().returns('/home/user'),
+                readFile: sinon.stub(),
+                writeFile: sinon.stub(),
+                mkdir: sinon.stub(),
+            },
+        },
+        lsp: {},
+        telemetry: {
+            emitMetric: sinon.spy(),
+        },
+        credentialsProvider: {
+            getConnectionMetadata: sinon.stub().returns({ sso: { startUrl: 'test' } }),
+        },
+        runtime: {
+            serverInfo: { version: '1.0.0' },
+        },
+        agent: {
+            getBuiltInToolNames: sinon.stub().returns([]),
+        },
+    } as any
+
+    beforeEach(async () => {
+        if (McpManager.isInitialized()) {
+            await McpManager.instance.close(false)
+        }
+        sinon.restore()
+        sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(true)
+    })
+
+    describe('isInitialized() method', () => {
+        it('should return false before initialization', () => {
+            expect(McpManager.isInitialized()).to.be.false
+        })
+
+        it('should return true after successful initialization', async () => {
+            await McpManager.init([], mockFeatures)
+            expect(McpManager.isInitialized()).to.be.true
+        })
+
+        it('should return true even after failed initialization', async () => {
+            sinon.restore()
+            sinon.stub(ProfileStatusMonitor, 'getMcpState').throws(new Error('Test error'))
+
+            await McpManager.init([], mockFeatures)
+            expect(McpManager.isInitialized()).to.be.true
+        })
+    })
+
+    describe('init() never throws', () => {
+        it('should create empty instance on initialization failure', async () => {
+            sinon.restore()
+            sinon.stub(ProfileStatusMonitor, 'getMcpState').throws(new Error('Network error'))
+
+            const manager = await McpManager.init([], mockFeatures)
+
+            expect(manager).to.not.be.undefined
+            expect(McpManager.isInitialized()).to.be.true
+            expect((mockFeatures.logging.error as sinon.SinonSpy).calledWith(sinon.match(/MCP: initialization failed/)))
+                .to.be.true
+        })
+
+        it('should handle WSL network issues gracefully', async () => {
+            mockFeatures.workspace.fs.readFile.rejects(new Error('ETIMEDOUT'))
+
+            const manager = await McpManager.init(['/path/to/config'], mockFeatures)
+
+            expect(manager).to.not.be.undefined
+            expect(manager.getAllTools()).to.deep.equal([])
+        })
+
+        it('should work with empty tools list after failure', async () => {
+            sinon.restore()
+            sinon.stub(ProfileStatusMonitor, 'getMcpState').throws(new Error('Init error'))
+
+            const manager = await McpManager.init([], mockFeatures)
+
+            expect(manager.getAllTools()).to.deep.equal([])
+            expect(manager.getEnabledTools()).to.deep.equal([])
+            expect(manager.getAllServerConfigs().size).to.equal(0)
+        })
+    })
+
+    describe('instance getter with try-catch', () => {
+        it('should throw error when not initialized', () => {
+            expect(() => McpManager.instance).to.throw('McpManager not initialized')
+        })
+
+        it('should return instance after initialization', async () => {
+            await McpManager.init([], mockFeatures)
+            expect(() => McpManager.instance).to.not.throw()
+        })
+
+        it('should be safe to use with try-catch pattern', async () => {
+            let result: any[] = []
+            try {
+                result = McpManager.instance.getAllTools()
+            } catch (error) {
+                result = []
+            }
+            expect(result).to.deep.equal([])
+
+            await McpManager.init([], mockFeatures)
+
+            try {
+                result = McpManager.instance.getAllTools()
+            } catch (error) {
+                result = []
+            }
+            expect(result).to.deep.equal([])
+        })
+    })
+
+    describe('Race condition scenarios', () => {
+        it('should handle immediate access after init call', async () => {
+            const initPromise = McpManager.init([], mockFeatures)
+
+            let tools: any[] = []
+            try {
+                tools = McpManager.instance.getAllTools()
+            } catch (error) {
+                tools = []
+            }
+
+            expect(tools).to.deep.equal([])
+            await initPromise
+            expect(McpManager.instance.getAllTools()).to.deep.equal([])
+        })
+
+        it('should handle multiple concurrent init calls', async () => {
+            const promises = [
+                McpManager.init([], mockFeatures),
+                McpManager.init([], mockFeatures),
+                McpManager.init([], mockFeatures),
+            ]
+
+            const results = await Promise.all(promises)
+
+            expect(results).to.have.lengthOf(3)
+            results.forEach(manager => expect(manager).to.not.be.undefined)
+            expect(McpManager.isInitialized()).to.be.true
+        })
+    })
+
+    describe('Graceful degradation', () => {
+        it('should return empty arrays when MCP not ready', async () => {
+            const manager = await McpManager.init([], mockFeatures)
+
+            expect(manager.getAllTools()).to.deep.equal([])
+            expect(manager.getEnabledTools()).to.deep.equal([])
+            expect(manager.listServersAndTools()).to.deep.equal({})
+        })
+
+        it('should handle server operations safely', async () => {
+            const manager = await McpManager.init([], mockFeatures)
+
+            expect(manager.isServerDisabled('nonexistent')).to.be.false
+            expect(manager.isToolDisabled('nonexistent', 'tool')).to.be.true
+            expect(manager.getAllServerConfigs().size).to.equal(0)
+        })
     })
 })
