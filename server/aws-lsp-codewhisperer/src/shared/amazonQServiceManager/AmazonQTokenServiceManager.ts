@@ -30,11 +30,12 @@ import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
-import { getUserAgent } from '../telemetryUtils'
+import { getUserAgent, makeUserContextObject } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
 import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
 import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
+import { UserContext } from '@amzn/codewhisperer-runtime'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -548,6 +549,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
         const customUserAgent = this.getCustomUserAgent()
+        const initParam = this.features.lsp.getClientInitializeParams()
+        const userContext = initParam
+            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
+            : undefined
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
@@ -555,6 +560,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             region,
             endpoint,
             this.features.sdkInitializator,
+            userContext,
             customUserAgent
         )
 
