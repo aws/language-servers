@@ -11,7 +11,7 @@ export function createCodeWhispererTokenClient(
     sdkInitializator: SDKInitializator,
     logging: Logging,
     credentialsProvider: CredentialsProvider,
-    shareCodeWhispererContentWithAWS: boolean
+    shareCodeWhispererContentWithAWS: () => boolean
 ): CodeWhispererRuntimeClient {
     logging.log(
         `Passing client for class CodeWhispererRuntimeClient to sdkInitializator (v3) for additional setup (e.g. proxy)`
