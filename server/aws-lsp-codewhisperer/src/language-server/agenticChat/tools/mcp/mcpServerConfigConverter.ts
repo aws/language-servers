@@ -57,6 +57,13 @@ export class McpServerConfigConverter {
             })
         }
 
+        if (pkg.environmentVariables && pkg.environmentVariables.length > 0 && isOci) {
+            pkg.environmentVariables.forEach((envVar: { name: string; value?: string }) => {
+                args.push('-e')
+                args.push(`${envVar.name}=${envVar.value ?? ''}`)
+            })
+        }
+
         if (isOci) {
             const imageRef = pkg.registryBaseUrl
                 ? `${pkg.registryBaseUrl}/${pkg.identifier}:${version}`
@@ -91,9 +98,9 @@ export class McpServerConfigConverter {
             config.env![MCP_REGISTRY_CONSTANTS.NPM.ENV_VAR] = pkg.registryBaseUrl
         }
 
-        if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
-            pkg.environmentVariables.forEach((envVar: { name: string; default: string }) => {
-                config.env![envVar.name] = envVar.default
+        if (pkg.environmentVariables && pkg.environmentVariables.length > 0 && !isOci) {
+            pkg.environmentVariables.forEach((envVar: { name: string; value?: string }) => {
+                config.env![envVar.name] = envVar.value ?? ''
             })
         }
 

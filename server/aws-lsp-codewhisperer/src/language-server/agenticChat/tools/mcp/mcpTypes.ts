@@ -38,11 +38,15 @@ export interface MCPServerConfig {
     disabled?: boolean
     __configPath__?: string
     __cachedVersion__?: string // Cached version from registry for version sync
+    __additionalHeaders__?: Record<string, string> // Additional headers from agent config (for registry servers)
+    __additionalEnv__?: Record<string, string> // Additional env vars from agent config (for registry servers)
 }
 
 export interface RegistryServerConfig {
     type: 'registry'
     timeout?: number // Optional request timeout in milliseconds
+    headers?: Record<string, string> // Optional additional HTTP headers for remote servers
+    env?: Record<string, string> // Optional additional environment variables for local servers
 }
 
 export function isRegistryServerConfig(config: MCPServerConfig | RegistryServerConfig): config is RegistryServerConfig {
@@ -242,7 +246,7 @@ export interface McpRegistryServer {
         }>
         environmentVariables?: Array<{
             name: string
-            default: string
+            value?: string
         }>
     }>
 }

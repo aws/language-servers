@@ -374,12 +374,13 @@ export class McpManager {
             const isStdio = !!cfg.command
             const doConnect = async () => {
                 if (isStdio) {
-                    // stdio transport
+                    // stdio transport - merge additional env with base env
+                    const finalEnv = { ...(cfg.env || {}), ...(cfg.__additionalEnv__ || {}) }
                     const mergedEnv = {
                         ...(process.env as Record<string, string>),
                         // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
-                        ...(cfg.env && !isEmptyEnv(cfg.env)
-                            ? Object.fromEntries(Object.entries(cfg.env).filter(([k, v]) => k.trim() && v.trim()))
+                        ...(finalEnv && !isEmptyEnv(finalEnv)
+                            ? Object.fromEntries(Object.entries(finalEnv).filter(([k, v]) => k.trim() && v.trim()))
                             : {}),
                     }
                     let cwd: string | undefined
@@ -415,11 +416,14 @@ export class McpManager {
                         )
                     }
                 } else {
-                    // streamable http/SSE transport
+                    // streamable http/SSE transport - merge additional headers with base headers
                     const base = new URL(cfg.url!)
                     try {
                         // Use HEAD to check if it needs OAuth
-                        let headers: Record<string, string> = { ...(cfg.headers ?? {}) }
+                        let headers: Record<string, string> = {
+                            ...(cfg.headers ?? {}),
+                            ...(cfg.__additionalHeaders__ ?? {}),
+                        }
                         let needsOAuth = false
                         try {
                             const headResp = await fetch(base, { method: 'HEAD', headers })
@@ -700,7 +704,13 @@ export class McpManager {
     /**
      * Add a registry server: persist config, register in memory, and initialize.
      */
-    public async addRegistryServer(serverName: string, cfg: MCPServerConfig, configPath: string): Promise<void> {
+    public async addRegistryServer(
+        serverName: string,
+        cfg: MCPServerConfig,
+        configPath: string,
+        additionalHeaders?: Record<string, string>,
+        additionalEnv?: Record<string, string>
+    ): Promise<void> {
         const sanitizedName = sanitizeName(serverName)
         if (
             this.mcpServers.has(sanitizedName) &&
@@ -709,8 +719,17 @@ export class McpManager {
             throw new Error(`MCP: server '${sanitizedName}' already exists`)
         }
 
-        // Save registry server config with type: 'registry'
-        const registryServerConfig = { type: 'registry' as const, timeout: cfg.timeout }
+        // Save registry server config with type: 'registry', timeout, and additional headers/env
+        const registryServerConfig: any = { type: 'registry' as const }
+        if (cfg.timeout !== undefined) {
+            registryServerConfig.timeout = cfg.timeout
+        }
+        if (additionalHeaders && Object.keys(additionalHeaders).length > 0) {
+            registryServerConfig.headers = additionalHeaders
+        }
+        if (additionalEnv && Object.keys(additionalEnv).length > 0) {
+            registryServerConfig.env = additionalEnv
+        }
         this.agentConfig.mcpServers[serverName] = registryServerConfig
 
         const serverPrefix = `@${serverName}`
@@ -728,7 +747,14 @@ export class McpManager {
             configPath
         )
 
+        // Store additional headers/env separately and merge for runtime
         const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
+        if (additionalHeaders && Object.keys(additionalHeaders).length > 0) {
+            newCfg.__additionalHeaders__ = additionalHeaders
+        }
+        if (additionalEnv && Object.keys(additionalEnv).length > 0) {
+            newCfg.__additionalEnv__ = additionalEnv
+        }
         this.mcpServers.set(sanitizedName, newCfg)
         this.serverNameMapping.set(sanitizedName, serverName)
 

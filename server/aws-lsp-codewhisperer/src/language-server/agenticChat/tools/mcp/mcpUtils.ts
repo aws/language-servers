@@ -446,6 +446,15 @@ export async function loadAgentConfig(
                             cfg.timeout = entry.timeout
                         }
 
+                        // Store additional headers/env separately and merge for runtime
+                        if (entry.headers && typeof entry.headers === 'object') {
+                            cfg.__additionalHeaders__ = entry.headers
+                        }
+
+                        if (entry.env && typeof entry.env === 'object') {
+                            cfg.__additionalEnv__ = entry.env
+                        }
+
                         logging.info(`MCP Registry: Successfully converted server '${name}' to MCPServerConfig`)
                     } catch (err: any) {
                         const errorMsg = `MCP Registry: Failed to convert server '${name}': ${err.message}`

@@ -193,6 +193,7 @@ describe('ProfileStatusMonitor', () => {
                             optInFeatures: {
                                 mcpConfiguration: {
                                     toggle: 'ON',
+                                    registryUrl: 'https://example.com/registry.json',
                                 },
                             },
                         },

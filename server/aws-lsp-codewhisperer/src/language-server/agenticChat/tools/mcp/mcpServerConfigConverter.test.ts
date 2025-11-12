@@ -197,8 +197,8 @@ describe('McpServerConfigConverter', () => {
                         identifier: '@example/package',
                         transport: { type: 'stdio' },
                         environmentVariables: [
-                            { name: 'API_KEY', default: 'default-key' },
-                            { name: 'ENV', default: 'production' },
+                            { name: 'API_KEY', value: 'default-key' },
+                            { name: 'ENV', value: 'production' },
                         ],
                     },
                 ],
@@ -225,7 +225,7 @@ describe('McpServerConfigConverter', () => {
                         identifier: '@example/package',
                         transport: { type: 'stdio' },
                         packageArguments: [{ type: 'positional', value: '--verbose' }],
-                        environmentVariables: [{ name: 'DEBUG', default: 'true' }],
+                        environmentVariables: [{ name: 'DEBUG', value: 'true' }],
                     },
                 ],
             }
@@ -249,7 +249,7 @@ describe('McpServerConfigConverter', () => {
                         identifier: 'awslabs.ccapi-mcp-server',
                         transport: { type: 'stdio' },
                         packageArguments: [{ type: 'positional', value: '--readonly' }],
-                        environmentVariables: [{ name: 'AWS_PROFILE', default: 'profile-16' }],
+                        environmentVariables: [{ name: 'AWS_PROFILE', value: 'profile-16' }],
                     },
                 ],
             }
@@ -308,7 +308,7 @@ describe('McpServerConfigConverter', () => {
                         transport: { type: 'stdio' },
                         runtimeArguments: [{ type: 'positional', value: '-q' }],
                         packageArguments: [{ type: 'positional', value: '--readonly' }],
-                        environmentVariables: [{ name: 'AWS_PROFILE', default: 'profile-16' }],
+                        environmentVariables: [{ name: 'AWS_PROFILE', value: 'profile-16' }],
                     },
                 ],
             }
@@ -460,7 +460,7 @@ describe('McpServerConfigConverter', () => {
                             { type: 'positional', value: 'type=bind,src=~/Desktop,dst=/projects/Desktop' },
                         ],
                         packageArguments: [{ type: 'positional', value: '/projects' }],
-                        environmentVariables: [{ name: 'LOG_LEVEL', default: 'info' }],
+                        environmentVariables: [{ name: 'LOG_LEVEL', value: 'info' }],
                     },
                 ],
             }
@@ -474,10 +474,12 @@ describe('McpServerConfigConverter', () => {
                 '--rm',
                 '--mount',
                 'type=bind,src=~/Desktop,dst=/projects/Desktop',
+                '-e',
+                'LOG_LEVEL=info',
                 'https://docker.acme.com:5000/mcp/filesystem:1.0.2',
                 '/projects',
             ])
-            assert.deepStrictEqual(result.env, { LOG_LEVEL: 'info' })
+            assert.deepStrictEqual(result.env, {})
         })
 
         it('should convert oci package without registryBaseUrl', () => {

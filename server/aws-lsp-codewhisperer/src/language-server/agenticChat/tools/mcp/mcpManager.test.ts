@@ -1855,3 +1855,119 @@ describe('Registry Synchronization', () => {
         })
     })
 })
+
+describe('addRegistryServer with additional headers/env', () => {
+    let loadStub: sinon.SinonStub
+    let initOneStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
+
+    beforeEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+        loadStub = stubAgentConfig()
+        initOneStub = stubInitOneServer()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('stores additional headers for HTTP registry servers', async () => {
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        const cfg: MCPServerConfig = {
+            url: 'https://example.com/mcp',
+            headers: { 'X-Base': 'base-value' },
+            timeout: 60000,
+            __configPath__: 'path.json',
+        }
+
+        const additionalHeaders = { 'X-Custom': 'custom-value' }
+
+        await mgr.addRegistryServer('httpServer', cfg, 'path.json', additionalHeaders, undefined)
+
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
+
+        const storedCfg = (mgr as any).mcpServers.get('httpServer')
+        expect(storedCfg.__additionalHeaders__).to.deep.equal(additionalHeaders)
+
+        const agentCfg = (mgr as any).agentConfig.mcpServers['httpServer']
+        expect(agentCfg.headers).to.deep.equal(additionalHeaders)
+    })
+
+    it('stores additional env for STDIO registry servers', async () => {
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        const cfg: MCPServerConfig = {
+            command: 'npx',
+            args: ['-y', '@test/server'],
+            env: { BASE_VAR: 'base' },
+            timeout: 60000,
+            __configPath__: 'path.json',
+        }
+
+        const additionalEnv = { CUSTOM_VAR: 'custom' }
+
+        await mgr.addRegistryServer('stdioServer', cfg, 'path.json', undefined, additionalEnv)
+
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
+
+        const storedCfg = (mgr as any).mcpServers.get('stdioServer')
+        expect(storedCfg.__additionalEnv__).to.deep.equal(additionalEnv)
+
+        const agentCfg = (mgr as any).agentConfig.mcpServers['stdioServer']
+        expect(agentCfg.env).to.deep.equal(additionalEnv)
+    })
+
+    it('omits additional fields when empty', async () => {
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        const cfg: MCPServerConfig = {
+            url: 'https://example.com/mcp',
+            timeout: 60000,
+            __configPath__: 'path.json',
+        }
+
+        await mgr.addRegistryServer('server', cfg, 'path.json', {}, {})
+
+        const agentCfg = (mgr as any).agentConfig.mcpServers['server']
+        expect(agentCfg.headers).to.be.undefined
+        expect(agentCfg.env).to.be.undefined
+    })
+})

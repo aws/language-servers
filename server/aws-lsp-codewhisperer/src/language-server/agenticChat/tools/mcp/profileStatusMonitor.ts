@@ -181,9 +181,7 @@ export class ProfileStatusMonitor {
             return true
         }
 
-        // TODO: Replace with actual registry URL from getProfile API response
-        // const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl
-        const registryUrl = this.getDummyRegistryUrl()
+        const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl
 
         if (!registryUrl) {
             this.logging.debug('MCP Registry: No registry URL configured')
@@ -215,13 +213,6 @@ export class ProfileStatusMonitor {
         return isEnterprise
     }
 
-    private getDummyRegistryUrl(): string | null {
-        // Temporary dummy URL for testing until getProfile API integration is complete
-        const dummyUrl = process.env.MCP_REGISTRY_URL || 'https://d2orqesgordx5o.cloudfront.net/test-mcp-registry.json'
-        this.logging.info(`MCP Registry: Using dummy/test registry URL: ${dummyUrl}`)
-        return dummyUrl
-    }
-
     async getRegistryUrl(): Promise<string | null> {
         try {
             const serviceManager = AmazonQTokenServiceManager.getInstance()
@@ -239,9 +230,7 @@ export class ProfileStatusMonitor {
                 this.codeWhispererClient!.getProfile({ profileArn })
             )
 
-            // TODO: Replace with actual registry URL from getProfile API response
-            // return response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl || null
-            return this.getDummyRegistryUrl()
+            return response?.profile?.optInFeatures?.mcpConfiguration?.mcpRegistryUrl || null
         } catch (error) {
             this.logging.debug(`Failed to get registry URL: ${error}`)
             return null
