@@ -512,7 +512,7 @@ export class McpMynahUi {
     /**
      * Creates events for registry server view
      */
-    private createRegistryServerEvents(isEditMode: boolean = false) {
+    private createRegistryServerEvents(isEditMode: boolean = false, serverName?: string) {
         return {
             onBackClick: () => this.messager.onListMcpServers(),
             onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
@@ -521,12 +521,21 @@ export class McpMynahUi {
                     this.messager.onMcpServerClick(action.id, item?.title)
                 }
             },
-            onTitleActionClick: isEditMode
-                ? (action: ChatItemButton) => {
-                      const serverName = (action as any).data?.serverName
-                      this.messager.onMcpServerClick(action.id, serverName)
-                  }
-                : undefined,
+            onFilterActionClick: (actionParams: McpServerClickResult, filterValues?: Record<string, string>) => {
+                if (actionParams.id === MCP_IDS.CANCEL) {
+                    this.messager.onListMcpServers()
+                    return
+                }
+
+                if (actionParams.id === MCP_IDS.SAVE) {
+                    this.mynahUi.toggleSplashLoader(true, '**Saving MCP Server**')
+                    this.messager.onMcpServerClick(actionParams.id, serverName, filterValues)
+                }
+            },
+            onTitleActionClick: (action: ChatItemButton) => {
+                const actionServerName = (action as any).data?.serverName || serverName
+                this.messager.onMcpServerClick(action.id, actionServerName)
+            },
         }
     }
 
@@ -583,7 +592,8 @@ export class McpMynahUi {
 
         if (isMcpRegistry) {
             const detailedList = this.createRegistryServerDetailedList(typedParams)
-            const events = this.createRegistryServerEvents(isEditMode)
+            const serverName = (typedParams.filterOptions?.find(f => f.id === 'name') as any)?.value as string
+            const events = this.createRegistryServerEvents(isEditMode, serverName)
             this.mynahUi.openDetailedList({ detailedList, events }, true)
         } else {
             const uiFilters = (typedParams.filterOptions ?? []) as McpFilterOption[]
