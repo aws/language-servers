@@ -48,8 +48,13 @@ export class ProfileStatusMonitor {
             const isMcpEnabled = await this.isMcpEnabled()
             return isMcpEnabled !== false // Return true if enabled or API failed
         } catch (error) {
-            this.logging.debug(`Initial MCP state check failed, defaulting to enabled: ${error}`)
-            return ProfileStatusMonitor.getMcpState()
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            // Only disable MCP for registry-specific errors
+            if (errorMsg.includes('MCP Registry:')) {
+                ProfileStatusMonitor.setMcpState(false)
+                this.onMcpDisabled()
+            }
+            throw error
         }
     }
 
@@ -95,12 +100,7 @@ export class ProfileStatusMonitor {
             if (isMcpEnabled && this.isEnterpriseUser(serviceManager)) {
                 const registryFetchSuccess = await this.fetchRegistryIfNeeded(response, isPeriodicCheck)
                 if (!registryFetchSuccess) {
-                    this.logging.error('MCP Registry: Failed to fetch registry - disabling MCP')
-                    ProfileStatusMonitor.setMcpState(false)
-                    if (ProfileStatusMonitor.lastMcpState) {
-                        this.onMcpDisabled()
-                    }
-                    return false
+                    throw new Error('MCP Registry: Failed to fetch or validate registry')
                 }
             } else if (isMcpEnabled && !this.isEnterpriseUser(serviceManager)) {
                 this.logging.info('MCP Governance: Free Tier user - falling back to legacy MCP configuration')
@@ -119,14 +119,9 @@ export class ProfileStatusMonitor {
 
             return isMcpEnabled
         } catch (error) {
-            this.logging.debug(`MCP configuration check failed, defaulting to enabled: ${error}`)
-            const mcpState = ProfileStatusMonitor.getMcpState()
-            if (!mcpState) {
-                this.onMcpDisabled()
-            } else if (this.onMcpEnabled) {
-                this.onMcpEnabled()
-            }
-            return mcpState
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            this.logging.error(`MCP configuration check failed: ${errorMsg}`)
+            throw error
         }
     }
 
@@ -204,7 +199,7 @@ export class ProfileStatusMonitor {
             return true
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
-            this.logging.error(`MCP Registry: Failed to update registry: ${errorMsg}`)
+            this.logging.error(`MCP Registry: Failed to fetch or validate registry: ${errorMsg}`)
             return false
         }
     }

@@ -85,14 +85,45 @@ describe('ProfileStatusMonitor', () => {
             expect(result).to.be.true
         })
 
-        it('should return true and log debug message on error', async () => {
+        it('should throw error when isMcpEnabled throws non-registry error', async () => {
             // Stub the private isMcpEnabled method to throw an error
             sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('Service manager not ready'))
 
-            const result = await profileStatusMonitor.checkInitialState()
-            expect(result).to.be.true
-            expect(mockLogging.debug.calledWith(sinon.match('Initial MCP state check failed, defaulting to enabled')))
-                .to.be.true
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+                expect((error as Error).message).to.equal('Service manager not ready')
+            }
+        })
+
+        it('should disable MCP and call onMcpDisabled when registry error occurs', async () => {
+            sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('MCP Registry: Failed to fetch'))
+            ;(ProfileStatusMonitor as any).setMcpState(true)
+
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+                expect((error as Error).message).to.include('MCP Registry:')
+                expect(ProfileStatusMonitor.getMcpState()).to.be.false
+                expect(mockOnMcpDisabled.called).to.be.true
+            }
+        })
+
+        it('should not disable MCP for non-registry errors', async () => {
+            sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('Network error'))
+            ;(ProfileStatusMonitor as any).setMcpState(true)
+
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(ProfileStatusMonitor.getMcpState()).to.be.true
+                expect(mockOnMcpDisabled.called).to.be.false
+            }
         })
     })
 
@@ -187,6 +218,26 @@ describe('ProfileStatusMonitor', () => {
 
             expect(mockOnRegistryUpdate.called).to.be.true
             expect(mockOnRegistryUpdate.firstCall.args[0]).to.be.a('string')
+        })
+
+        it('should throw error when registry fetch fails for enterprise users', async () => {
+            mockOnRegistryUpdate.rejects(new Error('MCP Registry: Failed to fetch or validate registry'))
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+                expect((error as Error).message).to.include('MCP Registry:')
+                expect(mockLogging.error.calledWith(sinon.match('MCP configuration check failed'))).to.be.true
+            }
         })
 
         it('should not notify registry URL for free tier users', async () => {

@@ -256,6 +256,10 @@ export class McpEventHandler {
         mcpState: boolean | undefined
     ): { title: string; icon: string; status: Status } | undefined {
         if (mcpState === false) {
+            // If MCP is disabled and there are config errors, show the error instead
+            if (configLoadErrors) {
+                return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+            }
             return {
                 title: 'MCP functionality has been disabled by your administrator',
                 icon: 'info',
@@ -355,7 +359,8 @@ export class McpEventHandler {
         )
 
         if (isRegistryModeActive && !error && !isEditingExistingServer) {
-            return this.#handleShowRegistryServers(params)
+            const result = await this.#handleShowRegistryServers(params)
+            return { ...result, isMcpRegistry: true }
         }
 
         const existingValues = params.optionsValues || {}
@@ -921,10 +926,10 @@ export class McpEventHandler {
             const toolsWithPermissions = McpManager.instance.getAllToolsWithPermissions(serverName)
             filterOptions = this.#buildServerFilterOptions(serverName, toolsWithPermissions)
 
-            const isRegistryActive = McpManager.instance.getRegistryService()?.isRegistryActive()
+            const isMcpRegistry = McpManager.instance.getRegistryService()?.isRegistryActive() ?? false
             return {
                 id: params.id,
-                isRegistryActive,
+                isMcpRegistry,
                 header: {
                     title: serverName,
                     status: serverStatusError || {},
@@ -1249,19 +1254,32 @@ export class McpEventHandler {
                       },
                   ]
 
+        const serverStatusError = error
+            ? { title: error, icon: 'cancel-circle', status: 'error' as Status }
+            : this.#getServerStatusError(serverName) || {}
+        const hasError = !!serverStatusError.status
+
         return {
             id: params.id,
+            isMcpRegistry: true,
             header: {
                 title: 'Edit MCP Server',
-                status: error
-                    ? { title: error, icon: 'cancel-circle', status: 'error' as Status }
-                    : this.#getServerStatusError(serverName) || {},
-                actions: [],
+                status: serverStatusError,
+                actions: hasError
+                    ? [
+                          {
+                              id: 'mcp-details-menu',
+                              icon: 'ellipsis-h',
+                              text: '',
+                              data: { serverName },
+                          },
+                      ]
+                    : [],
             },
             list: [],
             filterActions: [
                 { id: 'cancel-mcp', text: 'Cancel' },
-                { id: 'save-mcp', text: 'Save', status: error ? ('error' as Status) : 'primary' },
+                { id: 'save-mcp', text: 'Save', status: hasError ? ('error' as Status) : 'primary' },
             ],
             filterOptions,
         }
@@ -1553,7 +1571,7 @@ export class McpEventHandler {
         this.#isProgrammaticChange = isProgrammatic
 
         try {
-            await McpManager.instance.reinitializeMcpServers()
+            await McpManager.instance.reinitializeMcpServers(true)
             this.#emitMCPConfigEvent()
 
             // Reset flag after reinitialization
@@ -1761,6 +1779,7 @@ export class McpEventHandler {
 
         return {
             id: 'add-new-mcp',
+            isMcpRegistry: true,
             header: {
                 title: 'Add MCP Server',
                 description: 'Select a server from the registry',
