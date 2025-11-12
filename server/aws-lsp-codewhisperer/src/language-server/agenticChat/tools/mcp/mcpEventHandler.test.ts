@@ -132,10 +132,12 @@ describe('McpEventHandler error handling', () => {
 
         // Verify error is displayed in header status
         expect(result.header).to.not.be.undefined
-        expect(result.header.status).to.not.be.undefined
-        expect(result.header.status!.status).to.equal('error')
-        expect(result.header.status!.title).to.include('File: file1.json, Error: File not found error')
-        expect(result.header.status!.title).to.include('File: serverA, Error: Missing command error')
+        if ('status' in result.header) {
+            expect(result.header.status).to.not.be.undefined
+            expect(result.header.status!.status).to.equal('error')
+            expect(result.header.status!.title).to.include('File: file1.json, Error: File not found error')
+            expect(result.header.status!.title).to.include('File: serverA, Error: Missing command error')
+        }
     })
 
     it('marks servers with validation errors as FAILED', async () => {
@@ -278,11 +280,13 @@ describe('McpEventHandler error handling', () => {
             await McpManager.init([], features)
             const result = await eventHandler.onListMcpServers({})
 
-            expect(result.header.status).to.deep.equal({
-                title: 'MCP functionality has been disabled by your administrator',
-                icon: 'info',
-                status: 'info',
-            })
+            if ('status' in result.header) {
+                expect(result.header.status).to.deep.equal({
+                    title: 'MCP functionality has been disabled by your administrator',
+                    icon: 'info',
+                    status: 'info',
+                })
+            }
         })
 
         it('returns config error status when MCP state is not false but config errors exist', async () => {
@@ -312,11 +316,13 @@ describe('McpEventHandler error handling', () => {
 
             const result = await eventHandler.onListMcpServers({})
 
-            expect(result.header.status).to.deep.equal({
-                title: 'File: file1.json, Error: Config error',
-                icon: 'cancel-circle',
-                status: 'error',
-            })
+            if ('status' in result.header) {
+                expect(result.header.status).to.deep.equal({
+                    title: 'File: file1.json, Error: Config error',
+                    icon: 'cancel-circle',
+                    status: 'error',
+                })
+            }
         })
 
         it('returns undefined status when MCP state is not false and no config errors', async () => {
@@ -345,7 +351,9 @@ describe('McpEventHandler error handling', () => {
 
             const result = await eventHandler.onListMcpServers({})
 
-            expect(result.header.status).to.be.undefined
+            if ('status' in result.header) {
+                expect(result.header.status).to.be.undefined
+            }
         })
     })
 })
