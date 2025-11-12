@@ -256,6 +256,10 @@ export class McpEventHandler {
         mcpState: boolean | undefined
     ): { title: string; icon: string; status: Status } | undefined {
         if (mcpState === false) {
+            // If MCP is disabled and there are config errors, show the error instead
+            if (configLoadErrors) {
+                return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+            }
             return {
                 title: 'MCP functionality has been disabled by your administrator',
                 icon: 'info',
@@ -355,7 +359,8 @@ export class McpEventHandler {
         )
 
         if (isRegistryModeActive && !error && !isEditingExistingServer) {
-            return this.#handleShowRegistryServers(params)
+            const result = await this.#handleShowRegistryServers(params)
+            return { ...result, isMcpRegistry: true }
         }
 
         const existingValues = params.optionsValues || {}
@@ -921,10 +926,10 @@ export class McpEventHandler {
             const toolsWithPermissions = McpManager.instance.getAllToolsWithPermissions(serverName)
             filterOptions = this.#buildServerFilterOptions(serverName, toolsWithPermissions)
 
-            const isRegistryActive = McpManager.instance.getRegistryService()?.isRegistryActive()
+            const isMcpRegistry = McpManager.instance.getRegistryService()?.isRegistryActive() ?? false
             return {
                 id: params.id,
-                isRegistryActive,
+                isMcpRegistry,
                 header: {
                     title: serverName,
                     status: serverStatusError || {},
@@ -1142,11 +1147,21 @@ export class McpEventHandler {
         const argsList = (config.args ?? []).map(a => ({ arg_key: a }))
         const envList = Object.entries(config.env ?? {}).map(([k, v]) => ({ env_var_name: k, env_var_value: v }))
         const headersList = Object.entries(config.headers ?? {}).map(([k, v]) => ({ key: k, value: v }))
+        const additionalHeadersList = Object.entries(config.__additionalHeaders__ ?? {}).map(([k, v]) => ({
+            key: k,
+            value: v,
+        }))
+        const additionalEnvList = Object.entries(config.__additionalEnv__ ?? {}).map(([k, v]) => ({
+            env_var_name: k,
+            env_var_value: v,
+        }))
         const timeoutInSeconds = Math.floor((config.timeout ?? 60000) / 1000).toString()
 
         const argsValue = argsList.map((arg, index) => ({ persistent: index === 0, value: arg }))
         const envVarsValue = envList.map((env, index) => ({ persistent: index === 0, value: env }))
         const headersValue = headersList.map(hdr => ({ persistent: false, value: hdr }))
+        const additionalHeadersValue = additionalHeadersList.map(hdr => ({ persistent: false, value: hdr }))
+        const additionalEnvValue = additionalEnvList.map((env, index) => ({ persistent: index === 0, value: env }))
 
         const mcpManager = McpManager.instance
         const scope = mcpManager.isServerGlobal(sanitizeName(serverName)) ? 'global' : 'workspace'
@@ -1205,6 +1220,16 @@ export class McpEventHandler {
                           disabled: true,
                       },
                       {
+                          type: 'list',
+                          id: 'additional_headers',
+                          title: 'Additional headers - optional',
+                          items: [
+                              { id: 'key', title: 'Key', type: 'textinput' },
+                              { id: 'value', title: 'Value', type: 'textinput' },
+                          ],
+                          ...(additionalHeadersValue.length > 0 ? { value: additionalHeadersValue } : {}),
+                      },
+                      {
                           type: 'numericinput',
                           id: 'timeout',
                           title: 'Timeout - use 0 to disable',
@@ -1241,6 +1266,16 @@ export class McpEventHandler {
                           disabled: true,
                       },
                       {
+                          type: 'list',
+                          id: 'additional_env_variables',
+                          title: 'Additional variables - optional',
+                          items: [
+                              { id: 'env_var_name', title: 'Name', type: 'textinput' },
+                              { id: 'env_var_value', title: 'Value', type: 'textinput' },
+                          ],
+                          ...(additionalEnvValue.length > 0 ? { value: additionalEnvValue } : {}),
+                      },
+                      {
                           type: 'numericinput',
                           id: 'timeout',
                           title: 'Timeout - use 0 to disable',
@@ -1249,19 +1284,32 @@ export class McpEventHandler {
                       },
                   ]
 
+        const serverStatusError = error
+            ? { title: error, icon: 'cancel-circle', status: 'error' as Status }
+            : this.#getServerStatusError(serverName) || {}
+        const hasError = !!serverStatusError.status
+
         return {
             id: params.id,
+            isMcpRegistry: true,
             header: {
                 title: 'Edit MCP Server',
-                status: error
-                    ? { title: error, icon: 'cancel-circle', status: 'error' as Status }
-                    : this.#getServerStatusError(serverName) || {},
-                actions: [],
+                status: serverStatusError,
+                actions: hasError
+                    ? [
+                          {
+                              id: 'mcp-details-menu',
+                              icon: 'ellipsis-h',
+                              text: '',
+                              data: { serverName },
+                          },
+                      ]
+                    : [],
             },
             list: [],
             filterActions: [
                 { id: 'cancel-mcp', text: 'Cancel' },
-                { id: 'save-mcp', text: 'Save', status: error ? ('error' as Status) : 'primary' },
+                { id: 'save-mcp', text: 'Save', status: hasError ? ('error' as Status) : 'primary' },
             ],
             filterOptions,
         }
@@ -1553,7 +1601,7 @@ export class McpEventHandler {
         this.#isProgrammaticChange = isProgrammatic
 
         try {
-            await McpManager.instance.reinitializeMcpServers()
+            await McpManager.instance.reinitializeMcpServers(true)
             this.#emitMCPConfigEvent()
 
             // Reset flag after reinitialization
@@ -1761,6 +1809,7 @@ export class McpEventHandler {
 
         return {
             id: 'add-new-mcp',
+            isMcpRegistry: true,
             header: {
                 title: 'Add MCP Server',
                 description: 'Select a server from the registry',
@@ -1805,31 +1854,39 @@ export class McpEventHandler {
         }
 
         const isRemote = !!registryServer.remotes
-        let headers: Record<string, string> | undefined
-        let env: Record<string, string> | undefined
+        let additionalHeaders: Record<string, string> | undefined
+        let additionalEnv: Record<string, string> | undefined
 
-        // Parse headers for remote servers only
-        if (isRemote && params.optionsValues!.headers) {
-            const raw = Array.isArray(params.optionsValues!.headers) ? params.optionsValues!.headers : []
-            headers = raw.reduce((acc: Record<string, string>, item: any) => {
+        // Parse additional headers from form
+        if (isRemote) {
+            const additionalHeadersList = Array.isArray(params.optionsValues!.additional_headers)
+                ? params.optionsValues!.additional_headers
+                : []
+            const additionalHeadersObj = additionalHeadersList.reduce((acc: Record<string, string>, item: any) => {
                 const k = item.key?.toString().trim() ?? ''
                 const v = item.value?.toString().trim() ?? ''
                 if (k && v) acc[k] = v
                 return acc
             }, {})
+            if (Object.keys(additionalHeadersObj).length > 0) {
+                additionalHeaders = additionalHeadersObj
+            }
         }
 
-        // Parse env for local servers only
-        if (!isRemote && params.optionsValues!.env_variables) {
-            const envVars = Array.isArray(params.optionsValues!.env_variables)
-                ? params.optionsValues!.env_variables
+        // Parse additional env from form
+        if (!isRemote) {
+            const additionalEnvList = Array.isArray(params.optionsValues!.additional_env_variables)
+                ? params.optionsValues!.additional_env_variables
                 : []
-            env = envVars.reduce((acc: Record<string, string>, item: any) => {
+            const additionalEnvObj = additionalEnvList.reduce((acc: Record<string, string>, item: any) => {
                 if (item && 'env_var_name' in item && 'env_var_value' in item) {
                     acc[String(item.env_var_name)] = String(item.env_var_value)
                 }
                 return acc
             }, {})
+            if (Object.keys(additionalEnvObj).length > 0) {
+                additionalEnv = additionalEnvObj
+            }
         }
 
         const timeoutInMs = (parseInt(params.optionsValues!.timeout) ?? 60) * 1000
@@ -1838,14 +1895,18 @@ export class McpEventHandler {
         const config = this.#converter.convertRegistryServer(registryServer)
         config.__cachedVersion__ = registryServer.version
         config.timeout = timeoutInMs
-        if (headers) config.headers = headers
-        if (env) config.env = env
 
         this.#isProgrammaticChange = true
 
         try {
             await McpManager.instance.removeServer(sanitizedServerName)
-            await McpManager.instance.addRegistryServer(sanitizedServerName, config, agentPath)
+            await McpManager.instance.addRegistryServer(
+                sanitizedServerName,
+                config,
+                agentPath,
+                additionalHeaders,
+                additionalEnv
+            )
             this.#releaseProgrammaticAfterDebounce()
             return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
         } catch (error) {

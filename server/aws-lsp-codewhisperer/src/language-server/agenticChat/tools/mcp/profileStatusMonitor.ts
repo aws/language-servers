@@ -48,8 +48,13 @@ export class ProfileStatusMonitor {
             const isMcpEnabled = await this.isMcpEnabled()
             return isMcpEnabled !== false // Return true if enabled or API failed
         } catch (error) {
-            this.logging.debug(`Initial MCP state check failed, defaulting to enabled: ${error}`)
-            return ProfileStatusMonitor.getMcpState()
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            // Only disable MCP for registry-specific errors
+            if (errorMsg.includes('MCP Registry:')) {
+                ProfileStatusMonitor.setMcpState(false)
+                this.onMcpDisabled()
+            }
+            throw error
         }
     }
 
@@ -95,12 +100,7 @@ export class ProfileStatusMonitor {
             if (isMcpEnabled && this.isEnterpriseUser(serviceManager)) {
                 const registryFetchSuccess = await this.fetchRegistryIfNeeded(response, isPeriodicCheck)
                 if (!registryFetchSuccess) {
-                    this.logging.error('MCP Registry: Failed to fetch registry - disabling MCP')
-                    ProfileStatusMonitor.setMcpState(false)
-                    if (ProfileStatusMonitor.lastMcpState) {
-                        this.onMcpDisabled()
-                    }
-                    return false
+                    throw new Error('MCP Registry: Failed to fetch or validate registry')
                 }
             } else if (isMcpEnabled && !this.isEnterpriseUser(serviceManager)) {
                 this.logging.info('MCP Governance: Free Tier user - falling back to legacy MCP configuration')
@@ -119,14 +119,9 @@ export class ProfileStatusMonitor {
 
             return isMcpEnabled
         } catch (error) {
-            this.logging.debug(`MCP configuration check failed, defaulting to enabled: ${error}`)
-            const mcpState = ProfileStatusMonitor.getMcpState()
-            if (!mcpState) {
-                this.onMcpDisabled()
-            } else if (this.onMcpEnabled) {
-                this.onMcpEnabled()
-            }
-            return mcpState
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            this.logging.error(`MCP configuration check failed: ${errorMsg}`)
+            throw error
         }
     }
 
@@ -186,9 +181,7 @@ export class ProfileStatusMonitor {
             return true
         }
 
-        // TODO: Replace with actual registry URL from getProfile API response
-        // const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl
-        const registryUrl = this.getDummyRegistryUrl()
+        const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl
 
         if (!registryUrl) {
             this.logging.debug('MCP Registry: No registry URL configured')
@@ -204,7 +197,7 @@ export class ProfileStatusMonitor {
             return true
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
-            this.logging.error(`MCP Registry: Failed to update registry: ${errorMsg}`)
+            this.logging.error(`MCP Registry: Failed to fetch or validate registry: ${errorMsg}`)
             return false
         }
     }
@@ -218,13 +211,6 @@ export class ProfileStatusMonitor {
         }
 
         return isEnterprise
-    }
-
-    private getDummyRegistryUrl(): string | null {
-        // Temporary dummy URL for testing until getProfile API integration is complete
-        const dummyUrl = process.env.MCP_REGISTRY_URL || 'https://d2orqesgordx5o.cloudfront.net/test-mcp-registry.json'
-        this.logging.info(`MCP Registry: Using dummy/test registry URL: ${dummyUrl}`)
-        return dummyUrl
     }
 
     async getRegistryUrl(): Promise<string | null> {
@@ -244,9 +230,7 @@ export class ProfileStatusMonitor {
                 this.codeWhispererClient!.getProfile({ profileArn })
             )
 
-            // TODO: Replace with actual registry URL from getProfile API response
-            // return response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl || null
-            return this.getDummyRegistryUrl()
+            return response?.profile?.optInFeatures?.mcpConfiguration?.mcpRegistryUrl || null
         } catch (error) {
             this.logging.debug(`Failed to get registry URL: ${error}`)
             return null

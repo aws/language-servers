@@ -127,56 +127,8 @@ export class McpManager {
                 }
             }
 
-            const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
-
-            if (shouldDiscoverServers) {
-                await mgr.discoverAllServers()
-                features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
-            } else {
-                features.logging.info('MCP: initialized without server discovery')
-            }
-
-            // Emit MCP configuration metrics
-            const serverConfigs = mgr.getAllServerConfigs()
-            const activeServers = Array.from(serverConfigs.entries()).filter(([name, _]) => !mgr.isServerDisabled(name))
-
-            // Count global vs project servers
-            const globalServers = Array.from(serverConfigs.entries()).filter(
-                ([_, config]) =>
-                    config?.__configPath__ === getGlobalAgentConfigPath(features.workspace.fs.getUserHomeDir())
-            ).length
-            const projectServers = serverConfigs.size - globalServers
-
-            // Count tools by permission
-            let toolsAlwaysAllowed = 0
-            let toolsDenied = 0
-
-            for (const [serverName, _] of activeServers) {
-                const toolsWithPermissions = mgr.getAllToolsWithPermissions(serverName)
-                toolsWithPermissions.forEach(item => {
-                    if (item.permission === McpPermissionType.alwaysAllow) {
-                        toolsAlwaysAllowed++
-                    } else if (item.permission === McpPermissionType.deny) {
-                        toolsDenied++
-                    }
-                })
-            }
-
-            // Emit MCP configuration metrics
-            if (features.telemetry) {
-                features.telemetry.emitMetric({
-                    name: ChatTelemetryEventName.MCPConfig,
-                    data: {
-                        credentialStartUrl: features.credentialsProvider?.getConnectionMetadata()?.sso?.startUrl,
-                        languageServerVersion: features.runtime?.serverInfo.version,
-                        numActiveServers: activeServers.length,
-                        numGlobalServers: globalServers,
-                        numProjectServers: projectServers,
-                        numToolsAlwaysAllowed: toolsAlwaysAllowed,
-                        numToolsDenied: toolsDenied,
-                    },
-                })
-            }
+            // DO NOT discover servers here - wait for auth to be initialized
+            features.logging.info('MCP: Manager initialized, waiting for auth before discovering servers')
         }
         return McpManager.#instance
     }
@@ -203,7 +155,59 @@ export class McpManager {
     }
 
     /**
+     * Emit MCP configuration telemetry metrics
+     * Should be called after servers are discovered and initialized
+     */
+    public emitMcpConfigMetrics(): void {
+        const serverConfigs = this.getAllServerConfigs()
+        const activeServers = Array.from(serverConfigs.entries()).filter(([name, _]) => !this.isServerDisabled(name))
+
+        // Count global vs project servers
+        const globalServers = Array.from(serverConfigs.entries()).filter(
+            ([_, config]) =>
+                config?.__configPath__ === getGlobalAgentConfigPath(this.features.workspace.fs.getUserHomeDir())
+        ).length
+        const projectServers = serverConfigs.size - globalServers
+
+        // Count tools by permission
+        let toolsAlwaysAllowed = 0
+        let toolsDenied = 0
+
+        for (const [serverName, _] of activeServers) {
+            const toolsWithPermissions = this.getAllToolsWithPermissions(serverName)
+            toolsWithPermissions.forEach(item => {
+                if (item.permission === McpPermissionType.alwaysAllow) {
+                    toolsAlwaysAllowed++
+                } else if (item.permission === McpPermissionType.deny) {
+                    toolsDenied++
+                }
+            })
+        }
+
+        // Emit MCP configuration metrics
+        if (this.features.telemetry) {
+            this.features.telemetry.emitMetric({
+                name: ChatTelemetryEventName.MCPConfig,
+                data: {
+                    credentialStartUrl: this.features.credentialsProvider?.getConnectionMetadata()?.sso?.startUrl,
+                    languageServerVersion: this.features.runtime?.serverInfo.version,
+                    numActiveServers: activeServers.length,
+                    numGlobalServers: globalServers,
+                    numProjectServers: projectServers,
+                    numToolsAlwaysAllowed: toolsAlwaysAllowed,
+                    numToolsDenied: toolsDenied,
+                },
+            })
+        }
+
+        this.features.logging.info(
+            `MCP Config Metrics: ${activeServers.length} active servers, ${this.mcpTools.length} tools`
+        )
+    }
+
+    /**
      * Load configurations and initialize each enabled server.
+     * Should only be called after auth is initialized and MCP is enabled.
      */
     public async discoverAllServers(): Promise<void> {
         // Load agent config with registry support
@@ -370,12 +374,13 @@ export class McpManager {
             const isStdio = !!cfg.command
             const doConnect = async () => {
                 if (isStdio) {
-                    // stdio transport
+                    // stdio transport - merge additional env with base env
+                    const finalEnv = { ...(cfg.env || {}), ...(cfg.__additionalEnv__ || {}) }
                     const mergedEnv = {
                         ...(process.env as Record<string, string>),
                         // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
-                        ...(cfg.env && !isEmptyEnv(cfg.env)
-                            ? Object.fromEntries(Object.entries(cfg.env).filter(([k, v]) => k.trim() && v.trim()))
+                        ...(finalEnv && !isEmptyEnv(finalEnv)
+                            ? Object.fromEntries(Object.entries(finalEnv).filter(([k, v]) => k.trim() && v.trim()))
                             : {}),
                     }
                     let cwd: string | undefined
@@ -411,11 +416,14 @@ export class McpManager {
                         )
                     }
                 } else {
-                    // streamable http/SSE transport
+                    // streamable http/SSE transport - merge additional headers with base headers
                     const base = new URL(cfg.url!)
                     try {
                         // Use HEAD to check if it needs OAuth
-                        let headers: Record<string, string> = { ...(cfg.headers ?? {}) }
+                        let headers: Record<string, string> = {
+                            ...(cfg.headers ?? {}),
+                            ...(cfg.__additionalHeaders__ ?? {}),
+                        }
                         let needsOAuth = false
                         try {
                             const headResp = await fetch(base, { method: 'HEAD', headers })
@@ -696,7 +704,13 @@ export class McpManager {
     /**
      * Add a registry server: persist config, register in memory, and initialize.
      */
-    public async addRegistryServer(serverName: string, cfg: MCPServerConfig, configPath: string): Promise<void> {
+    public async addRegistryServer(
+        serverName: string,
+        cfg: MCPServerConfig,
+        configPath: string,
+        additionalHeaders?: Record<string, string>,
+        additionalEnv?: Record<string, string>
+    ): Promise<void> {
         const sanitizedName = sanitizeName(serverName)
         if (
             this.mcpServers.has(sanitizedName) &&
@@ -705,8 +719,17 @@ export class McpManager {
             throw new Error(`MCP: server '${sanitizedName}' already exists`)
         }
 
-        // Save registry server config with type: 'registry'
-        const registryServerConfig = { type: 'registry' as const, timeout: cfg.timeout }
+        // Save registry server config with type: 'registry', timeout, and additional headers/env
+        const registryServerConfig: any = { type: 'registry' as const }
+        if (cfg.timeout !== undefined) {
+            registryServerConfig.timeout = cfg.timeout
+        }
+        if (additionalHeaders && Object.keys(additionalHeaders).length > 0) {
+            registryServerConfig.headers = additionalHeaders
+        }
+        if (additionalEnv && Object.keys(additionalEnv).length > 0) {
+            registryServerConfig.env = additionalEnv
+        }
         this.agentConfig.mcpServers[serverName] = registryServerConfig
 
         const serverPrefix = `@${serverName}`
@@ -724,7 +747,14 @@ export class McpManager {
             configPath
         )
 
+        // Store additional headers/env separately and merge for runtime
         const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
+        if (additionalHeaders && Object.keys(additionalHeaders).length > 0) {
+            newCfg.__additionalHeaders__ = additionalHeaders
+        }
+        if (additionalEnv && Object.keys(additionalEnv).length > 0) {
+            newCfg.__additionalEnv__ = additionalEnv
+        }
         this.mcpServers.set(sanitizedName, newCfg)
         this.serverNameMapping.set(sanitizedName, serverName)
 
@@ -1094,10 +1124,11 @@ export class McpManager {
     }
 
     /**
-     * Reinitialize all MCP servers by closing existing connections and rediscovering servers
+     * Reinitialize all MCP servers by closing existing connections
+     * @param isManualRefresh - If true, automatically discovers servers after closing connections
      */
-    public async reinitializeMcpServers(): Promise<void> {
-        this.features.logging.info('Reinitializing MCP servers')
+    public async reinitializeMcpServers(isManualRefresh: boolean = false): Promise<void> {
+        this.features.logging.info('Reinitializing MCP servers (closing connections)')
 
         try {
             // Save the current tool name mapping to preserve tool names across reinitializations
@@ -1109,16 +1140,18 @@ export class McpManager {
             // Restore the saved tool name mapping
             this.setToolNameMapping(savedToolNameMapping)
 
-            const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
-
-            if (shouldDiscoverServers) {
-                await this.discoverAllServers()
+            if (isManualRefresh) {
+                const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
+                if (shouldDiscoverServers) {
+                    await this.discoverAllServers()
+                }
+                const reinitializedServerCount = McpManager.#instance?.mcpServers.size
+                this.features.logging.info(
+                    `MCP servers reinitialization completed. Total servers: ${reinitializedServerCount}`
+                )
+            } else {
+                this.features.logging.info('MCP servers reinitialization completed (connections closed)')
             }
-
-            const reinitializedServerCount = McpManager.#instance?.mcpServers.size
-            this.features.logging.info(
-                `MCP servers reinitialized completed. Total servers: ${reinitializedServerCount}`
-            )
         } catch (err: any) {
             this.features.logging.error(`Error reinitializing MCP servers: ${err.message}`)
             throw err
@@ -1312,7 +1345,13 @@ export class McpManager {
         }
 
         return Array.from(this.configLoadErrors.entries())
-            .map(([server, error]) => `File: ${server}, Error: ${error}`)
+            .map(([server, error]) => {
+                // For registry errors, just return the error message without prefix
+                if (server === 'registry') {
+                    return error
+                }
+                return `File: ${server}, Error: ${error}`
+            })
             .join('\n\n')
     }
 
@@ -1584,6 +1623,7 @@ export class McpManager {
 
     /**
      * Update registry URL and refetch registry
+     * @throws Error if registry fetch or validation fails
      */
     public async updateRegistryUrl(registryUrl: string, isPeriodicSync: boolean = false): Promise<void> {
         if (!this.registryService) {
@@ -1609,8 +1649,10 @@ export class McpManager {
                 this.isPeriodicSync = false
             }
         } else {
-            this.features.logging.error('MCP Registry: Failed to fetch registry')
+            const errorMsg = 'Failed to fetch or validate registry'
+            this.features.logging.error(`MCP Registry: ${errorMsg}`)
             this.currentRegistry = null
+            throw new Error(errorMsg)
         }
     }
 
@@ -1644,7 +1686,7 @@ export class McpManager {
                 this.features.logging.warn(
                     `MCP Registry: Server '${unsanitizedName}' removed from registry during periodic sync`
                 )
-                await this.disableRemovedServer(sanitizedName, unsanitizedName, true)
+                await this.removeServer(sanitizedName)
                 serversDisabled++
                 continue
             }
@@ -1660,48 +1702,6 @@ export class McpManager {
         this.features.logging.info(
             `MCP Registry: Periodic synchronization complete - ${serversDisabled} servers disabled, ${versionsUpdated} versions updated`
         )
-    }
-
-    /**
-     * Disable server that was removed from registry
-     */
-    private async disableRemovedServer(
-        sanitizedName: string,
-        unsanitizedName: string,
-        showWarning: boolean = false
-    ): Promise<void> {
-        try {
-            // Terminate server process if running
-            const client = this.clients.get(sanitizedName)
-            if (client) {
-                await client.close()
-                this.clients.delete(sanitizedName)
-                const msg = `MCP Registry: Server '${unsanitizedName}' was removed from registry and has been terminated`
-                this.features.logging.warn(msg)
-                if (showWarning) {
-                    this.features.logging.warn(`WARNING: ${msg}`)
-                }
-            }
-
-            // Remove tools
-            const toolCount = this.mcpTools.filter(t => t.serverName === sanitizedName).length
-            this.mcpTools = this.mcpTools.filter(t => t.serverName !== sanitizedName)
-            if (toolCount > 0) {
-                this.features.logging.info(`MCP Registry: Removed ${toolCount} tools from server '${unsanitizedName}'`)
-            }
-
-            // Mark as disabled in config (preserve entry)
-            const config = this.mcpServers.get(sanitizedName)
-            if (config) {
-                config.disabled = true
-            }
-
-            this.setState(sanitizedName, McpServerStatus.DISABLED, 0, 'Server removed from registry')
-            this.emitToolsChanged(sanitizedName)
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error)
-            this.features.logging.error(`MCP Registry: Error disabling server '${unsanitizedName}': ${errorMsg}`)
-        }
     }
 
     /**
@@ -1743,32 +1743,6 @@ export class McpManager {
     }
 
     /**
-     * Extract version from server config
-     */
-    private extractVersionFromConfig(config: MCPServerConfig): string | null {
-        if (!config.command) {
-            return null
-        }
-
-        // Check args for version (e.g., package@version)
-        const args = config.args || []
-        for (const arg of args) {
-            const match = arg.match(/@([\d.]+(?:-[\w.]+)?)$/)
-            if (match) {
-                return match[1]
-            }
-        }
-
-        // Check command itself
-        const cmdMatch = config.command.match(/@([\d.]+(?:-[\w.]+)?)$/)
-        if (cmdMatch) {
-            return cmdMatch[1]
-        }
-
-        return null
-    }
-
-    /**
      * Reinstall server with new version
      */
     private async reinstallServer(sanitizedName: string, unsanitizedName: string, registryServer: any): Promise<void> {
@@ -1776,34 +1750,15 @@ export class McpManager {
             `MCP Registry: Reinstalling server '${unsanitizedName}' with version ${registryServer.version}`
         )
 
-        try {
-            // Terminate existing server
-            const client = this.clients.get(sanitizedName)
-            if (client) {
-                await client.close()
-                this.clients.delete(sanitizedName)
-            }
+        const configPath =
+            this.mcpServers.get(sanitizedName)?.__configPath__ ||
+            getGlobalAgentConfigPath(this.features.workspace.fs.getUserHomeDir())
 
-            // Remove old tools
-            this.mcpTools = this.mcpTools.filter(t => t.serverName !== sanitizedName)
+        await this.removeServer(sanitizedName)
 
-            // Convert registry server to config
-            const converter = new (await import('./mcpServerConfigConverter')).McpServerConfigConverter()
-            const newConfig = converter.convertRegistryServer(registryServer)
+        const converter = new (await import('./mcpServerConfigConverter')).McpServerConfigConverter()
+        const newConfig = converter.convertRegistryServer(registryServer)
 
-            // Cache the new version
-            newConfig.__cachedVersion__ = registryServer.version
-
-            // Update config
-            this.mcpServers.set(sanitizedName, newConfig)
-
-            // Reinitialize server
-            await this.initOneServer(sanitizedName, newConfig, AuthIntent.Silent)
-            this.features.logging.info(`MCP Registry: Successfully reinstalled server '${unsanitizedName}'`)
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error)
-            this.features.logging.error(`MCP Registry: Failed to reinstall server '${unsanitizedName}': ${errorMsg}`)
-            throw error
-        }
+        await this.addRegistryServer(unsanitizedName, newConfig, configPath)
     }
 }
