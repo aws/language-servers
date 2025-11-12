@@ -280,6 +280,21 @@ describe('ProfileStatusMonitor', () => {
         })
 
         it('should return registry URL from getRegistryUrl for enterprise users', async () => {
+            // Create a new getProfile stub that returns mcpRegistryUrl
+            const getProfileStub = sinon.stub().resolves({
+                profile: {
+                    optInFeatures: {
+                        mcpConfiguration: {
+                            mcpRegistryUrl: 'https://example.com/registry.json',
+                        },
+                    },
+                },
+            })
+
+            mockServiceManager.getCodewhispererService = sinon.stub().returns({
+                getProfile: getProfileStub,
+            })
+
             profileStatusMonitor = new ProfileStatusMonitor(
                 mockLogging,
                 mockOnMcpDisabled,
@@ -288,7 +303,7 @@ describe('ProfileStatusMonitor', () => {
             )
 
             const registryUrl = await profileStatusMonitor.getRegistryUrl()
-            expect(registryUrl).to.be.a('string')
+            expect(registryUrl).to.equal('https://example.com/registry.json')
         })
 
         it('should return null from getRegistryUrl for free tier users', async () => {
