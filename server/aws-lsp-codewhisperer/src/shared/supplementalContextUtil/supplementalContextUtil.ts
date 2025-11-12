@@ -28,6 +28,7 @@ export async function fetchSupplementalContext(
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken,
+    wsContextConfig: 'codemap' | 'codemap-2hop',
     openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = Date.now()
@@ -72,6 +73,7 @@ export async function fetchSupplementalContext(
                 position,
                 workspace,
                 cancellationToken,
+                wsContextConfig,
                 openTabFiles
             )
         }

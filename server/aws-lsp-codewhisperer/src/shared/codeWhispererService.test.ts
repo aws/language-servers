@@ -79,6 +79,10 @@ describe('CodeWhispererService', function () {
                     return 'iam'
                 }
 
+                override async scheduleABTestingFetching(): Promise<void> {
+                    return
+                }
+
                 async constructSupplementalContext(
                     document: TextDocument,
                     position: Position,
@@ -329,7 +333,8 @@ describe('CodeWhispererService', function () {
                 mockLogging as any,
                 'us-east-1',
                 'https://codewhisperer.us-east-1.amazonaws.com',
-                mockSDKInitializator as any
+                mockSDKInitializator as any,
+                undefined
             )
         })
 
