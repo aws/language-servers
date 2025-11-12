@@ -1,0 +1,8 @@
+{
+    "//": [
+        "https://nodejs.org/api/packages.html#determining-module-system",
+        "This file is included with the Flare distribution to serve as the 'nearest parent package.json file' to force Node.js to treat Flare as CommonJS.",
+        "Otherwise, startup may fail when Node.js incorrectly decides to use the ES module loader instead of CJS due to user's home directory structure"
+    ],
+    "type": "commonjs"
+}

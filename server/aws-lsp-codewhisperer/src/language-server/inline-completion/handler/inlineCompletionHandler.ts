@@ -35,6 +35,7 @@ import { UserWrittenCodeTracker } from '../../../shared/userWrittenCodeTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { StreakTracker } from '../tracker/streakTracker'
+import { UserDecisionReason } from '@amzn/codewhisperer-runtime'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
 import { AmazonQBaseServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { hasConnectionExpired } from '../../../shared/utils'
@@ -283,6 +284,7 @@ export class InlineCompletionHandler {
             if (ideCategory !== 'JETBRAINS') {
                 this.completionSessionManager.discardSession(currentSession)
                 const streakLength = this.getEditsEnabled() ? this.streakTracker.getAndUpdateStreakLength(false) : 0
+                // This is IMPLICIT REJECT - user typed or moved cursor
                 await emitUserTriggerDecisionTelemetry(
                     this.telemetry,
                     this.telemetryService,
@@ -292,7 +294,9 @@ export class InlineCompletionHandler {
                     0,
                     [],
                     [],
-                    streakLength
+                    streakLength,
+                    undefined,
+                    UserDecisionReason.ImplicitReject // IMPLICIT - user typed/moved
                 )
             }
         }
@@ -379,6 +383,7 @@ export class InlineCompletionHandler {
             session.discardInflightSessionOnNewInvocation = false
             this.completionSessionManager.discardSession(session)
             const streakLength = this.getEditsEnabled() ? this.streakTracker.getAndUpdateStreakLength(false) : 0
+            // This is IMPLICIT REJECT - new request arrived
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -388,7 +393,9 @@ export class InlineCompletionHandler {
                 0,
                 [],
                 [],
-                streakLength
+                streakLength,
+                undefined,
+                UserDecisionReason.ImplicitReject // IMPLICIT - new invocation
             )
         }
 

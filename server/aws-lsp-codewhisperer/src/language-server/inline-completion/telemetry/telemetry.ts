@@ -1,5 +1,5 @@
 import { Telemetry } from '@aws/language-server-runtimes/server-interface'
-import { IdeDiagnostic } from '@amzn/codewhisperer-runtime'
+import { IdeDiagnostic, UserDecisionReason } from '@amzn/codewhisperer-runtime'
 import { ServiceException } from '@smithy/smithy-client'
 import { CodeWhispererSession, UserTriggerDecision } from '../session/sessionManager'
 import {
@@ -114,7 +114,8 @@ export async function emitEmptyUserTriggerDecisionTelemetry(
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
     timeSinceLastUserModification?: number,
-    streakLength?: number
+    streakLength?: number,
+    userDecisionReason?: UserDecisionReason
 ) {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
@@ -131,7 +132,8 @@ export async function emitEmptyUserTriggerDecisionTelemetry(
         0,
         [],
         [],
-        streakLength
+        streakLength,
+        userDecisionReason
     )
         .then()
         .catch(e => {})
@@ -150,7 +152,8 @@ export const emitUserTriggerDecisionTelemetry = async (
     addedIdeDiagnostics?: IdeDiagnostic[],
     removedIdeDiagnostics?: IdeDiagnostic[],
     streakLength?: number,
-    itemId?: string
+    itemId?: string,
+    userDecisionReason?: UserDecisionReason
 ) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
@@ -178,7 +181,8 @@ export const emitUserTriggerDecisionTelemetry = async (
         deletedCharsCountForEditSuggestion,
         addedIdeDiagnostics,
         removedIdeDiagnostics,
-        streakLength
+        streakLength,
+        userDecisionReason
     )
 
     session.reportedUserDecision = true
@@ -193,7 +197,8 @@ export const emitAggregatedUserTriggerDecisionTelemetry = (
     deletedCharsCountForEditSuggestion?: number,
     addedIdeDiagnostics?: IdeDiagnostic[],
     removedIdeDiagnostics?: IdeDiagnostic[],
-    streakLength?: number
+    streakLength?: number,
+    userDecisionReason?: UserDecisionReason
 ) => {
     return telemetryService.emitUserTriggerDecision(
         session,
@@ -203,6 +208,7 @@ export const emitAggregatedUserTriggerDecisionTelemetry = (
         deletedCharsCountForEditSuggestion,
         addedIdeDiagnostics,
         removedIdeDiagnostics,
-        streakLength
+        streakLength,
+        userDecisionReason
     )
 }
