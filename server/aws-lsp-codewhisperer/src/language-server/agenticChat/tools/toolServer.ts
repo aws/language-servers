@@ -144,7 +144,8 @@ export const QCodeAnalysisServer: Server = ({
                   logging,
                   process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
                   process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-                  sdkInitializator
+                  sdkInitializator,
+                  undefined
               )
 
         agent.addTool(
