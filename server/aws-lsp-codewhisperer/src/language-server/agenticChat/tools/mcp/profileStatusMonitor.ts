@@ -13,6 +13,7 @@ import * as os from 'os'
 import { EventEmitter } from 'events'
 import { McpRegistryService } from './mcpRegistryService'
 import { McpRegistryData } from './mcpTypes'
+import { GetProfileResponse } from '@amzn/codewhisperer-runtime'
 
 export const AUTH_SUCCESS_EVENT = 'authSuccess'
 
@@ -176,12 +177,15 @@ export class ProfileStatusMonitor {
         ProfileStatusMonitor.eventEmitter.emit(AUTH_SUCCESS_EVENT)
     }
 
-    private async fetchRegistryIfNeeded(response: any, isPeriodicSync: boolean = false): Promise<boolean> {
+    private async fetchRegistryIfNeeded(
+        response: GetProfileResponse,
+        isPeriodicSync: boolean = false
+    ): Promise<boolean> {
         if (!this.onRegistryUpdate) {
             return true
         }
 
-        const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.registryUrl
+        const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.mcpRegistryUrl
 
         if (!registryUrl) {
             this.logging.debug('MCP Registry: No registry URL configured')

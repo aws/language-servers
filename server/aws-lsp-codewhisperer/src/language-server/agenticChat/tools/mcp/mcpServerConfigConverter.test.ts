@@ -474,12 +474,10 @@ describe('McpServerConfigConverter', () => {
                 '--rm',
                 '--mount',
                 'type=bind,src=~/Desktop,dst=/projects/Desktop',
-                '-e',
-                'LOG_LEVEL=info',
                 'https://docker.acme.com:5000/mcp/filesystem:1.0.2',
                 '/projects',
             ])
-            assert.deepStrictEqual(result.env, {})
+            assert.deepStrictEqual(result.env, { LOG_LEVEL: 'info' })
         })
 
         it('should convert oci package without registryBaseUrl', () => {
