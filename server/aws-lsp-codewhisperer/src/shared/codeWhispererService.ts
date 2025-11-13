@@ -446,7 +446,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             sdkInitializator,
             logging,
             credentialsProvider,
-            this.shareCodeWhispererContentWithAWS
+            () => this.shareCodeWhispererContentWithAWS
         )
         this.userContext = userContext
         this.scheduleABTestingFetching()
