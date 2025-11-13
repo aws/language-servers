@@ -528,7 +528,7 @@ export class McpMynahUi {
                 }
 
                 if (actionParams.id === MCP_IDS.SAVE) {
-                    this.mynahUi.toggleSplashLoader(true, '**Saving MCP Server**')
+                    this.mynahUi.toggleSplashLoader(true, '**Installing MCP Server**')
                     this.messager.onMcpServerClick(actionParams.id, serverName, filterValues)
                 }
             },
