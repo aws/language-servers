@@ -41,6 +41,7 @@ export interface StartTransformResponse {
 
 export interface GetTransformRequest extends ExecuteCommandParams {
     TransformationJobId: string
+    TransformationWorkspaceId: string
 }
 
 /**

@@ -1100,9 +1100,7 @@ export class TransformHandler {
     /**
      * Get job status from ATX FES GetJob API with complete workflow handling
      */
-    private async getATXFESJobStatus(
-        jobId: string
-    ): Promise<{ status: string; createdAt?: string; originalStatus: string } | null> {
+    private async getATXFESJobStatus(jobId: string): Promise<{ status: string; createdAt?: string } | null> {
         try {
             this.logging.log('=== ATX FES GetJob Operation (FES Client) ===')
             this.logging.log(`Getting status for job: ${jobId}`)
@@ -1130,14 +1128,9 @@ export class TransformHandler {
                 // Handle ATX FES workflow based on status
                 await this.handleATXFESWorkflow(workspaceId, jobId, atxStatus)
 
-                // Map to RTS status for compatibility
-                const mappedStatus = this.mapATXStatusToRTS(atxStatus)
-                this.logging.log(`GetJob: Mapped to RTS Status: ${mappedStatus}`)
-
                 return {
-                    status: mappedStatus,
+                    status: atxStatus,
                     createdAt: result.job?.creationTime || result.creationTime,
-                    originalStatus: atxStatus,
                 }
             } else {
                 this.logging.error('GetJob: Failed to get job status')
@@ -1254,12 +1247,9 @@ export class TransformHandler {
             const job = result.job
             if (job && job.statusDetails) {
                 const atxStatus = job.statusDetails.status
-                const mappedStatus = this.mapATXStatusToRTS(atxStatus)
-
-                this.logging.log(`GetJob: ATX FES status: ${atxStatus} -> Mapped to RTS: ${mappedStatus}`)
 
                 return {
-                    status: mappedStatus,
+                    status: atxStatus,
                     createdAt: job.creationTime,
                 }
             } else {
@@ -1436,6 +1426,10 @@ export class TransformHandler {
                 this.logging.log('Using ATX FES GetJob for Transform profile')
 
                 try {
+                    if (request.TransformationWorkspaceId) {
+                        this.currentWorkspaceId = request.TransformationWorkspaceId
+                    }
+
                     // Get real job status from ATX FES
                     const jobStatus = await this.getATXFESJobStatus(request.TransformationJobId)
 
@@ -1856,16 +1850,16 @@ export class TransformHandler {
                 while (count < 300) {
                     const jobStatus = await this.getATXFESJobStatus(request.TransformationJobId)
 
-                    if (jobStatus && validExitStatus.includes(jobStatus.originalStatus)) {
+                    if (jobStatus && validExitStatus.includes(jobStatus.status)) {
                         return {
                             TransformationJob: {
                                 jobId: request.TransformationJobId,
-                                status: jobStatus.originalStatus,
+                                status: jobStatus.status,
                                 creationTime: jobStatus.createdAt ? new Date(jobStatus.createdAt) : new Date(),
                             } as any,
                             ErrorCode: TransformationErrorCode.NONE,
                         } as GetTransformResponse
-                    } else if (jobStatus && failureStates.includes(jobStatus.originalStatus)) {
+                    } else if (jobStatus && failureStates.includes(jobStatus.status)) {
                         // Fallback to placeholder if API call fails
                         this.logging.log('ATX FES polling failed, using placeholder')
                         return {
