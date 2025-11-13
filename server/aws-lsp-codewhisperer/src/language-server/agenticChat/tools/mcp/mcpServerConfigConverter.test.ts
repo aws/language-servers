@@ -520,5 +520,111 @@ describe('McpServerConfigConverter', () => {
             assert.strictEqual(result.command, 'docker')
             assert.deepStrictEqual(result.args, ['run', 'docker.io:443/library/alpine:1.0.0'])
         })
+
+        it('should convert oci package with identifier containing tag', () => {
+            const registryServer: McpRegistryServer = {
+                name: 'docker-test',
+                description: 'Test Docker-based MCP server',
+                version: '0.6.2',
+                packages: [
+                    {
+                        registryType: 'oci',
+                        registryBaseUrl: 'docker.io',
+                        identifier: 'node:20-alpine',
+                        transport: { type: 'stdio' },
+                    },
+                ],
+            }
+
+            const result = converter.convertRegistryServer(registryServer)
+
+            assert.strictEqual(result.command, 'docker')
+            assert.deepStrictEqual(result.args, ['run', 'docker.io/node:20-alpine'])
+        })
+
+        it('should convert oci package with identifier containing tag and no registryBaseUrl', () => {
+            const registryServer: McpRegistryServer = {
+                name: 'docker-test',
+                description: 'Test Docker-based MCP server',
+                version: '1.0.0',
+                packages: [
+                    {
+                        registryType: 'oci',
+                        identifier: 'node:20-alpine',
+                        transport: { type: 'stdio' },
+                    },
+                ],
+            }
+
+            const result = converter.convertRegistryServer(registryServer)
+
+            assert.strictEqual(result.command, 'docker')
+            assert.deepStrictEqual(result.args, ['run', 'node:20-alpine'])
+        })
+
+        it('should convert oci package with identifier containing tag and runtimeArguments', () => {
+            const registryServer: McpRegistryServer = {
+                name: 'docker-test',
+                description: 'Test Docker-based MCP server',
+                version: '0.6.2',
+                packages: [
+                    {
+                        registryType: 'oci',
+                        registryBaseUrl: 'docker.io',
+                        identifier: 'node:20-alpine',
+                        transport: { type: 'stdio' },
+                        runtimeArguments: [
+                            { type: 'positional', value: '-i' },
+                            { type: 'positional', value: '--rm' },
+                        ],
+                        packageArguments: [
+                            { type: 'positional', value: 'npx' },
+                            { type: 'positional', value: '-y' },
+                            { type: 'positional', value: '@modelcontextprotocol/server-everything' },
+                        ],
+                    },
+                ],
+            }
+
+            const result = converter.convertRegistryServer(registryServer)
+
+            assert.strictEqual(result.command, 'docker')
+            assert.deepStrictEqual(result.args, [
+                'run',
+                '-i',
+                '--rm',
+                'docker.io/node:20-alpine',
+                'npx',
+                '-y',
+                '@modelcontextprotocol/server-everything',
+            ])
+        })
+
+        it('should convert package with environment variable with undefined value', () => {
+            const registryServer: McpRegistryServer = {
+                name: 'test',
+                description: 'Test',
+                version: '1.0.0',
+                packages: [
+                    {
+                        registryType: 'npm',
+                        identifier: '@example/package',
+                        transport: { type: 'stdio' },
+                        environmentVariables: [
+                            { name: 'VAR_WITH_VALUE', value: 'test' },
+                            { name: 'VAR_WITHOUT_VALUE' },
+                        ],
+                    },
+                ],
+            }
+
+            const result = converter.convertRegistryServer(registryServer)
+
+            assert.strictEqual(result.command, 'npx')
+            assert.deepStrictEqual(result.env, {
+                VAR_WITH_VALUE: 'test',
+                VAR_WITHOUT_VALUE: '',
+            })
+        })
     })
 })

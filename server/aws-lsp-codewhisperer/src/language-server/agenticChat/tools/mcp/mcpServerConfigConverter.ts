@@ -58,9 +58,16 @@ export class McpServerConfigConverter {
         }
 
         if (isOci) {
+            // For OCI, identifier may already include tag (e.g., node:20-alpine)
+            // Only append version if identifier doesn't contain ':'
+            const hasTag = pkg.identifier.includes(':')
             const imageRef = pkg.registryBaseUrl
-                ? `${pkg.registryBaseUrl}/${pkg.identifier}:${version}`
-                : `${pkg.identifier}:${version}`
+                ? hasTag
+                    ? `${pkg.registryBaseUrl}/${pkg.identifier}`
+                    : `${pkg.registryBaseUrl}/${pkg.identifier}:${version}`
+                : hasTag
+                  ? pkg.identifier
+                  : `${pkg.identifier}:${version}`
             args.push(imageRef)
         } else {
             args.push(`${pkg.identifier}@${version}`)
