@@ -519,6 +519,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return group === 'TREATMENT' ? 'codemap-2hop' : 'codemap'
         }
 
+        console.log(`repomapTarget=${getRepomapTarget()}`)
+
         const items: SupplementalContext[] = []
 
         const projectContext = await fetchSupplementalContext(
