@@ -207,6 +207,10 @@ export function processEditSuggestion(
     document: TextDocument,
     rightContext: string
 ): { suggestionContent: string; type: SuggestionType } {
+    return {
+        suggestionContent: unifiedDiff,
+        type: SuggestionType.EDIT,
+    }
     // Assume it's an edit if anything goes wrong, at the very least it will not be rendered incorrectly
     let diffCategory: ReturnType<typeof categorizeUnifieddiff> = 'edit'
     try {
