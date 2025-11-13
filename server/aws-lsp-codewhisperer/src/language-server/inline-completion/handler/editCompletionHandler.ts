@@ -237,7 +237,7 @@ export class EditCompletionHandler {
         )
 
         // Both classifier and rule based conditions need to evaluate to true otherwise we wont fire Edits requests
-        const shouldFire = classifierBasedTrigger.shouldTrigger && ruleBasedTrigger !== undefined
+        const shouldFire = ruleBasedTrigger !== undefined
 
         if (!shouldFire) {
             return EMPTY_RESULT
