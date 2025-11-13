@@ -25,7 +25,7 @@ export function createCodeWhispererTokenClient(
     client.middlewareStack.add(
         next => async args => {
             const request = args.request as HttpRequest
-            request.headers['x-amzn-codewhisperer-optout'] = `${!shareCodeWhispererContentWithAWS}`
+            request.headers['x-amzn-codewhisperer-optout'] = `${!shareCodeWhispererContentWithAWS()}`
 
             if (credentialsProvider.getConnectionType() === 'external_idp') {
                 request.headers['TokenType'] = 'EXTERNAL_IDP'
