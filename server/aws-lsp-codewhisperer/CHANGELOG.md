@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.90](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.89...lsp-codewhisperer/v0.0.90) (2025-11-13)
+
+
+### Bug Fixes
+
+* bearer client will not pick up telemetry optout and its always optout ([#2484](https://github.com/aws/language-servers/issues/2484)) ([ec6771f](https://github.com/aws/language-servers/commit/ec6771fc5dc162f9c65df4e979dcfc3ae4838f06))
+
 ## [0.0.89](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.88...lsp-codewhisperer/v0.0.89) (2025-11-12)
 
 
