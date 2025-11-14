@@ -40,7 +40,31 @@ describe('ChatDb Utilities', () => {
                 userInputMessage: {
                     content: 'Hello',
                     images: [],
-                    userInputMessageContext: {},
+                    userInputMessageContext: undefined,
+                    userIntent: undefined,
+                    origin: 'IDE',
+                },
+            })
+        })
+
+        it('should preserve userInputMessageContext when provided', () => {
+            const message: Message = {
+                body: 'Hello',
+                type: 'prompt',
+                userInputMessageContext: {
+                    editorState: { document: { relativeFilePath: 'test.ts' } },
+                },
+            }
+
+            const result = messageToStreamingMessage(message)
+
+            assert.deepStrictEqual(result, {
+                userInputMessage: {
+                    content: 'Hello',
+                    images: [],
+                    userInputMessageContext: {
+                        editorState: { document: { relativeFilePath: 'test.ts' } },
+                    },
                     userIntent: undefined,
                     origin: 'IDE',
                 },
@@ -130,6 +154,24 @@ describe('ChatDb Utilities', () => {
                 userInputMessageContext: {
                     toolResults: [],
                 },
+                userIntent: undefined,
+            })
+        })
+
+        it('should handle undefined userInputMessageContext', () => {
+            const chatMessage: StreamingMessage = {
+                userInputMessage: {
+                    content: 'Hello',
+                },
+            }
+
+            const result = chatMessageToMessage(chatMessage)
+
+            assert.deepStrictEqual(result, {
+                body: 'Hello',
+                origin: 'IDE',
+                type: 'prompt',
+                userInputMessageContext: undefined,
                 userIntent: undefined,
             })
         })

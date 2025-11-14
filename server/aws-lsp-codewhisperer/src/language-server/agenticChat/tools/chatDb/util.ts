@@ -160,7 +160,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   content: msg.body,
                   userIntent: msg.userIntent,
                   origin: msg.origin || 'IDE',
-                  userInputMessageContext: msg.userInputMessageContext || {},
+                  userInputMessageContext: msg.userInputMessageContext,
                   images: msg.images || [],
               },
           }
@@ -208,7 +208,7 @@ export function chatMessageToMessage(chatMessage: StreamingMessage): Message {
             type: 'prompt',
             userIntent: userInputMessage.userIntent,
             origin: userInputMessage.origin || 'IDE',
-            userInputMessageContext: userInputMessage.userInputMessageContext || {},
+            userInputMessageContext: userInputMessage.userInputMessageContext,
         }
     } else if ('assistantResponseMessage' in chatMessage) {
         const assistantResponseMessage = chatMessage.assistantResponseMessage as AssistantResponseMessage
