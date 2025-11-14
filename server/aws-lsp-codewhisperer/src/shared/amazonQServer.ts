@@ -8,6 +8,7 @@ import {
 import { AmazonQBaseServiceManager, QServiceManagerFeatures } from './amazonQServiceManager/BaseAmazonQServiceManager'
 import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
 import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
+import { AtxTokenServiceManager } from './amazonQServiceManager/AtxTokenServiceManager'
 
 const LOGGING_PREFIX = '[AMAZON Q SERVER]: '
 
@@ -21,12 +22,22 @@ export const AmazonQServiceServerFactory =
         }
 
         /*
-         The service manager relies on client params to fully initialize, so the initialization needs
-         to be deferred to the LSP handshake. Dependent servers may assume the service manager is 
-         available when the initialized notification has been received.
-        */
+             The service manager relies on client params to fully initialize, so the initialization needs
+             to be deferred to the LSP handshake. Dependent servers may assume the service manager is 
+             available when the initialized notification has been received.
+            */
         lsp.addInitializer((_params: InitializeParams) => {
             amazonQServiceManager = serviceManager({
+                credentialsProvider,
+                lsp,
+                workspace,
+                logging,
+                runtime,
+                sdkInitializator,
+            })
+
+            // Initialize ATX Token Service Manager for ATX FES support
+            AtxTokenServiceManager.initInstance({
                 credentialsProvider,
                 lsp,
                 workspace,

@@ -89,6 +89,17 @@ export const QConfigurationServerToken =
 
             logging.debug(`Feature flag enableCustomizationsWithMetadata: ${enableCustomizationsWithMetadata}`)
 
+            // Check profile type from initialization options
+            const profileType = (params.initializationOptions as any)?.aws?.profileType
+
+            // Only register Q configuration provider if NOT in Transform-only flow
+            if (profileType === 'transform') {
+                return {
+                    capabilities: {},
+                    awsServerCapabilities: {},
+                }
+            }
+
             return {
                 capabilities: {},
                 awsServerCapabilities: {
