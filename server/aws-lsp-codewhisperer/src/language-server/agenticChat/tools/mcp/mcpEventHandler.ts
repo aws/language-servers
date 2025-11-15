@@ -1280,7 +1280,7 @@ export class McpEventHandler {
                           id: 'timeout',
                           title: 'Timeout - use 0 to disable',
                           value: timeoutInSeconds,
-                          disabled: true,
+                          disabled: false,
                       },
                   ]
 
@@ -1892,7 +1892,7 @@ export class McpEventHandler {
         const timeoutInMs = (parseInt(params.optionsValues!.timeout) ?? 60) * 1000
         const agentPath = await this.#getAgentPath(params.optionsValues!.scope === 'global')
 
-        const config = this.#converter.convertRegistryServer(registryServer)
+        const config = this.#converter.convertRegistryServer(registryServer, additionalEnv)
         config.__cachedVersion__ = registryServer.version
         config.timeout = timeoutInMs
 
