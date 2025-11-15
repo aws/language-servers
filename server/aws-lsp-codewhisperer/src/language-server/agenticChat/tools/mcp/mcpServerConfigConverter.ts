@@ -7,11 +7,11 @@ import { MCPServerConfig, McpRegistryServer } from './mcpTypes'
 import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
 
 export class McpServerConfigConverter {
-    convertRegistryServer(registryServer: McpRegistryServer): MCPServerConfig {
+    convertRegistryServer(registryServer: McpRegistryServer, additionalEnv?: Record<string, string>): MCPServerConfig {
         if (registryServer.remotes) {
             return this.convertRemoteServer(registryServer.remotes)
         } else if (registryServer.packages) {
-            return this.convertLocalServer(registryServer.packages, registryServer.version)
+            return this.convertLocalServer(registryServer.packages, registryServer.version, additionalEnv)
         }
         throw new Error(`Invalid registry server: must have remotes or packages`)
     }
@@ -32,7 +32,11 @@ export class McpServerConfigConverter {
         return config
     }
 
-    private convertLocalServer(packages: McpRegistryServer['packages'], version: string): MCPServerConfig {
+    private convertLocalServer(
+        packages: McpRegistryServer['packages'],
+        version: string,
+        additionalEnv?: Record<string, string>
+    ): MCPServerConfig {
         const pkg = packages![0]
         const isNpm = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.NPM
         const isPypi = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.PYPI
@@ -47,13 +51,39 @@ export class McpServerConfigConverter {
         }
 
         if (isPypi && pkg.registryBaseUrl) {
-            args.push('--default-index')
-            args.push(pkg.registryBaseUrl)
+            args.push(`--default-index=${pkg.registryBaseUrl}`)
         }
 
         if (pkg.runtimeArguments && pkg.runtimeArguments.length > 0) {
             pkg.runtimeArguments.forEach((arg: { type: string; value: string }) => {
                 args.push(arg.value)
+            })
+        }
+
+        // For OCI, add environment variables as -e flags before the image reference
+        if (isOci) {
+            const allEnv: Record<string, string> = {}
+            // Add registry env vars first
+            if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
+                pkg.environmentVariables.forEach((envVar: { name: string; value?: string }) => {
+                    const val = envVar.value ?? ''
+                    if (envVar.name.trim() && val.trim()) {
+                        allEnv[envVar.name] = val
+                    }
+                })
+            }
+            // Override with additional env vars (filter empty)
+            if (additionalEnv) {
+                Object.entries(additionalEnv).forEach(([key, value]) => {
+                    if (key.trim() && value.trim()) {
+                        allEnv[key] = value
+                    }
+                })
+            }
+            // Add all as -e flags
+            Object.entries(allEnv).forEach(([key, value]) => {
+                args.push('-e')
+                args.push(`${key}=${value}`)
             })
         }
 
