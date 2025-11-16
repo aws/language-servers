@@ -226,6 +226,7 @@ export abstract class CodeWhispererServiceBase {
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     public profileArn?: string
+    public tenantUrl?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     private _userContext: UserContext | undefined

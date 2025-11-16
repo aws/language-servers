@@ -26,6 +26,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     PackageReferences?: PackageReferenceMetadata[]
     DmsArn?: string
     DatabaseSettings?: DatabaseSettings
+    WorkspaceId?: string
 }
 
 export interface StartTransformResponse {
@@ -73,6 +74,26 @@ export interface CancelTransformRequest extends ExecuteCommandParams {
 export interface DownloadArtifactsRequest extends ExecuteCommandParams {
     TransformationJobId: string
     SolutionRootPath: string
+}
+
+export interface GetEditablePlanRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    SolutionRootPath: string
+}
+
+export interface GetEditablePlanResponse {
+    Status: boolean
+    PlanPath: string
+    ReportPath: string
+}
+
+export interface UploadEditablePlanRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    PlanPath: string
+}
+
+export interface UploadEditablePlanResponse {
+    VerificationStatus: boolean
 }
 
 export enum CancellationJobStatus {
