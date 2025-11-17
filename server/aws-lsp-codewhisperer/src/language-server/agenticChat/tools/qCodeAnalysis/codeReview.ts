@@ -560,7 +560,6 @@ export class CodeReview {
 
             if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
                 findingsExceededLimit = true
-                break
             }
         } while (nextFindingToken)
 
