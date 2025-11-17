@@ -477,7 +477,7 @@ export class CodeReview {
         )
 
         const aggregatedCodeScanIssueList = this.aggregateFindingsByFile(
-            findingsExceededLimit ? totalFindings.slice(0, CodeReview.MAX_FINDINGS_COUNT) : totalFindings,
+            totalFindings,
             setup.fileArtifacts,
             setup.folderArtifacts
         )
@@ -511,8 +511,14 @@ export class CodeReview {
 
         return {
             codeReviewId: jobId,
-            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${
+                findingsExceededLimit
+                    ? ` Inform the user that because there were more than ${CodeReview.MAX_FINDINGS_COUNT} findings, you (the AI agent) will not have context about them. ` +
+                      `They will need to use the Code Issues Panel to get more information.`
+                    : ''
+            }`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
+            findingsExceededLimit,
         }
     }
 

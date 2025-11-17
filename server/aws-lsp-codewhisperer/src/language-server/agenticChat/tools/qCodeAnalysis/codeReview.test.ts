@@ -12,6 +12,7 @@ import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import * as JSZip from 'jszip'
 import { Origin } from '@amzn/codewhisperer-streaming'
+import { CodeReviewResult } from './codeReviewTypes'
 
 describe('CodeReview', () => {
     let sandbox: sinon.SinonSandbox
@@ -147,6 +148,7 @@ describe('CodeReview', () => {
 
             expect(result.output.success).to.be.true
             expect(result.output.kind).to.equal('json')
+            expect((result.output.content as CodeReviewResult).findingsExceededLimit === false)
         })
 
         it('should execute successfully and pass languageModelId and clientType to startCodeAnalysis', async () => {

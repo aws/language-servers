@@ -204,6 +204,7 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { CodeReviewResult } from './tools/qCodeAnalysis/codeReviewTypes'
 import {
     CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
     DISPLAY_FINDINGS_MESSAGE_SUFFIX,
@@ -2135,6 +2136,31 @@ export class AgenticChatController implements ChatHandlers {
 
                 let toolResultContent: ToolResultContentBlock
 
+                if (toolUse.name === CodeReview.toolName) {
+                    // no need to write tool result for code review, this is handled by model via chat
+                    // Push result in message so that it is picked by IDE plugin to show in issues panel
+                    const codeReviewResult = result as InvokeOutput
+                    if (
+                        codeReviewResult?.output?.kind === 'json' &&
+                        codeReviewResult.output.success &&
+                        (codeReviewResult.output.content as CodeReviewResult)?.findingsByFile
+                    ) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+                            body: (codeReviewResult.output.content as CodeReviewResult).findingsByFile,
+                        })
+                        if ((codeReviewResult.output.content as CodeReviewResult).findingsExceededLimit) {
+                            codeReviewResult.output.content = {
+                                codeReviewId: (codeReviewResult.output.content as CodeReviewResult).codeReviewId,
+                                message: (codeReviewResult.output.content as CodeReviewResult).message,
+                                findingsExceededLimit: (codeReviewResult.output.content as CodeReviewResult)
+                                    .findingsExceededLimit,
+                            }
+                        }
+                    }
+                }
+
                 if (typeof result === 'string') {
                     toolResultContent = { text: result }
                 } else if (Array.isArray(result)) {
@@ -2220,20 +2246,6 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
-                        // no need to write tool result for code review, this is handled by model via chat
-                        // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const codeReviewResult = result as InvokeOutput
-                        if (
-                            codeReviewResult?.output?.kind === 'json' &&
-                            codeReviewResult.output.success &&
-                            (codeReviewResult.output.content as any)?.findingsByFile
-                        ) {
-                            await chatResultStream.writeResultBlock({
-                                type: 'tool',
-                                messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
-                                body: (codeReviewResult.output.content as any).findingsByFile,
-                            })
-                        }
                         break
                     case DisplayFindings.toolName:
                         // no need to write tool result for code review, this is handled by model via chat

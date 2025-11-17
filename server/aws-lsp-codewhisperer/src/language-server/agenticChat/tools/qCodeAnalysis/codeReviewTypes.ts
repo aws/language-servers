@@ -44,6 +44,7 @@ export type CodeReviewResult = {
     codeReviewId: string
     message: string
     findingsByFile: string
+    findingsExceededLimit: boolean
 }
 
 export type CodeReviewFinding = {
