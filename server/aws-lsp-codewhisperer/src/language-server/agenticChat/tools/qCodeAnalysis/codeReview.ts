@@ -557,11 +557,11 @@ export class CodeReview {
                 ? parsedFindings.filter(finding => 'CodeDiff' === finding.findingContext)
                 : parsedFindings
             totalFindings = totalFindings.concat(filteredFindings)
-
-            if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
-                findingsExceededLimit = true
-            }
         } while (nextFindingToken)
+
+        if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
+            findingsExceededLimit = true
+        }
 
         this.logging.info(`Total findings: ${totalFindings.length}`)
         return { totalFindings, findingsExceededLimit }
