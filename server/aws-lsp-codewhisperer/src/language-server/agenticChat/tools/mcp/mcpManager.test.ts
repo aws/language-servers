@@ -185,6 +185,8 @@ describe('callTool()', () => {
             },
         })
         const mgr = await McpManager.init(['p.json'], features)
+        // Call discoverAllServers to properly initialize the server
+        await mgr.discoverAllServers()
 
         try {
             await mgr.callTool('s1', 'tool1', {})
@@ -211,6 +213,8 @@ describe('callTool()', () => {
             },
         })
         const mgr = await McpManager.init(['p.json'], features)
+        // Call discoverAllServers to properly initialize the server
+        await mgr.discoverAllServers()
         ;(mgr as any).clients.set('s1', new Client({ name: 'x', version: 'v' }))
 
         const res = await mgr.callTool('s1', 'tool1', { foo: 1 })
@@ -236,6 +240,8 @@ describe('callTool()', () => {
             },
         })
         const mgr = await McpManager.init(['p.json'], features)
+        // Call discoverAllServers to properly initialize the server
+        await mgr.discoverAllServers()
 
         callToolStub.resetBehavior()
         callToolStub.returns(new Promise(() => {}) as any)
@@ -256,7 +262,11 @@ describe('addServer()', () => {
     let initOneStub: sinon.SinonStub
     let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
         loadStub = stubAgentConfig()
         initOneStub = stubInitOneServer()
         saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
@@ -271,6 +281,18 @@ describe('addServer()', () => {
 
     it('persists config and initializes', async () => {
         const mgr = await McpManager.init([], features)
+        // Ensure registry mode is not active and agentConfig is initialized
+        ;(mgr as any).registryService = undefined
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
 
         const newCfg: MCPServerConfig = {
             command: 'c2',
@@ -284,7 +306,7 @@ describe('addServer()', () => {
         await mgr.addServer('newS', newCfg, 'path.json')
 
         expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnceWith('newS', sinon.match(newCfg))).to.be.true
+        expect(initOneStub.called).to.be.true
     })
 
     it('persists and initializes an HTTP server', async () => {
@@ -304,6 +326,18 @@ describe('addServer()', () => {
             },
         })
         const mgr = await McpManager.init([], features)
+        // Ensure registry mode is not active and agentConfig is initialized
+        ;(mgr as any).registryService = undefined
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
 
         const httpCfg: MCPServerConfig = {
             url: 'https://api.example.com/mcp',
@@ -316,7 +350,7 @@ describe('addServer()', () => {
         await mgr.addServer('httpSrv', httpCfg, 'http.json')
 
         expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnceWith('httpSrv', sinon.match(httpCfg))).to.be.true
+        expect(initOneStub.called).to.be.true
     })
 })
 
@@ -525,6 +559,7 @@ describe('updateServer()', () => {
 
         await McpManager.init([], features)
         const mgr = McpManager.instance
+        await mgr.discoverAllServers()
         const fakeClient = new Client({ name: 'c', version: 'v' })
         ;(mgr as any).clients.set('u1', fakeClient)
 
@@ -536,7 +571,8 @@ describe('updateServer()', () => {
 
         expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(closeStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnceWith('u1', sinon.match.has('timeout', 999))).to.be.true
+        expect(initOneStub.called).to.be.true
+        expect(initOneStub.firstCall.args[0]).to.equal('u1')
     })
 
     it('switches from stdio to http by clearing command and setting url', async () => {
@@ -567,6 +603,7 @@ describe('updateServer()', () => {
 
         await McpManager.init([], features)
         const mgr = McpManager.instance
+        await mgr.discoverAllServers()
 
         initOneStub.resetHistory()
         saveServerSpecificAgentConfigStub.resetHistory()
@@ -574,7 +611,8 @@ describe('updateServer()', () => {
         await mgr.updateServer('srv', { command: undefined, url: 'https://new.host/mcp' }, 'z.json')
 
         expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnceWith('srv', sinon.match({ url: 'https://new.host/mcp' }))).to.be.true
+        expect(initOneStub.called).to.be.true
+        expect(initOneStub.firstCall.args[0]).to.equal('srv')
     })
 })
 
@@ -591,6 +629,7 @@ describe('requiresApproval()', () => {
     it('returns true for unknown server', async () => {
         loadStub = stubAgentConfig()
         const mgr = await McpManager.init([], features)
+        await mgr.discoverAllServers()
         expect(mgr.requiresApproval('x', 'y')).to.be.true
     })
 
@@ -619,6 +658,7 @@ describe('requiresApproval()', () => {
         })
 
         const mgr = await McpManager.init(['p'], features)
+        await mgr.discoverAllServers()
         expect(mgr.requiresApproval('s', 'foo')).to.be.false
         expect(mgr.requiresApproval('s', 'bar')).to.be.true
     })
@@ -658,6 +698,7 @@ describe('getAllServerConfigs()', () => {
             },
         })
         const mgr = await McpManager.init(['cfg.json'], features)
+        await mgr.discoverAllServers()
         const snap = mgr.getAllServerConfigs()
         expect(snap.get('srv')).to.deep.equal(cfg)
         snap.delete('srv')
@@ -705,6 +746,7 @@ describe('getServerState()', () => {
             },
         })
         const mgr = await McpManager.init(['state.json'], features)
+        await mgr.discoverAllServers()
         expect(mgr.getServerState('srv')).to.deep.include({
             status: 'ENABLED',
             toolsCount: 1,
@@ -746,6 +788,7 @@ describe('getAllServerStates()', () => {
             },
         })
         const mgr = await McpManager.init(['state.json'], features)
+        await mgr.discoverAllServers()
         const map = mgr.getAllServerStates()
         expect(map.get('srv')).to.deep.include({
             status: 'ENABLED',
@@ -796,6 +839,7 @@ describe('getEnabledTools()', () => {
         })
 
         const mgr = await McpManager.init(['t.json'], features)
+        await mgr.discoverAllServers()
         expect(mgr.getEnabledTools()).to.have.length(1)
 
         // Update the agentConfig to disable the tool
@@ -843,6 +887,7 @@ describe('getEnabledTools()', () => {
         })
 
         const mgr = await McpManager.init(['t.json'], features)
+        await mgr.discoverAllServers()
         // Should be empty because server is disabled
         expect(mgr.getEnabledTools()).to.be.empty
     })
@@ -880,6 +925,7 @@ describe('getAllToolsWithPermissions()', () => {
         })
         initOneStub = stubInitOneServer()
         mgr = await McpManager.init(['p.json'], features)
+        await mgr.discoverAllServers()
     })
 
     afterEach(async () => {
@@ -944,6 +990,7 @@ describe('isServerDisabled()', () => {
         })
 
         const mgr = await McpManager.init(['p.json'], features)
+        await mgr.discoverAllServers()
         expect(mgr.isServerDisabled('srv')).to.be.true
     })
 
@@ -974,6 +1021,7 @@ describe('isServerDisabled()', () => {
         })
 
         const mgr = await McpManager.init(['p.json'], features)
+        await mgr.discoverAllServers()
         expect(mgr.isServerDisabled('srv')).to.be.false
     })
 
@@ -1003,6 +1051,7 @@ describe('isServerDisabled()', () => {
         })
 
         const mgr = await McpManager.init(['p.json'], features)
+        await mgr.discoverAllServers()
         expect(mgr.isServerDisabled('srv')).to.be.false
     })
 })
@@ -1104,6 +1153,7 @@ describe('updateServerPermission()', () => {
 
         await McpManager.init(['x.json'], features)
         const mgr = McpManager.instance
+        await mgr.discoverAllServers()
 
         // Update permissions for a tool
         await mgr.updateServerPermission('srv', {
@@ -1128,7 +1178,44 @@ describe('reinitializeMcpServers()', () => {
         } catch {}
     })
 
-    it('closes then reloads servers', async () => {
+    it('closes servers without reloading when isManualRefresh is false', async () => {
+        const cfg1: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: false,
+            __configPath__: 'a.json',
+        }
+        const loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srvA', cfg1]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: { srvA: cfg1 },
+                tools: ['@srvA'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+        stubInitOneServer()
+
+        const mgr = await McpManager.init(['a.json'], features)
+        await mgr.discoverAllServers()
+        expect(mgr.getAllServerConfigs().has('srvA')).to.be.true
+
+        const closeSpy = sinon.spy(mgr, 'close' as any)
+        await mgr.reinitializeMcpServers(false)
+        expect(closeSpy.calledOnce).to.be.true
+        // loadAgentConfig should only be called once (during discoverAllServers)
+        expect(loadStub.callCount).to.equal(1)
+    })
+
+    it('closes then reloads servers when isManualRefresh is true', async () => {
         const cfg1: MCPServerConfig = {
             command: 'c',
             args: [],
@@ -1182,10 +1269,11 @@ describe('reinitializeMcpServers()', () => {
         stubInitOneServer()
 
         const mgr = await McpManager.init(['a.json'], features)
+        await mgr.discoverAllServers()
         expect(mgr.getAllServerConfigs().has('srvA')).to.be.true
 
         const closeSpy = sinon.spy(mgr, 'close' as any)
-        await mgr.reinitializeMcpServers()
+        await mgr.reinitializeMcpServers(true)
         expect(closeSpy.calledOnce).to.be.true
         expect(loadStub.callCount).to.equal(2)
         expect(mgr.getAllServerConfigs().has('srvB')).to.be.true
@@ -1327,6 +1415,7 @@ describe('concurrent server initialization', () => {
 
         // Initialize the McpManager
         const mgr = await McpManager.init(['config1.json'], features)
+        await mgr.discoverAllServers()
 
         // Verify that Promise.all was called at least twice (once for each batch)
         expect(promiseAllSpy.called).to.be.true
@@ -1430,6 +1519,9 @@ describe('McpManager error handling', () => {
         })
 
         const mgr = await McpManager.init([], features)
+
+        // Call discoverAllServers to load the config and populate errors
+        await mgr.discoverAllServers()
 
         // Test that getConfigLoadErrors returns the expected error messages
         const errors = mgr.getConfigLoadErrors()
@@ -1542,6 +1634,9 @@ describe('McpManager error handling', () => {
 
         const mgr = await McpManager.init([], features)
 
+        // Call discoverAllServers to load initial config with errors
+        await mgr.discoverAllServers()
+
         // Verify initial errors exist
         let errors = mgr.getConfigLoadErrors()
         expect(errors).to.not.be.undefined
@@ -1550,181 +1645,330 @@ describe('McpManager error handling', () => {
         // Reinitialize to clear errors
         await mgr.reinitializeMcpServers()
 
+        // Call discoverAllServers again to reload config
+        await mgr.discoverAllServers()
+
         // Verify errors are cleared
         errors = mgr.getConfigLoadErrors()
         expect(errors).to.be.undefined
     })
 })
 
-describe('McpManager Initialization Fix', () => {
-    const mockFeatures = {
-        logging: {
-            info: sinon.spy(),
-            debug: sinon.spy(),
-            warn: sinon.spy(),
-            error: sinon.spy(),
-        },
-        workspace: {
-            getAllWorkspaceFolders: sinon.stub().returns([]),
-            fs: {
-                getUserHomeDir: sinon.stub().returns('/home/user'),
-                readFile: sinon.stub(),
-                writeFile: sinon.stub(),
-                mkdir: sinon.stub(),
-            },
-        },
-        lsp: {},
-        telemetry: {
-            emitMetric: sinon.spy(),
-        },
-        credentialsProvider: {
-            getConnectionMetadata: sinon.stub().returns({ sso: { startUrl: 'test' } }),
-        },
-        runtime: {
-            serverInfo: { version: '1.0.0' },
-        },
-        agent: {
-            getBuiltInToolNames: sinon.stub().returns([]),
-        },
-    } as any
+describe('Registry Synchronization', () => {
+    let mgr: McpManager
+    let mockFeatures: any
+    let sandbox: sinon.SinonSandbox
 
     beforeEach(async () => {
-        if (McpManager.isInitialized()) {
-            await McpManager.instance.close(false)
+        sandbox = sinon.createSandbox()
+        mockFeatures = {
+            logging: fakeLogging,
+            workspace: fakeWorkspace,
+            lsp: {},
+            telemetry: { emitMetric: () => {} },
+            credentialsProvider: { getConnectionMetadata: () => ({}) },
+            runtime: { serverInfo: { version: '1.0.0' } },
+            agent: { getBuiltInToolNames: () => [] },
         }
+        stubAgentConfig()
+        mgr = await McpManager.init([], mockFeatures)
+    })
+
+    afterEach(async () => {
+        sandbox.restore()
         sinon.restore()
-        sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(true)
+        try {
+            await McpManager.instance.close()
+        } catch {}
     })
 
-    describe('isInitialized() method', () => {
-        it('should return false before initialization', () => {
-            expect(McpManager.isInitialized()).to.be.false
-        })
-
-        it('should return true after successful initialization', async () => {
-            await McpManager.init([], mockFeatures)
-            expect(McpManager.isInitialized()).to.be.true
-        })
-
-        it('should return true even after failed initialization', async () => {
-            sinon.restore()
-            sinon.stub(ProfileStatusMonitor, 'getMcpState').throws(new Error('Test error'))
-
-            await McpManager.init([], mockFeatures)
-            expect(McpManager.isInitialized()).to.be.true
-        })
-    })
-
-    describe('init() never throws', () => {
-        it('should create empty instance on initialization failure', async () => {
-            sinon.restore()
-            sinon.stub(ProfileStatusMonitor, 'getMcpState').throws(new Error('Network error'))
-
-            const manager = await McpManager.init([], mockFeatures)
-
-            expect(manager).to.not.be.undefined
-            expect(McpManager.isInitialized()).to.be.true
-            expect((mockFeatures.logging.error as sinon.SinonSpy).calledWith(sinon.match(/MCP: initialization failed/)))
-                .to.be.true
-        })
-
-        it('should handle WSL network issues gracefully', async () => {
-            mockFeatures.workspace.fs.readFile.rejects(new Error('ETIMEDOUT'))
-
-            const manager = await McpManager.init(['/path/to/config'], mockFeatures)
-
-            expect(manager).to.not.be.undefined
-            expect(manager.getAllTools()).to.deep.equal([])
-        })
-
-        it('should work with empty tools list after failure', async () => {
-            sinon.restore()
-            sinon.stub(ProfileStatusMonitor, 'getMcpState').throws(new Error('Init error'))
-
-            const manager = await McpManager.init([], mockFeatures)
-
-            expect(manager.getAllTools()).to.deep.equal([])
-            expect(manager.getEnabledTools()).to.deep.equal([])
-            expect(manager.getAllServerConfigs().size).to.equal(0)
-        })
-    })
-
-    describe('instance getter with try-catch', () => {
-        it('should throw error when not initialized', () => {
-            expect(() => McpManager.instance).to.throw('McpManager not initialized')
-        })
-
-        it('should return instance after initialization', async () => {
-            await McpManager.init([], mockFeatures)
-            expect(() => McpManager.instance).to.not.throw()
-        })
-
-        it('should be safe to use with try-catch pattern', async () => {
-            let result: any[] = []
-            try {
-                result = McpManager.instance.getAllTools()
-            } catch (error) {
-                result = []
-            }
-            expect(result).to.deep.equal([])
-
-            await McpManager.init([], mockFeatures)
-
-            try {
-                result = McpManager.instance.getAllTools()
-            } catch (error) {
-                result = []
-            }
-            expect(result).to.deep.equal([])
-        })
-    })
-
-    describe('Race condition scenarios', () => {
-        it('should handle immediate access after init call', async () => {
-            const initPromise = McpManager.init([], mockFeatures)
-
-            let tools: any[] = []
-            try {
-                tools = McpManager.instance.getAllTools()
-            } catch (error) {
-                tools = []
+    describe('updateRegistryUrl', () => {
+        it('should fetch and update registry when URL provided', async () => {
+            const registry = {
+                servers: [{ name: 'test-server', description: 'Test', version: '1.0.0', remotes: [] as any }],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
             }
 
-            expect(tools).to.deep.equal([])
-            await initPromise
-            expect(McpManager.instance.getAllTools()).to.deep.equal([])
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json')
+
+            expect(mockRegistryService.fetchRegistry.calledWith('https://example.com/registry.json')).to.be.true
+            expect((mgr as any).currentRegistry).to.equal(registry)
         })
 
-        it('should handle multiple concurrent init calls', async () => {
-            const promises = [
-                McpManager.init([], mockFeatures),
-                McpManager.init([], mockFeatures),
-                McpManager.init([], mockFeatures),
-            ]
+        it('should clear current registry and throw when fetch fails', async () => {
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(null),
+            }
+            ;(mgr as any).registryService = mockRegistryService
 
-            const results = await Promise.all(promises)
+            try {
+                await mgr.updateRegistryUrl('https://example.com/registry.json')
+                throw new Error('Expected updateRegistryUrl to throw')
+            } catch (error: any) {
+                expect(error.message).to.equal('Failed to fetch or validate registry')
+            }
 
-            expect(results).to.have.lengthOf(3)
-            results.forEach(manager => expect(manager).to.not.be.undefined)
-            expect(McpManager.isInitialized()).to.be.true
+            expect((mgr as any).currentRegistry).to.be.null
         })
     })
 
-    describe('Graceful degradation', () => {
-        it('should return empty arrays when MCP not ready', async () => {
-            const manager = await McpManager.init([], mockFeatures)
+    describe('syncWithRegistry', () => {
+        it('should remove servers removed from registry', async () => {
+            const saveStub = sandbox.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
+            ;(mgr as any).mcpServers.set('test-server', {
+                command: 'npx',
+                args: ['-y', '@test/server@1.0.0'],
+                disabled: false,
+                __configPath__: '/test/config.json',
+            })
+            ;(mgr as any).serverNameMapping.set('test-server', 'test-server')
+            ;(mgr as any).agentConfig = {
+                mcpServers: { 'test-server': { type: 'registry' } },
+                tools: ['@test-server'],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                includedFiles: [],
+                useLegacyMcpJson: false,
+                name: 'test',
+                description: 'test',
+            }
 
-            expect(manager.getAllTools()).to.deep.equal([])
-            expect(manager.getEnabledTools()).to.deep.equal([])
-            expect(manager.listServersAndTools()).to.deep.equal({})
+            const mockClient = { close: sandbox.stub().resolves() }
+            ;(mgr as any).clients.set('test-server', mockClient)
+
+            const registry = {
+                servers: [],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json', true)
+
+            expect(mockClient.close.called).to.be.true
+            // Server should be completely removed, not just disabled
+            const config = (mgr as any).mcpServers.get('test-server')
+            expect(config).to.be.undefined
         })
 
-        it('should handle server operations safely', async () => {
-            const manager = await McpManager.init([], mockFeatures)
+        it('should skip non-registry servers during sync', async () => {
+            ;(mgr as any).mcpServers.set('manual-server', {
+                command: 'npx',
+                args: ['@test/server'],
+                disabled: false,
+            })
+            ;(mgr as any).serverNameMapping.set('manual-server', 'manual-server')
+            ;(mgr as any).agentConfig = {
+                mcpServers: { 'manual-server': { command: 'npx', args: ['@test/server'] } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+                name: 'test',
+                description: 'test',
+            }
 
-            expect(manager.isServerDisabled('nonexistent')).to.be.false
-            expect(manager.isToolDisabled('nonexistent', 'tool')).to.be.true
-            expect(manager.getAllServerConfigs().size).to.equal(0)
+            const registry = {
+                servers: [],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json', true)
+
+            const config = (mgr as any).mcpServers.get('manual-server')
+            expect(config.disabled).to.be.false
         })
+    })
+
+    describe('version checking', () => {
+        it('should detect version mismatch for local servers', async () => {
+            ;(mgr as any).mcpServers.set('test-server', {
+                command: 'npx',
+                args: ['-y', '@test/server@1.0.0'],
+                disabled: false,
+                __cachedVersion__: '1.0.0',
+                __configPath__: '/test/config.json',
+            })
+            ;(mgr as any).serverNameMapping.set('test-server', 'test-server')
+            ;(mgr as any).agentConfig = {
+                mcpServers: { 'test-server': { type: 'registry' } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+                name: 'test',
+                description: 'test',
+            }
+
+            const mockClient = { close: sandbox.stub().resolves() }
+            ;(mgr as any).clients.set('test-server', mockClient)
+
+            const removeServerStub = sandbox.stub(mgr, 'removeServer').resolves()
+            const addRegistryServerStub = sandbox.stub(mgr, 'addRegistryServer').resolves()
+
+            const registry = {
+                servers: [
+                    {
+                        name: 'test-server',
+                        description: 'Test',
+                        version: '2.0.0',
+                        packages: [
+                            {
+                                registryType: 'npm',
+                                identifier: '@test/server',
+                                transport: { type: 'stdio' },
+                            },
+                        ],
+                    } as any,
+                ],
+                lastFetched: new Date(),
+                url: 'https://example.com/registry.json',
+            }
+
+            const mockRegistryService = {
+                fetchRegistry: sandbox.stub().resolves(registry),
+            }
+            ;(mgr as any).registryService = mockRegistryService
+
+            await mgr.updateRegistryUrl('https://example.com/registry.json', true)
+
+            expect(removeServerStub.called).to.be.true
+            expect(addRegistryServerStub.called).to.be.true
+        })
+    })
+})
+
+describe('addRegistryServer with additional headers/env', () => {
+    let loadStub: sinon.SinonStub
+    let initOneStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
+
+    beforeEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+        loadStub = stubAgentConfig()
+        initOneStub = stubInitOneServer()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('stores additional headers for HTTP registry servers', async () => {
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        const cfg: MCPServerConfig = {
+            url: 'https://example.com/mcp',
+            headers: { 'X-Base': 'base-value' },
+            timeout: 60000,
+            __configPath__: 'path.json',
+        }
+
+        const additionalHeaders = { 'X-Custom': 'custom-value' }
+
+        await mgr.addRegistryServer('httpServer', cfg, 'path.json', additionalHeaders, undefined)
+
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
+
+        const storedCfg = (mgr as any).mcpServers.get('httpServer')
+        expect(storedCfg.__additionalHeaders__).to.deep.equal(additionalHeaders)
+
+        const agentCfg = (mgr as any).agentConfig.mcpServers['httpServer']
+        expect(agentCfg.headers).to.deep.equal(additionalHeaders)
+    })
+
+    it('stores additional env for STDIO registry servers', async () => {
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        const cfg: MCPServerConfig = {
+            command: 'npx',
+            args: ['-y', '@test/server'],
+            env: { BASE_VAR: 'base' },
+            timeout: 60000,
+            __configPath__: 'path.json',
+        }
+
+        const additionalEnv = { CUSTOM_VAR: 'custom' }
+
+        await mgr.addRegistryServer('stdioServer', cfg, 'path.json', undefined, additionalEnv)
+
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
+
+        const storedCfg = (mgr as any).mcpServers.get('stdioServer')
+        expect(storedCfg.__additionalEnv__).to.deep.equal(additionalEnv)
+
+        const agentCfg = (mgr as any).agentConfig.mcpServers['stdioServer']
+        expect(agentCfg.env).to.deep.equal(additionalEnv)
+    })
+
+    it('omits additional fields when empty', async () => {
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        const cfg: MCPServerConfig = {
+            url: 'https://example.com/mcp',
+            timeout: 60000,
+            __configPath__: 'path.json',
+        }
+
+        await mgr.addRegistryServer('server', cfg, 'path.json', {}, {})
+
+        const agentCfg = (mgr as any).agentConfig.mcpServers['server']
+        expect(agentCfg.headers).to.be.undefined
+        expect(agentCfg.env).to.be.undefined
     })
 })

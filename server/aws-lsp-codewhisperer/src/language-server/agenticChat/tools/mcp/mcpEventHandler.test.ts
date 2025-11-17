@@ -256,7 +256,7 @@ describe('McpEventHandler error handling', () => {
             saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
         })
 
-        it('returns admin disabled status when MCP state is false', async () => {
+        it('returns admin disabled status when MCP state is false and no config errors', async () => {
             // Stub ProfileStatusMonitor.getMcpState to return false
             const { ProfileStatusMonitor } = await import('./profileStatusMonitor')
             sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(false)
@@ -287,6 +287,41 @@ describe('McpEventHandler error handling', () => {
                     status: 'info',
                 })
             }
+        })
+
+        it('returns config error status when MCP state is false but config errors exist', async () => {
+            // Stub ProfileStatusMonitor.getMcpState to return false
+            const { ProfileStatusMonitor } = await import('./profileStatusMonitor')
+            sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(false)
+
+            const mockErrors = new Map([['file1.json', 'Config error']])
+            loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+                servers: new Map(),
+                serverNameMapping: new Map(),
+                errors: mockErrors,
+                agentConfig: {
+                    name: 'test-agent',
+                    description: 'Test agent',
+                    mcpServers: {},
+                    tools: [],
+                    allowedTools: [],
+                    toolsSettings: {},
+                    includedFiles: [],
+                    resources: [],
+                },
+            })
+
+            await McpManager.init([], features)
+            sinon.stub(McpManager.instance, 'getConfigLoadErrors').returns('File: file1.json, Error: Config error')
+
+            const result = await eventHandler.onListMcpServers({})
+
+            // Config errors should take priority over admin disabled message
+            expect(result.header.status).to.deep.equal({
+                title: 'File: file1.json, Error: Config error',
+                icon: 'cancel-circle',
+                status: 'error',
+            })
         })
 
         it('returns config error status when MCP state is not false but config errors exist', async () => {
