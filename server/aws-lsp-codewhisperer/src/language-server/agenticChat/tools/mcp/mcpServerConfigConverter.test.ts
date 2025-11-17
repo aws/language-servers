@@ -74,8 +74,7 @@ describe('McpServerConfigConverter', () => {
 
             assert.strictEqual(result.command, 'uvx')
             assert.deepStrictEqual(result.args, [
-                '--default-index',
-                'https://private-pypi.acme.com',
+                '--default-index=https://private-pypi.acme.com',
                 'awslabs.ccapi-mcp-server@1.0.2',
             ])
             assert.strictEqual(result.env!['UV_DEFAULT_INDEX'], undefined)
@@ -258,8 +257,7 @@ describe('McpServerConfigConverter', () => {
 
             assert.strictEqual(result.command, 'uvx')
             assert.deepStrictEqual(result.args, [
-                '--default-index',
-                'https://private-pypi.acme.com',
+                '--default-index=https://private-pypi.acme.com',
                 'awslabs.ccapi-mcp-server@1.0.2',
                 '--readonly',
             ])
@@ -317,8 +315,7 @@ describe('McpServerConfigConverter', () => {
 
             assert.strictEqual(result.command, 'uvx')
             assert.deepStrictEqual(result.args, [
-                '--default-index',
-                'https://private-pypi.acme.com',
+                '--default-index=https://private-pypi.acme.com',
                 '-q',
                 'awslabs.ccapi-mcp-server@1.0.2',
                 '--readonly',
@@ -474,6 +471,8 @@ describe('McpServerConfigConverter', () => {
                 '--rm',
                 '--mount',
                 'type=bind,src=~/Desktop,dst=/projects/Desktop',
+                '-e',
+                'LOG_LEVEL=info',
                 'https://docker.acme.com:5000/mcp/filesystem:1.0.2',
                 '/projects',
             ])

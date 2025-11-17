@@ -719,6 +719,16 @@ export class McpManager {
             throw new Error(`MCP: server '${sanitizedName}' already exists`)
         }
 
+        // Filter out empty key-value pairs
+        if (additionalHeaders) {
+            additionalHeaders = Object.fromEntries(
+                Object.entries(additionalHeaders).filter(([k, v]) => k.trim() && v.trim())
+            )
+        }
+        if (additionalEnv) {
+            additionalEnv = Object.fromEntries(Object.entries(additionalEnv).filter(([k, v]) => k.trim() && v.trim()))
+        }
+
         // Save registry server config with type: 'registry', timeout, and additional headers/env
         const registryServerConfig: any = { type: 'registry' as const }
         if (cfg.timeout !== undefined) {
