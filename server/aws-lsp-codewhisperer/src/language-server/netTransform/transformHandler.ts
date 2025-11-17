@@ -1861,11 +1861,11 @@ export class TransformHandler {
                         } as GetTransformResponse
                     } else if (jobStatus && failureStates.includes(jobStatus.status)) {
                         // Fallback to placeholder if API call fails
-                        this.logging.log('ATX FES polling failed, using placeholder')
+                        this.logging.log('ATX FES polling failed, sending back status')
                         return {
                             TransformationJob: {
                                 jobId: request.TransformationJobId,
-                                status: 'IN_PROGRESS',
+                                status: jobStatus.status,
                                 creationTime: new Date(),
                             } as any,
                             ErrorCode: TransformationErrorCode.NONE,

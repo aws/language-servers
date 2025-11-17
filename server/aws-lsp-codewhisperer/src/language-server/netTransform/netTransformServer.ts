@@ -35,7 +35,7 @@ import { TransformHandler } from './transformHandler'
 
 export const validStatesForGettingPlan = ['COMPLETED', 'PARTIALLY_COMPLETED', 'PLANNED', 'TRANSFORMING', 'TRANSFORMED']
 export const validStatesForComplete = ['COMPLETED']
-export const failureStates = ['FAILED', 'STOPPING', 'STOPPED', 'REJECTED']
+export const failureStates = ['FAILED', 'STOPPED', 'REJECTED']
 const StartTransformCommand = 'aws/qNetTransform/startTransform'
 const GetTransformCommand = 'aws/qNetTransform/getTransform'
 const PollTransformCommand = 'aws/qNetTransform/pollTransform'
