@@ -17,9 +17,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private pushedCredentials: IamCredentials | undefined
     private pushedToken: BearerToken | undefined
 
-    private pushedAtxCredentials: IamCredentials | undefined
-    private pushedAtxToken: BearerToken | undefined
-
     constructor(
         private readonly connection: Connection,
         key?: string,
@@ -46,14 +43,10 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private async registerCredentialsPushHandlers(props: AwsInitializationOptions) {
         if (props.credentials?.providesIam) {
             this.registerIamCredentialsPushHandlers()
-
-            this.registerAtxIamCredentialsPushHandlers()
         }
 
         if (props.credentials?.providesBearerToken) {
             this.registerBearerTokenPushHandlers()
-
-            this.registerAtxBearerTokenPushHandlers()
         }
     }
 
@@ -95,44 +88,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         })
     }
 
-    private registerAtxIamCredentialsPushHandlers(): void {
-        this.connection.console.info('Server: Registering IAM Atx credentials push handlers')
-
-        // Handle when host sends us credentials to use
-        this.connection.onRequest(
-            credentialsProtocolMethodNames.iamAtxCredentialsUpdate,
-            async (request: UpdateCredentialsRequest) => {
-                try {
-                    const rawCredentials = await this.decodeCredentialsRequestToken<
-                        IamCredentials & { expireTime?: Date }
-                    >(request)
-
-                    // Normalize legacy expireTime field to standard expiration field
-                    const iamCredentials: IamCredentials = {
-                        ...rawCredentials,
-                        expiration: rawCredentials.expiration || rawCredentials.expireTime,
-                    }
-
-                    this.validateIamCredentialsFields(iamCredentials)
-
-                    this.pushedAtxCredentials = iamCredentials
-                    this.connection.console.info('Server: The language server received updated Atx credentials data.')
-                } catch (error) {
-                    this.pushedAtxCredentials = undefined
-                    this.connection.console.error(
-                        `Server: Failed to set Atx credentials: ${error}. Server credentials have been removed.`
-                    )
-                }
-            }
-        )
-
-        // Handle when host tells us we have no credentials to use
-        this.connection.onNotification(credentialsProtocolMethodNames.iamAtxCredentialsDelete, () => {
-            this.pushedAtxCredentials = undefined
-            this.connection.console.info('Server: The language server atx credentials have been removed.')
-        })
-    }
-
     /**
      * Throws an error if credentials fields are missing
      */
@@ -145,36 +100,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         if (credentials.secretAccessKey === undefined) {
             throw new Error('Missing property: secretAccessKey')
         }
-    }
-
-    private registerAtxBearerTokenPushHandlers(): void {
-        this.connection.console.info('Server: Registering atx bearer token push handlers')
-
-        // Handle when host sends us credentials to use
-        this.connection.onRequest(
-            credentialsProtocolMethodNames.iamAtxBearerTokenUpdate,
-            async (request: UpdateCredentialsRequest) => {
-                try {
-                    const bearerToken = await this.decodeCredentialsRequestToken<BearerToken>(request)
-
-                    this.validateBearerTokenFields(bearerToken)
-
-                    this.pushedToken = bearerToken
-                    this.connection.console.info('Server: The language server received an updated atx bearer token.')
-                } catch (error) {
-                    this.pushedToken = undefined
-                    this.connection.console.error(
-                        `Server: Failed to set atx bearer token: ${error}. Server bearer token has been removed.`
-                    )
-                }
-            }
-        )
-
-        // Handle when host tells us we have no credentials to use
-        this.connection.onNotification(credentialsProtocolMethodNames.iamAtxBearerTokenDelete, () => {
-            this.pushedToken = undefined
-            this.connection.console.info('Server: The language server atx bearer token has been removed.')
-        })
     }
 
     private registerBearerTokenPushHandlers(): void {
@@ -238,28 +163,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         }
 
         return this.pushedToken
-    }
-
-    /**
-     * Provides IAM based Atx credentials. Throws NoCredentialsError if no credentials are available
-     */
-    public async resolveIamAtxCredentials(token: CancellationToken): Promise<IamCredentials> {
-        if (!this.pushedAtxCredentials) {
-            throw new NoCredentialsError()
-        }
-
-        return this.pushedAtxCredentials
-    }
-
-    /**
-     * Provides a atx bearer token. Throws NoCredentialsError if bearer token is not available
-     */
-    public async resolveAtxBearerToken(token: CancellationToken): Promise<BearerToken> {
-        if (!this.pushedAtxToken) {
-            throw new NoCredentialsError()
-        }
-
-        return this.pushedAtxToken
     }
 
     private async decodeCredentialsRequestToken<T>(request: UpdateCredentialsRequest): Promise<T> {
