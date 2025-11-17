@@ -1737,7 +1737,7 @@ export class McpEventHandler {
 
         try {
             try {
-                await McpManager.instance.reinitializeMcpServers()
+                await McpManager.instance.reinitializeMcpServers(true)
             } catch (error) {
                 this.#features.logging.error(`McpManager not initialized for reinitializeMcpServers: ${error}`)
                 throw error
