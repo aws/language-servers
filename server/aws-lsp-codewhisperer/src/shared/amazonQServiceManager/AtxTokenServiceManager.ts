@@ -4,7 +4,7 @@ import {
     CancellationToken,
 } from '@aws/language-server-runtimes/server-interface'
 import { QServiceManagerFeatures } from './BaseAmazonQServiceManager'
-import { TRANSFORM_PROFILES_CONFIGURATION_SECTION } from '../../language-server/configuration/transformConfigurationServer'
+import { ATX_CONFIGURATION_SECTION } from '../../language-server/configuration/transformConfigurationServer'
 
 export class AtxTokenServiceManager {
     private static instance: AtxTokenServiceManager | null = null
@@ -35,7 +35,7 @@ export class AtxTokenServiceManager {
     }
 
     public handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken): void {
-        if (params.section === TRANSFORM_PROFILES_CONFIGURATION_SECTION) {
+        if (params.section === ATX_CONFIGURATION_SECTION) {
             this.clearAllCaches()
         }
     }
