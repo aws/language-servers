@@ -412,7 +412,7 @@ export const McpToolsServer: Server = ({
                 async (registryUrl: string | null, isPeriodicSync: boolean = false) => {
                     if (registryUrl) {
                         McpManager.instance.setRegistryActive(true)
-                        await McpManager.instance.reinitializeMcpServers()
+                        await McpManager.instance.reinitializeMcpServers(true)
                         await McpManager.instance.updateRegistryUrl(registryUrl, isPeriodicSync)
 
                         // Discover servers after registry update
