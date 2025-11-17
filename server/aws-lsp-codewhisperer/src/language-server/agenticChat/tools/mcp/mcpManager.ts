@@ -130,7 +130,7 @@ export class McpManager {
             // DO NOT discover servers here - wait for auth to be initialized
             features.logging.info('MCP: Manager initialized, waiting for auth before discovering servers')
         }
-        return McpManager.#instance
+        return McpManager.#instance!
     }
 
     public static get instance(): McpManager {
@@ -138,6 +138,13 @@ export class McpManager {
             throw new Error('McpManager not initialized—call McpManager.init(...) first')
         }
         return McpManager.#instance
+    }
+
+    /**
+     * Check if McpManager has been initialized
+     */
+    public static isInitialized(): boolean {
+        return !!McpManager.#instance
     }
 
     /**

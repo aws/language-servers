@@ -9,6 +9,7 @@ import { AGENT_TOOLS_CHANGED, MCP_SERVER_STATUS_CHANGED, McpManager } from './mc
 import * as mcpUtils from './mcpUtils'
 import { McpPermissionType, McpServerStatus, type MCPServerConfig, type MCPServerPermission } from './mcpTypes'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 const fakeLogging = {
     log: () => {},

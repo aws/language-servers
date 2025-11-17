@@ -135,6 +135,12 @@ export class ProfileStatusMonitor {
         return undefined
     }
 
+    /**
+     * Returns the current MCP enabled/disabled state.
+     * Used by McpManager.init() to skip server discovery when MCP is disabled.
+     * This optimization prevents initialization errors and improves performance.
+     * @returns true if MCP is enabled, false if disabled
+     */
     static getMcpState(): boolean {
         return ProfileStatusMonitor.lastMcpState
     }
