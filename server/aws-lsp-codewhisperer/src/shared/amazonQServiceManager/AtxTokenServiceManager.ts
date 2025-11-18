@@ -34,7 +34,19 @@ export class AtxTokenServiceManager {
         this.clearAllCaches()
     }
 
-    public handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken): void {
+    public async handleOnUpdateConfiguration(
+        params: UpdateConfigurationParams,
+        token: CancellationToken
+    ): Promise<void> {
+        if (params.section === ATX_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
+            const profileArn = params.settings.profileArn
+
+            // Get the main service manager and call ATX profile update
+            const { AmazonQTokenServiceManager } = await import('./AmazonQTokenServiceManager')
+            const mainServiceManager = AmazonQTokenServiceManager.getInstance()
+            await mainServiceManager.handleAtxProfileChange(profileArn, token)
+        }
+
         if (params.section === ATX_CONFIGURATION_SECTION) {
             this.clearAllCaches()
         }
@@ -49,7 +61,7 @@ export class AtxTokenServiceManager {
     }
 
     public hasValidCredentials(): boolean {
-        return this.features.credentialsProvider.hasCredentials('bearer')
+        return this.features.credentialsProvider.hasCredentials('bearer-atx')
     }
 
     public async getBearerToken(): Promise<string> {
@@ -57,7 +69,7 @@ export class AtxTokenServiceManager {
             throw new Error('No bearer credentials available for ATX')
         }
 
-        const credentials = await this.features.credentialsProvider.getCredentials('bearer')
+        const credentials = await this.features.credentialsProvider.getCredentials('bearer-atx')
         if (!credentials || !('token' in credentials) || !credentials.token) {
             throw new Error('Bearer token is null or empty')
         }
