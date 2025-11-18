@@ -83,6 +83,16 @@ export const AmazonQServiceServerFactory =
             amazonQServiceManager.handleOnCredentialsDeleted(type)
         })
 
+        // Add credentials update handler to track when credentials are updated
+        if ('onCredentialsUpdated' in credentialsProvider) {
+            ;(credentialsProvider as any).onCredentialsUpdated((type: CredentialsType) => {
+                log(`Received onCredentialsUpdated notification for type: ${type}`)
+                if ('handleOnCredentialsUpdated' in amazonQServiceManager) {
+                    ;(amazonQServiceManager as any).handleOnCredentialsUpdated(type)
+                }
+            })
+        }
+
         logging.log('Amazon Q Service server has been initialised')
         return () => {}
     }
