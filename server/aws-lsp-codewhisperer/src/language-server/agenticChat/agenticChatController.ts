@@ -204,6 +204,7 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { CodeReviewResult } from './tools/qCodeAnalysis/codeReviewTypes'
 import {
     CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
     DISPLAY_FINDINGS_MESSAGE_SUFFIX,
@@ -2148,17 +2149,20 @@ export class AgenticChatController implements ChatHandlers {
                     if (
                         codeReviewResult?.output?.kind === 'json' &&
                         codeReviewResult.output.success &&
-                        (codeReviewResult.output.content as any)?.findingsByFile
+                        (codeReviewResult.output.content as CodeReviewResult)?.findingsByFile
                     ) {
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
-                            body: (codeReviewResult.output.content as any).findingsByFile,
+                            body: (codeReviewResult.output.content as CodeReviewResult).findingsByFile,
                         })
-                        codeReviewResult.output.content = {
-                            codeReviewId: (codeReviewResult.output.content as any).codeReviewId,
-                            message: (codeReviewResult.output.content as any).message,
-                            findingsByFileSimplified: (codeReviewResult.output.content as any).findingsByFileSimplified,
+                        if ((codeReviewResult.output.content as CodeReviewResult).findingsExceededLimit) {
+                            codeReviewResult.output.content = {
+                                codeReviewId: (codeReviewResult.output.content as CodeReviewResult).codeReviewId,
+                                message: (codeReviewResult.output.content as CodeReviewResult).message,
+                                findingsExceededLimit: (codeReviewResult.output.content as CodeReviewResult)
+                                    .findingsExceededLimit,
+                            }
                         }
                     }
                 }
