@@ -409,7 +409,20 @@ export class McpManager {
                         args: cfg.args ?? [],
                         env: mergedEnv,
                         cwd,
+                        stderr: 'pipe',
                     })
+
+                    // Capture stderr from the transport
+                    const stderrStream = transport.stderr
+                    if (stderrStream) {
+                        stderrStream.on('data', (data: Buffer) => {
+                            const output = data.toString().trim()
+                            if (output) {
+                                this.features.logging.warn(`MCP [${serverName}] stderr: ${output}`)
+                            }
+                        })
+                    }
+
                     this.features.logging.info(`MCP: Connecting MCP server using StdioClientTransport`)
                     try {
                         await client.connect(transport)
