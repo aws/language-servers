@@ -44,7 +44,7 @@ export type CodeReviewResult = {
     codeReviewId: string
     message: string
     findingsByFile: string
-    findingsByFileSimplified: string
+    findingsExceededLimit: boolean
 }
 
 export type CodeReviewFinding = {
@@ -66,14 +66,6 @@ export type CodeReviewFinding = {
     language: string
     autoDetected: false
     findingContext: string | null | undefined
-}
-
-export type CodeReviewFindingSimplified = {
-    filePath: string
-    startLine: number
-    endLine: number
-    title: string
-    severity: string
 }
 
 export type CodeReviewMetric =
