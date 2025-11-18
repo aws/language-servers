@@ -36,15 +36,25 @@ export const AmazonQServiceServerFactory =
                 sdkInitializator,
             })
 
-            // Initialize ATX Token Service Manager for ATX FES support
-            AtxTokenServiceManager.initInstance({
-                credentialsProvider,
-                lsp,
-                workspace,
-                logging,
-                runtime,
-                sdkInitializator,
-            })
+            // // Initialize ATX Token Service Manager for ATX FES support
+            try {
+                AtxTokenServiceManager.initInstance({
+                    credentialsProvider,
+                    lsp,
+                    workspace,
+                    logging,
+                    runtime,
+                    sdkInitializator,
+                })
+                logging.log('ATX Token Service Manager initialized successfully')
+            } catch (error) {
+                logging.error(
+                    `ATX Token Service Manager initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+                )
+                logging.error(
+                    `ATX Token Service Manager error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`
+                )
+            }
 
             return {
                 capabilities: {},
@@ -64,7 +74,16 @@ export const AmazonQServiceServerFactory =
 
         lsp.workspace.onUpdateConfiguration(async (params: UpdateConfigurationParams, token: CancellationToken) => {
             log('Received onUpdateConfiguration request')
-            await amazonQServiceManager.handleOnUpdateConfiguration(params, token)
+            log(`Configuration section: ${params.section}`)
+            log(`Configuration settings: ${JSON.stringify(params.settings, null, 2)}`)
+            if (params.section === 'aws.transformProfiles') {
+                log('Transform profile configuration update detected')
+                const atxServiceManager = AtxTokenServiceManager.getInstance()
+                await atxServiceManager.handleOnUpdateConfiguration(params, token)
+            } else {
+                log('Routing to regular amazonQServiceManager')
+                await amazonQServiceManager.handleOnUpdateConfiguration(params, token)
+            }
         })
 
         credentialsProvider.onCredentialsDeleted((type: CredentialsType) => {

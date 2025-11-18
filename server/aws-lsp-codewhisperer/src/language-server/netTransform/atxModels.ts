@@ -1,0 +1,24 @@
+// ATX FES job status enum
+export enum AtxJobStatus {
+    CREATED = 'CREATED',
+    STARTING = 'STARTING',
+    ASSESSING = 'ASSESSING',
+    PLANNING = 'PLANNING',
+    PLANNED = 'PLANNED',
+    EXECUTING = 'EXECUTING',
+    AWAITING_HUMAN_INPUT = 'AWAITING_HUMAN_INPUT',
+    COMPLETED = 'COMPLETED',
+    FAILED = 'FAILED',
+    STOPPING = 'STOPPING',
+    STOPPED = 'STOPPED',
+}
+
+// ATX FES plan step status enum
+export enum PlanStepStatus {
+    NOT_STARTED = 'NOT_STARTED',
+    IN_PROGRESS = 'IN_PROGRESS',
+    SUCCEEDED = 'SUCCEEDED',
+    PENDING_HUMAN_INPUT = 'PENDING_HUMAN_INPUT',
+    FAILED = 'FAILED',
+    STOPPED = 'STOPPED',
+}

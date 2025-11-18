@@ -42,16 +42,6 @@ export class TransformConfigurationServer {
      */
     async initialize(params: InitializeParams): Promise<any> {
         this.logging.log('TransformConfigurationServer: Initialize called')
-
-        const profileType = (params.initializationOptions as any)?.aws?.profileType
-
-        if (profileType !== 'transform') {
-            return {
-                capabilities: {},
-                awsServerCapabilities: {},
-            }
-        }
-
         return {
             capabilities: {},
             awsServerCapabilities: {
@@ -223,6 +213,30 @@ export class TransformConfigurationServer {
             this.logging.log(
                 `TransformConfigurationServer: Total ${allProfiles.length} Transform profiles found across all regions`
             )
+
+            // Cache profiles in AtxTokenServiceManager for ARN-based lookup
+            try {
+                const { AtxTokenServiceManager } = await import(
+                    '../../shared/amazonQServiceManager/AtxTokenServiceManager'
+                )
+                const atxServiceManager = AtxTokenServiceManager.getInstance()
+                atxServiceManager.cacheTransformProfiles(allProfiles)
+                this.logging.log(`TransformConfigurationServer: Cached ${allProfiles.length} profiles for ARN lookup`)
+
+                // Temporary: Auto-select first profile if only one exists (until IDE profile selection works)
+                if (allProfiles.length === 1) {
+                    const firstProfile = allProfiles[0] as any
+                    if (firstProfile.arn && firstProfile.applicationUrl) {
+                        atxServiceManager.setActiveProfileByArn(firstProfile.arn)
+                        this.logging.log(
+                            `TransformConfigurationServer: Auto-selected single profile ${firstProfile.arn}`
+                        )
+                    }
+                }
+            } catch (error) {
+                this.logging.error(`TransformConfigurationServer: Failed to cache profiles: ${error}`)
+            }
+
             return allProfiles
         } catch (error) {
             this.logging.warn(`TransformConfigurationServer: ListAvailableProfiles failed: ${error}`)
@@ -263,6 +277,25 @@ export class TransformConfigurationServer {
 
             return convertedProfile
         })
+
+        this.logging.log(
+            `TransformConfigurationServer: Converted profiles from ${region}: ${JSON.stringify(transformProfiles, null, 2)}`
+        )
+
+        // // Temporary: Auto-select first profile until IDE profile selection is working
+        // if (transformProfiles.length > 0) {
+        //     try {
+        //         const { AtxTokenServiceManager } = await import('../../shared/amazonQServiceManager/AtxTokenServiceManager')
+        //         const atxServiceManager = AtxTokenServiceManager.getInstance()
+        //         const firstProfile = transformProfiles[0] as any
+        //         if (firstProfile.arn && firstProfile.applicationUrl) {
+        //             atxServiceManager.setActiveProfile(firstProfile.arn, firstProfile.applicationUrl)
+        //             this.logging.log(`TransformConfigurationServer: Auto-selected profile ${firstProfile.arn} with applicationUrl ${firstProfile.applicationUrl}`)
+        //         }
+        //     } catch (error) {
+        //         this.logging.error(`TransformConfigurationServer: Failed to auto-select profile: ${error}`)
+        //     }
+        // }
 
         return transformProfiles
     }
