@@ -4204,7 +4204,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
-                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(e as Error).message}`)
                 })
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
             return
