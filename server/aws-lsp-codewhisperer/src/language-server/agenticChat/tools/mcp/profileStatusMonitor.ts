@@ -27,13 +27,16 @@ export class ProfileStatusMonitor {
     private static eventEmitter = new EventEmitter()
     private static logging?: Logging
     private onRegistryUpdate?: (registryUrl: string | null, isPeriodicSync?: boolean) => Promise<void>
+    private overrideRegistryUrl?: string
 
     constructor(
         private logging: Logging,
         private onMcpDisabled: () => void,
         private onMcpEnabled?: () => void,
-        onRegistryUpdate?: (registryUrl: string | null, isPeriodicSync?: boolean) => Promise<void>
+        onRegistryUpdate?: (registryUrl: string | null, isPeriodicSync?: boolean) => Promise<void>,
+        overrideRegistryUrl?: string
     ) {
+        this.overrideRegistryUrl = overrideRegistryUrl
         ProfileStatusMonitor.logging = logging
         ProfileStatusMonitor.loadMcpStateFromDisk()
         this.onRegistryUpdate = onRegistryUpdate
@@ -191,6 +194,19 @@ export class ProfileStatusMonitor {
             return true
         }
 
+        // If override is present, use it and skip getProfile registry URL
+        if (this.overrideRegistryUrl) {
+            this.logging.info(`MCP Registry: Using override registry URL from settings: ${this.overrideRegistryUrl}`)
+            try {
+                await this.onRegistryUpdate(this.overrideRegistryUrl, isPeriodicSync)
+                return true
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error)
+                this.logging.error(`MCP Registry: Failed to use override registry URL: ${errorMsg}`)
+                return false
+            }
+        }
+
         const registryUrl = response?.profile?.optInFeatures?.mcpConfiguration?.mcpRegistryUrl
 
         if (!registryUrl) {
@@ -224,6 +240,11 @@ export class ProfileStatusMonitor {
     }
 
     async getRegistryUrl(): Promise<string | null> {
+        // Return override if present
+        if (this.overrideRegistryUrl) {
+            return this.overrideRegistryUrl
+        }
+
         try {
             const serviceManager = AmazonQTokenServiceManager.getInstance()
             if (!this.isEnterpriseUser(serviceManager)) {
