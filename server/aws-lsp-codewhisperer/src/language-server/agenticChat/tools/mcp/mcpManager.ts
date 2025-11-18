@@ -399,6 +399,11 @@ export class McpManager {
                             `MCP: no workspace folder for [${serverName}], continuing without cwd`
                         )
                     }
+                    const argsStr = (cfg.args ?? []).length > 0 ? ` ${(cfg.args ?? []).join(' ')}` : ''
+                    const envKeys = Object.keys(finalEnv || {})
+                    const envInfo = envKeys.length > 0 ? ` (env: ${envKeys.join(', ')})` : ''
+                    this.features.logging.info(`MCP: Executing command: ${cfg.command}${argsStr}${envInfo}`)
+
                     transport = new StdioClientTransport({
                         command: cfg.command!,
                         args: cfg.args ?? [],
@@ -467,6 +472,10 @@ export class McpManager {
                                 throw new AgenticChatError(`MCP: ${short}`, 'MCPServerAuthFailed')
                             }
                         }
+
+                        const headerKeys = Object.keys(headers)
+                        const headerInfo = headerKeys.length > 0 ? ` (headers: ${headerKeys.join(', ')})` : ''
+                        this.features.logging.info(`MCP: Connecting to URL: ${cfg.url}${headerInfo}`)
 
                         try {
                             // try streamable http first
