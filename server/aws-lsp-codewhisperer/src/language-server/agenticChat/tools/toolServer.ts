@@ -228,6 +228,7 @@ export const McpToolsServer: Server = ({
     const registered: Record<string, string[]> = {}
     const allNamespacedTools = new Set<string>()
     let profileStatusMonitor: ProfileStatusMonitor | undefined
+    let overrideRegistryUrl: string | undefined
 
     function removeAllMcpTools(): void {
         logging.info('Removing all MCP tools due to admin configuration')
@@ -342,10 +343,18 @@ export const McpToolsServer: Server = ({
                 }
             }
 
-            // Get registry URL from profile monitor if available
-            let registryUrl: string | null = null
-            if (profileStatusMonitor) {
+            // Get registry URL from client capabilities (override) or profile monitor
+            const clientCapabilities =
+                lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+            overrideRegistryUrl = clientCapabilities?.registryUrl
+
+            let registryUrl: string | null = overrideRegistryUrl || null
+            if (!registryUrl && profileStatusMonitor) {
                 registryUrl = await profileStatusMonitor.getRegistryUrl()
+            }
+
+            if (overrideRegistryUrl) {
+                logging.info(`MCP Registry: Using override registry URL from settings: ${overrideRegistryUrl}`)
             }
 
             // Always initialize McpManager regardless of MCP state
@@ -424,7 +433,8 @@ export const McpToolsServer: Server = ({
                             registerAllMcpTools()
                         }
                     }
-                }
+                },
+                overrideRegistryUrl
             )
 
             // Wait for profile ARN to be available before checking MCP state
