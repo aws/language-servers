@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.91](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.90...lsp-codewhisperer/v0.0.91) (2025-11-18)
+
+
+### Bug Fixes
+
+* **amazonq:** handle large results ([#2497](https://github.com/aws/language-servers/issues/2497)) ([b3efa7c](https://github.com/aws/language-servers/commit/b3efa7cff0b23608dd0cca796c9c95a672c9321a))
+* resolve broken error handling in setPaidTierMode ([#2500](https://github.com/aws/language-servers/issues/2500)) ([8ccb067](https://github.com/aws/language-servers/commit/8ccb06768c4a386b0a4699d8b2e299f0aad110b1))
+
 ## [0.0.90](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.89...lsp-codewhisperer/v0.0.90) (2025-11-13)
 
 
