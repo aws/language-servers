@@ -4192,7 +4192,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
-                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(e as Error).message}`)
+                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(err as Error).message}`)
                 })
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
             return
@@ -4336,7 +4336,7 @@ export class AgenticChatController implements ChatHandlers {
                     }
                 })
                 .catch(e => {
-                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${JSON.stringify(e)}`)
+                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${(e as Error).message}`)
                     // TOOD: for visibility, the least-bad option is showMessage, which appears as an IDE notification.
                     // But it likely makes sense to route this to chat ERROR_MESSAGE mynahApi.showError(), so the message will appear in chat.
                     // https://github.com/aws/language-servers/blob/1b154570c9cf1eb1d56141095adea4459426b774/chat-client/src/client/chat.ts#L176-L178
