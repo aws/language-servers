@@ -20,7 +20,9 @@ import { AtxJobStatus, PlanStepStatus } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
+import * as path from 'path'
 import got from 'got'
+import AdmZip = require('adm-zip')
 
 /**
  * ATX Transform Handler - Business logic for ATX FES Transform operations
@@ -739,7 +741,7 @@ export class ATXTransformHandler {
             })
 
             await this.addAuthToCommand(command)
-            const result = await this.atxClient.send(command)
+            const result = await this.atxClient!.send(command)
 
             if (result && result.steps && result.steps.length > 0) {
                 this.logging.log(`Found ${result.steps.length} steps for parent: ${parentStepId}`)
@@ -834,6 +836,76 @@ export class ATXTransformHandler {
                 `ATX: DownloadArtifactUrl error: ${error instanceof Error ? error.message : 'Unknown error'}`
             )
             return null
+        }
+    }
+    /**
+     * Downloads and extracts a ZIP archive from S3 URL
+     */
+    async downloadAndExtractArchive(
+        downloadUrl: string,
+        requestHeaders: any,
+        saveToDir: string,
+        exportId: string
+    ): Promise<string> {
+        const s3Response = await got.get(downloadUrl, {
+            headers: requestHeaders || {},
+            timeout: { request: 300000 },
+            responseType: 'buffer',
+        })
+
+        const buffer = [s3Response.body]
+        return await this.extractArchiveFromBuffer(exportId, buffer, saveToDir)
+    }
+
+    /**
+     * Extracts ZIP archive from buffer using AdmZip
+     */
+    async extractArchiveFromBuffer(exportId: string, buffer: Uint8Array[], saveToDir: string): Promise<string> {
+        const tempDir = path.join(saveToDir, exportId)
+        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+        await this.directoryExists(tempDir)
+        await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
+
+        const pathContainingArchive = path.dirname(pathToArchive)
+        const zip = new AdmZip(pathToArchive)
+        const zipEntries = zip.getEntries()
+        await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+        return pathContainingArchive
+    }
+
+    /**
+     * Extracts all ZIP entries to target directory
+     */
+    async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]): Promise<void> {
+        for (const entry of zipEntries) {
+            try {
+                const entryPath = path.join(pathContainingArchive, entry.entryName)
+                if (entry.isDirectory) {
+                    await fs.promises.mkdir(entryPath, { recursive: true })
+                } else {
+                    const parentDir = path.dirname(entryPath)
+                    await fs.promises.mkdir(parentDir, { recursive: true })
+                    await fs.promises.writeFile(entryPath, entry.getData())
+                }
+            } catch (extractError: any) {
+                if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
+                    this.logging.log(`Attempted to extract a file that does not exist: ${entry.entryName}`)
+                } else {
+                    throw extractError
+                }
+            }
+        }
+    }
+
+    /**
+     * Ensures directory exists, creates if not
+     */
+    async directoryExists(directoryPath: string): Promise<void> {
+        try {
+            await fs.promises.access(directoryPath)
+        } catch (error) {
+            this.logging.log(`Directory doesn't exist, creating it: ${directoryPath}`)
+            await fs.promises.mkdir(directoryPath, { recursive: true })
         }
     }
 
