@@ -48,21 +48,23 @@ class AtxCredentialsProvider implements CredentialsProvider {
     }
 
     hasCredentials(type: CredentialsType): boolean {
-        // ATX should ONLY use bearer-atx, never fallback to bearer
-        const atxResult = this.baseProvider.hasCredentials('bearer-atx' as any)
-        this.logging.log(`ATX v1.3 STRICT: hasCredentials(${type}) -> checking ONLY bearer-atx: ${atxResult}`)
+        // ATX should ONLY use bearer-alternate, never fallback to bearer
+        const atxResult = this.baseProvider.hasCredentials('bearer-alternate' as any)
+        this.logging.log(`ATX v1.3 STRICT: hasCredentials(${type}) -> checking ONLY bearer-alternate: ${atxResult}`)
         return atxResult
     }
 
     getCredentials(type: CredentialsType) {
-        // ATX should ONLY get bearer-atx credentials, never fallback
-        const atxCreds = this.baseProvider.getCredentials('bearer-atx' as any)
+        // ATX should ONLY get bearer-alternate credentials, never fallback
+        const atxCreds = this.baseProvider.getCredentials('bearer-alternate' as any)
 
         if (atxCreds && 'token' in atxCreds && atxCreds.token) {
-            this.logging.log(`ATX v1.3 STRICT: Using bearer-atx token: ${atxCreds.token.substring(0, 20)}...`)
+            this.logging.log(`ATX v1.3 STRICT: Using bearer-alternate token: ${atxCreds.token.substring(0, 20)}...`)
             return atxCreds
         } else {
-            this.logging.log(`ATX v1.3 STRICT: NO bearer-atx credentials found - returning undefined (no fallback)`)
+            this.logging.log(
+                `ATX v1.3 STRICT: NO bearer-alternate credentials found - returning undefined (no fallback)`
+            )
             return undefined
         }
     }
@@ -192,23 +194,25 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.logging.log('LSP v1.6: Setting up separate ATX credential handler')
 
         const originalProvider = this.features.credentialsProvider
-        let atxCredentials: any = undefined
+        let alternateCredentials: any = undefined
 
-        // Create intercepted provider for bearer-atx support
+        // Create intercepted provider for bearer-alternate support
         const interceptedProvider = {
             ...originalProvider,
 
             getCredentials: (type: CredentialsType) => {
-                if (type === ('bearer-atx' as any)) {
-                    this.logging.log(`LSP v1.6: Getting ATX credentials: ${atxCredentials ? 'found' : 'not found'}`)
-                    return atxCredentials
+                if (type === ('bearer-alternate' as any)) {
+                    this.logging.log(
+                        `LSP v1.6: Getting ATX credentials: ${alternateCredentials ? 'found' : 'not found'}`
+                    )
+                    return alternateCredentials
                 }
                 return originalProvider.getCredentials(type)
             },
 
             hasCredentials: (type: CredentialsType) => {
-                if (type === ('bearer-atx' as any)) {
-                    return !!atxCredentials
+                if (type === ('bearer-alternate' as any)) {
+                    return !!alternateCredentials
                 }
                 return originalProvider.hasCredentials(type)
             },
@@ -240,15 +244,15 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             _originalHasCredentials: originalCredentialsProvider.hasCredentials.bind(originalCredentialsProvider),
 
             // Custom credential storage for ATX
-            _atxCredentials: undefined as any,
+            _alternateCredentials: undefined as any,
             _qCredentials: undefined as any,
 
             getCredentials: (type: CredentialsType) => {
-                if (type === ('bearer-atx' as any)) {
+                if (type === ('bearer-alternate' as any)) {
                     this.logging.log(
-                        `LSP v1.4: Getting bearer-atx credentials: ${credentialsWrapper._atxCredentials ? 'found' : 'not found'}`
+                        `LSP v1.4: Getting bearer-alternate credentials: ${credentialsWrapper._alternateCredentials ? 'found' : 'not found'}`
                     )
-                    return credentialsWrapper._atxCredentials
+                    return credentialsWrapper._alternateCredentials
                 } else if (type === 'bearer') {
                     // Return Q credentials for bearer requests
                     this.logging.log(
@@ -260,9 +264,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             },
 
             hasCredentials: (type: CredentialsType) => {
-                if (type === ('bearer-atx' as any)) {
-                    const result = !!credentialsWrapper._atxCredentials
-                    this.logging.log(`LSP v1.4: Has bearer-atx credentials: ${result}`)
+                if (type === ('bearer-alternate' as any)) {
+                    const result = !!credentialsWrapper._alternateCredentials
+                    this.logging.log(`LSP v1.4: Has bearer-alternate credentials: ${result}`)
                     return result
                 } else if (type === 'bearer') {
                     const result =
@@ -310,12 +314,12 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                         )
                         this.logging.log(`LSP v1.4: Request data: ${JSON.stringify(request, null, 2)}`)
 
-                        if (request.credentialkey === 'bearer-atx' && request.data && request.data.token) {
-                            // This is an ATX credential update - store in bearer-atx only
+                        if (request.credentialkey === 'bearer-alternate' && request.data && request.data.token) {
+                            // This is an ATX credential update - store in bearer-alternate only
                             this.logging.log(
-                                `LSP v1.4: Storing ATX credentials in bearer-atx: ${request.data.token.substring(0, 20)}...`
+                                `LSP v1.4: Storing ATX credentials in bearer-alternate: ${request.data.token.substring(0, 20)}...`
                             )
-                            credentialsWrapper._atxCredentials = request.data
+                            credentialsWrapper._alternateCredentials = request.data
                             lastProfileUpdateWasAtx = false // Reset flag
                             return // Don't call original handler to prevent overwriting bearer
                         } else if (request.data && request.data.token) {
@@ -336,11 +340,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                             `LSP v1.4: aws/credentials/token/update called (typed). Last profile update was ATX: ${lastProfileUpdateWasAtx}`
                         )
 
-                        if (request.credentialkey === 'bearer-atx' && request.data && request.data.token) {
+                        if (request.credentialkey === 'bearer-alternate' && request.data && request.data.token) {
                             this.logging.log(
-                                `LSP v1.4: Storing ATX credentials in bearer-atx: ${request.data.token.substring(0, 20)}...`
+                                `LSP v1.4: Storing ATX credentials in bearer-alternate: ${request.data.token.substring(0, 20)}...`
                             )
-                            credentialsWrapper._atxCredentials = request.data
+                            credentialsWrapper._alternateCredentials = request.data
                             lastProfileUpdateWasAtx = false
                             return
                         } else if (request.data && request.data.token) {
@@ -380,7 +384,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
             // Reset MCP state cache when auth changes
             ProfileStatusMonitor.resetMcpState()
-        } else if (type === ('bearer-atx' as any)) {
+        } else if (type === ('bearer-alternate' as any)) {
             // Clear ATX-specific state only
             this.logging.log(`LSP v1.1: Clearing ATX credentials and state`)
             this.cachedAtxCodewhispererService?.abortInflightRequests()
@@ -400,9 +404,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             if (creds && 'token' in creds && creds.token) {
                 this.logging.log(`LSP v1.1: Q token updated: ${creds.token.substring(0, 20)}...`)
             }
-        } else if (type === ('bearer-atx' as any)) {
+        } else if (type === ('bearer-alternate' as any)) {
             this.logging.log(`LSP v1.1: ATX bearer credentials updated`)
-            const creds = this.features.credentialsProvider.getCredentials('bearer-atx' as any)
+            const creds = this.features.credentialsProvider.getCredentials('bearer-alternate' as any)
             if (creds && 'token' in creds && creds.token) {
                 this.logging.log(`LSP v1.1: ATX token updated: ${creds.token.substring(0, 20)}...`)
             }
@@ -549,7 +553,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.logServiceState('Validate State of ATX SSO Connection')
 
-        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer-atx' as any)
+        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer-alternate' as any)
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
             // ATX connection was reset
@@ -794,15 +798,15 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         // Log credential storage status
         setTimeout(() => {
-            const hasBearerAtx = this.features.credentialsProvider.hasCredentials('bearer-atx' as any)
+            const hasBearerAtx = this.features.credentialsProvider.hasCredentials('bearer-alternate' as any)
             const hasBearer = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
-            this.logging.log(`LSP v1.1 credential check: bearer-atx=${hasBearerAtx}, bearer=${hasBearer}`)
+            this.logging.log(`LSP v1.1 credential check: bearer-alternate=${hasBearerAtx}, bearer=${hasBearer}`)
 
             if (hasBearerAtx) {
-                const atxCreds = this.features.credentialsProvider.getCredentials('bearer-atx' as any)
+                const atxCreds = this.features.credentialsProvider.getCredentials('bearer-alternate' as any)
                 if (atxCreds && 'token' in atxCreds && atxCreds.token) {
                     this.logging.log(
-                        `LSP v1.1: Found ATX credentials in bearer-atx: ${atxCreds.token.substring(0, 20)}...`
+                        `LSP v1.1: Found ATX credentials in bearer-alternate: ${atxCreds.token.substring(0, 20)}...`
                     )
                 }
             }
@@ -842,7 +846,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     public getAtxCodewhispererService(): CodeWhispererServiceToken {
         this.handleAtxSsoConnectionChange()
 
-        if (!this.features.credentialsProvider.hasCredentials('bearer-atx' as any)) {
+        if (!this.features.credentialsProvider.hasCredentials('bearer-alternate' as any)) {
             throw new AmazonQServicePendingSigninError()
         }
 
@@ -1004,10 +1008,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private atxStreamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
         this.logging.log('Creating separate ATX credentials provider for streaming client v1.1')
-        const atxCredentialsProvider = new AtxCredentialsProvider(this.features.credentialsProvider, this.logging)
+        const alternateCredentialsProvider = new AtxCredentialsProvider(this.features.credentialsProvider, this.logging)
 
         const streamingClient = new StreamingClientServiceToken(
-            atxCredentialsProvider,
+            alternateCredentialsProvider,
             this.features.sdkInitializator,
             this.features.logging,
             region,

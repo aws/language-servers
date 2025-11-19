@@ -61,7 +61,7 @@ export class AtxTokenServiceManager {
     }
 
     public hasValidCredentials(): boolean {
-        return this.features.credentialsProvider.hasCredentials('bearer-atx')
+        return this.features.credentialsProvider.hasCredentials('bearer-alternate')
     }
 
     public async getBearerToken(): Promise<string> {
@@ -69,7 +69,7 @@ export class AtxTokenServiceManager {
             throw new Error('No bearer credentials available for ATX')
         }
 
-        const credentials = await this.features.credentialsProvider.getCredentials('bearer-atx')
+        const credentials = await this.features.credentialsProvider.getCredentials('bearer-alternate')
         if (!credentials || !('token' in credentials) || !credentials.token) {
             throw new Error('Bearer token is null or empty')
         }
