@@ -17,6 +17,9 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
     CodeWhispererServiceIAM,
     StreamingClientServiceIAM
 > {
+    hasValidCredentials(): boolean {
+        return this.features.credentialsProvider.hasCredentials('iam')
+    }
     private static instance: AmazonQIAMServiceManager | null = null
     private region: string
     private endpoint: string
