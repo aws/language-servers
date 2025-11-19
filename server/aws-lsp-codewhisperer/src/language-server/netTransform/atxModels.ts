@@ -1,3 +1,6 @@
+import { ExecuteCommandParams } from 'vscode-languageserver'
+import { HitlTaskType, HitlTaskStatus, Action } from '@amazon/elastic-gumby-frontend-client'
+
 // ATX FES job status enum
 export enum AtxJobStatus {
     CREATED = 'CREATED',
@@ -21,4 +24,41 @@ export enum PlanStepStatus {
     PENDING_HUMAN_INPUT = 'PENDING_HUMAN_INPUT',
     FAILED = 'FAILED',
     STOPPED = 'STOPPED',
+}
+
+export interface HitlTask {
+    TaskId: string
+    Status: HitlTaskStatus
+    AgentArtifactId: string
+    HumanArtifactId: string
+}
+
+export interface GetHitlRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+    HitlTaskId: string
+}
+export interface ListHitlRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+    HitlTaskType: HitlTaskType
+    HitlStatusFilter: HitlTaskStatus
+}
+export interface SubmitHitlRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+    TaskId: string
+    Action: Action
+    HumanArtifactId: string
+}
+
+export interface GetHitlResponse {
+    HitlTask: HitlTask
+}
+export interface ListHitlResponse {
+    HitlTasks: HitlTask[]
+    NextToken: string
+}
+export interface SubmitHitlResponse {
+    HitlTaskStatus: HitlTaskStatus
 }

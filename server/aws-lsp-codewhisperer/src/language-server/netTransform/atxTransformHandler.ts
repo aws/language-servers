@@ -13,7 +13,20 @@ import {
     CreateArtifactDownloadUrlCommand,
     ListArtifactsCommand,
     ListJobPlanStepsCommand,
+    ListHitlTasksCommand,
+    GetHitlTaskCommand,
+    SubmitCriticalHitlTaskCommand,
 } from '@amazon/elastic-gumby-frontend-client'
+import {
+    ListHitlRequest,
+    GetHitlRequest,
+    SubmitHitlRequest,
+    ListHitlResponse,
+    HitlTask,
+    SubmitHitlResponse,
+    GetHitlResponse,
+} from './atxModels'
+
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { DEFAULT_ATX_FES_ENDPOINT_URL, DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR } from '../../shared/constants'
 import { AtxJobStatus, PlanStepStatus } from './atxModels'
@@ -733,6 +746,11 @@ export class ATXTransformHandler {
      */
     private async getStepsRecursive(workspaceId: string, jobId: string, parentStepId: string): Promise<any[] | null> {
         try {
+            if (!this.atxClient) {
+                this.logging.error('ATX: ListArtifacts client not initialized')
+                return null
+            }
+
             const command = new ListJobPlanStepsCommand({
                 workspaceId: workspaceId,
                 jobId: jobId,
@@ -910,4 +928,141 @@ export class ATXTransformHandler {
     }
 
     // TODO: Phase 2 - Implement remaining ATX FES APIs
+
+    /**
+     * List HITLs for a job
+     */
+    async listHitls(request: ListHitlRequest): Promise<ListHitlResponse | null> {
+        try {
+            this.logging.log('=== ATX: ListHitls Operation ===')
+            this.logging.log(`Listing HITLs for job: ${request.JobId}`)
+
+            if (!this.atxClient) {
+                this.logging.error('ATX: ListHitls client not initialized')
+                return null
+            }
+
+            const command = new ListHitlTasksCommand({
+                workspaceId: request.WorkspaceId,
+                jobId: request.JobId,
+                taskType: request.HitlTaskType,
+                taskFilter: {
+                    taskStatuses: [request.HitlStatusFilter],
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient.send(command)
+
+            const response: ListHitlResponse = {
+                HitlTasks: [],
+                NextToken: result.nextToken || '',
+            }
+
+            if (result.hitlTasks) {
+                for (const task of result.hitlTasks) {
+                    response.HitlTasks.push({
+                        TaskId: task.taskId || '',
+                        Status: task.status || 'DELIVERED',
+                        AgentArtifactId: task.agentArtifact?.artifactId || '',
+                        HumanArtifactId: task.humanArtifact?.artifactId || '',
+                    })
+                }
+            }
+
+            this.logging.log(`ATX: ListHitls SUCCESS - Found ${response.HitlTasks.length} HITLs`)
+            return response
+        } catch (error) {
+            this.logging.error(`ATX: ListHitls error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Submit HITL response
+     */
+    async submitHitl(request: SubmitHitlRequest): Promise<SubmitHitlResponse | null> {
+        try {
+            this.logging.log('=== ATX: SubmitHitl Operation ===')
+            this.logging.log(`Submitting HITL for job: ${request.JobId} in workspace: ${request.WorkspaceId}`)
+
+            if (!this.atxClient) {
+                this.logging.error('ATX: submitHitl client not initialized')
+                return null
+            }
+
+            const command = new SubmitCriticalHitlTaskCommand({
+                workspaceId: request.WorkspaceId,
+                jobId: request.JobId,
+                taskId: request.TaskId,
+                action: request.Action,
+                humanArtifact: {
+                    artifactId: request.HumanArtifactId,
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient.send(command)
+
+            if (!result || !result.status) {
+                this.logging.error('ATX: SubmitHitl - Missing result or status in response')
+                return null
+            }
+
+            const response: SubmitHitlResponse = {
+                HitlTaskStatus: result.status,
+            }
+
+            // TODO: Implement actual ATX FES API call when available
+            this.logging.log('ATX: SubmitHitl SUCCESS - Response submitted')
+            return response
+        } catch (error) {
+            this.logging.error(`ATX: SubmitHitl error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Get HITL status
+     */
+    async getHitl(request: GetHitlRequest): Promise<any | null> {
+        try {
+            this.logging.log('=== ATX: GetHitl Operation ===')
+            this.logging.log(`Getting HITL: ${request.HitlTaskId}`)
+
+            if (!this.atxClient) {
+                this.logging.error('ATX: getHitl client not initialized')
+                return null
+            }
+
+            const command = new GetHitlTaskCommand({
+                workspaceId: request.WorkspaceId,
+                jobId: request.JobId,
+                taskId: request.HitlTaskId,
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient.send(command)
+
+            if (!result || !result.task || !result.task.status) {
+                this.logging.error('ATX: SubmitHitl - Missing result or status in response')
+                return null
+            }
+
+            const response: GetHitlResponse = {
+                HitlTask: {
+                    TaskId: result.task.taskId || '',
+                    Status: result.task.status,
+                    AgentArtifactId: result.task.agentArtifact?.artifactId || '',
+                    HumanArtifactId: result.task.humanArtifact?.artifactId || '',
+                },
+            }
+
+            this.logging.log('ATX: GetHitl SUCCESS - HITL retrieved')
+            return response
+        } catch (error) {
+            this.logging.error(`ATX: GetHitl error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
 }

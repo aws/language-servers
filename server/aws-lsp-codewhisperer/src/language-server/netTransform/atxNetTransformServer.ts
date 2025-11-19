@@ -6,6 +6,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
+import { GetHitlRequest, ListHitlRequest, SubmitHitlRequest } from './atxModels'
 
 // ATX Workspace Commands
 const AtxListWorkspacesCommand = 'aws/atxTransform/listWorkspaces'
@@ -21,6 +22,9 @@ const AtxListArtifactsCommand = 'aws/atxTransform/listArtifacts'
 const AtxListJobPlanStepsCommand = 'aws/atxTransform/listJobPlanSteps'
 const AtxCreateZipCommand = 'aws/atxTransform/createZip'
 const AtxUploadArtifactToS3Command = 'aws/atxTransform/uploadArtifactToS3'
+const AtxListHitlsCommand = 'aws/atxTransform/listHitls'
+const AtxSubmitHitlCommand = 'aws/atxTransform/submitHitl'
+const AtxGetHitlStatus = 'aws/atxTransform/getHitl'
 
 // ATX FES Commands - Transform Operations Only (profiles handled by transformConfigurationServer)
 
@@ -246,6 +250,24 @@ export const AtxNetTransformServerToken =
                         logging.log(`ATX: S3 upload ${success ? 'succeeded' : 'failed'}`)
                         return success
                     }
+                    case AtxListHitlsCommand: {
+                        logging.log('ATX: Handling listHitls command')
+                        const request = params as ListHitlRequest
+                        const result = await atxTransformHandler.listHitls(request)
+                        return result
+                    }
+                    case AtxSubmitHitlCommand: {
+                        logging.log('ATX: Handling submitHitl command')
+                        const request = params as SubmitHitlRequest
+                        const result = await atxTransformHandler.submitHitl(request)
+                        return result
+                    }
+                    case AtxGetHitlStatus: {
+                        logging.log('ATX: Handling getHitl command')
+                        const request = params as GetHitlRequest
+                        const result = await atxTransformHandler.getHitl(request)
+                        return result
+                    }
                     // TODO: Phase 2 - Add Transform operation commands here
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
@@ -283,6 +305,9 @@ export const AtxNetTransformServerToken =
                             AtxListJobPlanStepsCommand,
                             AtxCreateZipCommand,
                             AtxUploadArtifactToS3Command,
+                            AtxListHitlsCommand,
+                            AtxSubmitHitlCommand,
+                            AtxGetHitlStatus,
                             // AtxStartJobCommand,
                             // AtxGetJobCommand,
                             // AtxStopJobCommand,
