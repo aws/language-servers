@@ -182,6 +182,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Setup separate ATX credential handler
         this.setupAtxCredentialHandler()
 
+        // Setup credential update logging and routing
+        this.setupCredentialUpdateLogging()
+
         this.logging.log('Manager instance is initialize')
     }
 
@@ -214,32 +217,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Replace provider
         ;(this.features as any).credentialsProvider = interceptedProvider
 
-        // Register ATX credential update handler
-        const connection = (this.features.lsp as any).connection
-        if (connection && connection.onRequest) {
-            this.logging.log('LSP v1.6: Registering aws/credentials/atxtoken/update handler')
-
-            connection.onRequest('aws/credentials/atxtoken/update', async (request: any) => {
-                this.logging.log(`LSP v1.6: ATX credential update received: ${JSON.stringify(request, null, 2)}`)
-
-                const bearerCredentials = request.encrypted
-                    ? await this.decodeCredentialsRequestToken(request)
-                    : request.data
-
-                if (bearerCredentials && bearerCredentials.token) {
-                    atxCredentials = bearerCredentials
-                    this.logging.log(`LSP v1.6: ATX credentials stored: ${bearerCredentials.token.substring(0, 20)}...`)
-                } else {
-                    this.logging.log('LSP v1.6: Invalid ATX credentials received')
-                    throw new Error('Invalid ATX bearer credentials')
-                }
-            })
-
-            connection.onNotification('aws/credentials/atxtoken/delete', () => {
-                atxCredentials = undefined
-                this.logging.log('LSP v1.6: ATX credentials deleted')
-            })
-        }
+        // ATX credentials now handled by existing aws/credentials/token/update handler with credential key routing
     }
 
     private async decodeCredentialsRequestToken(request: any): Promise<any> {
@@ -326,12 +304,13 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 if (typeof type === 'string' && type === 'aws/credentials/token/update') {
                     this.logging.log('LSP v1.4: Intercepting aws/credentials/token/update handler registration')
                     return originalOnRequest(type, (request: any) => {
+                        this.logging.log(`LSP v1.4: aws/credentials/token/update called. ${JSON.stringify(request)}}`)
                         this.logging.log(
-                            `LSP v1.4: aws/credentials/token/update called. Last profile update was ATX: ${lastProfileUpdateWasAtx}`
+                            `LSP v1.4: aws/credentials/token/update called. Credential key: ${request.credentialkey || 'bearer'}`
                         )
                         this.logging.log(`LSP v1.4: Request data: ${JSON.stringify(request, null, 2)}`)
 
-                        if (lastProfileUpdateWasAtx && request.data && request.data.token) {
+                        if (request.credentialkey === 'bearer-atx' && request.data && request.data.token) {
                             // This is an ATX credential update - store in bearer-atx only
                             this.logging.log(
                                 `LSP v1.4: Storing ATX credentials in bearer-atx: ${request.data.token.substring(0, 20)}...`
@@ -357,7 +336,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                             `LSP v1.4: aws/credentials/token/update called (typed). Last profile update was ATX: ${lastProfileUpdateWasAtx}`
                         )
 
-                        if (lastProfileUpdateWasAtx && request.data && request.data.token) {
+                        if (request.credentialkey === 'bearer-atx' && request.data && request.data.token) {
                             this.logging.log(
                                 `LSP v1.4: Storing ATX credentials in bearer-atx: ${request.data.token.substring(0, 20)}...`
                             )
