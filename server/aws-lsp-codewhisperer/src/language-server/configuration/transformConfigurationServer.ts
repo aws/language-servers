@@ -21,7 +21,8 @@ import {
 import { getBearerTokenFromProvider } from '../../shared/utils'
 
 // Transform Configuration Sections
-export const TRANSFORM_PROFILES_CONFIGURATION_SECTION = 'aws.transformProfiles'
+export const TRANSFORM_PROFILES_CONFIGURATION_SECTION = 'aws.atx.transformProfiles'
+export const ATX_CONFIGURATION_SECTION = 'aws.atx'
 
 /**
  * Transform Configuration Server - standalone server for ATX FES profile management
@@ -43,14 +44,17 @@ export class TransformConfigurationServer {
     async initialize(params: InitializeParams): Promise<any> {
         this.logging.log('TransformConfigurationServer: Initialize called')
 
-        const profileType = (params.initializationOptions as any)?.aws?.profileType
+        // const profileType = (params.initializationOptions as any)?.aws?.profileType
 
-        if (profileType !== 'transform') {
-            return {
-                capabilities: {},
-                awsServerCapabilities: {},
-            }
-        }
+        // if (profileType !== 'transform') {
+        //     this.logging.log('TransformConfigurationServer: Not Transform Profile')
+        //     return {
+        //         capabilities: {},
+        //         awsServerCapabilities: {},
+        //     }
+        // }
+
+        this.logging.log('TransformConfigurationServer: Transform Profile intialized section aws.transfomProfiles')
 
         return {
             capabilities: {},

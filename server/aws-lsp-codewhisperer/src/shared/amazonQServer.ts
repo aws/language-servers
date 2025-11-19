@@ -9,6 +9,8 @@ import { AmazonQBaseServiceManager, QServiceManagerFeatures } from './amazonQSer
 import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
 import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { AtxTokenServiceManager } from './amazonQServiceManager/AtxTokenServiceManager'
+import { Q_CONFIGURATION_SECTION } from './constants'
+import { ATX_CONFIGURATION_SECTION } from '../language-server/configuration/transformConfigurationServer'
 
 const LOGGING_PREFIX = '[AMAZON Q SERVER]: '
 
@@ -63,14 +65,33 @@ export const AmazonQServiceServerFactory =
         })
 
         lsp.workspace.onUpdateConfiguration(async (params: UpdateConfigurationParams, token: CancellationToken) => {
-            log('Received onUpdateConfiguration request')
-            await amazonQServiceManager.handleOnUpdateConfiguration(params, token)
+            log(`Received onUpdateConfiguration request for section: ${params.section}`)
+
+            // Route to appropriate service manager based on configuration section
+            if (params.section === Q_CONFIGURATION_SECTION) {
+                await amazonQServiceManager.handleOnUpdateConfiguration(params, token)
+            } else if (params.section === ATX_CONFIGURATION_SECTION) {
+                const atxServiceManager = AtxTokenServiceManager.getInstance()
+                await atxServiceManager.handleOnUpdateConfiguration(params, token)
+            } else {
+                log(`Unknown configuration section: ${params.section}`)
+            }
         })
 
         credentialsProvider.onCredentialsDeleted((type: CredentialsType) => {
             log('Received onCredentialsDeleted notification')
             amazonQServiceManager.handleOnCredentialsDeleted(type)
         })
+
+        // Add credentials update handler to track when credentials are updated
+        if ('onCredentialsUpdated' in credentialsProvider) {
+            ;(credentialsProvider as any).onCredentialsUpdated((type: CredentialsType) => {
+                log(`Received onCredentialsUpdated notification for type: ${type}`)
+                if ('handleOnCredentialsUpdated' in amazonQServiceManager) {
+                    ;(amazonQServiceManager as any).handleOnCredentialsUpdated(type)
+                }
+            })
+        }
 
         logging.log('Amazon Q Service server has been initialised')
         return () => {}

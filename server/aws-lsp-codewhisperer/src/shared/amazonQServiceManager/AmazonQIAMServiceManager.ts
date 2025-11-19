@@ -64,6 +64,22 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
 
         return this.cachedCodewhispererService
     }
+    public getAtxCodewhispererService() {
+        if (!this.cachedAtxCodewhispererService) {
+            this.cachedAtxCodewhispererService = new CodeWhispererServiceIAM(
+                this.features.credentialsProvider,
+                this.features.workspace,
+                this.features.logging,
+                this.region,
+                this.endpoint,
+                this.features.sdkInitializator
+            )
+
+            this.updateCachedServiceConfig()
+        }
+
+        return this.cachedAtxCodewhispererService
+    }
 
     public getStreamingClient() {
         if (!this.cachedStreamingClient) {
