@@ -842,9 +842,17 @@ export class ATXTransformHandler {
 
             if (result && result.s3PreSignedUrl) {
                 this.logging.log(`ATX: DownloadArtifactUrl SUCCESS - Download URL created`)
+
+                const normalizedHeaders: Record<string, string> = {}
+                if (result.requestHeaders) {
+                    for (const [key, value] of Object.entries(result.requestHeaders)) {
+                        normalizedHeaders[key] = Array.isArray(value) ? value[0] : value
+                    }
+                }
+
                 return {
                     downloadUrl: result.s3PreSignedUrl,
-                    requestHeaders: result.requestHeaders,
+                    requestHeaders: normalizedHeaders,
                 }
             } else {
                 this.logging.error('ATX: DownloadArtifactUrl - Missing s3PreSignedUrl in response')
@@ -865,17 +873,24 @@ export class ATXTransformHandler {
         requestHeaders: any,
         saveToDir: string,
         fileName: string
-    ): Promise<DownloadExtractArtifactResponse> {
-        const s3Response = await got.get(downloadUrl, {
-            headers: requestHeaders || {},
-            timeout: { request: 300000 },
-            responseType: 'buffer',
-        })
+    ): Promise<DownloadExtractArtifactResponse | null> {
+        try {
+            const s3Response = await got.get(downloadUrl, {
+                headers: requestHeaders || {},
+                timeout: { request: 300000 },
+                responseType: 'buffer',
+            })
 
-        const buffer = [s3Response.body]
-        const path = await this.extractArchiveFromBuffer(fileName, buffer, saveToDir)
+            const buffer = [s3Response.body]
+            const path = await this.extractArchiveFromBuffer(fileName, buffer, saveToDir)
 
-        return { PathToExtracted: path }
+            return { PathToExtracted: path }
+        } catch (error) {
+            this.logging.error(
+                `ATX: Download and extract archive error: ${error instanceof Error ? error.message : 'Unknown error'} ${String(error)}`
+            )
+            return null
+        }
     }
 
     /**
@@ -951,7 +966,7 @@ export class ATXTransformHandler {
                 jobId: request.JobId,
                 taskType: request.HitlTaskType,
                 taskFilter: {
-                    taskStatuses: [request.HitlStatusFilter],
+                    taskStatuses: [request.HitlTaskStatusFilter],
                 },
             })
 

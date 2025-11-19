@@ -42,7 +42,7 @@ export interface ListHitlRequest extends ExecuteCommandParams {
     WorkspaceId: string
     JobId: string
     HitlTaskType: HitlTaskType
-    HitlStatusFilter: HitlTaskStatus
+    HitlTaskStatusFilter: HitlTaskStatus
 }
 export interface SubmitHitlRequest extends ExecuteCommandParams {
     WorkspaceId: string
