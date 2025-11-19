@@ -25,6 +25,7 @@ import {
     HitlTask,
     SubmitHitlResponse,
     GetHitlResponse,
+    DownloadExtractArtifactResponse,
 } from './atxModels'
 
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
@@ -863,8 +864,8 @@ export class ATXTransformHandler {
         downloadUrl: string,
         requestHeaders: any,
         saveToDir: string,
-        exportId: string
-    ): Promise<string> {
+        fileName: string
+    ): Promise<DownloadExtractArtifactResponse> {
         const s3Response = await got.get(downloadUrl, {
             headers: requestHeaders || {},
             timeout: { request: 300000 },
@@ -872,15 +873,17 @@ export class ATXTransformHandler {
         })
 
         const buffer = [s3Response.body]
-        return await this.extractArchiveFromBuffer(exportId, buffer, saveToDir)
+        const path = await this.extractArchiveFromBuffer(fileName, buffer, saveToDir)
+
+        return { PathToExtracted: path }
     }
 
     /**
      * Extracts ZIP archive from buffer using AdmZip
      */
-    async extractArchiveFromBuffer(exportId: string, buffer: Uint8Array[], saveToDir: string): Promise<string> {
-        const tempDir = path.join(saveToDir, exportId)
-        const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
+    async extractArchiveFromBuffer(fileName: string, buffer: Uint8Array[], saveToDir: string): Promise<string> {
+        const tempDir = saveToDir
+        const pathToArchive = path.join(tempDir, fileName)
         await this.directoryExists(tempDir)
         await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
 
@@ -936,6 +939,7 @@ export class ATXTransformHandler {
         try {
             this.logging.log('=== ATX: ListHitls Operation ===')
             this.logging.log(`Listing HITLs for job: ${request.JobId}`)
+            this.logging.log(`request type: ${request.JobId}`)
 
             if (!this.atxClient) {
                 this.logging.error('ATX: ListHitls client not initialized')

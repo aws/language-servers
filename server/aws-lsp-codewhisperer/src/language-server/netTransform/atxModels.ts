@@ -51,6 +51,12 @@ export interface SubmitHitlRequest extends ExecuteCommandParams {
     Action: Action
     HumanArtifactId: string
 }
+export interface DownloadExtractArtifactRequest extends ExecuteCommandParams {
+    DownloadUrl: string
+    RequestHeaders: any
+    SaveToDir: string
+    FileName: string
+}
 
 export interface GetHitlResponse {
     HitlTask: HitlTask
@@ -61,4 +67,7 @@ export interface ListHitlResponse {
 }
 export interface SubmitHitlResponse {
     HitlTaskStatus: HitlTaskStatus
+}
+export interface DownloadExtractArtifactResponse {
+    PathToExtracted: string
 }

@@ -6,7 +6,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
-import { GetHitlRequest, ListHitlRequest, SubmitHitlRequest } from './atxModels'
+import { GetHitlRequest, ListHitlRequest, SubmitHitlRequest, DownloadExtractArtifactRequest } from './atxModels'
 
 // ATX Workspace Commands
 const AtxListWorkspacesCommand = 'aws/atxTransform/listWorkspaces'
@@ -25,6 +25,7 @@ const AtxUploadArtifactToS3Command = 'aws/atxTransform/uploadArtifactToS3'
 const AtxListHitlsCommand = 'aws/atxTransform/listHitls'
 const AtxSubmitHitlCommand = 'aws/atxTransform/submitHitl'
 const AtxGetHitlStatus = 'aws/atxTransform/getHitl'
+const AtxDownloadExtractArtifactCommand = 'aws/atxTransform/downloadExtractArtifact'
 
 // ATX FES Commands - Transform Operations Only (profiles handled by transformConfigurationServer)
 
@@ -252,6 +253,7 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxListHitlsCommand: {
                         logging.log('ATX: Handling listHitls command')
+                        logging.log(`Parmas:${String(params)}`)
                         const request = params as ListHitlRequest
                         const result = await atxTransformHandler.listHitls(request)
                         return result
@@ -266,6 +268,17 @@ export const AtxNetTransformServerToken =
                         logging.log('ATX: Handling getHitl command')
                         const request = params as GetHitlRequest
                         const result = await atxTransformHandler.getHitl(request)
+                        return result
+                    }
+                    case AtxDownloadExtractArtifactCommand: {
+                        logging.log('ATX: Handling downloadExtractArtifact command')
+                        const request = params as DownloadExtractArtifactRequest
+                        const result = await atxTransformHandler.downloadAndExtractArchive(
+                            request.DownloadUrl,
+                            request.RequestHeaders,
+                            request.SaveToDir,
+                            request.FileName
+                        )
                         return result
                     }
                     // TODO: Phase 2 - Add Transform operation commands here
@@ -308,6 +321,7 @@ export const AtxNetTransformServerToken =
                             AtxListHitlsCommand,
                             AtxSubmitHitlCommand,
                             AtxGetHitlStatus,
+                            AtxDownloadExtractArtifactCommand,
                             // AtxStartJobCommand,
                             // AtxGetJobCommand,
                             // AtxStopJobCommand,
