@@ -33,6 +33,7 @@ import {
     CancellationTokenSource,
     ContextCommand,
     ChatUpdateParams,
+    ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -69,6 +70,7 @@ import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import { SinonStub } from 'sinon'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -276,6 +278,11 @@ describe('AgenticChatController', () => {
         testFeatures.setClientParams(cachedInitializeParams)
         setCredentials('builderId')
 
+        // Configure existing stub to handle bearer credentials for Amazon Q service
+        ;(testFeatures.credentialsProvider.hasCredentials as sinon.SinonStub).callsFake((type?: string) => {
+            return type === 'bearer' || type === undefined
+        })
+
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
         emitConversationMetricStub = sinon.stub(ChatTelemetryController.prototype, 'emitConversationMetric')
@@ -286,8 +293,23 @@ describe('AgenticChatController', () => {
         AmazonQTokenServiceManager.resetInstance()
 
         serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+
+        // Stub getCodewhispererService to prevent authentication errors
+        sinon.stub(serviceManager, 'getCodewhispererService').returns({
+            getSubscriptionStatus: sinon.stub().resolves({ status: 'none', encodedVerificationUrl: '' }),
+        } as any)
+
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
+
+        // Add getConnectionMetadata to testFeatures.credentialsProvider
+        testFeatures.credentialsProvider.getConnectionMetadata = (
+            sinon.stub() as SinonStub<[], ConnectionMetadata | undefined>
+        ).returns({
+            sso: {
+                startUrl: undefined,
+            },
+        })
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -309,6 +331,7 @@ describe('AgenticChatController', () => {
         getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages').returns([])
         addMessageStub = sinon.stub(ChatDatabase.prototype, 'addMessage')
         chatDbInitializedStub = sinon.stub(ChatDatabase.prototype, 'isInitialized')
+        sinon.stub(ChatDatabase.prototype, 'getPairProgrammingMode').returns(true)
 
         telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(

@@ -296,6 +296,7 @@ export function shuffleList<T>(list: T[]): T[] {
 export const setCredentialsForAmazonQTokenServiceManagerFactory = (getFeatures: () => TestFeatures) => {
     return (connectionType: SsoConnectionType) => {
         const features = getFeatures()
+        features.credentialsProvider = stubInterface()
         features.credentialsProvider.hasCredentials.returns(true)
         features.credentialsProvider.getConnectionType.returns(connectionType)
         features.credentialsProvider.getCredentials.returns({
