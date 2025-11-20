@@ -21,7 +21,8 @@ import {
 import { getBearerTokenFromProvider } from '../../shared/utils'
 
 // Transform Configuration Sections
-export const TRANSFORM_PROFILES_CONFIGURATION_SECTION = 'aws.atx.transformProfiles'
+export const TRANSFORM_PROFILES_CONFIGURATION_SECTION = 'aws.transformProfiles'
+export const ATX_TRANSFORM_PROFILES_CONFIGURATION_SECTION = 'aws.atx.transformProfiles'
 export const ATX_CONFIGURATION_SECTION = 'aws.atx'
 
 /**
@@ -60,7 +61,7 @@ export class TransformConfigurationServer {
             capabilities: {},
             awsServerCapabilities: {
                 configurationProvider: {
-                    sections: [TRANSFORM_PROFILES_CONFIGURATION_SECTION],
+                    sections: [TRANSFORM_PROFILES_CONFIGURATION_SECTION, ATX_TRANSFORM_PROFILES_CONFIGURATION_SECTION],
                 },
             },
         }
@@ -74,6 +75,7 @@ export class TransformConfigurationServer {
 
         switch (params.section) {
             case TRANSFORM_PROFILES_CONFIGURATION_SECTION:
+            case ATX_TRANSFORM_PROFILES_CONFIGURATION_SECTION:
                 const profiles = await this.listAvailableProfiles(token)
                 return profiles
             default:
@@ -227,6 +229,39 @@ export class TransformConfigurationServer {
             this.logging.log(
                 `TransformConfigurationServer: Total ${allProfiles.length} Transform profiles found across all regions`
             )
+
+            // Cache profiles in AtxTokenServiceManager for ARN-based lookup
+            try {
+                const { AtxTokenServiceManager } = await import(
+                    '../../shared/amazonQServiceManager/AtxTokenServiceManager'
+                )
+                const atxServiceManager = AtxTokenServiceManager.getInstance()
+
+                // Debug: Log all profiles being cached
+                this.logging.log(`TransformConfigurationServer: DEBUG - Caching profiles:`)
+                allProfiles.forEach((profile: any, index: number) => {
+                    this.logging.log(
+                        `TransformConfigurationServer: Profile ${index + 1}: ARN=${profile.arn}, applicationUrl=${profile.applicationUrl}`
+                    )
+                })
+
+                atxServiceManager.cacheTransformProfiles(allProfiles)
+                this.logging.log(`TransformConfigurationServer: Cached ${allProfiles.length} profiles for ARN lookup`)
+
+                // Auto-select first profile if only one exists (for testing)
+                if (allProfiles.length === 1) {
+                    const firstProfile = allProfiles[0] as any
+                    if (firstProfile.arn && firstProfile.applicationUrl) {
+                        atxServiceManager.setActiveProfileByArn(firstProfile.arn)
+                        this.logging.log(
+                            `TransformConfigurationServer: Auto-selected single profile ${firstProfile.arn}`
+                        )
+                    }
+                }
+            } catch (error) {
+                this.logging.error(`TransformConfigurationServer: Failed to cache profiles: ${error}`)
+            }
+
             return allProfiles
         } catch (error) {
             this.logging.warn(`TransformConfigurationServer: ListAvailableProfiles failed: ${error}`)

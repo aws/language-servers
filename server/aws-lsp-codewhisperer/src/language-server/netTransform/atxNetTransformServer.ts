@@ -6,22 +6,11 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
+import { AtxListOrCreateWorkspaceRequest, AtxStartTransformRequest } from './atxModels'
 
-// ATX FES Commands - Transform Operations Only (profiles handled by transformConfigurationServer)
-
-// TODO: Phase 2 - Add ATX FES Transform APIs
-// const AtxVerifySessionCommand = 'aws/atxNetTransform/verifySession' // LSP-only implementation
-// const AtxListWorkspacesCommand = 'aws/atxNetTransform/listWorkspaces'
-// const AtxCreateWorkspaceCommand = 'aws/atxNetTransform/createWorkspace'
-// const AtxCreateJobCommand = 'aws/atxNetTransform/createJob'
-// const AtxStartJobCommand = 'aws/atxNetTransform/startJob'
-// const AtxGetJobCommand = 'aws/atxNetTransform/getJob'
-// const AtxStopJobCommand = 'aws/atxNetTransform/stopJob'
-// const AtxCreateUploadArtifactURLCommand = 'aws/atxNetTransform/createUploadArtifactURL'
-// const AtxCompleteUploadArtifactURLCommand = 'aws/atxNetTransform/completeUploadArtifactURL'
-// const AtxCreateDownloadArtifactURLCommand = 'aws/atxNetTransform/createDownloadArtifactURL'
-// const AtxListArtifactsCommand = 'aws/atxNetTransform/listArtifacts'
-// const AtxListJobStepPlansCommand = 'aws/atxNetTransform/listJobStepPlans'
+// ATX FES Commands - Consolidated APIs
+const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
+const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -32,7 +21,36 @@ export const AtxNetTransformServerToken =
         const runAtxTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
-                    // TODO: Phase 2 - Add Transform operation commands here
+                    case AtxListOrCreateWorkspaceCommand: {
+                        const request = params as AtxListOrCreateWorkspaceRequest
+                        const result = await atxTransformHandler.listOrCreateWorkspace(request)
+                        return result
+                    }
+                    case AtxStartTransformCommand: {
+                        const { WorkspaceId, JobName, StartTransformRequest } = params as AtxStartTransformRequest
+
+                        if (!WorkspaceId) {
+                            throw new Error('WorkspaceId is required for startTransform')
+                        }
+
+                        const result = await atxTransformHandler.startTransform({
+                            workspaceId: WorkspaceId,
+                            jobName: JobName,
+                            startTransformRequest: StartTransformRequest,
+                        })
+
+                        if (!result) {
+                            throw new Error('StartTransform workflow failed')
+                        }
+
+                        return {
+                            TransformationJobId: result.TransformationJobId,
+                            ArtifactPath: result.ArtifactPath || '',
+                            UploadId: result.UploadId || '',
+                            UnSupportedProjects: [],
+                            ContainsUnsupportedViews: false,
+                        }
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -53,21 +71,7 @@ export const AtxNetTransformServerToken =
             return {
                 capabilities: {
                     executeCommandProvider: {
-                        commands: [
-                            // TODO: Phase 2: Add ATX FES Transform operation commands
-                            // AtxVerifySessionCommand, // LSP-only implementation
-                            // AtxListWorkspacesCommand,
-                            // AtxCreateWorkspaceCommand,
-                            // AtxCreateJobCommand,
-                            // AtxStartJobCommand,
-                            // AtxGetJobCommand,
-                            // AtxStopJobCommand,
-                            // AtxCreateUploadArtifactURLCommand,
-                            // AtxCompleteUploadArtifactURLCommand,
-                            // AtxCreateDownloadArtifactURLCommand,
-                            // AtxListArtifactsCommand,
-                            // AtxListJobStepPlansCommand,
-                        ],
+                        commands: [AtxListOrCreateWorkspaceCommand, AtxStartTransformCommand],
                     },
                 },
             }

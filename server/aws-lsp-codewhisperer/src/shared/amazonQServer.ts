@@ -10,7 +10,10 @@ import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMSer
 import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { AtxTokenServiceManager } from './amazonQServiceManager/AtxTokenServiceManager'
 import { Q_CONFIGURATION_SECTION } from './constants'
-import { ATX_CONFIGURATION_SECTION } from '../language-server/configuration/transformConfigurationServer'
+import {
+    TRANSFORM_PROFILES_CONFIGURATION_SECTION,
+    ATX_CONFIGURATION_SECTION,
+} from '../language-server/configuration/transformConfigurationServer'
 
 const LOGGING_PREFIX = '[AMAZON Q SERVER]: '
 
@@ -71,6 +74,12 @@ export const AmazonQServiceServerFactory =
             if (params.section === Q_CONFIGURATION_SECTION) {
                 await amazonQServiceManager.handleOnUpdateConfiguration(params, token)
             } else if (params.section === ATX_CONFIGURATION_SECTION) {
+                const atxServiceManager = AtxTokenServiceManager.getInstance()
+                await atxServiceManager.handleOnUpdateConfiguration(params, token)
+            } else if (params.section === TRANSFORM_PROFILES_CONFIGURATION_SECTION) {
+                const atxServiceManager = AtxTokenServiceManager.getInstance()
+                await atxServiceManager.handleOnUpdateConfiguration(params, token)
+            } else if (params.section === 'aws.transform') {
                 const atxServiceManager = AtxTokenServiceManager.getInstance()
                 await atxServiceManager.handleOnUpdateConfiguration(params, token)
             } else {
