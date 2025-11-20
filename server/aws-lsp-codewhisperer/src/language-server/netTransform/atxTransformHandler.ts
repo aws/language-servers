@@ -1,4 +1,6 @@
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
+import * as fs from 'fs'
+import * as path from 'path'
 import {
     ElasticGumbyFrontendClient,
     ListAvailableProfilesCommand,
@@ -16,11 +18,15 @@ import {
 } from '@amazon/elastic-gumby-frontend-client'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { DEFAULT_ATX_FES_ENDPOINT_URL, DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR } from '../../shared/constants'
-import { AtxJobStatus, PlanStepStatus } from './atxModels'
+import {
+    AtxJobStatus,
+    PlanStepStatus,
+    AtxListOrCreateWorkspaceRequest,
+    AtxListOrCreateWorkspaceResponse,
+    AtxGetJobStatusInfoResponse,
+} from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import * as crypto from 'crypto'
-import * as fs from 'fs'
-import * as path from 'path'
 import got from 'got'
 import AdmZip = require('adm-zip')
 
@@ -334,10 +340,13 @@ export class ATXTransformHandler {
     /**
      * Create a transformation job
      */
-    async createJob(workspaceId: string, jobName?: string): Promise<{ jobId: string; status: string } | null> {
+    async createJob(request: {
+        workspaceId: string
+        jobName?: string
+    }): Promise<{ jobId: string; status: string } | null> {
         try {
-            this.logging.log(`ATX: CreateJob operation started for workspace: ${workspaceId}`)
-            this.logging.log(`ATX: CreateJob jobName: ${jobName || 'auto-generated'}`)
+            this.logging.log(`ATX: CreateJob operation started for workspace: ${request.workspaceId}`)
+            this.logging.log(`ATX: CreateJob jobName: ${request.jobName || 'auto-generated'}`)
 
             // Call ATX FES createJob API
             this.logging.log('ATX: CreateJob initializing ATX client...')
@@ -349,10 +358,10 @@ export class ATXTransformHandler {
 
             this.logging.log('ATX: CreateJob creating CreateJobCommand...')
             const command = new CreateJobCommand({
-                workspaceId: workspaceId,
+                workspaceId: request.workspaceId,
                 objective: JSON.stringify({ target_framework: 'net8.0' }),
                 jobType: 'DOTNET_IDE' as any,
-                jobName: jobName || `transform-job-${Date.now()}`,
+                jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
                 idempotencyToken: uuidv4(),
             })
@@ -395,7 +404,9 @@ export class ATXTransformHandler {
     async createArtifactUploadUrl(
         workspaceId: string,
         jobId: string,
-        filePath: string
+        filePath: string,
+        categoryType: string,
+        fileType: string
     ): Promise<{ uploadId: string; uploadUrl: string; requestHeaders?: any } | null> {
         try {
             this.logging.log(`ATX: CreateArtifactUploadUrl operation started for job: ${jobId}`)
@@ -415,8 +426,8 @@ export class ATXTransformHandler {
                 contentDigest: { Sha256: sha256 },
                 artifactReference: {
                     artifactType: {
-                        categoryType: 'CUSTOMER_INPUT' as any,
-                        fileType: 'ZIP' as any,
+                        categoryType: categoryType as any,
+                        fileType: fileType as any,
                     },
                 },
             })
@@ -660,13 +671,13 @@ export class ATXTransformHandler {
 
             const { ArtifactManager } = await import('./artifactManager')
 
-            // Get proper workspace path from solution root path
-            const workspacePath = request.SolutionRootPath || process.cwd()
+            // Create workspace path like RTS does: {solutionRoot}/artifactWorkspace/{uuid}
+            const workspacePath = this.getWorkspacePath(request.SolutionRootPath)
 
             const artifactManager = new ArtifactManager(
                 this.workspace,
                 this.logging,
-                workspacePath, // ✅ Use proper workspace path
+                workspacePath, // Use RTS-style workspace path
                 request.SolutionRootPath
             )
 
@@ -677,6 +688,19 @@ export class ATXTransformHandler {
             this.logging.error(`ATX: createZip error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             throw error
         }
+    }
+
+    /**
+     * Create workspace path like RTS does: {solutionRoot}/artifactWorkspace/{uuid}
+     */
+    getWorkspacePath(solutionRootPath: string): string {
+        const { v4: uuidv4 } = require('uuid')
+        const randomPath = uuidv4().substring(0, 8)
+        const workspacePath = path.join(solutionRootPath, 'artifactWorkspace', randomPath)
+        if (!fs.existsSync(workspacePath)) {
+            fs.mkdirSync(workspacePath, { recursive: true })
+        }
+        return workspacePath
     }
 
     /**
@@ -906,6 +930,256 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.log(`Directory doesn't exist, creating it: ${directoryPath}`)
             await fs.promises.mkdir(directoryPath, { recursive: true })
+        }
+    }
+
+    /**
+     * List workspaces and optionally create new workspace
+     */
+    async listOrCreateWorkspace(
+        request: AtxListOrCreateWorkspaceRequest
+    ): Promise<AtxListOrCreateWorkspaceResponse | null> {
+        try {
+            this.logging.log(`ATX: ListOrCreateWorkspace operation started`)
+
+            // Always get list of existing workspaces
+            const workspaces = await this.listWorkspaces()
+
+            const response: AtxListOrCreateWorkspaceResponse = {
+                AvailableWorkspaces: workspaces,
+                CreatedWorkspace: undefined,
+            }
+
+            // Optionally create new workspace
+            if (request.CreateWorkspaceName) {
+                this.logging.log(`ATX: Creating new workspace: ${request.CreateWorkspaceName}`)
+                const newWorkspaceResult = await this.createWorkspace(request.CreateWorkspaceName)
+
+                if (newWorkspaceResult) {
+                    // Parse the "workspaceId|workspaceName" format
+                    const [workspaceId, workspaceName] = newWorkspaceResult.split('|')
+                    response.CreatedWorkspace = {
+                        WorkspaceId: workspaceId,
+                        WorkspaceName: workspaceName || request.CreateWorkspaceName,
+                    }
+
+                    // Add the new workspace to the available list
+                    response.AvailableWorkspaces.push({
+                        Id: workspaceId,
+                        Name: workspaceName || request.CreateWorkspaceName,
+                        CreatedDate: new Date().toISOString(),
+                    })
+                }
+            }
+
+            this.logging.log(
+                `ATX: ListOrCreateWorkspace completed - ${response.AvailableWorkspaces.length} workspaces available`
+            )
+            return response
+        } catch (error) {
+            this.logging.error(
+                `ATX: ListOrCreateWorkspace error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+            return null
+        }
+    }
+
+    /**
+     * Get comprehensive job status with intelligent data fetching
+     */
+    async getJobStatusInfo(request: {
+        workspaceId: string
+        jobId: string
+        includePlanSteps?: boolean
+        includeArtifacts?: boolean
+    }): Promise<AtxGetJobStatusInfoResponse | null> {
+        try {
+            this.logging.log(`ATX: GetJobStatusInfo operation started for job: ${request.jobId}`)
+
+            // Always get basic job status
+            const jobStatus = await this.getJob(request.workspaceId, request.jobId)
+            if (!jobStatus) {
+                throw new Error('Failed to get job status')
+            }
+
+            const response: AtxGetJobStatusInfoResponse = {
+                JobId: request.jobId,
+                Status: jobStatus.job?.statusDetails?.status,
+                Progress: jobStatus.job?.statusDetails?.progress,
+            }
+
+            // Conditionally get plan steps
+            if (
+                request.includePlanSteps &&
+                (jobStatus.job?.statusDetails?.status === 'PLANNED' ||
+                    jobStatus.job?.statusDetails?.status === 'EXECUTING')
+            ) {
+                try {
+                    const planSteps = await this.listJobPlanSteps(request.workspaceId, request.jobId)
+                    if (planSteps) {
+                        response.PlanSteps = planSteps
+                    }
+                } catch (error) {
+                    this.logging.log(`ATX: Failed to get plan steps: ${error}`)
+                }
+            }
+
+            // Conditionally get artifacts
+            if (request.includeArtifacts && jobStatus.job?.statusDetails?.status === 'COMPLETED') {
+                try {
+                    const artifacts = await this.listArtifacts(request.workspaceId, request.jobId, 'CUSTOMER_OUTPUT')
+
+                    if (artifacts) {
+                        // Get download URLs for each artifact
+                        const artifactsWithUrls = await Promise.all(
+                            artifacts.map(async artifact => {
+                                try {
+                                    const downloadUrl = await this.downloadArtifactUrl(
+                                        request.workspaceId,
+                                        request.jobId,
+                                        artifact.artifactId
+                                    )
+                                    return {
+                                        ArtifactId: artifact.artifactId,
+                                        Name: artifact.name,
+                                        CategoryType: artifact.categoryType,
+                                        FileType: artifact.fileType,
+                                        DownloadUrl: downloadUrl?.downloadUrl,
+                                    }
+                                } catch (error) {
+                                    this.logging.log(
+                                        `ATX: Failed to get download URL for artifact ${artifact.artifactId}: ${error}`
+                                    )
+                                    return {
+                                        ArtifactId: artifact.artifactId,
+                                        Name: artifact.name,
+                                        CategoryType: artifact.categoryType,
+                                        FileType: artifact.fileType,
+                                    }
+                                }
+                            })
+                        )
+                        response.Artifacts = artifactsWithUrls
+                    }
+                } catch (error) {
+                    this.logging.log(`ATX: Failed to get artifacts: ${error}`)
+                }
+            }
+
+            this.logging.log(`ATX: GetJobStatusInfo completed for job: ${request.jobId}`)
+            return response
+        } catch (error) {
+            this.logging.error(
+                `ATX: GetJobStatusInfo error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+            return null
+        }
+    }
+
+    /**
+     * Start ATX Transform - Orchestrates the full workflow
+     * Step 1: CreateJob ✅
+     * Step 2: ZIP Creation and Upload (added)
+     */
+    async startTransform(request: {
+        workspaceId: string
+        jobName?: string
+        startTransformRequest: object
+    }): Promise<{ jobId: string; status: string; zipFilePath?: string; uploadId?: string } | null> {
+        try {
+            this.logging.log(`ATX: StartTransform workflow started for workspace: ${request.workspaceId}`)
+
+            // Step 1: Create transformation job
+            this.logging.log('ATX: Step 1 - Creating transformation job')
+            const createJobResponse = await this.createJob({
+                workspaceId: request.workspaceId,
+                jobName: request.jobName || 'Transform Job',
+            })
+
+            if (!createJobResponse?.jobId) {
+                throw new Error('Failed to create ATX transformation job')
+            }
+
+            this.logging.log(
+                `ATX: Step 1 - Created job: ${createJobResponse.jobId} with status: ${createJobResponse.status}`
+            )
+
+            // Step 2: Create ZIP file
+            this.logging.log('ATX: Step 2 - Creating ZIP file from solution')
+            const zipFilePath = await this.createZip(request.startTransformRequest)
+
+            if (!zipFilePath) {
+                throw new Error('Failed to create ZIP file for ATX transformation')
+            }
+
+            this.logging.log(`ATX: Step 2 - Created ZIP file: ${zipFilePath}`)
+
+            // Step 3: Create artifact upload URL
+            this.logging.log('ATX: Step 3 - Creating artifact upload URL')
+            const uploadResponse = await this.createArtifactUploadUrl(
+                request.workspaceId,
+                createJobResponse.jobId,
+                zipFilePath,
+                'CUSTOMER_INPUT' as any,
+                'ZIP' as any
+            )
+
+            if (!uploadResponse?.uploadUrl) {
+                throw new Error('Failed to create artifact upload URL')
+            }
+
+            this.logging.log(`ATX: Step 3 - Created upload URL with uploadId: ${uploadResponse.uploadId}`)
+
+            // Step 4: Upload ZIP file to S3
+            this.logging.log('ATX: Step 4 - Uploading ZIP file to S3')
+            const uploadSuccess = await this.uploadArtifact(
+                uploadResponse.uploadUrl,
+                zipFilePath,
+                uploadResponse.requestHeaders
+            )
+
+            if (!uploadSuccess) {
+                throw new Error('Failed to upload ZIP file to S3')
+            }
+
+            this.logging.log('ATX: Step 4 - Successfully uploaded ZIP file to S3')
+
+            // Step 5: Complete artifact upload
+            this.logging.log('ATX: Step 5 - Completing artifact upload')
+            const completeResponse = await this.completeArtifactUpload(
+                request.workspaceId,
+                createJobResponse.jobId,
+                uploadResponse.uploadId
+            )
+
+            if (!completeResponse) {
+                throw new Error('Failed to complete artifact upload')
+            }
+
+            this.logging.log('ATX: Step 5 - Successfully completed artifact upload')
+
+            // Step 6: Start the transformation job
+            this.logging.log('ATX: Step 6 - Starting transformation job')
+            const startJobResponse = await this.startJob(request.workspaceId, createJobResponse.jobId)
+
+            if (!startJobResponse) {
+                throw new Error('Failed to start ATX transformation job')
+            }
+
+            this.logging.log('ATX: Step 6 - Successfully started transformation job')
+            this.logging.log('ATX: Full workflow completed successfully!')
+
+            return {
+                jobId: createJobResponse.jobId,
+                status: createJobResponse.status,
+                zipFilePath: zipFilePath,
+                uploadId: uploadResponse.uploadId,
+            }
+        } catch (error) {
+            this.logging.error(
+                `ATX: StartTransform workflow error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+            return null
         }
     }
 

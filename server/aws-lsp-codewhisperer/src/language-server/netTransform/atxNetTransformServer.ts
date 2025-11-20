@@ -7,6 +7,26 @@ import {
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
 
+import {
+    AtxCreateWorkspaceRequest,
+    AtxCreateJobRequest,
+    AtxCreateArtifactUploadUrlRequest,
+    AtxCompleteArtifactUploadRequest,
+    AtxStartJobRequest,
+    AtxGetJobRequest,
+    AtxStopJobRequest,
+    AtxDownloadArtifactUrlRequest,
+    AtxListArtifactsRequest,
+    AtxListJobPlanStepsRequest,
+    AtxCreateZipRequest,
+    AtxUploadArtifactToS3Request,
+    AtxStartTransformRequest,
+    AtxListOrCreateWorkspaceRequest,
+    AtxGetJobStatusInfoRequest,
+    CategoryType as CategoryTypeEnum,
+    FileType as FileTypeEnum,
+} from './atxModels'
+
 // ATX Workspace Commands
 const AtxListWorkspacesCommand = 'aws/atxTransform/listWorkspaces'
 const AtxCreateWorkspaceCommand = 'aws/atxTransform/createWorkspace'
@@ -21,6 +41,9 @@ const AtxListArtifactsCommand = 'aws/atxTransform/listArtifacts'
 const AtxListJobPlanStepsCommand = 'aws/atxTransform/listJobPlanSteps'
 const AtxCreateZipCommand = 'aws/atxTransform/createZip'
 const AtxUploadArtifactToS3Command = 'aws/atxTransform/uploadArtifactToS3'
+const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
+const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
+const AtxGetJobStatusInfoCommand = 'aws/atxTransform/getJobStatusInfo'
 
 // ATX FES Commands - Transform Operations Only (profiles handled by transformConfigurationServer)
 
@@ -54,10 +77,9 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxCreateWorkspaceCommand: {
                         logging.log('ATX: Handling createWorkspace command')
-                        const request = params.arguments?.[0] as { workspaceName?: string }
-                        const workspaceName = request?.workspaceName || null
+                        const { WorkspaceName } = params as AtxCreateWorkspaceRequest
 
-                        const workspaceId = await atxTransformHandler.createWorkspace(workspaceName)
+                        const workspaceId = await atxTransformHandler.createWorkspace(WorkspaceName || null)
                         if (workspaceId) {
                             logging.log(`ATX: CreateWorkspace returned workspaceId: ${workspaceId}`)
                             return { workspaceId }
@@ -66,41 +88,51 @@ export const AtxNetTransformServerToken =
                         }
                     }
                     case AtxCreateJobCommand: {
-                        logging.log('ATX: Handling createJob command')
-                        const request = params.arguments?.[0] as { workspaceId: string; jobName?: string }
-                        const { workspaceId, jobName } = request
+                        try {
+                            logging.log('ATX: Handling createJob command')
 
-                        if (!workspaceId) {
-                            throw new Error('workspaceId is required for createJob')
-                        }
+                            const { WorkspaceId, JobName } = params as AtxCreateJobRequest
 
-                        const jobResult = await atxTransformHandler.createJob(workspaceId, jobName)
-                        if (jobResult) {
-                            logging.log(
-                                `ATX: CreateJob returned jobId: ${jobResult.jobId}, status: ${jobResult.status}`
+                            if (!WorkspaceId) {
+                                throw new Error('WorkspaceId is required for createJob')
+                            }
+
+                            const jobResult = await atxTransformHandler.createJob({
+                                workspaceId: WorkspaceId,
+                                jobName: JobName,
+                            })
+                            if (jobResult) {
+                                logging.log(
+                                    `ATX: CreateJob returned jobId: ${jobResult.jobId}, status: ${jobResult.status}`
+                                )
+                                return jobResult
+                            } else {
+                                throw new Error('Failed to create job - API returned null')
+                            }
+                        } catch (error) {
+                            logging.error(
+                                `ATX: CreateJob failed: ${error instanceof Error ? error.message : 'Unknown error'}`
                             )
-                            return jobResult
-                        } else {
-                            throw new Error('Failed to create job - API returned null')
+                            throw error
                         }
                     }
                     case AtxCreateArtifactUploadUrlCommand: {
                         logging.log('ATX: Handling createArtifactUploadUrl command')
-                        const request = params.arguments?.[0] as {
-                            workspaceId: string
-                            jobId: string
-                            filePath: string
-                        }
-                        const { workspaceId, jobId, filePath } = request
+                        const { WorkspaceId, JobId, FilePath, CategoryType, FileType } =
+                            params as AtxCreateArtifactUploadUrlRequest
 
-                        if (!workspaceId || !jobId || !filePath) {
-                            throw new Error('workspaceId, jobId, and filePath are required for createArtifactUploadUrl')
+                        if (!WorkspaceId || !JobId || !FilePath || !CategoryType || !FileType) {
+                            throw new Error(
+                                'WorkspaceId, JobId, FilePath, CategoryType, and FileType are required for createArtifactUploadUrl'
+                            )
                         }
 
                         const uploadResult = await atxTransformHandler.createArtifactUploadUrl(
-                            workspaceId,
-                            jobId,
-                            filePath
+                            WorkspaceId,
+                            JobId,
+                            FilePath,
+                            CategoryType || CategoryTypeEnum.CUSTOMER_INPUT,
+                            FileType || FileTypeEnum.ZIP
                         )
                         if (uploadResult) {
                             logging.log(`ATX: CreateArtifactUploadUrl returned uploadId: ${uploadResult.uploadId}`)
@@ -111,20 +143,15 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxCompleteArtifactUploadCommand: {
                         logging.log('ATX: Handling completeArtifactUpload command')
-                        const request = params.arguments?.[0] as {
-                            workspaceId: string
-                            jobId: string
-                            artifactId: string
-                        }
-                        const { workspaceId, jobId, artifactId } = request
+                        const { WorkspaceId, JobId, ArtifactId } = params as AtxCompleteArtifactUploadRequest
 
-                        if (!workspaceId || !jobId || !artifactId) {
+                        if (!WorkspaceId || !JobId || !ArtifactId) {
                             throw new Error(
-                                'workspaceId, jobId, and artifactId are required for completeArtifactUpload'
+                                'WorkspaceId, JobId, and ArtifactId are required for completeArtifactUpload'
                             )
                         }
 
-                        const success = await atxTransformHandler.completeArtifactUpload(workspaceId, jobId, artifactId)
+                        const success = await atxTransformHandler.completeArtifactUpload(WorkspaceId, JobId, ArtifactId)
                         if (success) {
                             logging.log(`ATX: CompleteArtifactUpload completed successfully`)
                             return { success: true }
@@ -134,14 +161,13 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxStartJobCommand: {
                         logging.log('ATX: Handling startJob command')
-                        const request = params.arguments?.[0] as { workspaceId: string; jobId: string }
-                        const { workspaceId, jobId } = request
+                        const { WorkspaceId, JobId } = params as AtxStartJobRequest
 
-                        if (!workspaceId || !jobId) {
-                            throw new Error('workspaceId and jobId are required for startJob')
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for startJob')
                         }
 
-                        const success = await atxTransformHandler.startJob(workspaceId, jobId)
+                        const success = await atxTransformHandler.startJob(WorkspaceId, JobId)
                         if (success) {
                             logging.log(`ATX: StartJob completed successfully`)
                             return { success: true }
@@ -151,100 +177,159 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxGetJobCommand: {
                         logging.log('ATX: Handling getJob command')
-                        const request = params.arguments?.[0] as { workspaceId: string; jobId: string }
-                        const { workspaceId, jobId } = request
+                        const { WorkspaceId, JobId } = params as AtxGetJobRequest
 
-                        if (!workspaceId || !jobId) {
-                            throw new Error('workspaceId and jobId are required for getJob')
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for getJob')
                         }
 
-                        const result = await atxTransformHandler.getJob(workspaceId, jobId)
+                        const result = await atxTransformHandler.getJob(WorkspaceId, JobId)
                         return { job: result?.job || null }
                     }
                     case AtxStopJobCommand: {
                         logging.log('ATX: Handling stopJob command')
-                        const request = params.arguments?.[0] as { workspaceId: string; jobId: string }
-                        const { workspaceId, jobId } = request
+                        const { WorkspaceId, JobId } = params as AtxStopJobRequest
 
-                        if (!workspaceId || !jobId) {
-                            throw new Error('workspaceId and jobId are required for stopJob')
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for stopJob')
                         }
 
-                        const result = await atxTransformHandler.stopJob(workspaceId, jobId)
+                        const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
                         return { success: result }
                     }
                     case AtxDownloadArtifactUrlCommand: {
                         logging.log('ATX: Handling downloadArtifactUrl command')
-                        const request = params.arguments?.[0] as {
-                            workspaceId: string
-                            jobId: string
-                            artifactId: string
-                        }
-                        const { workspaceId, jobId, artifactId } = request
+                        const { WorkspaceId, JobId, ArtifactId } = params as AtxDownloadArtifactUrlRequest
 
-                        if (!workspaceId || !jobId || !artifactId) {
-                            throw new Error('workspaceId, jobId, and artifactId are required for downloadArtifactUrl')
+                        if (!WorkspaceId || !JobId || !ArtifactId) {
+                            throw new Error('WorkspaceId, JobId, and ArtifactId are required for downloadArtifactUrl')
                         }
 
-                        const result = await atxTransformHandler.downloadArtifactUrl(workspaceId, jobId, artifactId)
+                        const result = await atxTransformHandler.downloadArtifactUrl(WorkspaceId, JobId, ArtifactId)
                         return result
                     }
                     case AtxListArtifactsCommand: {
                         logging.log('ATX: Handling listArtifacts command')
-                        const request = params.arguments?.[0] as {
-                            workspaceId: string
-                            jobId: string
-                            categoryType?: string
-                        }
-                        const { workspaceId, jobId, categoryType } = request
+                        const { WorkspaceId, JobId, CategoryType } = params as AtxListArtifactsRequest
 
-                        if (!workspaceId || !jobId) {
-                            throw new Error('workspaceId and jobId are required for listArtifacts')
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for listArtifacts')
                         }
 
-                        const result = await atxTransformHandler.listArtifacts(workspaceId, jobId, categoryType)
+                        const result = await atxTransformHandler.listArtifacts(
+                            WorkspaceId,
+                            JobId,
+                            CategoryType || CategoryTypeEnum.CUSTOMER_OUTPUT
+                        )
                         return { artifacts: result }
                     }
                     case AtxListJobPlanStepsCommand: {
                         logging.log('ATX: Handling listJobPlanSteps command')
-                        const request = params.arguments?.[0] as { workspaceId: string; jobId: string }
-                        const { workspaceId, jobId } = request
+                        const { WorkspaceId, JobId } = params as AtxListJobPlanStepsRequest
 
-                        if (!workspaceId || !jobId) {
-                            throw new Error('workspaceId and jobId are required for listJobPlanSteps')
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for listJobPlanSteps')
                         }
 
-                        const result = await atxTransformHandler.listJobPlanSteps(workspaceId, jobId)
+                        const result = await atxTransformHandler.listJobPlanSteps(WorkspaceId, JobId)
                         return { steps: result }
                     }
                     case AtxCreateZipCommand: {
                         logging.log('ATX: Handling createZip command')
-                        const request = params.arguments?.[0] as any // StartTransformRequest
+                        const { StartTransformRequest } = params as AtxCreateZipRequest
 
-                        const zipFilePath = await atxTransformHandler.createZip(request)
+                        const zipFilePath = await atxTransformHandler.createZip(StartTransformRequest)
                         logging.log(`ATX: ZIP file created: ${zipFilePath}`)
                         return { zipFilePath }
                     }
                     case AtxUploadArtifactToS3Command: {
                         logging.log('ATX: Handling uploadArtifactToS3 command')
-                        const request = params.arguments?.[0] as {
-                            filePath: string
-                            s3PreSignedUrl: string
-                            requestHeaders: any
-                        }
-                        const { filePath, s3PreSignedUrl, requestHeaders } = request
+                        const { FilePath, S3PreSignedUrl, RequestHeaders } = params as AtxUploadArtifactToS3Request
 
-                        if (!filePath || !s3PreSignedUrl) {
-                            throw new Error('filePath and s3PreSignedUrl are required for uploadArtifactToS3')
+                        if (!FilePath || !S3PreSignedUrl) {
+                            throw new Error('FilePath and S3PreSignedUrl are required for uploadArtifactToS3')
                         }
 
                         const success = await atxTransformHandler.uploadArtifact(
-                            s3PreSignedUrl,
-                            filePath,
-                            requestHeaders
+                            S3PreSignedUrl,
+                            FilePath,
+                            RequestHeaders
                         )
                         logging.log(`ATX: S3 upload ${success ? 'succeeded' : 'failed'}`)
                         return success
+                    }
+                    case AtxStartTransformCommand: {
+                        logging.log('ATX: Handling startTransform command')
+                        const { WorkspaceId, JobName, StartTransformRequest } = params as AtxStartTransformRequest
+
+                        if (!WorkspaceId) {
+                            throw new Error('WorkspaceId is required for startTransform')
+                        }
+
+                        const result = await atxTransformHandler.startTransform({
+                            workspaceId: WorkspaceId,
+                            jobName: JobName,
+                            startTransformRequest: StartTransformRequest,
+                        })
+
+                        if (!result) {
+                            throw new Error('StartTransform workflow failed')
+                        }
+
+                        logging.log(`ATX: StartTransform completed with jobId: ${result.jobId}`)
+
+                        // Return in RTS-compatible format
+                        return {
+                            TransformationJobId: result.jobId,
+                            ArtifactPath: result.zipFilePath || '',
+                            UploadId: result.uploadId || '',
+                            UnSupportedProjects: [],
+                            ContainsUnsupportedViews: false,
+                        }
+                    }
+                    case AtxListOrCreateWorkspaceCommand: {
+                        logging.log('ATX: Handling listOrCreateWorkspace command')
+                        const request = params as AtxListOrCreateWorkspaceRequest
+
+                        const result = await atxTransformHandler.listOrCreateWorkspace(request)
+
+                        if (!result) {
+                            throw new Error('ListOrCreateWorkspace failed')
+                        }
+
+                        logging.log(
+                            `ATX: ListOrCreateWorkspace completed - ${result.AvailableWorkspaces.length} workspaces`
+                        )
+                        return result
+                    }
+                    case AtxGetJobStatusInfoCommand: {
+                        logging.log('ATX: Handling getJobStatusInfo command')
+                        const { WorkspaceId, JobId, IncludePlanSteps, IncludeArtifacts } =
+                            params as AtxGetJobStatusInfoRequest
+
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for getJobStatusInfo')
+                        }
+
+                        logging.log(
+                            `ATX: GetJobStatusInfo called with includePlanSteps=${IncludePlanSteps}, includeArtifacts=${IncludeArtifacts}`
+                        )
+
+                        const result = await atxTransformHandler.getJobStatusInfo({
+                            workspaceId: WorkspaceId,
+                            jobId: JobId,
+                            includePlanSteps: IncludePlanSteps,
+                            includeArtifacts: IncludeArtifacts,
+                        })
+
+                        if (!result) {
+                            throw new Error('GetJobStatusInfo failed')
+                        }
+
+                        logging.log(
+                            `ATX: GetJobStatusInfo completed for job: ${result.JobId} (status: ${result.Status})`
+                        )
+                        return result
                     }
                     // TODO: Phase 2 - Add Transform operation commands here
                     default: {
@@ -283,6 +368,9 @@ export const AtxNetTransformServerToken =
                             AtxListJobPlanStepsCommand,
                             AtxCreateZipCommand,
                             AtxUploadArtifactToS3Command,
+                            AtxStartTransformCommand,
+                            AtxListOrCreateWorkspaceCommand,
+                            AtxGetJobStatusInfoCommand,
                             // AtxStartJobCommand,
                             // AtxGetJobCommand,
                             // AtxStopJobCommand,
