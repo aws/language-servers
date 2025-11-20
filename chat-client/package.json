@@ -24,10 +24,10 @@
         "package": "webpack"
     },
     "dependencies": {
-        "@aws/chat-client-ui-types": "^0.1.63",
-        "@aws/language-server-runtimes": "^0.3.1",
-        "@aws/language-server-runtimes-types": "^0.1.57",
-        "@aws/mynah-ui": "^4.36.8"
+        "@aws/chat-client-ui-types": "0.1.68",
+        "@aws/language-server-runtimes": "0.3.6",
+        "@aws/language-server-runtimes-types": "0.1.62",
+        "@aws/mynah-ui": "^4.38.0"
     },
     "devDependencies": {
         "@types/jsdom": "^21.1.6",
