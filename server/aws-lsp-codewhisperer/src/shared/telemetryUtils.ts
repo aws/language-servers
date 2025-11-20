@@ -96,7 +96,7 @@ export const makeUserContextObject = (
     const ideVersion =
         initializeParams.initializationOptions?.aws?.clientInfo?.version || initializeParams.clientInfo?.version
     const pluginVersion = initializeParams.initializationOptions?.aws?.clientInfo?.extension?.version || ''
-    const lspVersion = '1.47.0'
+    const lspVersion = serverInfo.version ?? ''
     const userContext: UserContext = {
         ideCategory: ide,
         operatingSystem: getOperatingSystem(platform),

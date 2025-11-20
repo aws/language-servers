@@ -543,16 +543,15 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private getCustomUserAgent() {
         const initializeParams = this.features.lsp.getClientInitializeParams() || {}
-        const serverInfo = { ...this.features.runtime.serverInfo, version: '1.47.0' }
-        return getUserAgent(initializeParams as InitializeParams, serverInfo)
+
+        return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
     }
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
         const customUserAgent = this.getCustomUserAgent()
         const initParam = this.features.lsp.getClientInitializeParams()
-        const serverInfo = { ...this.serverInfo, version: '1.47.0' }
         const userContext = initParam
-            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', serverInfo)
+            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
             : undefined
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
