@@ -922,8 +922,13 @@ describe('loadAgentConfig with registry support', () => {
 
         const result = await loadAgentConfig(workspace, errorLogger, [agentPath], testRegistry, true)
 
-        expect(result.servers.size).to.equal(0)
+        // Should create placeholder server for missing registry server
+        expect(result.servers.size).to.equal(1)
         expect(errors.some(e => e.includes('not found in registry'))).to.be.true
+        // Verify placeholder has error marker
+        const server = result.servers.get('unknown-server')
+        expect(server).to.exist
+        expect((server as any).__registryError__).to.include('not found in registry')
     })
 
     it('should convert local npm server correctly', async () => {
