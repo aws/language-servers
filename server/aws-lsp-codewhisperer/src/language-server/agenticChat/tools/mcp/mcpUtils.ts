@@ -3,12 +3,22 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { Agent, InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Agent, InitializeParams, Workspace } from '@aws/language-server-runtimes/server-interface'
+import type { Logger } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
-import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType, AgentConfig } from './mcpTypes'
+import {
+    MCPServerConfig,
+    PersonaConfig,
+    MCPServerPermission,
+    McpPermissionType,
+    AgentConfig,
+    McpRegistryData,
+    isRegistryServerConfig,
+} from './mcpTypes'
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
+import { McpServerConfigConverter } from './mcpServerConfigConverter'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -107,14 +117,20 @@ export async function loadMcpServerConfigs(
                 configErrors.set(`${name}_timeout`, errorMsg)
             }
             const cfg: MCPServerConfig = {
-                url: entry.url,
-                headers: typeof entry.headers === 'object' && entry.headers !== null ? entry.headers : undefined,
-                command: entry.command,
-                args: Array.isArray(entry.args) ? entry.args.map(String) : [],
-                env: typeof entry.env === 'object' && entry.env !== null ? entry.env : {},
+                command: (entry as any).command,
+                url: (entry as any).url,
+                args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
+                env: typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
+                headers:
+                    typeof (entry as any).headers === 'object' && (entry as any).headers !== null
+                        ? (entry as any).headers
+                        : undefined,
                 initializationTimeout:
-                    typeof entry.initializationTimeout === 'number' ? entry.initializationTimeout : undefined,
-                timeout: typeof entry.timeout === 'number' ? entry.timeout : undefined,
+                    typeof (entry as any).initializationTimeout === 'number'
+                        ? (entry as any).initializationTimeout
+                        : undefined,
+                timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
+                disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
                 __configPath__: fsPath,
             }
 
@@ -147,7 +163,7 @@ export async function loadMcpServerConfigs(
 }
 
 const DEFAULT_AGENT_RAW = `{
-  "name": "amazon_q_default",
+  "name": "q_ide_default",
   "description": "Default agent configuration",
   "prompt": "",
   "mcpServers": {},
@@ -179,7 +195,7 @@ const DEFAULT_AGENT_RAW = `{
     "agentSpawn": [],
     "userPromptSubmit": []
   },
-  "useLegacyMcpJson": false
+  "useLegacyMcpJson": true
 }`
 
 const DEFAULT_PERSONA_RAW = `{
@@ -222,11 +238,15 @@ const DEFAULT_PERSONA_RAW = `{
  * - Load global first (if exists), then workspace files—workspace overrides.
  * - Combines functionality of loadMcpServerConfigs and loadPersonaPermissions
  * - Handles server configurations and permissions from the same agent file
+ * - Supports backwards compatibility with MCP config files when useLegacyMcpJson is true
+ * - Supports registry-based server configuration when registry is provided
  */
 export async function loadAgentConfig(
     workspace: Workspace,
     logging: Logger,
-    agentPaths: string[]
+    agentPaths: string[],
+    registry: McpRegistryData | null,
+    registryActive: boolean
 ): Promise<{
     servers: Map<string, MCPServerConfig>
     serverNameMapping: Map<string, string>
@@ -240,13 +260,14 @@ export async function loadAgentConfig(
 
     // Create base agent config
     const agentConfig: AgentConfig = {
-        name: 'amazon_q_default',
+        name: 'q_ide_default',
         description: 'Agent configuration',
         mcpServers: {},
         tools: [],
         allowedTools: [],
         toolsSettings: {},
         resources: [],
+        useLegacyMcpJson: true, // Default to true for backwards compatibility
     }
 
     // Normalize paths
@@ -271,6 +292,9 @@ export async function loadAgentConfig(
         if (b === globalConfigPath) return -1
         return 0
     })
+
+    // Track useLegacyMcpJson value - workspace takes precedence over global
+    let useLegacyMcpJsonValue: boolean | undefined
 
     // Process each path like loadMcpServerConfigs
     for (const fsPath of sortedPaths) {
@@ -333,6 +357,17 @@ export async function loadAgentConfig(
             agentConfig.description = json.description || agentConfig.description
         }
 
+        // Track useLegacyMcpJson - workspace files take precedence
+        if (json.useLegacyMcpJson !== undefined) {
+            if (fsPath !== globalConfigPath) {
+                // Workspace file - always takes precedence
+                useLegacyMcpJsonValue = json.useLegacyMcpJson
+            } else if (useLegacyMcpJsonValue === undefined) {
+                // Global file - only use if no workspace value set
+                useLegacyMcpJsonValue = json.useLegacyMcpJson
+            }
+        }
+
         // 4) Process permissions (tools and allowedTools)
         if (Array.isArray(json.tools)) {
             for (const tool of json.tools) {
@@ -362,34 +397,128 @@ export async function loadAgentConfig(
         if (json.mcpServers && typeof json.mcpServers === 'object') {
             for (const [name, entryRaw] of Object.entries(json.mcpServers)) {
                 const entry = entryRaw as any
-                const hasCmd = typeof entry.command === 'string' && entry.command.trim() !== ''
-                const hasUrl = typeof entry.url === 'string' && entry.url.trim() !== ''
 
-                if ((hasCmd && hasUrl) || (!hasCmd && !hasUrl)) {
-                    const errorMsg = `MCP server '${name}' must specify *either* command or url (not both) – skipping`
-                    logging.warn(errorMsg)
-                    configErrors.set(`${name}`, errorMsg)
-                    continue
+                // Check if this is a registry server
+                const isRegistryServer = isRegistryServerConfig(entry)
+
+                // Apply registry filtering logic
+                if (registryActive) {
+                    // When registry is active, only load registry servers
+                    if (!isRegistryServer) {
+                        logging.info(`MCP: registry active, ignoring manual server '${name}'`)
+                        continue
+                    }
+                } else {
+                    // When registry is not active, only load manual servers
+                    if (isRegistryServer) {
+                        logging.info(`MCP: no registry, ignoring registry server '${name}'`)
+                        continue
+                    }
                 }
 
-                // Create server config
-                const cfg: MCPServerConfig = {
-                    command: (entry as any).command,
-                    url: (entry as any).url,
-                    args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
-                    env:
-                        typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
-                    headers:
-                        typeof (entry as any).headers === 'object' && (entry as any).headers !== null
-                            ? (entry as any).headers
-                            : undefined,
-                    initializationTimeout:
-                        typeof (entry as any).initializationTimeout === 'number'
-                            ? (entry as any).initializationTimeout
-                            : undefined,
-                    timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
-                    disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
-                    __configPath__: fsPath, // Store config path for determining global vs workspace
+                let cfg: MCPServerConfig
+
+                if (isRegistryServer) {
+                    // Handle registry server: lookup in registry and convert
+                    if (!registry) {
+                        const errorMsg = `MCP Registry: Server '${name}' specified but no registry available`
+                        logging.error(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+
+                    const registryServer = findServerInRegistry(registry, name)
+                    if (!registryServer) {
+                        const errorMsg = `MCP Registry: Server '${name}' not found in registry`
+                        logging.error(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+
+                        // Create placeholder config for missing registry server
+                        cfg = {
+                            command: undefined,
+                            url: undefined,
+                            args: [],
+                            env: {},
+                            disabled: false,
+                            __configPath__: fsPath,
+                            __registryError__: errorMsg,
+                        } as MCPServerConfig
+
+                        const sanitizedName = sanitizeName(name)
+                        servers.set(sanitizedName, cfg)
+                        serverNameMapping.set(sanitizedName, name)
+
+                        // Still add to agent config to preserve user settings
+                        const agentEntry: any = { type: 'registry' }
+                        if (typeof entry.timeout === 'number') agentEntry.timeout = entry.timeout
+                        if (entry.headers && Object.keys(entry.headers).length) agentEntry.headers = entry.headers
+                        if (entry.env && Object.keys(entry.env).length) agentEntry.env = entry.env
+                        agentConfig.mcpServers[name] = agentEntry
+
+                        logging.info(`Loaded placeholder for missing registry server '${name}'`)
+                        continue
+                    }
+
+                    // Convert registry server to MCPServerConfig
+                    const converter = new McpServerConfigConverter()
+                    try {
+                        cfg = converter.convertRegistryServer(registryServer)
+                        cfg.__configPath__ = fsPath
+
+                        // Apply timeout from registry server config if provided
+                        if (typeof entry.timeout === 'number') {
+                            cfg.timeout = entry.timeout
+                        }
+
+                        // Store additional headers/env separately and merge for runtime
+                        if (entry.headers && typeof entry.headers === 'object') {
+                            cfg.__additionalHeaders__ = entry.headers
+                        }
+
+                        if (entry.env && typeof entry.env === 'object') {
+                            cfg.__additionalEnv__ = entry.env
+                        }
+
+                        logging.info(`MCP Registry: Successfully converted server '${name}' to MCPServerConfig`)
+                    } catch (err: any) {
+                        const errorMsg = `MCP Registry: Failed to convert server '${name}': ${err.message}`
+                        logging.error(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+                } else {
+                    // Handle manual server
+                    const hasCmd = typeof entry.command === 'string' && entry.command.trim() !== ''
+                    const hasUrl = typeof entry.url === 'string' && entry.url.trim() !== ''
+
+                    if ((hasCmd && hasUrl) || (!hasCmd && !hasUrl)) {
+                        const errorMsg = `MCP server '${name}' must specify *either* command or url (not both) – skipping`
+                        logging.warn(errorMsg)
+                        configErrors.set(`${name}`, errorMsg)
+                        continue
+                    }
+
+                    // Create server config
+                    cfg = {
+                        command: (entry as any).command,
+                        url: (entry as any).url,
+                        args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
+                        env:
+                            typeof (entry as any).env === 'object' && (entry as any).env !== null
+                                ? (entry as any).env
+                                : {},
+                        headers:
+                            typeof (entry as any).headers === 'object' && (entry as any).headers !== null
+                                ? (entry as any).headers
+                                : undefined,
+                        initializationTimeout:
+                            typeof (entry as any).initializationTimeout === 'number'
+                                ? (entry as any).initializationTimeout
+                                : undefined,
+                        timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
+                        disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
+                        __configPath__: fsPath, // Store config path for determining global vs workspace
+                    }
                 }
 
                 const sanitizedName = sanitizeName(name)
@@ -460,8 +589,47 @@ export async function loadAgentConfig(
         }
     }
 
+    // Set final useLegacyMcpJson value - default to true if not specified anywhere
+    agentConfig.useLegacyMcpJson = useLegacyMcpJsonValue !== undefined ? useLegacyMcpJsonValue : true
+
+    // Load MCP config files if useLegacyMcpJson is true and registry mode is not active
+    // Legacy MCP configs are always manual servers, so skip them when registry is active
+    if (agentConfig.useLegacyMcpJson && !registryActive) {
+        const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+        const mcpPaths = [...getWorkspaceMcpConfigPaths(wsUris), getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())]
+
+        const mcpResult = await loadMcpServerConfigs(workspace, logging, mcpPaths)
+
+        // MCP configs have precedence over agent configs
+        // Merge MCP servers into the result, overriding any from agent config
+        for (const [sanitizedName, mcpConfig] of mcpResult.servers) {
+            const originalName = mcpResult.serverNameMapping.get(sanitizedName)
+            if (originalName) {
+                servers.set(sanitizedName, mcpConfig)
+                serverNameMapping.set(sanitizedName, originalName)
+
+                // Add MCP server tools to agent config for permission management
+                const serverPrefix = `@${originalName}`
+                if (!agentConfig.tools.includes(serverPrefix)) {
+                    agentConfig.tools.push(serverPrefix)
+                }
+
+                logging.info(`Loaded MCP server '${originalName}' from legacy MCP config`)
+            }
+        }
+
+        // Merge MCP config errors
+        for (const [key, error] of mcpResult.errors) {
+            configErrors.set(`mcp_${key}`, error)
+        }
+
+        logging.info(`Loaded ${mcpResult.servers.size} servers from legacy MCP configs`)
+    }
+
     // Return the agent config, servers, server name mapping, and errors
-    logging.info(`Successfully processed ${uniquePaths.length} agent config files`)
+    logging.info(
+        `Successfully processed ${uniquePaths.length} agent config files and ${agentConfig.useLegacyMcpJson ? 'legacy MCP configs' : 'no legacy MCP configs'}`
+    )
     return {
         servers,
         serverNameMapping,
@@ -574,7 +742,10 @@ export async function loadPersonaPermissions(
 
 /** Given an array of workspace diretory, return each workspace persona config location */
 export function getWorkspacePersonaConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'personas', 'default.json'))
+    return wsUris.map(uri => {
+        const fsPath = normalizePathFromUri(uri)
+        return path.join(fsPath, '.amazonq', 'personas', 'default.json')
+    })
 }
 
 /** Given a user's home directory, return the global persona config location */
@@ -584,7 +755,10 @@ export function getGlobalPersonaConfigPath(home: string): string {
 
 /** Given an array of workspace diretory, return each workspace agent config location */
 export function getWorkspaceAgentConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'agents', 'default.json'))
+    return wsUris.map(uri => {
+        const fsPath = normalizePathFromUri(uri)
+        return path.join(fsPath, '.amazonq', 'agents', 'default.json')
+    })
 }
 
 /** Given a user's home directory, return the global agent config location */
@@ -594,7 +768,10 @@ export function getGlobalAgentConfigPath(home: string): string {
 
 /** Given an array of workspace diretory, return each workspace mcp config location */
 export function getWorkspaceMcpConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'mcp.json'))
+    return wsUris.map(uri => {
+        const fsPath = normalizePathFromUri(uri)
+        return path.join(fsPath, '.amazonq', 'mcp.json')
+    })
 }
 
 /** Given a user's home directory, return the global mcp config location */
@@ -630,22 +807,7 @@ export function convertPersonaToAgent(
     mcpServers: Record<string, MCPServerConfig>,
     featureAgent: Agent
 ): AgentConfig {
-    const agent: AgentConfig = {
-        name: 'amazon_q_default',
-        description: 'Default agent configuration',
-        prompt: '',
-        mcpServers: {},
-        tools: [],
-        toolAliases: {},
-        allowedTools: [],
-        toolsSettings: {},
-        resources: [],
-        hooks: {
-            agentSpawn: [],
-            userPromptSubmit: [],
-        },
-        useLegacyMcpJson: false,
-    }
+    const agent: AgentConfig = JSON.parse(DEFAULT_AGENT_RAW)
 
     // Include all servers from MCP config
     Object.entries(mcpServers).forEach(([name, config]) => {
@@ -956,7 +1118,8 @@ export async function saveServerSpecificAgentConfig(
     serverConfig: any,
     serverTools: string[],
     serverAllowedTools: string[],
-    configPath: string
+    configPath: string,
+    isLegacyMcpServer: boolean = false
 ): Promise<void> {
     try {
         await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
@@ -968,16 +1131,7 @@ export async function saveServerSpecificAgentConfig(
             existingConfig = JSON.parse(raw.toString())
         } catch {
             // If file doesn't exist, create minimal config
-            existingConfig = {
-                name: 'amazon_q_default',
-                description: 'Agent configuration',
-                mcpServers: {},
-                tools: [],
-                allowedTools: [],
-                toolsSettings: {},
-                includedFiles: [],
-                resources: [],
-            }
+            existingConfig = JSON.parse(DEFAULT_AGENT_RAW)
         }
 
         // Remove existing server tools from arrays
@@ -989,16 +1143,19 @@ export async function saveServerSpecificAgentConfig(
             tool => tool !== serverPrefix && !tool.startsWith(`${serverPrefix}/`)
         )
 
-        if (serverConfig === null) {
-            // Remove server entirely
-            delete existingConfig.mcpServers[serverName]
-        } else {
-            // Update or add server
-            existingConfig.mcpServers[serverName] = serverConfig
-            // Add new server tools
-            existingConfig.tools.push(...serverTools)
-            existingConfig.allowedTools.push(...serverAllowedTools)
+        if (!isLegacyMcpServer) {
+            if (serverConfig === null) {
+                // Remove server entirely
+                delete existingConfig.mcpServers[serverName]
+            } else {
+                // Update or add server
+                existingConfig.mcpServers[serverName] = serverConfig
+            }
         }
+
+        // Add new server tools
+        existingConfig.tools.push(...serverTools)
+        existingConfig.allowedTools.push(...serverAllowedTools)
 
         await workspace.fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
         logging.info(`Saved server-specific agent config for ${serverName} to ${configPath}`)
@@ -1025,9 +1182,9 @@ export async function migrateAgentConfigToCLIFormat(
 
         let updated = false
 
-        // Rename default-agent to amazon_q_default
-        if (config.name === 'default-agent') {
-            config.name = 'amazon_q_default'
+        // Rename default-agent to q_ide_default
+        if (config.name !== 'q_ide_default') {
+            config.name = 'q_ide_default'
             updated = true
         }
 
@@ -1038,10 +1195,6 @@ export async function migrateAgentConfigToCLIFormat(
         }
         if (!config.hasOwnProperty('toolAliases')) {
             config.toolAliases = {}
-            updated = true
-        }
-        if (!config.hasOwnProperty('useLegacyMcpJson')) {
-            config.useLegacyMcpJson = false
             updated = true
         }
 
@@ -1082,6 +1235,9 @@ export async function migrateAgentConfigToCLIFormat(
             }
         }
 
+        config.useLegacyMcpJson = true
+        updated = true
+
         if (updated) {
             await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
             logging.info(`Migrated agent config to CLI format: ${configPath}`)
@@ -1092,6 +1248,14 @@ export async function migrateAgentConfigToCLIFormat(
 }
 
 export const MAX_TOOL_NAME_LENGTH = 64
+
+/**
+ * Find a server in the registry by name with O(1) lookup performance.
+ * Uses Map-based lookup for large registries (200+ servers).
+ */
+export function findServerInRegistry(registry: McpRegistryData, serverName: string): any | undefined {
+    return registry.servers.find(s => s.name === serverName)
+}
 
 /**
  * Create a namespaced tool name from server and tool names.
@@ -1120,8 +1284,8 @@ export function createNamespacedToolName(
     // Sanitize the tool name
     const sanitizedToolName = sanitizeName(toolName)
 
-    // First try to use just the tool name if it's not already in use
-    if (!allNamespacedTools.has(sanitizedToolName)) {
+    // First try to use just the tool name if it's not already in use and fits within length limit
+    if (sanitizedToolName.length <= MAX_TOOL_NAME_LENGTH && !allNamespacedTools.has(sanitizedToolName)) {
         allNamespacedTools.add(sanitizedToolName)
         toolNameMapping.set(sanitizedToolName, { serverName, toolName })
         return sanitizedToolName

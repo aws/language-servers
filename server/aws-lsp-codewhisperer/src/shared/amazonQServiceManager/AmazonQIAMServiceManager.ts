@@ -74,12 +74,20 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
                 this.region,
                 this.endpoint
             )
+            this.cachedStreamingClient.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                'shareCodeWhispererContentWithAWS'
+            )
         }
         return this.cachedStreamingClient
     }
 
-    public handleOnCredentialsDeleted(_type: CredentialsType): void {
-        return
+    public handleOnCredentialsDeleted(type: CredentialsType): void {
+        if (type === 'iam') {
+            this.cachedCodewhispererService?.abortInflightRequests()
+            this.cachedCodewhispererService = undefined
+            this.cachedStreamingClient?.abortInflightRequests()
+            this.cachedStreamingClient = undefined
+        }
     }
 
     public override handleOnUpdateConfiguration(

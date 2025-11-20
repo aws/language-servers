@@ -30,11 +30,12 @@ import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
-import { getUserAgent } from '../telemetryUtils'
+import { getUserAgent, makeUserContextObject } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
 import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
 import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
+import { UserContext } from '@amzn/codewhisperer-runtime'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -418,9 +419,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         const newRegion = newProfile.identityDetails.region
         if (oldRegion === newRegion) {
             this.log(`New profile is in the same region as old one, keeping exising service.`)
-            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${oldRegion}`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
+            this.log(`New active profile is ${this.activeIdcProfile.arn}, region ${newRegion}`)
 
             if (this.cachedCodewhispererService) {
                 this.cachedCodewhispererService.profileArn = newProfile.arn
@@ -429,6 +430,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             if (this.cachedStreamingClient) {
                 this.cachedStreamingClient.profileArn = newProfile.arn
             }
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -544,19 +548,22 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
+        const customUserAgent = this.getCustomUserAgent()
+        const initParam = this.features.lsp.getClientInitializeParams()
+        const userContext = initParam
+            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
+            : undefined
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
             this.features.logging,
             region,
             endpoint,
-            this.features.sdkInitializator
+            this.features.sdkInitializator,
+            userContext,
+            customUserAgent
         )
 
-        const customUserAgent = this.getCustomUserAgent()
-        service.updateClientConfig({
-            customUserAgent: customUserAgent,
-        })
         service.customizationArn = this.configurationCache.getProperty('customizationArn')
         service.profileArn = this.activeIdcProfile?.arn
         service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
@@ -581,6 +588,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.getCustomUserAgent()
         )
         streamingClient.profileArn = this.activeIdcProfile?.arn
+        streamingClient.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+            'shareCodeWhispererContentWithAWS'
+        )
 
         this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
         return streamingClient

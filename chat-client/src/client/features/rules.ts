@@ -1,4 +1,11 @@
-import { MynahIconsType, MynahUI, DetailedListItem, DetailedListItemGroup, MynahIcons } from '@aws/mynah-ui'
+import {
+    MynahIconsType,
+    MynahUI,
+    DetailedListItem,
+    DetailedListItemGroup,
+    MynahIcons,
+    NotificationType,
+} from '@aws/mynah-ui'
 import { Messager } from '../messager'
 import { ListRulesResult } from '@aws/language-server-runtimes-types'
 import { RulesFolder } from '@aws/language-server-runtimes-types'
@@ -6,6 +13,7 @@ import { MynahDetailedList } from './history'
 
 export const ContextRule = {
     CreateRuleId: 'create-rule',
+    CreateMemoryBankId: 'create-memory-bank',
     CancelButtonId: 'cancel-create-rule',
     SubmitButtonId: 'submit-create-rule',
     RuleNameFieldId: 'rule-name',
@@ -68,9 +76,50 @@ export class RulesList {
                     ],
                     `Create a rule`
                 )
+            } else if (item.id === ContextRule.CreateMemoryBankId) {
+                this.rulesList?.close()
+                this.handleMemoryBankCreation()
             } else {
                 this.messager.onRuleClick({ tabId: this.tabId, type: 'rule', id: item.id })
             }
+        }
+    }
+
+    private handleMemoryBankCreation = () => {
+        // Close the rules list first
+        this.rulesList?.close()
+
+        // Check if we're at the tab limit (10 tabs max)
+        const currentTabCount = Object.keys(this.mynahUi.getAllTabs()).length
+        if (currentTabCount >= 10) {
+            // Show notification that max tabs reached
+            this.mynahUi.notify({
+                content: 'You can only open ten conversation tabs at a time.',
+                type: NotificationType.WARNING,
+            })
+            return
+        }
+
+        // Create a new tab for the memory bank generation
+        const newTabId = this.mynahUi.updateStore('', { tabTitle: 'Memory Bank' })
+        if (newTabId) {
+            // Add the new tab and switch to it
+            this.messager.onTabAdd(newTabId)
+
+            // Send the chat prompt to the new tab
+            this.messager.onChatPrompt({
+                prompt: {
+                    prompt: 'Generate a Memory Bank for this project',
+                    escapedPrompt: 'Generate a Memory Bank for this project',
+                },
+                tabId: newTabId,
+            })
+        } else {
+            // Show error notification if tab creation failed
+            this.mynahUi.notify({
+                content: 'Failed to create new tab for Memory Bank generation.',
+                type: NotificationType.ERROR,
+            })
         }
     }
 
@@ -156,6 +205,24 @@ const createRuleListItem: DetailedListItem = {
     id: ContextRule.CreateRuleId,
 }
 
+function createMemoryBankListItem(rules: RulesFolder[]): DetailedListItem {
+    // Handles button text changes between "Generation" and "Regenerate"
+    const memoryBankFiles = ['product', 'structure', 'tech', 'guidelines']
+
+    const memoryBankFolder = rules.find(folder => folder.folderName === 'memory-bank')
+
+    const hasMemoryBankFiles =
+        memoryBankFolder && memoryBankFolder.rules.some(rule => memoryBankFiles.includes(rule.name))
+
+    const buttonText = hasMemoryBankFiles ? 'Regenerate Memory Bank' : 'Generate Memory Bank'
+
+    return {
+        description: buttonText,
+        icon: MynahIcons.FOLDER,
+        id: ContextRule.CreateMemoryBankId,
+    }
+}
+
 export function convertRulesListToDetailedListGroup(rules: RulesFolder[]): DetailedListItemGroup[] {
     return rules
         .map(
@@ -179,7 +246,10 @@ export function convertRulesListToDetailedListGroup(rules: RulesFolder[]): Detai
                     })),
                 }) as DetailedListItemGroup
         )
-        .concat({ children: [createRuleListItem] })
+        .concat({
+            groupName: 'Actions',
+            children: [createMemoryBankListItem(rules), createRuleListItem],
+        })
 }
 
 function convertRuleStatusToIcon(status: boolean | 'indeterminate'): MynahIcons | undefined {

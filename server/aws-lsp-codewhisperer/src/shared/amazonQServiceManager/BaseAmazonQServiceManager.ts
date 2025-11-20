@@ -17,7 +17,6 @@ import {
 } from './configurationUtils'
 import { AmazonQServiceInitializationError } from './errors'
 import { StreamingClientServiceBase } from '../streamingClientService'
-import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 
 export interface QServiceManagerFeatures {
     lsp: Lsp
@@ -156,6 +155,17 @@ export abstract class BaseAmazonQServiceManager<
                     shareCodeWhispererContentWithAWS
             )
             this.cachedCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+        }
+
+        if (this.cachedStreamingClient) {
+            const shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                'shareCodeWhispererContentWithAWS'
+            )
+            this.logging.debug(
+                'Update shareCodeWhispererContentWithAWS setting on cachedStreamingClient to ' +
+                    shareCodeWhispererContentWithAWS
+            )
+            this.cachedStreamingClient.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
         }
     }
 

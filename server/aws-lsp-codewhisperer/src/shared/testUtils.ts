@@ -2,7 +2,6 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { stubInterface } from 'ts-sinon'
-import { StreamingClientServiceBase } from './streamingClientService'
 import { SessionData } from '../language-server/inline-completion/session/sessionManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
@@ -15,7 +14,6 @@ export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
     }
 }`
 
-export const INCOMPLETE_HELLO_WORLD_IN_CSHARP = `class HelloWorld\n`
 export const SPECIAL_CHARACTER_HELLO_WORLD = `{class HelloWorld`
 
 export const HELLO_WORLD_WITH_WINDOWS_ENDING = HELLO_WORLD_IN_CSHARP.replaceAll('\n', '\r\n')
@@ -27,12 +25,6 @@ export const SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID = TextDocument.create(
     'CSharp',
     1,
     HELLO_WORLD_IN_CSHARP
-)
-export const SOME_INCOMPLETE_FILE = TextDocument.create(
-    'file:///incomplete.cs',
-    'csharp',
-    1,
-    INCOMPLETE_HELLO_WORLD_IN_CSHARP
 )
 export const SOME_CLOSED_FILE = TextDocument.create('file:///closed.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP)
 export const SOME_UNSUPPORTED_FILE = TextDocument.create(
@@ -251,6 +243,7 @@ export const EMPTY_RESULT = { items: [], sessionId: '' }
 
 export const SAMPLE_SESSION_DATA: SessionData = {
     document: SOME_FILE,
+    startPreprocessTimestamp: 0,
     startPosition: {
         line: 0,
         character: 0,
@@ -263,25 +256,6 @@ export const SAMPLE_SESSION_DATA: SessionData = {
             programmingLanguage: { languageName: 'csharp' },
             leftFileContent: '',
             rightFileContent: HELLO_WORLD_IN_CSHARP,
-        },
-        maxResults: 5,
-    },
-}
-
-export const SAMPLE_SESSION_DATA_WITH_EXTRA_LEFT_CONTENT: SessionData = {
-    document: SOME_INCOMPLETE_FILE,
-    startPosition: {
-        line: 1,
-        character: 0,
-    },
-    triggerType: 'OnDemand',
-    language: 'csharp',
-    requestContext: {
-        fileContext: {
-            filename: SOME_FILE.uri,
-            programmingLanguage: { languageName: 'csharp' },
-            leftFileContent: INCOMPLETE_HELLO_WORLD_IN_CSHARP,
-            rightFileContent: '',
         },
         maxResults: 5,
     },

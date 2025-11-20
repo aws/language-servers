@@ -28,7 +28,6 @@ import { activeFileCmd } from '../../context/additionalContextProvider'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import * as crypto from 'crypto'
-import unescapeHTML = require('unescape-html')
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -161,7 +160,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   content: msg.body,
                   userIntent: msg.userIntent,
                   origin: msg.origin || 'IDE',
-                  userInputMessageContext: msg.userInputMessageContext || {},
+                  userInputMessageContext: msg.userInputMessageContext,
                   images: msg.images || [],
               },
           }
@@ -173,7 +172,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
 export function messageToChatMessage(msg: Message): ChatMessage[] {
     const chatMessages: ChatMessage[] = [
         {
-            body: unescapeHTML(msg.body),
+            body: msg.body,
             type: msg.type,
             codeReference: msg.codeReference,
             relatedContent:
@@ -209,7 +208,7 @@ export function chatMessageToMessage(chatMessage: StreamingMessage): Message {
             type: 'prompt',
             userIntent: userInputMessage.userIntent,
             origin: userInputMessage.origin || 'IDE',
-            userInputMessageContext: userInputMessage.userInputMessageContext || {},
+            userInputMessageContext: userInputMessage.userInputMessageContext,
         }
     } else if ('assistantResponseMessage' in chatMessage) {
         const assistantResponseMessage = chatMessage.assistantResponseMessage as AssistantResponseMessage

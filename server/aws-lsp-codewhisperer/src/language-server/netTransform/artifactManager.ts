@@ -23,6 +23,10 @@ const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
 const thirdPartyPackageFolderName = 'thirdpartypackages'
 const customTransformationFolderName = 'customTransformation'
+const filteredExtensions = ['.suo', '.meta', '.user', '.obj', '.tmp', '.log', '.dbmdl', '.jfm', '.pdb']
+const filteredDirectories = ['.git', 'bin', 'obj', '.idea', '.vs', 'artifactworkspace', 'node_modules', 'nuget.config']
+const failedCopies: string[] = []
+const filteredPathRegex: RegExp[] = [/.+\.(vspscc|vssscc)$/]
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -160,16 +164,21 @@ export class ArtifactManager {
 
     async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
         const projects: Project[] = []
-
         for (const project of request.ProjectMetadata) {
             const sourceCodeFilePaths = project.SourceCodeFilePaths.filter(filePath => filePath)
             const codeFiles: CodeFile[] = []
             const references: References[] = []
-
             for (const filePath of sourceCodeFilePaths) {
                 try {
+                    if (this.shouldFilterFile(filePath)) {
+                        continue
+                    }
                     await this.copySourceFile(request.SolutionRootPath, filePath)
                     const contentHash = await this.calculateMD5Async(filePath)
+                    if (contentHash.length == 0) {
+                        //if can't generate hash then file copy failed previously
+                        continue
+                    }
                     const relativePath = this.normalizeSourceFileRelativePath(request.SolutionRootPath, filePath)
                     codeFiles.push({
                         contentMd5Hash: contentHash,
@@ -181,6 +190,9 @@ export class ArtifactManager {
             }
 
             for (const reference of project.ExternalReferences) {
+                if (this.shouldFilterFile(reference.AssemblyFullPath)) {
+                    continue
+                }
                 try {
                     const relativePath = this.normalizeReferenceFileRelativePath(
                         reference.RelativePath,
@@ -195,7 +207,7 @@ export class ArtifactManager {
                         relativePath: relativePath,
                         isThirdPartyPackage: false,
                     }
-                    await this.processPrivatePackages(request, reference, artifactReference)
+                    await this.processPrivatePackages(request, artifactReference)
                     references.push(artifactReference)
                 } catch (error) {
                     this.logging.log('Failed to process file: ' + error + reference.AssemblyFullPath)
@@ -244,16 +256,13 @@ export class ArtifactManager {
         } as RequirementJson
     }
 
-    async processPrivatePackages(
-        request: StartTransformRequest,
-        reference: ExternalReference,
-        artifactReference: References
-    ): Promise<void> {
+    async processPrivatePackages(request: StartTransformRequest, artifactReference: References): Promise<void> {
         if (!request.PackageReferences) {
             return
         }
         var thirdPartyPackage = request.PackageReferences.find(
-            p => p.IsPrivatePackage && reference.RelativePath.includes(p.Id)
+            // should be toLower because we to lower case the reference paths
+            p => p.IsPrivatePackage && artifactReference.relativePath.includes(p.Id.concat('.dll').toLowerCase())
         )
         if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
@@ -301,7 +310,15 @@ export class ArtifactManager {
                 `Custom transformation folder not accessible (not found or no permissions): ${customTransformationPath}`
             )
         }
-
+        this.logging.log(
+            `Files with extensions ${filteredExtensions.join(', ')} are not zipped, as they are not necessary for transformation`
+        )
+        this.logging.log(
+            `Files in directories ${filteredDirectories.join(', ')} are not zipped, as they are not necessary for transformation`
+        )
+        if (failedCopies.length > 0) {
+            this.logging.log(`Files - ${failedCopies.join(',')} - could not be copied.`)
+        }
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
         await this.zipDirectory(folderPath, zipPath)
@@ -394,17 +411,21 @@ export class ArtifactManager {
             //Packages folder has been deleted to avoid duplicates in artifacts.zip
             return
         }
-
-        return new Promise<void>((resolve, reject) => {
-            fs.copyFile(sourceFilePath, destFilePath, err => {
-                if (err) {
-                    this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
-                    reject(err)
-                } else {
-                    resolve()
-                }
+        if (this.shouldFilterFile(sourceFilePath)) {
+            return
+        } else {
+            return new Promise<void>((resolve, reject) => {
+                fs.copyFile(sourceFilePath, destFilePath, err => {
+                    if (err) {
+                        this.logging.log(`Failed to copy from ${sourceFilePath} and error is ${err}`)
+                        failedCopies.push(sourceFilePath)
+                        resolve()
+                    } else {
+                        resolve()
+                    }
+                })
             })
-        })
+        }
     }
 
     async calculateMD5Async(filePath: string): Promise<string> {
@@ -419,5 +440,18 @@ export class ArtifactManager {
             this.logging.log('Failed to calculate hashcode: ' + filePath + error)
             return ''
         }
+    }
+    shouldFilterFile(filePath: string): boolean {
+        if (filteredExtensions.includes(path.extname(filePath).toLowerCase())) {
+            return true
+        }
+        const dirPath = path.dirname(filePath).toLowerCase()
+        const pathSegments = dirPath.split(path.sep)
+
+        if (pathSegments.some(segment => filteredDirectories.includes(segment))) {
+            return true
+        }
+
+        return filteredPathRegex.some(regex => regex.test(filePath))
     }
 }

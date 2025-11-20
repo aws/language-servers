@@ -14,7 +14,6 @@ import {
     CancellationToken,
     InlineCompletionWithReferencesParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {
@@ -28,7 +27,7 @@ import {
 } from './codeWhispererService'
 import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
 import { CodeWhispererSupplementalContext } from './models/model'
-import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { SupplementalContext } from '@amzn/codewhisperer-runtime'
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox
@@ -80,6 +79,10 @@ describe('CodeWhispererService', function () {
                     return 'iam'
                 }
 
+                override async scheduleABTestingFetching(): Promise<void> {
+                    return
+                }
+
                 async constructSupplementalContext(
                     document: TextDocument,
                     position: Position,
@@ -92,7 +95,7 @@ describe('CodeWhispererService', function () {
                 ): Promise<
                     | {
                           supContextData: CodeWhispererSupplementalContext
-                          items: CodeWhispererTokenClient.SupplementalContextList
+                          items: SupplementalContext[]
                       }
                     | undefined
                 > {
@@ -139,73 +142,20 @@ describe('CodeWhispererService', function () {
         })
 
         describe('request tracking', function () {
-            it('should track inflight requests', function () {
-                const mockRequest = {
-                    abort: sandbox.stub(),
-                } as any
-
-                service.trackRequest(mockRequest)
-                assert.strictEqual(service.inflightRequests.size, 1)
-                assert.strictEqual(service.inflightRequests.has(mockRequest), true)
-            })
-
-            it('should complete and remove tracked requests', function () {
-                const mockRequest = {
-                    abort: sandbox.stub(),
-                } as any
-
-                service.trackRequest(mockRequest)
-                service.completeRequest(mockRequest)
-
-                assert.strictEqual(service.inflightRequests.size, 0)
-                assert.strictEqual(service.inflightRequests.has(mockRequest), false)
-            })
-
             it('should abort all inflight requests', function () {
-                const mockRequest1 = { abort: sandbox.stub() } as any
-                const mockRequest2 = { abort: sandbox.stub() } as any
+                const mockController1 = new AbortController()
+                const mockController2 = new AbortController()
+                const abortSpy1 = sandbox.spy(mockController1, 'abort')
+                const abortSpy2 = sandbox.spy(mockController2, 'abort')
 
-                service.trackRequest(mockRequest1)
-                service.trackRequest(mockRequest2)
+                service.inflightRequests.add(mockController1)
+                service.inflightRequests.add(mockController2)
 
                 service.abortInflightRequests()
 
-                assert.strictEqual(mockRequest1.abort.calledOnce, true)
-                assert.strictEqual(mockRequest2.abort.calledOnce, true)
+                assert.strictEqual(abortSpy1.calledOnce, true)
+                assert.strictEqual(abortSpy2.calledOnce, true)
                 assert.strictEqual(service.inflightRequests.size, 0)
-            })
-        })
-
-        describe('updateClientConfig', function () {
-            it('should update client configuration', function () {
-                const mockClient = {
-                    config: {
-                        update: sandbox.stub(),
-                    },
-                    // Add minimal required properties to satisfy the interface
-                    createCodeScan: sandbox.stub(),
-                    createCodeScanUploadUrl: sandbox.stub(),
-                    createProfile: sandbox.stub(),
-                    deleteProfile: sandbox.stub(),
-                    generateCompletions: sandbox.stub(),
-                    generateSuggestions: sandbox.stub(),
-                    getCodeAnalysis: sandbox.stub(),
-                    getCodeScan: sandbox.stub(),
-                    listCodeAnalysisFindings: sandbox.stub(),
-                    listCodeScans: sandbox.stub(),
-                    listFeatureEvaluations: sandbox.stub(),
-                    listProfiles: sandbox.stub(),
-                    sendTelemetryEvent: sandbox.stub(),
-                    startCodeAnalysis: sandbox.stub(),
-                    stopCodeAnalysis: sandbox.stub(),
-                    updateProfile: sandbox.stub(),
-                } as any
-                service.client = mockClient
-
-                const options: ConfigurationOptions = { region: 'us-west-2' }
-                service.updateClientConfig(options)
-
-                assert.strictEqual(mockClient.config.update.calledOnceWith(options), true)
             })
         })
 
@@ -227,20 +177,17 @@ describe('CodeWhispererService', function () {
         beforeEach(function () {
             // Mock the createCodeWhispererSigv4Client function to avoid real client creation
             const mockClient = {
-                generateRecommendations: sandbox.stub().returns({
-                    promise: sandbox.stub().resolves({
-                        recommendations: [],
-                        $response: {
-                            requestId: 'test-request-id',
-                            httpResponse: {
-                                headers: { 'x-amzn-sessionid': 'test-session-id' },
-                            },
-                        },
-                    }),
+                send: sandbox.stub().resolves({
+                    recommendations: [],
+                    $metadata: {
+                        requestId: 'test-request-id',
+                    },
+                    $httpHeaders: {
+                        'x-amzn-sessionid': 'test-session-id',
+                    },
                 }),
-                setupRequestListeners: sandbox.stub(),
-                config: {
-                    update: sandbox.stub(),
+                middlewareStack: {
+                    add: sandbox.stub(),
                 },
             }
 
@@ -302,8 +249,8 @@ describe('CodeWhispererService', function () {
                 await service.generateSuggestions(mockRequest)
 
                 // Verify that the client was called with the customizationArn
-                const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
-                assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
+                const clientCall = (service.client.send as sinon.SinonStub).getCall(0)
+                assert.strictEqual(clientCall.args[0].input.customizationArn, 'test-arn')
             })
 
             it('should include serviceType in response', async function () {
@@ -386,7 +333,8 @@ describe('CodeWhispererService', function () {
                 mockLogging as any,
                 'us-east-1',
                 'https://codewhisperer.us-east-1.amazonaws.com',
-                mockSDKInitializator as any
+                mockSDKInitializator as any,
+                undefined
             )
         })
 

@@ -5,5 +5,4 @@ out/
 **/bin/
 **/obj/
 src/client/sigv4/codewhisperersigv4client.d.ts
-src/client/token/codewhispererbearertokenclient.d.ts
 **/*.md

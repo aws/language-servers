@@ -15,6 +15,8 @@ import { ChatHistoryActionType } from '../../shared/telemetry/types'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { URI } from 'vscode-uri'
 
+const JUPYTERLAB_APP_TYPE_VALUE = 'jupyterlab'
+
 describe('TabBarController', () => {
     let testFeatures: TestFeatures
     let chatHistoryDb: ChatDatabase
@@ -50,6 +52,7 @@ describe('TabBarController', () => {
     afterEach(() => {
         sinon.restore()
         clock.restore()
+        delete process.env.SAGEMAKER_APP_TYPE_LOWERCASE // Clean up JupyterLab environment variables
         testFeatures.dispose()
     })
 
@@ -540,7 +543,7 @@ describe('TabBarController', () => {
             })
         })
 
-        it('should only load chats once', async () => {
+        it('should only load chats once in non-JupyterLab environments', async () => {
             const mockTabs = [{ historyId: 'history1', conversations: [{ messages: [] }] }] as unknown as Tab[]
             ;(chatHistoryDb.getOpenTabs as sinon.SinonStub).returns(mockTabs)
 
@@ -558,6 +561,22 @@ describe('TabBarController', () => {
                 languageServerVersion: testFeatures.runtime.serverInfo.version,
                 result: 'Succeeded',
             })
+        })
+
+        it('should allow multiple loads in JupyterLab environment', async () => {
+            // Set JupyterLab environment
+            process.env.SAGEMAKER_APP_TYPE_LOWERCASE = JUPYTERLAB_APP_TYPE_VALUE
+
+            const mockTabs = [{ historyId: 'history1', conversations: [{ messages: [] }] }] as unknown as Tab[]
+            ;(chatHistoryDb.getOpenTabs as sinon.SinonStub).returns(mockTabs)
+
+            const restoreTabStub = sinon.stub(tabBarController, 'restoreTab')
+
+            await tabBarController.loadChats()
+            await tabBarController.loadChats() // Second call should NOT be ignored in JupyterLab
+
+            sinon.assert.calledTwice(restoreTabStub)
+            sinon.assert.calledTwice(telemetryService.emitLoadHistory as sinon.SinonStub)
         })
     })
 })

@@ -1,16 +1,13 @@
 import {
-    AwsResponseError,
     BearerCredentials,
     CredentialsProvider,
     Position,
     SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
-import { AWSError, Credentials } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import {
-    BUILDER_ID_START_URL,
     COMMON_GITIGNORE_PATTERNS,
     crashMonitoringDirName,
     driveLetterRegex,
@@ -20,7 +17,6 @@ import {
 import {
     CodeWhispererStreamingServiceException,
     Origin,
-    ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@amzn/codewhisperer-streaming'
@@ -29,17 +25,21 @@ import { ServiceException } from '@smithy/smithy-client'
 import { promises as fs } from 'fs'
 import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
-import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
+import escapeHTML = require('escape-html')
 
-export function isAwsError(error: unknown): error is AWSError {
+export function isServiceException(error: unknown): error is ServiceException {
+    return error instanceof ServiceException
+}
+
+export function isAwsError(error: unknown): error is Error & { code: string; time: Date } {
     if (error === undefined) {
         return false
     }
 
-    // TODO: do SDK v3 errors have `.code` ?
-    return error instanceof Error && hasCode(error) && hasTime(error)
+    // AWS SDK v3 errors extend ServiceException
+    return error instanceof ServiceException || (error instanceof Error && '$metadata' in error)
 }
 
 export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
@@ -53,7 +53,11 @@ export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
     //     return true
     // }
 
-    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
+    if (
+        e instanceof ThrottlingException ||
+        (isAwsError(e) && e.code === 'ThrottlingException') ||
+        (isServiceException(e) && e.name === 'ThrottlingException')
+    ) {
         return true
     }
 
@@ -84,38 +88,6 @@ export function isUsageLimitError(e: unknown): e is ThrottlingException {
     }
 
     if (e.reason == ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT) {
-        return true
-    }
-
-    return false
-}
-
-export function isQuotaExceededError(e: unknown): e is AWSError {
-    if (!e) {
-        return false
-    }
-
-    // From client/token/bearer-token-service.json
-    if (isUsageLimitError(e)) {
-        return true
-    }
-
-    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
-    // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
-    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
-        return true
-    }
-
-    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
-    // "API Front-end will throw Throttling if conversation limit is reached.
-    // API Front-end monitors StartCodeGeneration for throttling"
-    if (
-        isAwsThrottlingError(e) &&
-        (e.message.includes('reached for this month') ||
-            e.message.includes('limit for this month') ||
-            e.message.includes('limit reached') ||
-            e.message.includes('limit for number of iterations'))
-    ) {
         return true
     }
 
@@ -316,9 +288,9 @@ export function isBool(value: unknown): value is boolean {
 }
 
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
-    const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
+    const nonBlankLines = suggestion.content?.split('\n').filter(line => line.trim() !== '').length
 
-    return nonBlankLines > 1 ? 'Block' : 'Line'
+    return nonBlankLines && nonBlankLines > 1 ? 'Block' : 'Line'
 }
 
 export function enabledModelSelection(params: InitializeParams | undefined): boolean {
@@ -450,7 +422,7 @@ export function getUnmodifiedAcceptedTokens(origin: string, after: string) {
     return Math.max(origin.length, after.length) - distance(origin, after)
 }
 
-export function getEndPositionForAcceptedSuggestion(content: string, startPosition: Position): Position {
+export function getEndPositionForAcceptedSuggestion(content: string = '', startPosition: Position): Position {
     const insertedLines = content.split('\n')
     const numberOfInsertedLines = insertedLines.length
 
@@ -489,9 +461,6 @@ export function isStringOrNull(object: any): object is string | null {
 export function getHttpStatusCode(err: unknown): number | undefined {
     // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
 
-    if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
-        return err?.$response?.statusCode
-    }
     if (hasMetadata(err) && err.$metadata?.httpStatusCode !== undefined) {
         return err.$metadata?.httpStatusCode
     }
@@ -500,10 +469,6 @@ export function getHttpStatusCode(err: unknown): number | undefined {
     }
 
     return undefined
-}
-
-function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$response'> {
-    return typeof (error as { $response?: unknown })?.$response === 'object'
 }
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
@@ -610,9 +575,12 @@ export function getFileExtensionName(filepath: string): string {
  * @param input The input string to sanitize
  * @returns The sanitized string with dangerous characters removed
  */
-export function sanitizeInput(input: string): string {
+export function sanitizeInput(input: string, enableEscapingHTML: boolean = false): string {
     if (!input) {
         return input
+    }
+    if (enableEscapingHTML) {
+        input = escapeHTML(input)
     }
 
     // Remove Unicode tag characters (U+E0000-U+E007F) used in ASCII smuggling
@@ -621,6 +589,16 @@ export function sanitizeInput(input: string): string {
         /[\u{E0000}-\u{E007F}\u{200B}-\u{200F}\u{2028}-\u{202F}\u{205F}-\u{206F}\u{FFF0}-\u{FFFF}]/gu,
         ''
     )
+}
+
+/**
+ * Sanitizes input for logging to prevent log injection attacks
+ * @param input The input string to sanitize
+ * @returns The sanitized string with control characters replaced
+ */
+export function sanitizeLogInput(input: string): string {
+    // Remove newlines, carriage returns, and other control characters
+    return input.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, '_')
 }
 
 /**

@@ -38,13 +38,14 @@ export class CodeReview {
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
+    private static readonly USER_REQUIREMENT_PATH = 'code_artifact/userRequirement/userRequirement.txt'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
     private static readonly MAX_POLLING_ATTEMPTS = 90 // 90 * POLLING_INTERVAL_MS (10000) = 15 mins
     private static readonly MID_POLLING_ATTEMPTS = 20
     private static readonly POLLING_INTERVAL_MS = 10000 // 10 seconds
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
-    private static readonly MAX_FINDINGS_COUNT = 40
+    private static readonly MAX_FINDINGS_COUNT = 30
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
@@ -118,9 +119,18 @@ export class CodeReview {
                 setup.isFullReviewRequest = true
                 this.overrideDiffScan = true
             }
-            const reviewMessage = setup.isFullReviewRequest
-                ? `Reviewing the entire code in ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
-                : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} file${nonRuleFiles > 1 ? 's' : ''}...`
+
+            let reviewMessage: string
+            if (nonRuleFiles == 1) {
+                reviewMessage = setup.isFullReviewRequest
+                    ? `Reviewing the code in ${path.basename(uploadResult.filePathsInZip.values().next().value as string)}...`
+                    : `Reviewing uncommitted changes in ${path.basename(uploadResult.filePathsInZip.values().next().value as string)}...`
+            } else {
+                reviewMessage = setup.isFullReviewRequest
+                    ? `Reviewing the code in ${nonRuleFiles} files...`
+                    : `Reviewing uncommitted changes in ${diffFiles} of ${nonRuleFiles} files...`
+            }
+
             await chatStreamWriter?.write(reviewMessage)
 
             // 4. Wait for scan to complete
@@ -166,6 +176,7 @@ export class CodeReview {
 
         // parse input
         const validatedInput = Z_CODE_REVIEW_INPUT_SCHEMA.parse(input)
+        const userRequirement = validatedInput.userRequirement
         const fileArtifacts = validatedInput.fileLevelArtifacts || []
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
         const ruleArtifacts = validatedInput.ruleArtifacts || []
@@ -194,9 +205,12 @@ export class CodeReview {
         const programmingLanguage = 'java'
         const scanName = 'Standard-' + randomUUID()
 
-        this.logging.info(`Agentic scan name: ${scanName} selectedModel: ${modelId}`)
+        this.logging.info(
+            `Agentic scan name: ${scanName} selectedModel: ${modelId} userRequirement: ${userRequirement}`
+        )
 
         return {
+            userRequirement,
             fileArtifacts,
             folderArtifacts,
             isFullReviewRequest,
@@ -223,7 +237,9 @@ export class CodeReview {
             programmingLanguages,
             numberOfFilesInCustomerCodeZip,
             codeDiffFiles,
+            filePathsInZip,
         } = await this.prepareFilesAndFoldersForUpload(
+            setup.userRequirement,
             setup.fileArtifacts,
             setup.folderArtifacts,
             setup.ruleArtifacts,
@@ -275,6 +291,7 @@ export class CodeReview {
             programmingLanguages: programmingLanguages,
             numberOfFilesInCustomerCodeZip,
             codeDiffFiles,
+            filePathsInZip,
         }
     }
 
@@ -347,7 +364,7 @@ export class CodeReview {
         uploadResult: PrepareAndUploadArtifactsResult,
         chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
     ) {
-        let status = 'Pending'
+        let status: string | undefined = 'Pending'
         let attemptCount = 0
 
         while (status === 'Pending' && attemptCount < CodeReview.MAX_POLLING_ATTEMPTS) {
@@ -460,7 +477,7 @@ export class CodeReview {
         )
 
         const aggregatedCodeScanIssueList = this.aggregateFindingsByFile(
-            findingsExceededLimit ? totalFindings.slice(0, CodeReview.MAX_FINDINGS_COUNT) : totalFindings,
+            totalFindings,
             setup.fileArtifacts,
             setup.folderArtifacts
         )
@@ -494,8 +511,14 @@ export class CodeReview {
 
         return {
             codeReviewId: jobId,
-            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${
+                findingsExceededLimit
+                    ? ` Inform the user that because there were more than ${CodeReview.MAX_FINDINGS_COUNT} findings, you (the AI agent) will not have context about them. ` +
+                      `They will need to use the Code Issues Panel to get more information.`
+                    : ''
+            }`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
+            findingsExceededLimit,
         }
     }
 
@@ -534,12 +557,11 @@ export class CodeReview {
                 ? parsedFindings.filter(finding => 'CodeDiff' === finding.findingContext)
                 : parsedFindings
             totalFindings = totalFindings.concat(filteredFindings)
-
-            if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
-                findingsExceededLimit = true
-                break
-            }
         } while (nextFindingToken)
+
+        if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
+            findingsExceededLimit = true
+        }
 
         this.logging.info(`Total findings: ${totalFindings.length}`)
         return { totalFindings, findingsExceededLimit }
@@ -577,6 +599,7 @@ export class CodeReview {
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
+        userRequirement: string,
         fileArtifacts: FileArtifacts,
         folderArtifacts: FolderArtifacts,
         ruleArtifacts: RuleArtifacts,
@@ -588,6 +611,7 @@ export class CodeReview {
         programmingLanguages: Set<string>
         numberOfFilesInCustomerCodeZip: number
         codeDiffFiles: Set<string>
+        filePathsInZip: Set<string>
     }> {
         try {
             this.logging.info(
@@ -606,7 +630,7 @@ export class CodeReview {
                 !isFullReviewRequest
             )
 
-            let numberOfFilesInCustomerCodeZip = CodeReviewUtils.countZipFiles(customerCodeZip)
+            let [numberOfFilesInCustomerCodeZip, filePathsInZip] = CodeReviewUtils.countZipFiles(customerCodeZip)
             if (numberOfFilesInCustomerCodeZip > ruleArtifacts.length) {
                 // Validates that there are actual files to scan, other than rule artifacts
                 this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
@@ -633,6 +657,9 @@ export class CodeReview {
                 codeArtifactZip.file(CodeReview.CODE_DIFF_PATH, codeDiff)
             }
 
+            // Add user requirement
+            codeArtifactZip.file(CodeReview.USER_REQUIREMENT_PATH, userRequirement)
+
             // Generate the final code artifact zip
             const zipBuffer = await CodeReviewUtils.generateZipBuffer(codeArtifactZip)
             CodeReviewUtils.logZipStructure(codeArtifactZip, 'Code artifact', this.logging)
@@ -649,6 +676,7 @@ export class CodeReview {
                 programmingLanguages,
                 numberOfFilesInCustomerCodeZip,
                 codeDiffFiles,
+                filePathsInZip,
             }
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
@@ -867,7 +895,14 @@ export class CodeReview {
      * @param programmingLanguage programming language
      * @returns Parsed and validated findings array
      */
-    private parseFindings(findingsJson: string, jobId: string, programmingLanguage: string): CodeReviewFinding[] {
+    private parseFindings(
+        findingsJson: string | undefined,
+        jobId: string,
+        programmingLanguage: string
+    ): CodeReviewFinding[] {
+        if (findingsJson === undefined) {
+            return []
+        }
         try {
             const findingsResponseJSON = JSON.parse(findingsJson)
 

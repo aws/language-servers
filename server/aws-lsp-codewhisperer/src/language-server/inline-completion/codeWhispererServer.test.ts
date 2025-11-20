@@ -10,9 +10,9 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { AWSError } from 'aws-sdk'
+import { ServiceException } from '@smithy/smithy-client'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CodeWhispererServer, CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
+import { CodeWhispererServer, CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -27,7 +27,6 @@ import {
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
-    EXPECTED_RESULT_EDITS,
     EXPECTED_RESULT_WITHOUT_IMPORTS,
     EXPECTED_RESULT_WITHOUT_REFERENCES,
     EXPECTED_RESULT_WITH_IMPORTS,
@@ -52,7 +51,7 @@ import {
     SPECIAL_CHARACTER_HELLO_WORLD,
     stubCodeWhispererService,
 } from '../../shared/testUtils'
-import { CodeDiffTracker } from './codeDiffTracker'
+import { CodeDiffTracker } from './tracker/codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import * as utils from '../../shared/utils'
@@ -61,7 +60,7 @@ import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
-import { CONTEXT_CHARACTERS_LIMIT } from './constants'
+import { CONTEXT_CHARACTERS_LIMIT } from './contants/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const updateConfiguration = async (
@@ -765,12 +764,12 @@ describe('CodeWhisperer Server', () => {
             const secondCallArgs = service.generateSuggestions.secondCall.args[0]
 
             // Verify context truncation in first call
-            assert.strictEqual(firstCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
-            assert.strictEqual(firstCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext?.leftFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext.rightFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
 
             // Verify context truncation in second call (pagination)
-            assert.strictEqual(secondCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
-            assert.strictEqual(secondCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext?.leftFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext.rightFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
 
             // Verify second call included the nextToken
             assert.strictEqual(secondCallArgs.nextToken, EXPECTED_NEXT_TOKEN)
@@ -1479,6 +1478,7 @@ describe('CodeWhisperer Server', () => {
 
         const sessionData: SessionData = {
             document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
+            startPreprocessTimestamp: 0,
             startPosition: { line: 0, character: 0 },
             triggerType: 'OnDemand',
             language: 'csharp',
@@ -1774,7 +1774,7 @@ describe('CodeWhisperer Server', () => {
                 },
                 errorData: {
                     reason: 'TestError',
-                    errorCode: undefined,
+                    errorCode: 'TestError',
                     httpStatusCode: undefined,
                 },
             }
@@ -1826,13 +1826,16 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
 
-        it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
-            const error: AWSError = new Error('Fake Error') as AWSError
-            error.name = 'TestAWSError'
-            error.code = 'TestErrorStatusCode'
-            error.statusCode = 500
-            error.time = new Date()
-            error.requestId = 'failed-request-id'
+        it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with ServiceException error type', async () => {
+            const error = new ServiceException({
+                name: 'TestServiceException',
+                $fault: 'client',
+                $metadata: {
+                    httpStatusCode: 500,
+                    requestId: 'failed-request-id',
+                },
+                message: 'Fake Error',
+            })
 
             service.generateSuggestions.callsFake(_request => {
                 clock.tick(1000)
@@ -1859,7 +1862,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    reason: 'CodeWhisperer Invocation Exception: TestAWSError',
+                    reason: 'CodeWhisperer Invocation Exception: TestServiceException',
                     duration: 1000,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
@@ -1875,8 +1878,8 @@ describe('CodeWhisperer Server', () => {
                     traceId: 'notSet',
                 },
                 errorData: {
-                    reason: 'TestAWSError',
-                    errorCode: 'TestErrorStatusCode',
+                    reason: 'TestServiceException',
+                    errorCode: 'TestServiceException',
                     httpStatusCode: 500,
                 },
             }
@@ -2460,54 +2463,6 @@ describe('CodeWhisperer Server', () => {
 
             assert.deepEqual(result, EMPTY_RESULT)
             TestAmazonQServiceManager.resetInstance()
-        })
-    })
-
-    describe('getLanguageIdFromUri', () => {
-        it('should return python for notebook cell URIs', () => {
-            const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'
-            assert.strictEqual(getLanguageIdFromUri(uri), 'python')
-        })
-
-        it('should return abap for files with ABAP extensions', () => {
-            const uris = ['file:///path/to/file.asprog']
-
-            uris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), 'abap')
-            })
-        })
-
-        it('should return empty string for non-ABAP files', () => {
-            const uris = ['file:///path/to/file.js', 'file:///path/to/file.ts', 'file:///path/to/file.py']
-
-            uris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), '')
-            })
-        })
-
-        it('should return empty string for invalid URIs', () => {
-            const invalidUris = ['', 'invalid-uri', 'file:///']
-
-            invalidUris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), '')
-            })
-        })
-
-        it('should log errors when provided with a logging object', () => {
-            const mockLogger = {
-                log: sinon.spy(),
-            }
-
-            const invalidUri = {} as string // Force type error
-            getLanguageIdFromUri(invalidUri, mockLogger)
-
-            sinon.assert.calledOnce(mockLogger.log)
-            sinon.assert.calledWith(mockLogger.log, sinon.match(/Error parsing URI to determine language:.*/))
-        })
-
-        it('should handle URIs without extensions', () => {
-            const uri = 'file:///path/to/file'
-            assert.strictEqual(getLanguageIdFromUri(uri), '')
         })
     })
 

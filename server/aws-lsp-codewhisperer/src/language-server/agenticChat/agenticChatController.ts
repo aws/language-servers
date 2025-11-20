@@ -137,7 +137,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase, MaxOverallCharacters, ToolResultValidationError } from './tools/chatDb/chatDb'
+import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -187,6 +187,10 @@ import {
     DEFAULT_WINDOW_REJECT_SHORTCUT,
     DEFAULT_MACOS_STOP_SHORTCUT,
     DEFAULT_WINDOW_STOP_SHORTCUT,
+    COMPACTION_CHARACTER_THRESHOLD,
+    MAX_OVERALL_CHARACTERS,
+    FSREAD_MEMORY_BANK_MAX_PER_FILE,
+    FSREAD_MEMORY_BANK_MAX_TOTAL,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -200,6 +204,7 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { CodeReviewResult } from './tools/qCodeAnalysis/codeReviewTypes'
 import {
     CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
     DISPLAY_FINDINGS_MESSAGE_SUFFIX,
@@ -224,13 +229,13 @@ import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_I
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
-import { UserContext } from '../../client/token/codewhispererbearertokenclient'
+import { UserContext } from '@amzn/codewhisperer-runtime'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
-import escapeHTML = require('escape-html')
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
+import { MemoryBankController } from './context/memorybank/memoryBankController'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -267,6 +272,7 @@ export class AgenticChatController implements ChatHandlers {
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
+    #memoryBankController: MemoryBankController
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
@@ -370,6 +376,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
+        this.#memoryBankController = MemoryBankController.getInstance(features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -718,10 +725,13 @@ export class AgenticChatController implements ChatHandlers {
 
             // Wait for the response to be completed before proceeding
             this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
-            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
-                id: modelId,
-                name: modelName ?? modelId,
-            }))
+            if (responseResult.models) {
+                models = Object.values(responseResult.models).map(({ modelId, modelName, description }) => ({
+                    id: modelId ?? 'unknown',
+                    name: modelName ?? modelId ?? 'unknown',
+                    description: description ?? '',
+                }))
+            }
             defaultModelId = responseResult.defaultModel?.modelId
 
             // Cache the models with defaultModelId
@@ -757,7 +767,7 @@ export class AgenticChatController implements ChatHandlers {
         const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
 
         // Get the first fallback model option as default
-        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[0]
         const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
@@ -829,21 +839,110 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '', true)
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
-        const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
-        if (maybeDefaultResponse) {
-            return maybeDefaultResponse
-        }
-
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-
         const { data: session, success } = sessionResult
 
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
+        }
+
+        // Memory Bank Creation Flow - Delegate to MemoryBankController
+        if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
+            this.#features.logging.info(`Memory Bank creation request detected for tabId: ${params.tabId}`)
+            session.isMemoryBankGeneration = true
+
+            // Store original prompt to prevent data loss on failure
+            const originalPrompt = params.prompt.prompt
+
+            try {
+                const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+                const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
+
+                if (!workspaceUri) {
+                    throw new Error('No workspace folder found for Memory Bank creation')
+                }
+
+                // Check if memory bank already exists to provide appropriate user feedback
+                const memoryBankExists = await this.#memoryBankController.memoryBankExists(workspaceUri)
+                const actionType = memoryBankExists ? 'Regenerating' : 'Generating'
+                this.#features.logging.info(`${actionType} Memory Bank for workspace: ${workspaceUri}`)
+
+                const resultStream = this.#getChatResultStream(params.partialResultToken)
+                await resultStream.writeResultBlock({
+                    body: `Preparing to analyze your project...`,
+                    type: 'answer',
+                    messageId: crypto.randomUUID(),
+                })
+
+                const comprehensivePrompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
+                    workspaceUri,
+                    async (prompt: string) => {
+                        // Direct LLM call for ranking - no agentic loop
+                        try {
+                            if (!this.#serviceManager) {
+                                throw new Error('amazonQServiceManager is not initialized')
+                            }
+
+                            const client = this.#serviceManager.getStreamingClient()
+                            const requestInput: SendMessageCommandInput = {
+                                conversationState: {
+                                    chatTriggerType: ChatTriggerType.MANUAL,
+                                    currentMessage: {
+                                        userInputMessage: {
+                                            content: prompt,
+                                        },
+                                    },
+                                },
+                            }
+
+                            const response = await client.sendMessage(requestInput)
+
+                            let responseContent = ''
+                            const maxResponseSize = 50000 // 50KB limit
+
+                            if (response.sendMessageResponse) {
+                                for await (const chatEvent of response.sendMessageResponse) {
+                                    if (chatEvent.assistantResponseEvent?.content) {
+                                        responseContent += chatEvent.assistantResponseEvent.content
+                                        if (responseContent.length > maxResponseSize) {
+                                            this.#features.logging.warn('LLM response exceeded size limit, truncating')
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+
+                            return responseContent.trim()
+                        } catch (error) {
+                            this.#features.logging.error(`Memory Bank LLM ranking failed: ${error}`)
+                            return '' // Empty string triggers TF-IDF fallback
+                        }
+                    }
+                )
+
+                // Only update prompt if we got a valid comprehensive prompt
+                if (comprehensivePrompt && comprehensivePrompt.trim().length > 0) {
+                    params.prompt.prompt = comprehensivePrompt
+                } else {
+                    this.#features.logging.warn('Empty comprehensive prompt received, using original prompt')
+                    params.prompt.prompt = originalPrompt
+                }
+            } catch (error) {
+                this.#features.logging.error(`Memory Bank preparation failed: ${error}`)
+                // Restore original prompt to ensure no data loss
+                params.prompt.prompt = originalPrompt
+                // Reset memory bank flag since preparation failed
+                session.isMemoryBankGeneration = false
+            }
+        }
+
+        const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
+        if (maybeDefaultResponse) {
+            return maybeDefaultResponse
         }
 
         const compactIds = session.getAllDeferredCompactMessageIds()
@@ -906,10 +1005,19 @@ export class AgenticChatController implements ChatHandlers {
             })
             session.setConversationType('AgenticChat')
 
+            // Set up delay notification callback to show retry progress to users
+            session.setDelayNotificationCallback(notification => {
+                if (notification.thresholdExceeded) {
+                    this.#log(`Updating progress message: ${notification.message}`)
+                    void chatResultStream.updateProgressMessage(notification.message)
+                }
+            })
+
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 params.tabId,
-                params.context
+                params.context,
+                params.prompt.prompt
             )
             // Add active file to context list if it's not already there
             const activeFile =
@@ -1088,8 +1196,7 @@ export class AgenticChatController implements ChatHandlers {
      * Runs the compaction, making requests and processing tool uses until completion
      */
     #shouldCompact(currentRequestCount: number): boolean {
-        // 80% of 570K limit
-        if (currentRequestCount > 456_000) {
+        if (currentRequestCount > COMPACTION_CHARACTER_THRESHOLD) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
@@ -1134,7 +1241,7 @@ export class AgenticChatController implements ChatHandlers {
             //  Get and process the messages from history DB to maintain invariants for service requests
             try {
                 const { history: historyMessages, historyCount: historyCharCount } =
-                    this.#chatHistoryDb.fixAndGetHistory(tabId, conversationIdentifier ?? '', currentMessage, [])
+                    this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, [])
                 messages = historyMessages
                 characterCount = historyCharCount
             } catch (err) {
@@ -1240,7 +1347,7 @@ export class AgenticChatController implements ChatHandlers {
         if (result.data?.chatResult.body !== undefined) {
             this.#chatHistoryDb.replaceWithSummary(tabId, 'cwc', conversationIdentifier ?? '', {
                 body: result.data?.chatResult.body,
-                type: 'prompt' as any,
+                type: 'prompt' as ChatMessage['type'],
                 shouldDisplayMessage: true,
                 timestamp: new Date(),
             })
@@ -1312,12 +1419,7 @@ export class AgenticChatController implements ChatHandlers {
                         history: historyMessages,
                         historyCount: historyCharacterCount,
                         currentCount: currentInputCount,
-                    } = this.#chatHistoryDb.fixAndGetHistory(
-                        tabId,
-                        conversationId,
-                        currentMessage,
-                        pinnedContextMessages
-                    )
+                    } = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
                     messages = historyMessages
                     currentRequestCount = currentInputCount + historyCharacterCount
                     this.#debug(`Request total character count: ${currentRequestCount}`)
@@ -1364,8 +1466,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: escapeHTML(currentMessage.userInputMessage?.content ?? ''),
-                        type: 'prompt' as any,
+                        body: currentMessage.userInputMessage?.content ?? '',
+                        type: 'prompt' as ChatMessage['type'],
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
@@ -1441,7 +1543,7 @@ export class AgenticChatController implements ChatHandlers {
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: result.data?.chatResult.body,
-                        type: 'answer' as any,
+                        type: 'answer' as ChatMessage['type'],
                         codeReference: result.data.chatResult.codeReference,
                         relatedContent:
                             result.data.chatResult.relatedContent?.content &&
@@ -1844,7 +1946,14 @@ export class AgenticChatController implements ChatHandlers {
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
-                        const tool = new Tool(this.#features)
+                        const tool =
+                            toolUse.name === FS_READ && session.isMemoryBankGeneration
+                                ? new Tool(
+                                      this.#features,
+                                      FSREAD_MEMORY_BANK_MAX_PER_FILE,
+                                      FSREAD_MEMORY_BANK_MAX_TOTAL
+                                  )
+                                : new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
                         // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
@@ -1914,7 +2023,16 @@ export class AgenticChatController implements ChatHandlers {
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
-                        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                        let originalNames
+                        try {
+                            originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                        } catch (error) {
+                            // McpManager not initialized, skip MCP tool handling
+                            this.#features.logging.debug(
+                                `McpManager not initialized, skipping MCP tool handling with error: ${error}`
+                            )
+                            originalNames = undefined
+                        }
 
                         // Remove explanation field from toolUse.input for MCP tools
                         // many MCP servers do not support explanation field and it will break the tool if this is altered
@@ -1930,9 +2048,17 @@ export class AgenticChatController implements ChatHandlers {
 
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
-                            const def = McpManager.instance
-                                .getAllTools()
-                                .find(d => d.serverName === serverName && d.toolName === toolName)
+                            let def
+                            try {
+                                def = McpManager.instance
+                                    .getAllTools()
+                                    .find(d => d.serverName === serverName && d.toolName === toolName)
+                            } catch (error) {
+                                this.#features.logging.debug(
+                                    `McpManager not initialized, cannot get tool definitions with error: ${error}`
+                                )
+                                def = undefined
+                            }
                             if (def) {
                                 const mcpTool = new McpTool(this.#features, def)
                                 const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
@@ -2009,6 +2135,31 @@ export class AgenticChatController implements ChatHandlers {
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 let toolResultContent: ToolResultContentBlock
+
+                if (toolUse.name === CodeReview.toolName) {
+                    // no need to write tool result for code review, this is handled by model via chat
+                    // Push result in message so that it is picked by IDE plugin to show in issues panel
+                    const codeReviewResult = result as InvokeOutput
+                    if (
+                        codeReviewResult?.output?.kind === 'json' &&
+                        codeReviewResult.output.success &&
+                        (codeReviewResult.output.content as CodeReviewResult)?.findingsByFile
+                    ) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+                            body: (codeReviewResult.output.content as CodeReviewResult).findingsByFile,
+                        })
+                        if ((codeReviewResult.output.content as CodeReviewResult).findingsExceededLimit) {
+                            codeReviewResult.output.content = {
+                                codeReviewId: (codeReviewResult.output.content as CodeReviewResult).codeReviewId,
+                                message: (codeReviewResult.output.content as CodeReviewResult).message,
+                                findingsExceededLimit: (codeReviewResult.output.content as CodeReviewResult)
+                                    .findingsExceededLimit,
+                            }
+                        }
+                    }
+                }
 
                 if (typeof result === 'string') {
                     toolResultContent = { text: result }
@@ -2095,20 +2246,6 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
-                        // no need to write tool result for code review, this is handled by model via chat
-                        // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const codeReviewResult = result as InvokeOutput
-                        if (
-                            codeReviewResult?.output?.kind === 'json' &&
-                            codeReviewResult.output.success &&
-                            (codeReviewResult.output.content as any)?.findingsByFile
-                        ) {
-                            await chatResultStream.writeResultBlock({
-                                type: 'tool',
-                                messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
-                                body: (codeReviewResult.output.content as any).findingsByFile,
-                            })
-                        }
                         break
                     case DisplayFindings.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
@@ -2212,7 +2349,16 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // Handle MCP tool failures
-                const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                let originalNames
+                try {
+                    originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                } catch (error) {
+                    // McpManager not initialized, skip MCP error handling
+                    this.#features.logging.debug(
+                        `McpManager not initialized, skipping MCP error handling with error: ${error}`
+                    )
+                    originalNames = undefined
+                }
                 if (originalNames && toolUse.toolUseId) {
                     const { toolName } = originalNames
                     const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
@@ -2688,7 +2834,7 @@ export class AgenticChatController implements ChatHandlers {
             body: COMPACTION_HEADER_BODY,
             buttons,
         } as any
-        const body = COMPACTION_BODY(Math.round((characterCount / MaxOverallCharacters) * 100))
+        const body = COMPACTION_BODY(Math.round((characterCount / MAX_OVERALL_CHARACTERS) * 100))
         return {
             type: 'tool',
             messageId,
@@ -3364,6 +3510,9 @@ export class AgenticChatController implements ChatHandlers {
             },
         })
 
+        // Reset memory bank flag after completion
+        session.isMemoryBankGeneration = false
+
         return chatResultStream.getResult()
     }
 
@@ -3378,7 +3527,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMsg(err) ?? GENERIC_ERROR_MS
+        const errorMessage = (getErrorMsg(err) ?? GENERIC_ERROR_MS).replace(/[\r\n]+/g, ' ') // replace new lines with empty space
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
@@ -3388,7 +3537,14 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage)
+        const errorCode = err.code ?? ''
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
+
+        // Reset memory bank flag on request error
+        const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+        if (sessionResult.success) {
+            sessionResult.data.isMemoryBankGeneration = false
+        }
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
@@ -3721,9 +3877,11 @@ export class AgenticChatController implements ChatHandlers {
      */
     async onReady() {
         await this.restorePreviousChats()
+        this.#contextCommandsProvider.onReady()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
+            this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {
@@ -4034,7 +4192,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
-                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(err as Error).message}`)
                 })
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
             return
@@ -4178,7 +4336,7 @@ export class AgenticChatController implements ChatHandlers {
                     }
                 })
                 .catch(e => {
-                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${JSON.stringify(e)}`)
+                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${(e as Error).message}`)
                     // TOOD: for visibility, the least-bad option is showMessage, which appears as an IDE notification.
                     // But it likely makes sense to route this to chat ERROR_MESSAGE mynahApi.showError(), so the message will appear in chat.
                     // https://github.com/aws/language-servers/blob/1b154570c9cf1eb1d56141095adea4459426b774/chat-client/src/client/chat.ts#L176-L178
@@ -4522,7 +4680,17 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Clear tool name mapping to avoid conflicts from previous registrations
-        McpManager.instance.clearToolNameMapping()
+        try {
+            McpManager.instance.clearToolNameMapping()
+        } catch (error) {
+            // McpManager not initialized, return tools without MCP
+            this.#features.logging.debug(
+                `McpManager not initialized in #getTools, returning non-MCP tools with error: ${error}`
+            )
+            return session.pairProgrammingMode
+                ? allTools
+                : allTools.filter(tool => !builtInWriteTools.has(tool.toolSpecification?.name || ''))
+        }
 
         const tempMapping = new Map<string, { serverName: string; toolName: string }>()
 
@@ -4530,13 +4698,30 @@ export class AgenticChatController implements ChatHandlers {
         // TODO: mcp tool spec name will be server___tool.
         // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
         const allNamespacedTools = new Set<string>()
-        const mcpToolSpecNames = new Set(
-            McpManager.instance
-                .getAllTools()
-                .map(tool => createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools, tempMapping))
-        )
+        let mcpToolSpecNames: Set<string>
+        try {
+            mcpToolSpecNames = new Set(
+                McpManager.instance
+                    .getAllTools()
+                    .map(tool =>
+                        createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools, tempMapping)
+                    )
+            )
+        } catch (error) {
+            // McpManager not initialized, use empty set
+            this.#features.logging.debug(`McpManager not initialized, cannot get MCP tools because of error: ${error}`)
+            mcpToolSpecNames = new Set()
+        }
 
-        McpManager.instance.setToolNameMapping(tempMapping)
+        try {
+            McpManager.instance.setToolNameMapping(tempMapping)
+        } catch (error) {
+            // McpManager not initialized, skip setting mapping
+            this.#features.logging.debug(
+                `McpManager not initialized, cannot set tool name mapping because of error: ${error}`
+            )
+        }
+
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...builtInWriteTools])
 
         const readOnlyTools = allTools.filter(tool => {
@@ -4584,12 +4769,30 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Get original server and tool names from the mapping
-        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+        let originalNames
+        try {
+            originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+        } catch (error) {
+            // McpManager not initialized, skip MCP tool result handling
+            this.#features.logging.debug(
+                `McpManager not initialized, cannot handle MCP tool result because of error: ${error}`
+            )
+            originalNames = undefined
+        }
+
         if (originalNames) {
             const { serverName, toolName } = originalNames
-            const def = McpManager.instance
-                .getAllTools()
-                .find(d => d.serverName === serverName && d.toolName === toolName)
+            let def
+            try {
+                def = McpManager.instance
+                    .getAllTools()
+                    .find(d => d.serverName === serverName && d.toolName === toolName)
+            } catch (error) {
+                this.#features.logging.debug(
+                    `McpManager not initialized, cannot get tool definitions because of error: ${error}`
+                )
+                def = undefined
+            }
             if (def) {
                 // Format the tool result and input as JSON strings
                 const toolInput = JSON.stringify(toolUse.input, null, 2)
@@ -4735,10 +4938,12 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(feature =>
-                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
+                    const feature = result.featureEvaluations?.find(
+                        feature =>
+                            feature.feature &&
+                            ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
-                    if (feature) {
+                    if (feature && feature.feature && feature.variation) {
                         this.#abTestingAllocation = {
                             experimentName: feature.feature,
                             userVariation: feature.variation,
