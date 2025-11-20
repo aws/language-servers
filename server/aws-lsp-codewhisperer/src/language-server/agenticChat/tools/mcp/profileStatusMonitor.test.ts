@@ -7,6 +7,7 @@ import * as chai from 'chai'
 import * as sinon from 'sinon'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import * as AmazonQTokenServiceManagerModule from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { McpRegistryService } from './mcpRegistryService'
 
 const { expect } = chai
 
@@ -84,14 +85,45 @@ describe('ProfileStatusMonitor', () => {
             expect(result).to.be.true
         })
 
-        it('should return true and log debug message on error', async () => {
+        it('should throw error when isMcpEnabled throws non-registry error', async () => {
             // Stub the private isMcpEnabled method to throw an error
             sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('Service manager not ready'))
 
-            const result = await profileStatusMonitor.checkInitialState()
-            expect(result).to.be.true
-            expect(mockLogging.debug.calledWith(sinon.match('Initial MCP state check failed, defaulting to enabled')))
-                .to.be.true
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+                expect((error as Error).message).to.equal('Service manager not ready')
+            }
+        })
+
+        it('should disable MCP and call onMcpDisabled when registry error occurs', async () => {
+            sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('MCP Registry: Failed to fetch'))
+            ;(ProfileStatusMonitor as any).setMcpState(true)
+
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+                expect((error as Error).message).to.include('MCP Registry:')
+                expect(ProfileStatusMonitor.getMcpState()).to.be.false
+                expect(mockOnMcpDisabled.called).to.be.true
+            }
+        })
+
+        it('should not disable MCP for non-registry errors', async () => {
+            sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('Network error'))
+            ;(ProfileStatusMonitor as any).setMcpState(true)
+
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(ProfileStatusMonitor.getMcpState()).to.be.true
+                expect(mockOnMcpDisabled.called).to.be.false
+            }
         })
     })
 
@@ -115,7 +147,6 @@ describe('ProfileStatusMonitor', () => {
 
         it('should be accessible across different instances', () => {
             const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
-
             const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Set state through static property
@@ -134,7 +165,6 @@ describe('ProfileStatusMonitor', () => {
 
         it('should maintain state across multiple instances', () => {
             const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
-
             const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Initially true (default value)
@@ -145,6 +175,186 @@ describe('ProfileStatusMonitor', () => {
 
             // Both instances should see the same state
             expect(ProfileStatusMonitor.getMcpState()).to.be.false
+        })
+    })
+
+    describe('registry URL handling', () => {
+        let mockOnRegistryUpdate: sinon.SinonStub
+        let mockServiceManager: any
+
+        beforeEach(() => {
+            mockOnRegistryUpdate = sinon.stub().resolves()
+
+            mockServiceManager = {
+                getActiveProfileArn: sinon.stub().returns('arn:aws:iam::123456789012:profile/test'),
+                getCodewhispererService: sinon.stub().returns({
+                    getProfile: sinon.stub().resolves({
+                        profile: {
+                            optInFeatures: {
+                                mcpConfiguration: {
+                                    toggle: 'ON',
+                                    mcpRegistryUrl: 'https://example.com/registry.json',
+                                },
+                            },
+                        },
+                    }),
+                }),
+                getConnectionType: sinon.stub().returns('identityCenter'),
+            }
+
+            sinon
+                .stub(AmazonQTokenServiceManagerModule.AmazonQTokenServiceManager, 'getInstance')
+                .returns(mockServiceManager as any)
+        })
+
+        it('should notify registry URL for enterprise users when MCP is enabled', async () => {
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            await profileStatusMonitor.checkInitialState()
+
+            expect(mockOnRegistryUpdate.called).to.be.true
+            expect(mockOnRegistryUpdate.firstCall.args[0]).to.be.a('string')
+        })
+
+        it('should throw error when registry fetch fails for enterprise users', async () => {
+            mockOnRegistryUpdate.rejects(new Error('MCP Registry: Failed to fetch or validate registry'))
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            try {
+                await profileStatusMonitor.checkInitialState()
+                expect.fail('Should have thrown an error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+                expect((error as Error).message).to.include('MCP Registry:')
+                expect(mockLogging.error.calledWith(sinon.match('MCP configuration check failed'))).to.be.true
+            }
+        })
+
+        it('should not notify registry URL for free tier users', async () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            await profileStatusMonitor.checkInitialState()
+
+            expect(mockOnRegistryUpdate.called).to.be.false
+        })
+
+        it('should not notify registry URL when MCP toggle is OFF', async () => {
+            mockServiceManager.getCodewhispererService().getProfile.resolves({
+                profile: {
+                    optInFeatures: {
+                        mcpConfiguration: {
+                            toggle: 'OFF',
+                        },
+                    },
+                },
+            })
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            await profileStatusMonitor.checkInitialState()
+
+            expect(mockOnRegistryUpdate.called).to.be.false
+        })
+
+        it('should return registry URL from getRegistryUrl for enterprise users', async () => {
+            // Create a new getProfile stub that returns mcpRegistryUrl
+            const getProfileStub = sinon.stub().resolves({
+                profile: {
+                    optInFeatures: {
+                        mcpConfiguration: {
+                            mcpRegistryUrl: 'https://example.com/registry.json',
+                        },
+                    },
+                },
+            })
+
+            mockServiceManager.getCodewhispererService = sinon.stub().returns({
+                getProfile: getProfileStub,
+            })
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            const registryUrl = await profileStatusMonitor.getRegistryUrl()
+            expect(registryUrl).to.equal('https://example.com/registry.json')
+        })
+
+        it('should return null from getRegistryUrl for free tier users', async () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                mockLogging,
+                mockOnMcpDisabled,
+                mockOnMcpEnabled,
+                mockOnRegistryUpdate
+            )
+
+            const registryUrl = await profileStatusMonitor.getRegistryUrl()
+            expect(registryUrl).to.be.null
+        })
+    })
+
+    describe('isEnterpriseUser', () => {
+        let mockServiceManager: any
+
+        beforeEach(() => {
+            mockServiceManager = {
+                getConnectionType: sinon.stub(),
+            }
+        })
+
+        it('should return true for identityCenter connection type', () => {
+            mockServiceManager.getConnectionType.returns('identityCenter')
+
+            const result = (profileStatusMonitor as any).isEnterpriseUser(mockServiceManager)
+
+            expect(result).to.be.true
+            expect(mockLogging.info.called).to.be.false
+        })
+
+        it('should return false for builderId connection type', () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            const result = (profileStatusMonitor as any).isEnterpriseUser(mockServiceManager)
+
+            expect(result).to.be.false
+            expect(mockLogging.info.calledWith(sinon.match('not on Pro Tier/IdC'))).to.be.true
+        })
+
+        it('should log governance unavailable message for non-enterprise users', () => {
+            mockServiceManager.getConnectionType.returns('builderId')
+
+            const result = (profileStatusMonitor as any).isEnterpriseUser(mockServiceManager)
+
+            expect(result).to.be.false
+            expect(mockLogging.info.calledWith(sinon.match('governance features unavailable'))).to.be.true
         })
     })
 })
