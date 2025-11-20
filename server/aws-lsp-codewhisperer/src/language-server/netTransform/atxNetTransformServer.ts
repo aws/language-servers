@@ -6,11 +6,17 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
-import { AtxListOrCreateWorkspaceRequest, AtxStartTransformRequest } from './atxModels'
+import {
+    AtxGetJobStatusInfoRequest,
+    AtxListOrCreateWorkspaceRequest,
+    AtxStartTransformRequest,
+    AtxGetTransformInfoRequest,
+} from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
 const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
 const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
+const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -51,6 +57,17 @@ export const AtxNetTransformServerToken =
                             ContainsUnsupportedViews: false,
                         }
                     }
+                    case AtxGetTransformInfoCommand: {
+                        const request = params as AtxGetTransformInfoRequest
+
+                        const result = await atxTransformHandler.getTransformInfo(request)
+
+                        if (!result) {
+                            throw new Error('StartTransform workflow failed')
+                        }
+
+                        return result
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -71,7 +88,11 @@ export const AtxNetTransformServerToken =
             return {
                 capabilities: {
                     executeCommandProvider: {
-                        commands: [AtxListOrCreateWorkspaceCommand, AtxStartTransformCommand],
+                        commands: [
+                            AtxListOrCreateWorkspaceCommand,
+                            AtxStartTransformCommand,
+                            AtxGetTransformInfoCommand,
+                        ],
                     },
                 },
             }

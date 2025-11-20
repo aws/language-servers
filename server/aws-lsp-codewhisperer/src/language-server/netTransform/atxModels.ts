@@ -1,25 +1,19 @@
 import { ExecuteCommandParams } from 'vscode-languageserver'
+import { TransformationPlan } from '@amzn/codewhisperer-runtime'
 
-// ATX CategoryType enum (matches schema)
-export enum CategoryType {
-    CUSTOMER_OUTPUT = 'CUSTOMER_OUTPUT',
-    HITL_FROM_USER = 'HITL_FROM_USER',
-    CUSTOMER_INPUT = 'CUSTOMER_INPUT',
-    PLAN_STEP_SUMMARY = 'PLAN_STEP_SUMMARY',
-}
-
-// ATX FileType enum (matches schema)
-export enum FileType {
-    JSON = 'JSON',
-    ZIP = 'ZIP',
-    PDF = 'PDF',
-    HTML = 'HTML',
-    TXT = 'TXT',
-    MARKDOWN = 'MARKDOWN',
-    CSV = 'CSV',
-    PPTX = 'PPTX',
-    XLSX = 'XLSX',
-    OTHER = 'OTHER',
+// ATX Job Status enum (matches client-side C# definition)
+export enum AtxJobStatus {
+    CREATED = 'CREATED',
+    STARTING = 'STARTING',
+    ASSESSING = 'ASSESSING',
+    PLANNING = 'PLANNING',
+    PLANNED = 'PLANNED',
+    EXECUTING = 'EXECUTING',
+    AWAITING_HUMAN_INPUT = 'AWAITING_HUMAN_INPUT',
+    COMPLETED = 'COMPLETED',
+    FAILED = 'FAILED',
+    STOPPING = 'STOPPING',
+    STOPPED = 'STOPPED',
 }
 
 // ATX Workspace Models
@@ -32,6 +26,14 @@ export interface AtxWorkspaceInfo {
 export interface AtxCreatedWorkspaceInfo {
     WorkspaceId: string
     WorkspaceName: string
+}
+
+// ATX Transformation Job (matches client-side C# definition)
+export interface AtxTransformationJob {
+    WorkspaceId: string
+    JobId: string
+    Status: AtxJobStatus
+    FailureReason?: string
 }
 
 // ATX Consolidated API Request/Response Models
@@ -71,4 +73,21 @@ export interface AtxStartTransformResponse {
     TransformationJobId: string
     ArtifactPath: string
     UploadId: string
+}
+
+// ATX Get Transform Info request/response (orchestration)
+export interface AtxGetTransformInfoRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    WorkspaceId: string
+    SolutionRootPath: string
+}
+
+export interface AtxGetTransformInfoResponse {
+    TransformationJob: AtxTransformationJob
+    PlanPath?: string | null
+    ReportPath?: string | null
+    WorklogPath?: string | null
+    TransformationPlan?: TransformationPlan | null
+    ArtifactPath?: string | null
+    ErrorString?: string | null
 }
