@@ -1757,9 +1757,13 @@ describe('Registry Synchronization', () => {
             await mgr.updateRegistryUrl('https://example.com/registry.json', true)
 
             expect(mockClient.close.called).to.be.true
-            // Server should be completely removed, not just disabled
+            // Server should remain in map but marked as FAILED
             const config = (mgr as any).mcpServers.get('test-server')
-            expect(config).to.be.undefined
+            expect(config).to.exist
+            // Verify server state is FAILED
+            const serverState = mgr.getServerState('test-server')
+            expect(serverState?.status).to.equal('FAILED')
+            expect(serverState?.lastError).to.include('removed from registry')
         })
 
         it('should skip non-registry servers during sync', async () => {

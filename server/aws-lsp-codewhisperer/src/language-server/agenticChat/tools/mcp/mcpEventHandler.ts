@@ -250,11 +250,12 @@ export class McpEventHandler {
 
         // Return the result in the expected format
         const mcpState = ProfileStatusMonitor.getMcpState()
+        const isRegistryActive = mcpManager.isRegistryModeActive()
         const header = {
             title: 'MCP Servers',
             description: mcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
             status: this.#getListMcpServersStatus(configLoadErrors, mcpState),
-            actions: this.#getListMcpServersActions(configLoadErrors, mcpState),
+            actions: this.#getListMcpServersActions(configLoadErrors, mcpState, isRegistryActive),
         }
 
         return { header, list: groups }
@@ -289,8 +290,14 @@ export class McpEventHandler {
     /**
      * Gets the actions for the list MCP servers header
      */
-    #getListMcpServersActions(configLoadErrors: string | undefined, mcpState: boolean | undefined) {
-        return mcpState !== false && (!configLoadErrors || configLoadErrors === '')
+    #getListMcpServersActions(
+        configLoadErrors: string | undefined,
+        mcpState: boolean | undefined,
+        isRegistryActive: boolean = false
+    ) {
+        // Show buttons if MCP is enabled AND (no errors OR registry is active)
+        // When registry is active, errors are just about missing registry servers, not config issues
+        return mcpState !== false && (!configLoadErrors || configLoadErrors === '' || isRegistryActive)
             ? [
                   {
                       id: 'add-new-mcp',

@@ -40,6 +40,7 @@ export interface MCPServerConfig {
     __cachedVersion__?: string // Cached version from registry for version sync
     __additionalHeaders__?: Record<string, string> // Additional headers from agent config (for registry servers)
     __additionalEnv__?: Record<string, string> // Additional env vars from agent config (for registry servers)
+    __registryError__?: string // Error message when registry server is not found in registry
 }
 
 export interface RegistryServerConfig {
