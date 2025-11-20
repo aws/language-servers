@@ -23,7 +23,8 @@ const props: BuildspecServerProps = {
 }
 
 async function getFileAsync(url: string): Promise<string> {
-    return await httpsUtils.requestContent(url)
+    const response = await httpsUtils.requestContent(url)
+    return response.content
 }
 
 export const server = new BuildspecServer(props)
