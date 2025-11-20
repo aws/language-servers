@@ -268,6 +268,13 @@ export class McpManager {
                 this.features.logging.warn(`MCP: server '${name}' has invalid config, skipping`)
                 continue
             }
+            // Check if this is a placeholder for a missing registry server
+            if ((cfg as any).__registryError__) {
+                this.features.logging.warn(`MCP: server '${name}' not found in registry, marking as failed`)
+                this.setState(name, McpServerStatus.FAILED, 0, (cfg as any).__registryError__)
+                this.emitToolsChanged(name)
+                continue
+            }
             serversToInit.push([name, cfg])
         }
 
@@ -949,8 +956,9 @@ export class McpManager {
 
     /**
      * Remove a server: shutdown client, remove tools, and delete disk entry.
+     * @param skipAgentConfigRemoval - If true, only removes from mcpManager but keeps in agent config
      */
-    public async removeServer(serverName: string): Promise<void> {
+    public async removeServer(serverName: string, skipAgentConfigRemoval: boolean = false): Promise<void> {
         const cfg = this.mcpServers.get(serverName)
         const unsanitizedName = this.serverNameMapping.get(serverName)
         const permission = this.mcpServerPermissions.get(serverName)
@@ -984,8 +992,8 @@ export class McpManager {
             )
         }
 
-        // Remove from agent config
-        if (unsanitizedName && this.agentConfig) {
+        // Remove from agent config (unless skipAgentConfigRemoval is true)
+        if (!skipAgentConfigRemoval && unsanitizedName && this.agentConfig) {
             // Remove server from mcpServers
             delete this.agentConfig.mcpServers[unsanitizedName]
 
@@ -1725,7 +1733,15 @@ export class McpManager {
                 this.features.logging.warn(
                     `MCP Registry: Server '${unsanitizedName}' removed from registry during periodic sync`
                 )
-                await this.removeServer(sanitizedName)
+                // Close client and mark as failed, but keep in agent config
+                const client = this.clients.get(sanitizedName)
+                if (client) {
+                    await client.close()
+                    this.clients.delete(sanitizedName)
+                }
+                this.mcpTools = this.mcpTools.filter(t => t.serverName !== sanitizedName)
+                this.setState(sanitizedName, McpServerStatus.FAILED, 0, 'Server removed from registry')
+                this.emitToolsChanged(sanitizedName)
                 serversDisabled++
                 continue
             }
