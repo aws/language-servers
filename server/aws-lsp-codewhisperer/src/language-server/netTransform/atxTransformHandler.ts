@@ -34,9 +34,12 @@ import {
     AtxGetTransformInfoResponse,
     AtxJobStatus,
     AtxTransformationJob,
+    AtxUploadPlanRequest,
+    AtxUploadPlanResponse,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
+import { ToolInputSchemaFilterSensitiveLog } from '@amzn/codewhisperer-runtime'
 
 export const ArtifactWorkspaceName = 'artifactWorkspace'
 /**
@@ -946,25 +949,26 @@ export class ATXTransformHandler {
         }
     }
 
-    async pollHitlFESClient(workspaceId: string, jobId: string, taskId: string): Promise<boolean> {
+    async pollHitlTask(workspaceId: string, jobId: string, taskId: string): Promise<string | null> {
         this.logging.log('Starting polling for hitl after upload')
 
         try {
             var count = 0
-            while (count < 300) {
+            while (count < 100) {
                 const jobStatus = await this.getHitl(workspaceId, jobId, taskId)
+                this.logging.log(`Hitl Polling get status: ${jobStatus?.status}`)
 
                 if (jobStatus && jobStatus.status == 'CLOSED') {
                     this.logging.log('Hitl Polling get status CLOSED')
-                    return true
+                    return 'Validation Success!'
                 } else if (jobStatus && jobStatus.status == 'CLOSED_PENDING_NEXT_TASK') {
                     // Fallback to placeholder if API call fails
                     this.logging.log('Hitl Polling get status CLOSED_PENDING_NEXT_TASK')
-                    return false
+                    return 'Submitted plan did not pass validation, please check the plan for details....'
                 } else if (jobStatus && jobStatus.status == 'CANCELLED') {
                     // Fallback to placeholder if API call fails
                     this.logging.log('Hitl Polling get status CANCELLED')
-                    return false
+                    return 'Timeout occured during planning, proceeding with default plan....'
                 } else {
                     this.logging.log('Hitl polling in progress....')
                     await this.sleep(10 * 1000)
@@ -972,12 +976,11 @@ export class ATXTransformHandler {
                 }
             }
 
-            this.logging.log('Returning false, 300 polls and no approve or reject')
-            return false
+            this.logging.log('Returning null, 100 polls and no approve or reject')
+            return null
         } catch (error) {
             this.logging.error(`Hitl polling error: ${String(error)}`)
-            // Return placeholder on error
-            return false
+            return null
         }
     }
 
@@ -1043,7 +1046,12 @@ export class ATXTransformHandler {
 
             const job = await this.getJob(request.WorkspaceId, request.TransformationJobId)
 
-            const jobStatus = job?.statusDetails?.status
+            if (!job) {
+                this.logging.log(`DEBUG-ATX-GET-INFO: Get Job returned null`)
+                return null
+            }
+
+            const jobStatus = job.statusDetails?.status
 
             if (jobStatus === 'COMPLETED') {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job completed successfully`)
@@ -1103,6 +1111,129 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: Get TransformInfo error: ${String(error)}`)
             return null
+        }
+    }
+
+    async uploadPlan(request: AtxUploadPlanRequest): Promise<AtxUploadPlanResponse | null> {
+        this.logging.info('Starting upload plan')
+
+        if (!this.cachedHitl) {
+            this.logging.error('ATX: UploadPlan error: No cached hitl')
+            return null
+        }
+
+        try {
+            const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.md')
+            await this.zipFile(request.PlanPath, pathToZip)
+
+            const uploadInfo = await this.createArtifactUploadUrl(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                pathToZip,
+                CategoryType.HITL_FROM_USER,
+                FileType.ZIP
+            )
+
+            if (!uploadInfo) {
+                this.logging.error('ATX: UploadPlan error: Failed to get ATX upload URL')
+                return null
+            }
+
+            this.logging.log(`ATX: UploadPlan: Artifact upload URL created: ${uploadInfo.uploadUrl}`)
+
+            const uploadSuccess = await this.uploadArtifact(uploadInfo.uploadUrl, pathToZip, uploadInfo.requestHeaders)
+
+            if (!uploadSuccess) {
+                throw new Error('Failed to upload ZIP file to S3')
+                return null
+            }
+
+            const completeResponse = await this.completeArtifactUpload(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                uploadInfo.uploadId
+            )
+
+            if (!completeResponse?.success) {
+                throw new Error('Failed to complete artifact upload')
+            }
+
+            this.logging.info('Uploaded plan, submitting hitl')
+
+            const submitHitl = await this.submitHitl(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                this.cachedHitl,
+                uploadInfo.uploadId
+            )
+
+            if (!submitHitl) {
+                throw new Error('Failed to submit hitl')
+            }
+
+            this.logging.info('Submitted hitl, polling for status')
+
+            const validation = await this.pollHitlTask(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                this.cachedHitl
+            )
+
+            if (!validation) {
+                throw new Error('Failed to poll hitl task')
+                return null
+            }
+
+            if (validation === 'Submitted plan did not pass validation, please check the plan for details....') {
+                const response = await this.getHitlAgentArtifact(
+                    request.WorkspaceId,
+                    request.TransformationJobId,
+                    path.dirname(request.PlanPath)
+                )
+
+                return {
+                    VerificationStatus: false,
+                    Message: validation,
+                    PlanPath: response?.PlanPath,
+                    ReportPath: response?.ReportPath,
+                } as AtxUploadPlanResponse
+            } else {
+                return {
+                    VerificationStatus: true,
+                    Message: validation,
+                } as AtxUploadPlanResponse
+            }
+        } catch (error) {
+            this.logging.error(`ATX: UploadPlan error: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
+     * Stop ATX transformation job
+     */
+    async stopJob(workspaceId: string, jobId: string): Promise<string> {
+        try {
+            this.logging.log(`ATX: StopJob operation started for job: ${jobId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const command = new StopJobCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+            })
+
+            await this.addAuthToCommand(command)
+            const response = await this.atxClient!.send(command)
+
+            this.logging.log(`ATX: StopJob SUCCESS - Status: ${response.status}`)
+            this.logging.log(`ATX: StopJob RequestId: ${response.$metadata?.requestId}`)
+            return response.status || 'STOPPED'
+        } catch (error) {
+            this.logging.error(`ATX: StopJob error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return 'FAILED'
         }
     }
 
@@ -1171,31 +1302,18 @@ export class ATXTransformHandler {
         }
     }
 
-    /**
-     * Stop ATX transformation job
-     */
-    async stopJob(workspaceId: string, jobId: string): Promise<string> {
-        try {
-            this.logging.log(`ATX: StopJob operation started for job: ${jobId}`)
+    private async zipFile(sourceFilePath: string, outputZipPath: string): Promise<void> {
+        const archive = archiver('zip', { zlib: { level: 9 } })
+        const stream = fs.createWriteStream(outputZipPath)
 
-            if (!this.atxClient && !(await this.initializeAtxClient())) {
-                throw new Error('ATX FES client not initialized')
-            }
+        return new Promise<void>((resolve, reject) => {
+            archive
+                .file(sourceFilePath, { name: path.basename(sourceFilePath) })
+                .on('error', err => reject(err))
+                .pipe(stream)
 
-            const command = new StopJobCommand({
-                workspaceId: workspaceId,
-                jobId: jobId,
-            })
-
-            await this.addAuthToCommand(command)
-            const response = await this.atxClient!.send(command)
-
-            this.logging.log(`ATX: StopJob SUCCESS - Status: ${response.status}`)
-            this.logging.log(`ATX: StopJob RequestId: ${response.$metadata?.requestId}`)
-            return response.status || 'STOPPED'
-        } catch (error) {
-            this.logging.error(`ATX: StopJob error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-            return 'FAILED'
-        }
+            stream.on('close', () => resolve())
+            void archive.finalize()
+        })
     }
 }

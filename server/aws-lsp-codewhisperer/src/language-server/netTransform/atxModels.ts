@@ -97,3 +97,15 @@ export interface AtxStopJobRequest extends ExecuteCommandParams {
     WorkspaceId: string
     JobId: string
 }
+export interface AtxUploadPlanRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    WorkspaceId: string
+    PlanPath: string
+}
+
+export interface AtxUploadPlanResponse {
+    VerificationStatus: boolean
+    Message: string
+    PlanPath?: string
+    ReportPath?: string
+}

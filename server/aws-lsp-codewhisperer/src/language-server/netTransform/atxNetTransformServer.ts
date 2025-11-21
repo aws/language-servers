@@ -12,6 +12,7 @@ import {
     AtxStartTransformRequest,
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
+    AtxUploadPlanRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -19,6 +20,7 @@ const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
 const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
+const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -62,13 +64,11 @@ export const AtxNetTransformServerToken =
                     case AtxGetTransformInfoCommand: {
                         const request = params as AtxGetTransformInfoRequest
 
-                        const result = await atxTransformHandler.getTransformInfo(request)
-
-                        if (!result) {
-                            throw new Error('StartTransform workflow failed')
-                        }
-
-                        return result
+                        return await atxTransformHandler.getTransformInfo(request)
+                    }
+                    case AtxUploadPlanCommand: {
+                        const request = params as AtxUploadPlanRequest
+                        return await atxTransformHandler.uploadPlan(request)
                     }
                     case AtxStopJobCommand: {
                         const { WorkspaceId, JobId } = params as AtxStopJobRequest
@@ -93,6 +93,7 @@ export const AtxNetTransformServerToken =
             params: ExecuteCommandParams,
             _token: CancellationToken
         ): Promise<any> => {
+            logging.info(`Received ATX FES command: ${params.command}`)
             return runAtxTransformCommand(params, _token)
         }
 
@@ -104,6 +105,7 @@ export const AtxNetTransformServerToken =
                             AtxListOrCreateWorkspaceCommand,
                             AtxStartTransformCommand,
                             AtxGetTransformInfoCommand,
+                            AtxUploadPlanCommand,
                             AtxStopJobCommand,
                         ],
                     },
