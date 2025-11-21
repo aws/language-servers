@@ -29,7 +29,6 @@ import {
     CodeReviewFinding,
     FailedMetricName,
     SuccessMetricName,
-    CodeReviewFindingSimplified,
 } from './codeReviewTypes'
 import { CancellationError } from '@aws/lsp-core'
 import { Origin } from '@amzn/codewhisperer-streaming'
@@ -39,13 +38,14 @@ export class CodeReview {
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
+    private static readonly USER_REQUIREMENT_PATH = 'code_artifact/userRequirement/userRequirement.txt'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
     private static readonly MAX_POLLING_ATTEMPTS = 90 // 90 * POLLING_INTERVAL_MS (10000) = 15 mins
     private static readonly MID_POLLING_ATTEMPTS = 20
     private static readonly POLLING_INTERVAL_MS = 10000 // 10 seconds
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
-    private static readonly MAX_FINDINGS_COUNT = 300
+    private static readonly MAX_FINDINGS_COUNT = 30
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
@@ -176,6 +176,7 @@ export class CodeReview {
 
         // parse input
         const validatedInput = Z_CODE_REVIEW_INPUT_SCHEMA.parse(input)
+        const userRequirement = validatedInput.userRequirement
         const fileArtifacts = validatedInput.fileLevelArtifacts || []
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
         const ruleArtifacts = validatedInput.ruleArtifacts || []
@@ -204,9 +205,12 @@ export class CodeReview {
         const programmingLanguage = 'java'
         const scanName = 'Standard-' + randomUUID()
 
-        this.logging.info(`Agentic scan name: ${scanName} selectedModel: ${modelId}`)
+        this.logging.info(
+            `Agentic scan name: ${scanName} selectedModel: ${modelId} userRequirement: ${userRequirement}`
+        )
 
         return {
+            userRequirement,
             fileArtifacts,
             folderArtifacts,
             isFullReviewRequest,
@@ -235,6 +239,7 @@ export class CodeReview {
             codeDiffFiles,
             filePathsInZip,
         } = await this.prepareFilesAndFoldersForUpload(
+            setup.userRequirement,
             setup.fileArtifacts,
             setup.folderArtifacts,
             setup.ruleArtifacts,
@@ -472,24 +477,15 @@ export class CodeReview {
         )
 
         const aggregatedCodeScanIssueList = this.aggregateFindingsByFile(
-            findingsExceededLimit ? totalFindings.slice(0, CodeReview.MAX_FINDINGS_COUNT) : totalFindings,
+            totalFindings,
             setup.fileArtifacts,
             setup.folderArtifacts
         )
 
         this.logging.info('Findings count grouped by file')
-        let aggregatedCodeScanIssueListSimplified: { filePath: string; issues: CodeReviewFindingSimplified[] }[] = []
         aggregatedCodeScanIssueList.forEach(item => {
             this.logging.info(`File path - ${item.filePath} Findings count - ${item.issues.length}`)
-            let simplifiedIssues: CodeReviewFindingSimplified[] = []
-            item.issues.forEach(issue => {
-                simplifiedIssues.push({
-                    filePath: issue.filePath,
-                    startLine: issue.startLine,
-                    endLine: issue.endLine,
-                    title: issue.title,
-                    severity: issue.severity,
-                })
+            item.issues.forEach(issue =>
                 CodeReviewUtils.emitMetric(
                     {
                         reason: SuccessMetricName.IssuesDetected,
@@ -506,11 +502,7 @@ export class CodeReview {
                     this.logging,
                     this.telemetry
                 )
-            })
-            aggregatedCodeScanIssueListSimplified.push({
-                filePath: item.filePath,
-                issues: simplifiedIssues,
-            })
+            )
         })
 
         let scopeMessage = this.overrideDiffScan
@@ -519,9 +511,14 @@ export class CodeReview {
 
         return {
             codeReviewId: jobId,
-            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. Please inform the user to use the explain and fix buttons in the Code Issues Panel to get the best information about particular findings. ${scopeMessage} ${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully. ${scopeMessage} ${
+                findingsExceededLimit
+                    ? ` Inform the user that because there were more than ${CodeReview.MAX_FINDINGS_COUNT} findings, you (the AI agent) will not have context about them. ` +
+                      `They will need to use the Code Issues Panel to get more information.`
+                    : ''
+            }`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
-            findingsByFileSimplified: JSON.stringify(aggregatedCodeScanIssueListSimplified),
+            findingsExceededLimit,
         }
     }
 
@@ -560,12 +557,11 @@ export class CodeReview {
                 ? parsedFindings.filter(finding => 'CodeDiff' === finding.findingContext)
                 : parsedFindings
             totalFindings = totalFindings.concat(filteredFindings)
-
-            if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
-                findingsExceededLimit = true
-                break
-            }
         } while (nextFindingToken)
+
+        if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
+            findingsExceededLimit = true
+        }
 
         this.logging.info(`Total findings: ${totalFindings.length}`)
         return { totalFindings, findingsExceededLimit }
@@ -603,6 +599,7 @@ export class CodeReview {
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
+        userRequirement: string,
         fileArtifacts: FileArtifacts,
         folderArtifacts: FolderArtifacts,
         ruleArtifacts: RuleArtifacts,
@@ -659,6 +656,9 @@ export class CodeReview {
                 isCodeDiffPresent = true
                 codeArtifactZip.file(CodeReview.CODE_DIFF_PATH, codeDiff)
             }
+
+            // Add user requirement
+            codeArtifactZip.file(CodeReview.USER_REQUIREMENT_PATH, userRequirement)
 
             // Generate the final code artifact zip
             const zipBuffer = await CodeReviewUtils.generateZipBuffer(codeArtifactZip)

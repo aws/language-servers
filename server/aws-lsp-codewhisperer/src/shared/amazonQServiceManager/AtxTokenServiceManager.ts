@@ -110,15 +110,33 @@ export class AtxTokenServiceManager {
     }
 
     public hasValidCredentials(): boolean {
-        return this.features.credentialsProvider.hasCredentials('bearer' as any)
+        this.log('Checking ATX credentials availability')
+        const runtime = (this.features as any).runtime
+        this.log(`Runtime available: ${!!runtime}`)
+        if (runtime && runtime.getAtxCredentialsProvider) {
+            this.log('Runtime has getAtxCredentialsProvider method')
+            const atxCredentialsProvider = runtime.getAtxCredentialsProvider()
+            this.log(`ATX credentials provider: ${!!atxCredentialsProvider}`)
+            const hasCredentials = atxCredentialsProvider?.hasCredentials('bearer') || false
+            this.log(`ATX has bearer credentials: ${hasCredentials}`)
+            return hasCredentials
+        }
+        this.log('Runtime does not have getAtxCredentialsProvider method')
+        return false
     }
 
     public async getBearerToken(): Promise<string> {
         if (!this.hasValidCredentials()) {
             throw new Error('No bearer credentials available for ATX')
         }
+        this.log('Getting ATX bearer token')
+        const runtime = (this.features as any).runtime
+        this.log(`Runtime available: ${!!runtime}`)
+        const atxCredentialsProvider = runtime.getAtxCredentialsProvider()
+        this.log(`ATX credentials provider: ${!!atxCredentialsProvider}`)
+        const credentials = atxCredentialsProvider?.getCredentials('bearer')
+        this.log(`ATX credentials: ${!!credentials}`)
 
-        const credentials = this.features.credentialsProvider.getCredentials('bearer' as any)
         if (!credentials || !('token' in credentials) || !credentials.token) {
             throw new Error('Bearer token is null or empty')
         }

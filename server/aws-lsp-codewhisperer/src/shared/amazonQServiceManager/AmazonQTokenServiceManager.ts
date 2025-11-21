@@ -31,11 +31,12 @@ import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
-import { getUserAgent } from '../telemetryUtils'
+import { getUserAgent, makeUserContextObject } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
 import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
 import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
+import { UserContext } from '@amzn/codewhisperer-runtime'
 
 const ATX_CONFIGURATION_SECTION = 'aws.atx'
 
@@ -147,34 +148,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private setupAtxCredentialHandler(): void {
         this.logging.log('Setting up separate ATX credential handler')
-
-        const originalProvider = this.features.credentialsProvider
-        let alternateCredentials: any = undefined
-
-        // Create intercepted provider for bearer support
-        const interceptedProvider = {
-            ...originalProvider,
-
-            getCredentials: (type: CredentialsType) => {
-                if (type === ('bearer' as any)) {
-                    this.logging.log(`Getting ATX credentials: ${alternateCredentials ? 'found' : 'not found'}`)
-                    return alternateCredentials
-                }
-                return originalProvider.getCredentials(type)
-            },
-
-            hasCredentials: (type: CredentialsType) => {
-                if (type === ('bearer' as any)) {
-                    return !!alternateCredentials
-                }
-                return originalProvider.hasCredentials(type)
-            },
-        }
-
-        // Replace provider
-        ;(this.features as any).credentialsProvider = interceptedProvider
-
-        // ATX credentials now handled by existing aws/credentials/token/update handler with credential key routing
+        this.logging.log('Skipping ATX credential handler - using runtime provider directly')
     }
 
     private async decodeCredentialsRequestToken(request: any): Promise<any> {
@@ -185,133 +159,57 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private setupCredentialUpdateLogging(): void {
         this.logging.log('Setting up credential update logging and ATX routing')
 
-        // Intercept credential provider to save ATX credentials properly
-        const originalCredentialsProvider = this.features.credentialsProvider
+        // Track which credential type was last updated to prevent cross-deletion
+        let lastCredentialType: 'q' | 'atx' | null = null
 
-        // Create a wrapper that intercepts credential storage
-        const credentialsWrapper = {
-            ...originalCredentialsProvider,
+        // Try to intercept LSP connection for credential updates
+        const connection = (this.features as any).lsp?.connection
+        if (connection && connection.onNotification) {
+            this.logging.log('Found LSP connection, setting up credential deletion interceptor')
 
-            // Store original methods
-            _originalGetCredentials: originalCredentialsProvider.getCredentials.bind(originalCredentialsProvider),
-            _originalHasCredentials: originalCredentialsProvider.hasCredentials.bind(originalCredentialsProvider),
+            // Intercept credential deletion to prevent token override
+            const originalOnNotification = connection.onNotification.bind(connection)
+            connection.onNotification = (type: any, handler: any) => {
+                if (typeof type === 'string' && type === 'aws/credentials/bearer/delete') {
+                    this.logging.log('Intercepting bearer credential deletion')
+                    return originalOnNotification(type, (notification: any) => {
+                        this.logging.log(`Credential deletion for: ${lastCredentialType || 'unknown'}`)
 
-            // Custom credential storage for ATX
-            _alternateCredentials: undefined as any,
-            _qCredentials: undefined as any,
-
-            getCredentials: (type: CredentialsType) => {
-                if (type === ('bearer' as any)) {
-                    this.logging.log(
-                        `Getting bearer credentials: ${credentialsWrapper._alternateCredentials ? 'found' : 'not found'}`
-                    )
-                    return credentialsWrapper._alternateCredentials
-                } else if (type === 'bearer') {
-                    // Return Q credentials for bearer requests
-                    this.logging.log(
-                        `Getting Q bearer credentials: ${credentialsWrapper._qCredentials ? 'found' : 'not found'}`
-                    )
-                    return credentialsWrapper._qCredentials || credentialsWrapper._originalGetCredentials(type)
+                        // Only allow deletion if it matches the last credential type updated
+                        if (lastCredentialType === 'q') {
+                            this.logging.log('Allowing Q credential deletion')
+                            return handler(notification)
+                        } else if (lastCredentialType === 'atx') {
+                            this.logging.log('Blocking Q credential deletion - ATX was last updated')
+                            return // Block the deletion
+                        } else {
+                            this.logging.log('Unknown credential type - allowing deletion')
+                            return handler(notification)
+                        }
+                    })
                 }
-                return credentialsWrapper._originalGetCredentials(type)
-            },
-
-            hasCredentials: (type: CredentialsType) => {
-                if (type === ('bearer' as any)) {
-                    const result = !!credentialsWrapper._alternateCredentials
-                    this.logging.log(`Has bearer credentials: ${result}`)
-                    return result
-                } else if (type === 'bearer') {
-                    const result =
-                        !!credentialsWrapper._qCredentials || credentialsWrapper._originalHasCredentials(type)
-                    this.logging.log(`Has Q bearer credentials: ${result}`)
-                    return result
-                }
-                return credentialsWrapper._originalHasCredentials(type)
-            },
-        }
-
-        // Replace the credentials provider
-        ;(this.features as any).credentialsProvider = credentialsWrapper
-
-        // Track the last profile update to determine if next credential update is for ATX
-        let lastProfileUpdateWasAtx = false
-
-        // Intercept profile updates to track ATX vs Q
-        const originalHandleOnUpdateConfiguration = this.handleOnUpdateConfiguration.bind(this)
-        this.handleOnUpdateConfiguration = async (params: any, token: any) => {
-            if (params.section === 'aws.atx') {
-                this.logging.log('ATX profile update detected - next credential update will be ATX')
-                lastProfileUpdateWasAtx = true
-            } else {
-                this.logging.log('Q profile update detected - next credential update will be Q')
-                lastProfileUpdateWasAtx = false
+                return originalOnNotification(type, handler)
             }
-            return originalHandleOnUpdateConfiguration(params, token)
-        }
 
-        // Try to intercept credential updates at the LSP connection level
-        const connection = (this.features.lsp as any).connection
-        if (connection && connection.onRequest) {
-            this.logging.log('Found LSP connection, setting up request interceptors')
-
-            // Intercept aws/credentials/token/update requests
-            const originalOnRequest = connection.onRequest.bind(connection)
-            connection.onRequest = (type: any, handler: any) => {
-                if (typeof type === 'string' && type === 'aws/credentials/token/update') {
-                    this.logging.log('Intercepting aws/credentials/token/update handler registration')
-                    return originalOnRequest(type, (request: any) => {
-                        this.logging.log(`aws/credentials/token/update called. ${JSON.stringify(request)}}`)
-                        this.logging.log(
-                            `aws/credentials/token/update called. Credential key: ${request.credentialkey || 'bearer'}`
-                        )
-                        this.logging.log(`Request data: ${JSON.stringify(request, null, 2)}`)
-
-                        if (request.credentialkey === 'atx-bearer' && request.data && request.data.token) {
-                            // This is an ATX credential update - store in bearer only
-                            this.logging.log(
-                                `Storing ATX credentials in atx-bearer: ${request.data.token.substring(0, 20)}...`
-                            )
-                            credentialsWrapper._alternateCredentials = request.data
-                            lastProfileUpdateWasAtx = false // Reset flag
-                            return // Don't call original handler to prevent overwriting bearer
-                        } else if (request.data && request.data.token) {
-                            // This is a Q credential update - store in bearer
-                            this.logging.log(
-                                `Storing Q credentials in bearer: ${request.data.token.substring(0, 20)}...`
-                            )
-                            credentialsWrapper._qCredentials = request.data
-                            return handler(request) // Call original handler for Q credentials
-                        }
-
-                        return handler(request)
-                    })
-                } else if (type && type.method === 'aws/credentials/token/update') {
-                    this.logging.log('Intercepting aws/credentials/token/update handler registration (typed)')
-                    return originalOnRequest(type, (request: any) => {
-                        this.logging.log(
-                            `aws/credentials/token/update called (typed). Last profile update was ATX: ${lastProfileUpdateWasAtx}`
-                        )
-
-                        if (request.credentialkey === 'atx-bearer' && request.data && request.data.token) {
-                            this.logging.log(
-                                `Storing ATX credentials in atx-bearer: ${request.data.token.substring(0, 20)}...`
-                            )
-                            credentialsWrapper._alternateCredentials = request.data
-                            lastProfileUpdateWasAtx = false
-                            return
-                        } else if (request.data && request.data.token) {
-                            this.logging.log(
-                                `Storing Q credentials in bearer: ${request.data.token.substring(0, 20)}...`
-                            )
-                            credentialsWrapper._qCredentials = request.data
+            // Track credential updates to know which type was last updated
+            if (connection.onRequest) {
+                const originalOnRequest = connection.onRequest.bind(connection)
+                connection.onRequest = (type: any, handler: any) => {
+                    if (typeof type === 'string' && type === 'aws/credentials/token/update') {
+                        this.logging.log('Intercepting credential update to track type')
+                        return originalOnRequest(type, (request: any) => {
+                            if (request.credentialkey === 'atx-bearer') {
+                                this.logging.log('ATX credential update detected')
+                                lastCredentialType = 'atx'
+                            } else {
+                                this.logging.log('Q credential update detected')
+                                lastCredentialType = 'q'
+                            }
                             return handler(request)
-                        }
-
-                        return handler(request)
-                    })
+                        })
+                    }
+                    return originalOnRequest(type, handler)
                 }
-                return originalOnRequest(type, handler)
             }
         } else {
             this.logging.log('Could not find LSP connection for intercepting')
@@ -904,6 +802,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
         const customUserAgent = this.getCustomUserAgent()
+        const initParam = this.features.lsp.getClientInitializeParams()
+        const userContext = initParam
+            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
+            : undefined
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
@@ -911,6 +813,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             region,
             endpoint,
             this.features.sdkInitializator,
+            userContext,
             customUserAgent
         )
 

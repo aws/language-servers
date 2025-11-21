@@ -1,5 +1,78 @@
 # Changelog
 
+## [0.0.92](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.91...lsp-codewhisperer/v0.0.92) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+
+### Bug Fixes
+
+* **amazonq:** prevent base64 encoding error by passing undefined instead of empty object ([#2492](https://github.com/aws/language-servers/issues/2492)) ([30e28b7](https://github.com/aws/language-servers/commit/30e28b75499b1a55da904697fd446a30c6a87665))
+* incorrect error reference in previous fix ([9fddc8e](https://github.com/aws/language-servers/commit/9fddc8e11f583dbf089f93979e1602d8c8795a16))
+* preserve registry server config when updating permissions ([#2515](https://github.com/aws/language-servers/issues/2515)) ([49ca3bb](https://github.com/aws/language-servers/commit/49ca3bbb6dbf9eac4b281aa80cd5ff30b94b3a7e))
+* resolve process crash when managing BID subscription ([#2501](https://github.com/aws/language-servers/issues/2501)) ([5d6590a](https://github.com/aws/language-servers/commit/5d6590a1d8c7aeb80b75036eb0e1b3802afe5c08))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.16 to ^0.0.17
+
+## [0.0.91](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.90...lsp-codewhisperer/v0.0.91) (2025-11-18)
+
+
+### Bug Fixes
+
+* **amazonq:** handle large results ([#2497](https://github.com/aws/language-servers/issues/2497)) ([b3efa7c](https://github.com/aws/language-servers/commit/b3efa7cff0b23608dd0cca796c9c95a672c9321a))
+* resolve broken error handling in setPaidTierMode ([#2500](https://github.com/aws/language-servers/issues/2500)) ([8ccb067](https://github.com/aws/language-servers/commit/8ccb06768c4a386b0a4699d8b2e299f0aad110b1))
+
+## [0.0.90](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.89...lsp-codewhisperer/v0.0.90) (2025-11-13)
+
+
+### Bug Fixes
+
+* bearer client will not pick up telemetry optout and its always optout ([#2484](https://github.com/aws/language-servers/issues/2484)) ([ec6771f](https://github.com/aws/language-servers/commit/ec6771fc5dc162f9c65df4e979dcfc3ae4838f06))
+
+## [0.0.89](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.88...lsp-codewhisperer/v0.0.89) (2025-11-12)
+
+
+### Features
+
+* ab test setup for new repomap strategy ([#2474](https://github.com/aws/language-servers/issues/2474)) ([d28867f](https://github.com/aws/language-servers/commit/d28867f2a5e06693b83d0cfd0286f017cdc5e5b3))
+* differentiate implicit and explicit reject for inline completion ([#2475](https://github.com/aws/language-servers/issues/2475)) ([4b68eea](https://github.com/aws/language-servers/commit/4b68eea03374db79b8ad728aa048b623de8efa91))
+
+
+### Bug Fixes
+
+* McpManager not initialized error ([#2479](https://github.com/aws/language-servers/issues/2479)) ([7e2707b](https://github.com/aws/language-servers/commit/7e2707b8c2b4467aae1fe1c77bb419043e193ddc))
+
+## [0.0.88](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.87...lsp-codewhisperer/v0.0.88) (2025-10-28)
+
+
+### Bug Fixes
+
+* add venv in the common gitignore patterns ([#2445](https://github.com/aws/language-servers/issues/2445)) ([d030288](https://github.com/aws/language-servers/commit/d030288a2508356db337dfa34ee64c8be1deb8e9))
+* enforce MAX_TOOL_NAME_LENGTH check in createNamespacedToolName ([#2447](https://github.com/aws/language-servers/issues/2447)) ([6663f87](https://github.com/aws/language-servers/commit/6663f87e68c9645af6ffb004eaf725e5102fe5ab))
+* strenghen NEP trigger conditions ([#2438](https://github.com/aws/language-servers/issues/2438)) ([82e2340](https://github.com/aws/language-servers/commit/82e2340cf86a5eba20f8d18f1293c136c0022dd9))
+
+## [0.0.87](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.86...lsp-codewhisperer/v0.0.87) (2025-10-21)
+
+
+### Features
+
+* **amazonq:** add user requirement to zipfile for code review tool ([#2430](https://github.com/aws/language-servers/issues/2430)) ([2c33b38](https://github.com/aws/language-servers/commit/2c33b384a0e406bcd8d3888a911d5482ce1f38ef))
+* nep auto trigger ([#2424](https://github.com/aws/language-servers/issues/2424)) ([2292bd7](https://github.com/aws/language-servers/commit/2292bd75fded0848208de9401d15d3399a9c297b))
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
+
+### Bug Fixes
+
+* classifier last token sometimes fail to capture the right values ([#2434](https://github.com/aws/language-servers/issues/2434)) ([7420d59](https://github.com/aws/language-servers/commit/7420d591a0fcf5da834f0165696aa50b99fd4d3a))
+
 ## [0.0.86](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.85...lsp-codewhisperer/v0.0.86) (2025-10-15)
 
 
