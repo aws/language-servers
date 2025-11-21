@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.93](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.92...lsp-codewhisperer/v0.0.93) (2025-11-21)
+
+
+### Bug Fixes
+
+* fix for permission update for servers ([#2517](https://github.com/aws/language-servers/issues/2517)) ([ef86b5c](https://github.com/aws/language-servers/commit/ef86b5ce474993265f9ffa8cb184e96eb1d0daee))
+
 ## [0.0.92](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.91...lsp-codewhisperer/v0.0.92) (2025-11-21)
 
 
