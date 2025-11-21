@@ -91,3 +91,9 @@ export interface AtxGetTransformInfoResponse {
     ArtifactPath?: string | null
     ErrorString?: string | null
 }
+
+// ATX Stop Job request
+export interface AtxStopJobRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+}

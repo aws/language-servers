@@ -11,12 +11,14 @@ import {
     AtxListOrCreateWorkspaceRequest,
     AtxStartTransformRequest,
     AtxGetTransformInfoRequest,
+    AtxStopJobRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
 const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
 const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
+const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -68,6 +70,16 @@ export const AtxNetTransformServerToken =
 
                         return result
                     }
+                    case AtxStopJobCommand: {
+                        const { WorkspaceId, JobId } = params as AtxStopJobRequest
+
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for stopJob')
+                        }
+
+                        const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
+                        return { Status: result }
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -92,6 +104,7 @@ export const AtxNetTransformServerToken =
                             AtxListOrCreateWorkspaceCommand,
                             AtxStartTransformCommand,
                             AtxGetTransformInfoCommand,
+                            AtxStopJobCommand,
                         ],
                     },
                 },

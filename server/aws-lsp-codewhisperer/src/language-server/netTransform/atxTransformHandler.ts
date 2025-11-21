@@ -5,6 +5,7 @@ import got from 'got'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import AdmZip = require('adm-zip')
+import { ArtifactManager } from './artifactManager'
 import {
     ElasticGumbyFrontendClient,
     ListAvailableProfilesCommand,
@@ -18,6 +19,7 @@ import {
     GetJobCommand,
     GetJobResponse,
     StartJobCommand,
+    StopJobCommand,
     CategoryType,
     FileType,
     JobInfo,
@@ -284,6 +286,7 @@ export class ATXTransformHandler {
             this.logging.log('DEBUG-ATX: Sending ListWorkspaces command to ATX FES')
             const response = await this.atxClient!.send(command)
             this.logging.log(`DEBUG-ATX: ListWorkspaces API returned ${response.items?.length || 0} workspaces`)
+            this.logging.log(`ATX: ListWorkspaces RequestId: ${response.$metadata?.requestId}`)
 
             // Convert ATX API format to IDE expected format
             const workspaces = (response.items || []).map(workspace => ({
@@ -325,6 +328,7 @@ export class ATXTransformHandler {
             this.logging.log('DEBUG-ATX: Sending CreateWorkspace command to ATX FES')
             const response = await this.atxClient!.send(command)
             this.logging.log(`DEBUG-ATX: CreateWorkspace API returned workspaceId: ${response.workspace?.id}`)
+            this.logging.log(`ATX: CreateWorkspace RequestId: ${response.$metadata?.requestId}`)
 
             if (response.workspace?.id && response.workspace?.name) {
                 const result = {
@@ -437,6 +441,7 @@ export class ATXTransformHandler {
 
             const response = (await this.atxClient.send(command)) as any
             this.logging.log(`DEBUG-ATX-CREATE-JOB: API returned jobId: ${response.jobId}, status: ${response.status}`)
+            this.logging.log(`ATX: CreateJob RequestId: ${response.$metadata?.requestId}`)
 
             if (response.jobId && response.status) {
                 return { jobId: response.jobId, status: response.status }
@@ -498,6 +503,7 @@ export class ATXTransformHandler {
 
             await this.addAuthToCommand(command)
             const result = (await this.atxClient.send(command)) as any
+            this.logging.log(`ATX: CreateArtifactUploadUrl RequestId: ${result.$metadata?.requestId}`)
 
             if (result && result.artifactId && result.s3PreSignedUrl) {
                 this.logging.log(`DEBUG-ATX-UPLOAD-URL: SUCCESS - Upload URL created`)
@@ -572,6 +578,7 @@ export class ATXTransformHandler {
 
             await this.addAuthToCommand(command)
             const result = (await this.atxClient.send(command)) as any
+            this.logging.log(`ATX: StartJob RequestId: ${result.$metadata?.requestId}`)
 
             this.logging.log(`DEBUG-ATX-START-JOB: Job started successfully`)
             return { success: true }
@@ -588,15 +595,12 @@ export class ATXTransformHandler {
         try {
             this.logging.log('DEBUG-ATX: Creating ZIP file from solution')
 
-            const { ArtifactManager } = await import('./artifactManager')
-
-            // Create workspace path like RTS does: {solutionRoot}/artifactWorkspace/{uuid}
             const workspacePath = this.getWorkspacePath(request.SolutionRootPath)
 
             const artifactManager = new ArtifactManager(
                 this.workspace,
                 this.logging,
-                workspacePath, // Use RTS-style workspace path
+                workspacePath,
                 request.SolutionRootPath
             )
 
@@ -1164,6 +1168,34 @@ export class ATXTransformHandler {
                     throw extractError
                 }
             }
+        }
+    }
+
+    /**
+     * Stop ATX transformation job
+     */
+    async stopJob(workspaceId: string, jobId: string): Promise<string> {
+        try {
+            this.logging.log(`ATX: StopJob operation started for job: ${jobId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const command = new StopJobCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+            })
+
+            await this.addAuthToCommand(command)
+            const response = await this.atxClient!.send(command)
+
+            this.logging.log(`ATX: StopJob SUCCESS - Status: ${response.status}`)
+            this.logging.log(`ATX: StopJob RequestId: ${response.$metadata?.requestId}`)
+            return response.status || 'STOPPED'
+        } catch (error) {
+            this.logging.error(`ATX: StopJob error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return 'FAILED'
         }
     }
 }
