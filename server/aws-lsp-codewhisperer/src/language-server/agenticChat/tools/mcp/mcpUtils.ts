@@ -432,6 +432,30 @@ export async function loadAgentConfig(
                         const errorMsg = `MCP Registry: Server '${name}' not found in registry`
                         logging.error(errorMsg)
                         configErrors.set(`${name}`, errorMsg)
+
+                        // Create placeholder config for missing registry server
+                        cfg = {
+                            command: undefined,
+                            url: undefined,
+                            args: [],
+                            env: {},
+                            disabled: false,
+                            __configPath__: fsPath,
+                            __registryError__: errorMsg,
+                        } as MCPServerConfig
+
+                        const sanitizedName = sanitizeName(name)
+                        servers.set(sanitizedName, cfg)
+                        serverNameMapping.set(sanitizedName, name)
+
+                        // Still add to agent config to preserve user settings
+                        const agentEntry: any = { type: 'registry' }
+                        if (typeof entry.timeout === 'number') agentEntry.timeout = entry.timeout
+                        if (entry.headers && Object.keys(entry.headers).length) agentEntry.headers = entry.headers
+                        if (entry.env && Object.keys(entry.env).length) agentEntry.env = entry.env
+                        agentConfig.mcpServers[name] = agentEntry
+
+                        logging.info(`Loaded placeholder for missing registry server '${name}'`)
                         continue
                     }
 
@@ -1095,7 +1119,8 @@ export async function saveServerSpecificAgentConfig(
     serverTools: string[],
     serverAllowedTools: string[],
     configPath: string,
-    isLegacyMcpServer: boolean = false
+    isLegacyMcpServer: boolean = false,
+    skipMcpServerConfig: boolean = false
 ): Promise<void> {
     try {
         await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
@@ -1119,7 +1144,7 @@ export async function saveServerSpecificAgentConfig(
             tool => tool !== serverPrefix && !tool.startsWith(`${serverPrefix}/`)
         )
 
-        if (!isLegacyMcpServer) {
+        if (!isLegacyMcpServer && !skipMcpServerConfig) {
             if (serverConfig === null) {
                 // Remove server entirely
                 delete existingConfig.mcpServers[serverName]

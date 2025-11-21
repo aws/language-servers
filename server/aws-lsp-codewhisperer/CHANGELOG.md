@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.92](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.91...lsp-codewhisperer/v0.0.92) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+
+### Bug Fixes
+
+* **amazonq:** prevent base64 encoding error by passing undefined instead of empty object ([#2492](https://github.com/aws/language-servers/issues/2492)) ([30e28b7](https://github.com/aws/language-servers/commit/30e28b75499b1a55da904697fd446a30c6a87665))
+* incorrect error reference in previous fix ([9fddc8e](https://github.com/aws/language-servers/commit/9fddc8e11f583dbf089f93979e1602d8c8795a16))
+* preserve registry server config when updating permissions ([#2515](https://github.com/aws/language-servers/issues/2515)) ([49ca3bb](https://github.com/aws/language-servers/commit/49ca3bbb6dbf9eac4b281aa80cd5ff30b94b3a7e))
+* resolve process crash when managing BID subscription ([#2501](https://github.com/aws/language-servers/issues/2501)) ([5d6590a](https://github.com/aws/language-servers/commit/5d6590a1d8c7aeb80b75036eb0e1b3802afe5c08))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.16 to ^0.0.17
+
 ## [0.0.91](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.90...lsp-codewhisperer/v0.0.91) (2025-11-18)
 
 

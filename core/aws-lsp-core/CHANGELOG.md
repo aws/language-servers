@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.17](https://github.com/aws/language-servers/compare/lsp-core/v0.0.16...lsp-core/v0.0.17) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
 ## [0.0.16](https://github.com/aws/language-servers/compare/lsp-core/v0.0.15...lsp-core/v0.0.16) (2025-10-01)
 
 
