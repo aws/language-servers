@@ -1850,6 +1850,8 @@ export class TransformHandler {
                 while (count < 300) {
                     const jobStatus = await this.getATXFESJobStatus(request.TransformationJobId)
 
+                    await this.listWorklogsFESClient(this.currentWorkspaceId || '', request.TransformationJobId)
+
                     if (jobStatus && validExitStatus.includes(jobStatus.status)) {
                         return {
                             TransformationJob: {
@@ -2577,7 +2579,7 @@ export class TransformHandler {
             this.logging.log(`dbu ListWorklog all ${JSON.stringify(result)}`)
 
             this.logging.log(
-                `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries for step ${stepId}`
+                `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} worklog entries for step ${stepId}`
             )
             result.worklogs?.forEach(async (value, index) => {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
