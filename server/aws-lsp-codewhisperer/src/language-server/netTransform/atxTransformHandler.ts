@@ -1129,6 +1129,9 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             } else {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job in PLANNING`)
+
+                await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
+
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -1297,7 +1300,7 @@ export class ATXTransformHandler {
                 'ExportResultsArchive.zip'
             )
 
-            return path.join(pathToDownload, 'ExportResultsArchive.zip')
+            return pathToDownload
         } catch (error) {
             this.logging.error(`ATX FES download failed: ${String(error)}`)
             return null
@@ -1754,8 +1757,6 @@ export class ATXTransformHandler {
 
             // Write back to file
             fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
-
-            this.logging.log(`Worklog saved to: ${worklogPath}`)
         } catch (error) {
             this.logging.error(`Error saving worklog: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
