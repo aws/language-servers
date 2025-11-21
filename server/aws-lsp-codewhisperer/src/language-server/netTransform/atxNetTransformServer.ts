@@ -7,7 +7,6 @@ import {
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
 import {
-    AtxGetJobStatusInfoRequest,
     AtxListOrCreateWorkspaceRequest,
     AtxStartTransformRequest,
     AtxGetTransformInfoRequest,

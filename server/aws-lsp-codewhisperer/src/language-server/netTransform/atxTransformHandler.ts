@@ -17,6 +17,9 @@ import {
     ListHitlTasksCommand,
     SubmitCriticalHitlTaskCommand,
     GetJobCommand,
+    ListJobPlanStepsCommand,
+    ListWorklogsCommand,
+    ListArtifactsCommand,
     GetJobResponse,
     StartJobCommand,
     StopJobCommand,
@@ -39,7 +42,7 @@ import {
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
-import { ToolInputSchemaFilterSensitiveLog } from '@amzn/codewhisperer-runtime'
+import { TransformationPlan } from '@amzn/codewhisperer-runtime'
 
 export const ArtifactWorkspaceName = 'artifactWorkspace'
 /**
@@ -1055,7 +1058,20 @@ export class ATXTransformHandler {
 
             if (jobStatus === 'COMPLETED') {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job completed successfully`)
-                return null
+                const pathToArtifact = await this.downloadFinalArtifact(
+                    request.WorkspaceId,
+                    request.TransformationJobId,
+                    request.SolutionRootPath
+                )
+
+                return {
+                    TransformationJob: {
+                        WorkspaceId: request.WorkspaceId,
+                        JobId: request.TransformationJobId,
+                        Status: jobStatus,
+                    } as AtxTransformationJob,
+                    ArtifactPath: pathToArtifact,
+                } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job failed`)
                 return {
@@ -1079,7 +1095,20 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'PLANNED') {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job in PLANNED`)
-                return null
+                const plan = await this.getTransformationPlan(
+                    request.WorkspaceId,
+                    request.TransformationJobId,
+                    request.SolutionRootPath
+                )
+
+                return {
+                    TransformationJob: {
+                        WorkspaceId: request.WorkspaceId,
+                        JobId: request.TransformationJobId,
+                        Status: jobStatus,
+                    } as AtxTransformationJob,
+                    TransformationPlan: plan,
+                } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'AWAITING_HUMAN_INPUT') {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job in AWAITING_HUMAN_INPUT`)
 
@@ -1181,7 +1210,6 @@ export class ATXTransformHandler {
 
             if (!validation) {
                 throw new Error('Failed to poll hitl task')
-                return null
             }
 
             if (validation === 'Submitted plan did not pass validation, please check the plan for details....') {
@@ -1234,6 +1262,502 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: StopJob error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return 'FAILED'
+        }
+    }
+
+    async downloadFinalArtifact(workspaceId: string, jobId: string, solutionRootPath: string): Promise<string | null> {
+        try {
+            this.logging.log('=== ATX FES Download Export Result Archive ===')
+            this.logging.log(`Called with jobId: ${jobId}, solutionRootPath: ${solutionRootPath}`)
+
+            this.logging.log(`Listing CUSTOMER_OUTPUT artifacts for job: ${jobId}`)
+            const artifacts = await this.listArtifacts(workspaceId, jobId)
+            if (!artifacts || artifacts.length === 0) {
+                throw new Error('No CUSTOMER_OUTPUT artifacts available for download')
+            }
+
+            const artifact = artifacts[0]
+            const artifactId = artifact.artifactId
+            this.logging.log(`Found artifact: ${artifactId}, size: ${artifact.sizeInBytes} bytes`)
+
+            this.logging.log(`Creating download URL for artifactId: ${artifactId}`)
+            const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, artifactId)
+            if (!downloadInfo) {
+                throw new Error('Failed to get ATX FES download URL')
+            }
+
+            this.logging.log(`ATX FES Job ${jobId} - Artifact download URL created: ${downloadInfo.s3PresignedUrl}`)
+
+            const pathToDownload = path.join(solutionRootPath, ArtifactWorkspaceName, jobId)
+
+            await this.downloadAndExtractArchive(
+                downloadInfo.s3PresignedUrl,
+                downloadInfo.requestHeaders,
+                pathToDownload,
+                'ExportResultsArchive.zip'
+            )
+
+            return path.join(pathToDownload, 'ExportResultsArchive.zip')
+        } catch (error) {
+            this.logging.error(`ATX FES download failed: ${String(error)}`)
+            return null
+        }
+    }
+
+    async getTransformationPlan(
+        workspaceId: string,
+        jobId: string,
+        solutionRootPath: string
+    ): Promise<TransformationPlan> {
+        this.logging.log('Using ATX FES for Transform profile - real ListJobPlanSteps')
+
+        try {
+            // Get real plan steps from ATX FES (only if job status >= PLANNED)
+            const planSteps = await this.getATXFESJobPlanSteps(workspaceId, jobId)
+            this.logging.log(`dbu ListWorklog all ${JSON.stringify(planSteps)}`)
+
+            if (planSteps) {
+                this.logging.log(`ATX FES: Found ${planSteps.length} transformation steps`)
+
+                // Sort steps by score (primary) and startTime (tiebreaker) to match RTS ordering
+                planSteps.sort((a: any, b: any) => {
+                    const scoreDiff = (a.score || 0) - (b.score || 0)
+                    if (scoreDiff !== 0) return scoreDiff
+
+                    // Tiebreaker for identical scores: sort by startTime
+                    const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
+                    const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
+                    return timeA - timeB
+                })
+
+                this.logging.log(`PlanSteps response: ` + JSON.stringify(planSteps))
+                // Return in exact same format as RTS with all required fields
+                const transformationPlan = {
+                    transformationSteps: planSteps.map((step: any, index: number) => {
+                        try {
+                            // Map substeps to ProgressUpdates for IDE display
+                            const progressUpdates = (step.substeps || []).map((substep: any) => {
+                                // Map ATX substep status to IDE TransformationProgressUpdateStatus enum values
+                                let substepStatus = 'IN_PROGRESS' // Default - no NOT_STARTED in this enum
+                                switch (substep.status) {
+                                    case 'SUCCEEDED':
+                                    case 'COMPLETED':
+                                        substepStatus = 'COMPLETED'
+                                        break
+                                    case 'IN_PROGRESS':
+                                    case 'RUNNING':
+                                        substepStatus = 'IN_PROGRESS'
+                                        break
+                                    case 'FAILED':
+                                        substepStatus = 'FAILED'
+                                        break
+                                    case 'SKIPPED':
+                                        substepStatus = 'SKIPPED'
+                                        break
+                                    case 'NOT_STARTED':
+                                    case 'CREATED':
+                                    default:
+                                        substepStatus = 'IN_PROGRESS' // No NOT_STARTED option in ProgressUpdate enum
+                                        break
+                                }
+                                this.logging.log(
+                                    `this is progres update for step ${JSON.stringify(step)} and has substep is ${JSON.stringify(substep)}`
+                                )
+
+                                // Map nested progress updates (3rd level)
+                                const nestedProgressUpdates = (substep.substeps || []).map((nestedUpdate: any) => {
+                                    this.logging.log(
+                                        `Found nested progress update: ${nestedUpdate.stepName} with status: ${nestedUpdate.status}`
+                                    )
+                                    let nestedStatus = 'IN_PROGRESS'
+                                    switch (nestedUpdate.status) {
+                                        case 'SUCCEEDED':
+                                        case 'COMPLETED':
+                                            nestedStatus = 'COMPLETED'
+                                            break
+                                        case 'IN_PROGRESS':
+                                        case 'RUNNING':
+                                            nestedStatus = 'IN_PROGRESS'
+                                            break
+                                        case 'FAILED':
+                                            nestedStatus = 'FAILED'
+                                            break
+                                        case 'SKIPPED':
+                                            nestedStatus = 'SKIPPED'
+                                            break
+                                        default:
+                                            nestedStatus = 'IN_PROGRESS'
+                                            break
+                                    }
+                                    return {
+                                        name: nestedUpdate.stepName || 'Unknown Nested Update',
+                                        description: nestedUpdate.description || '',
+                                        status: nestedStatus,
+                                        stepId: nestedUpdate.stepId ?? undefined,
+                                    }
+                                })
+
+                                this.logging.log(
+                                    `Substep ${substep.stepName} has ${nestedProgressUpdates.length} nested progress updates`
+                                )
+
+                                return {
+                                    name: substep.stepName || 'Unknown Substep',
+                                    description: substep.description || '',
+                                    status: substepStatus,
+                                    startTime: substep.startTime ? new Date(substep.startTime) : undefined,
+                                    endTime: substep.endTime ? new Date(substep.endTime) : undefined,
+                                    stepId: substep.stepId ?? undefined,
+                                    progressUpdates: nestedProgressUpdates,
+                                }
+                            })
+
+                            // Use ATX status directly - IDE supports most values, minimal mapping needed
+                            let mappedStatus = step.status || 'NOT_STARTED'
+                            // Only map the few values IDE doesn't have
+                            if (mappedStatus === 'SUCCEEDED') {
+                                mappedStatus = 'COMPLETED'
+                            } else if (mappedStatus === 'RUNNING') {
+                                mappedStatus = 'IN_PROGRESS'
+                            } else if (mappedStatus === 'CREATED') {
+                                mappedStatus = 'NOT_STARTED'
+                            }
+
+                            // Use ATX step data directly without hardcoded ordering
+                            const stepNumber = index + 1
+                            const stepName = `Step ${stepNumber} - ${step.stepName || 'Unknown Step'}`
+
+                            this.logging.log(
+                                `ATX Step ${stepNumber}: ${step.stepName} (${step.status} → ${mappedStatus}) with ${progressUpdates.length} substeps`
+                            )
+
+                            return {
+                                id: step.stepId || `step-${stepNumber}`,
+                                name: stepName,
+                                description: step.description || '',
+                                status: mappedStatus,
+                                progressUpdates: progressUpdates,
+                                startTime: step.startTime ? new Date(step.startTime) : undefined,
+                                endTime: step.endTime ? new Date(step.endTime) : undefined,
+                            }
+                        } catch (error) {
+                            this.logging.error(
+                                `ATX FES: Error mapping step ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`
+                            )
+                            // Return a safe fallback step
+                            const stepNumber = index + 1
+                            return {
+                                id: step.stepId || `fallback-${stepNumber}`,
+                                name: `Step ${stepNumber} - ${step.stepName || `Step ${stepNumber}`}`,
+                                description: step.description || '',
+                                status: 'NOT_STARTED',
+                                progressUpdates: [],
+                                startTime: undefined,
+                                endTime: undefined,
+                            }
+                        }
+                    }),
+                } as TransformationPlan
+                try {
+                    await this.listWorklogs(workspaceId, jobId, solutionRootPath)
+                } catch (e) {
+                    this.logging.log(`ATX FES: Could not get worklog for workspaces: ${workspaceId}, job id: ${jobId}`)
+                }
+
+                this.logging.log(
+                    `ATX FES: Successfully mapped ${transformationPlan.transformationSteps?.length || 0} steps`
+                )
+                if (transformationPlan.transformationSteps?.[0]) {
+                    this.logging.log(
+                        `ATX FES: First step mapped - id: ${transformationPlan.transformationSteps[0].id}, name: ${transformationPlan.transformationSteps[0].name}`
+                    )
+                }
+
+                return transformationPlan
+            } else {
+                this.logging.log('ATX FES: No plan steps available yet - returning empty plan')
+                return {
+                    transformationSteps: [] as any,
+                } as TransformationPlan
+            }
+        } catch (error) {
+            this.logging.error(
+                `ATX FES getTransformationPlan error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+            // Return empty plan on error
+            return {
+                transformationSteps: [] as any,
+            } as TransformationPlan
+        }
+    }
+
+    private async getATXFESJobPlanSteps(workspaceId: string, jobId: string): Promise<any[] | null> {
+        try {
+            this.logging.log(`ATX FES: getting plan steps with substeps...`)
+            const result = await this.listJobPlanSteps(workspaceId, jobId)
+            if (result) {
+                const steps = result || []
+                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${steps.length} plan steps with substeps`)
+                this.logging.log(`PlanSteps are  ${JSON.stringify(result)}`)
+                return steps
+            }
+            return null
+        } catch (error) {
+            this.logging.error(`ListJobPlanSteps error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Lists job plan steps using FES client with recursive substep fetching
+     */
+    private async listJobPlanSteps(workspaceId: string, jobId: string): Promise<any[] | null> {
+        try {
+            this.logging.log('=== ATX FES ListJobPlanSteps Operation (FES Client) ===')
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                this.logging.error('ListJobPlanSteps: Failed to initialize ATX client')
+                return null
+            }
+
+            // Get root steps first
+            const rootSteps = await this.getStepsRecursive(workspaceId, jobId, 'root')
+
+            if (rootSteps && rootSteps.length > 0) {
+                // For each root step, get its substeps
+                for (const step of rootSteps) {
+                    this.logging.log(`Getting substeps for step: ${step.stepName} (ID: ${step.stepId})`)
+                    const substeps = await this.getStepsRecursive(workspaceId, jobId, step.stepId)
+                    step.substeps = substeps || []
+
+                    // Sort substeps by score (primary) and startTime (tiebreaker) to match RTS ordering
+                    if (step.substeps.length > 0) {
+                        step.substeps.sort((a: any, b: any) => {
+                            const scoreDiff = (a.score || 0) - (b.score || 0)
+                            if (scoreDiff !== 0) return scoreDiff
+
+                            // Tiebreaker for identical scores: sort by startTime
+                            const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
+                            const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
+                            return timeA - timeB
+                        })
+                        for (const substep of step.substeps) {
+                            this.logging.log(
+                                `Getting superSubstep for step: ${substep.stepName} (ID: ${substep.stepId})`
+                            )
+                            const superSubsteps = await this.getStepsRecursive(workspaceId, jobId, substep.stepId)
+                            substep.substeps = superSubsteps || []
+
+                            // Sort substeps by score (primary) and startTime (tiebreaker) to match RTS ordering
+                            if (substep.substeps.length > 0) {
+                                substep.substeps.sort((a: any, b: any) => {
+                                    const scoreDiff = (a.score || 0) - (b.score || 0)
+                                    if (scoreDiff !== 0) return scoreDiff
+
+                                    // Tiebreaker for identical scores: sort by startTime
+                                    const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
+                                    const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
+                                    return timeA - timeB
+                                })
+                            }
+
+                            this.logging.log(`Step ${substep.stepName}: Found ${substep.substeps.length} substeps`)
+
+                            // Log substep details for debugging
+                            if (substep.substeps.length > 0) {
+                                substep.substeps.forEach((superSubstep: any, index: number) => {
+                                    this.logging.log(
+                                        `  SuperSubstep ${index + 1}: ${superSubstep.stepName} (${superSubstep.status || 'No status'})`
+                                    )
+                                })
+                            }
+                        }
+                    }
+
+                    this.logging.log(`Step ${step.stepName}: Found ${step.substeps.length} substeps`)
+
+                    // Log substep details for debugging
+                    if (step.substeps.length > 0) {
+                        step.substeps.forEach((substep: any, index: number) => {
+                            this.logging.log(
+                                `  Substep ${index + 1}: ${substep.stepName} (${substep.status || 'No status'})`
+                            )
+                        })
+                    }
+                }
+
+                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${rootSteps.length} steps with substeps`)
+                return rootSteps
+            }
+
+            this.logging.log('ListJobPlanSteps: No root steps found')
+            return null
+        } catch (error) {
+            this.logging.error(`ListJobPlanSteps error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Recursively gets steps for a given parent step ID
+     */
+    private async getStepsRecursive(workspaceId: string, jobId: string, parentStepId: string): Promise<any[] | null> {
+        try {
+            const command = new ListJobPlanStepsCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                parentStepId: parentStepId,
+                maxResults: 100,
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            if (result && result.steps && result.steps.length > 0) {
+                this.logging.log(`Found ${result.steps.length} steps for parent: ${parentStepId}`)
+                return result.steps
+            }
+
+            return null
+        } catch (error) {
+            this.logging.error(
+                `Error getting steps for parent ${parentStepId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+            return null
+        }
+    }
+
+    /**
+     * Lists artifacts using FES client with filtering - default to CUSTOMER_OUTPUT
+     */
+    private async listArtifacts(
+        workspaceId: string,
+        jobId: string,
+        filter: CategoryType = 'CUSTOMER_OUTPUT'
+    ): Promise<any[] | null> {
+        try {
+            this.logging.log('=== ATX FES ListArtifacts Operation (FES Client) ===')
+            this.logging.log(`Listing artifacts for job: ${jobId} in workspace: ${workspaceId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                this.logging.error('ListArtifacts: Failed to initialize ATX client')
+                return null
+            }
+
+            const command = new ListArtifactsCommand({
+                workspaceId: workspaceId,
+                jobFilter: {
+                    jobId: jobId,
+                    categoryType: filter, // Server-side filtering for customer output artifacts
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            this.logging.log(
+                `ListArtifacts: SUCCESS - Found ${result.artifacts?.length || 0} CUSTOMER_OUTPUT artifacts`
+            )
+            return result.artifacts || []
+        } catch (error) {
+            this.logging.error(`ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Lists artifacts using FES client with CUSTOMER_OUTPUT filtering
+     */
+    private async listWorklogs(
+        workspaceId: string,
+        jobId: string,
+        solutionRootPath: string,
+        stepId?: string
+    ): Promise<any[] | null> {
+        try {
+            this.logging.log('=== ATX FES ListWorklog Operation (FES Client) ===')
+            this.logging.log(`Listing ListWorklog for job: ${jobId} in workspace: ${workspaceId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                this.logging.error('ListWorklog: Failed to initialize ATX client')
+                return null
+            }
+
+            const command = new ListWorklogsCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                ...(stepId && {
+                    worklogFilter: {
+                        stepIdFilter: {
+                            stepId: stepId,
+                        },
+                    },
+                }),
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+            this.logging.log(`dbu ListWorklog all ${JSON.stringify(result)}`)
+
+            this.logging.log(
+                `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries for step ${stepId}`
+            )
+            result.worklogs?.forEach(async (value, index) => {
+                const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
+                this.logging.log(`worklog entry: ${value.description}`)
+                await this.saveWorklogsToJson(jobId, currentStepId, value.description || '', solutionRootPath)
+            })
+
+            return result.worklogs || []
+        } catch (error) {
+            this.logging.error(`ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            return null
+        }
+    }
+
+    /**
+     * Saves worklogs to JSON file with stepId as key and description as value
+     */
+    private async saveWorklogsToJson(
+        jobId: string,
+        stepId: string | null,
+        description: string,
+        solutionRootPath: string
+    ): Promise<void> {
+        try {
+            const worklogDir = path.join(solutionRootPath, ArtifactWorkspaceName, jobId)
+            const worklogPath = path.join(worklogDir, 'worklogs.json')
+
+            await this.directoryExists(worklogDir)
+
+            let worklogData: Record<string, string[]> = {}
+
+            // Read existing worklog if it exists
+            if (fs.existsSync(worklogPath)) {
+                const existingData = fs.readFileSync(worklogPath, 'utf8')
+                worklogData = JSON.parse(existingData)
+            }
+
+            if (stepId == null) {
+                stepId = 'Progress'
+            }
+
+            // Initialize array if stepId doesn't exist
+            if (!worklogData[stepId]) {
+                worklogData[stepId] = []
+            }
+
+            // Add description if not already present
+            if (!worklogData[stepId].includes(description)) {
+                worklogData[stepId].push(description)
+            }
+
+            // Write back to file
+            fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
+
+            this.logging.log(`Worklog saved to: ${worklogPath}`)
+        } catch (error) {
+            this.logging.error(`Error saving worklog: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
     }
 

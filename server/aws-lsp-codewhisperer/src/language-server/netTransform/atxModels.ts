@@ -46,22 +46,6 @@ export interface AtxListOrCreateWorkspaceResponse {
     CreatedWorkspace?: AtxCreatedWorkspaceInfo
 }
 
-// ATX Job Status Models
-export interface AtxGetJobStatusInfoRequest extends ExecuteCommandParams {
-    WorkspaceId: string
-    JobId: string
-    IncludePlanSteps?: boolean
-    IncludeArtifacts?: boolean
-}
-
-export interface AtxGetJobStatusInfoResponse {
-    JobId: string
-    Status: string
-    Progress?: number
-    PlanSteps?: any[]
-    Artifacts?: any[]
-}
-
 // ATX Start Transform request/response (orchestration)
 export interface AtxStartTransformRequest extends ExecuteCommandParams {
     WorkspaceId: string
