@@ -37,6 +37,25 @@ export interface MCPServerConfig {
     headers?: Record<string, string>
     disabled?: boolean
     __configPath__?: string
+    __cachedVersion__?: string // Cached version from registry for version sync
+    __additionalHeaders__?: Record<string, string> // Additional headers from agent config (for registry servers)
+    __additionalEnv__?: Record<string, string> // Additional env vars from agent config (for registry servers)
+    __registryError__?: string // Error message when registry server is not found in registry
+}
+
+export interface RegistryServerConfig {
+    type: 'registry'
+    timeout?: number // Optional request timeout in milliseconds
+    headers?: Record<string, string> // Optional additional HTTP headers for remote servers
+    env?: Record<string, string> // Optional additional environment variables for local servers
+}
+
+export function isRegistryServerConfig(config: MCPServerConfig | RegistryServerConfig): config is RegistryServerConfig {
+    return 'type' in config && config.type === 'registry'
+}
+
+export function isMCPServerConfig(config: MCPServerConfig | RegistryServerConfig): config is MCPServerConfig {
+    return !('type' in config) || config.type !== 'registry'
 }
 export interface MCPServerPermission {
     enabled: boolean
@@ -51,7 +70,7 @@ export interface AgentConfig {
     model?: string // Optional: Model that backs the agent
     tags?: string[] // Optional: Tags for categorization
     inputSchema?: any // Optional: Schema for agent inputs
-    mcpServers: Record<string, MCPServerConfig> // Map of server name to server config
+    mcpServers: Record<string, MCPServerConfig | RegistryServerConfig> // Map of server name to server config
     tools: string[] // List of enabled tools
     toolAliases?: Record<string, string> // Tool name remapping
     allowedTools: string[] // List of tools that don't require approval
@@ -104,7 +123,7 @@ export class AgentModel {
         return this.cfg
     }
 
-    addServer(name: string, config: MCPServerConfig): void {
+    addServer(name: string, config: MCPServerConfig | RegistryServerConfig): void {
         this.cfg.mcpServers[name] = config
     }
 
@@ -196,4 +215,45 @@ export interface ListToolsResponse {
         inputSchema?: object
         [key: string]: any
     }[]
+}
+
+export interface McpRegistryServer {
+    name: string
+    title?: string
+    description: string
+    version: string
+    remotes?: Array<{
+        type: 'streamable-http' | 'sse'
+        url: string
+        headers?: Array<{
+            name: string
+            value: string
+        }>
+    }>
+    packages?: Array<{
+        registryType: 'npm' | 'pypi' | 'oci'
+        registryBaseUrl?: string
+        identifier: string
+        transport: {
+            type: 'stdio'
+        }
+        runtimeArguments?: Array<{
+            type: 'positional'
+            value: string
+        }>
+        packageArguments?: Array<{
+            type: 'positional'
+            value: string
+        }>
+        environmentVariables?: Array<{
+            name: string
+            value?: string
+        }>
+    }>
+}
+
+export interface McpRegistryData {
+    servers: McpRegistryServer[]
+    lastFetched: Date
+    url: string
 }
