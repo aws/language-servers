@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.22](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.21...lsp-yaml/v0.1.22) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.16 to ^0.0.17
+
 ## [0.1.21](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.20...lsp-yaml/v0.1.21) (2025-10-14)
 
 
