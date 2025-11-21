@@ -1311,7 +1311,7 @@ export class McpManager {
                         serverAllowedTools,
                         agentPath,
                         false,
-                        isRegistryServerConfig(serverCfg)
+                        this.isRegistryModeActive()
                     )
                 }
             }
