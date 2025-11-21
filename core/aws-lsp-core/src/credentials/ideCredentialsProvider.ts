@@ -17,9 +17,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private pushedCredentials: IamCredentials | undefined
     private pushedToken: BearerToken | undefined
 
-    private pushedAtxCredentials: IamCredentials | undefined
-    private pushedAtxToken: BearerToken | undefined
-
     constructor(
         private readonly connection: Connection,
         key?: string,
@@ -166,28 +163,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         }
 
         return this.pushedToken
-    }
-
-    /**
-     * Provides IAM based Atx credentials. Throws NoCredentialsError if no credentials are available
-     */
-    public async resolveIamAtxCredentials(token: CancellationToken): Promise<IamCredentials> {
-        if (!this.pushedAtxCredentials) {
-            throw new NoCredentialsError()
-        }
-
-        return this.pushedAtxCredentials
-    }
-
-    /**
-     * Provides a atx bearer token. Throws NoCredentialsError if bearer token is not available
-     */
-    public async resolveAtxBearerToken(token: CancellationToken): Promise<BearerToken> {
-        if (!this.pushedAtxToken) {
-            throw new NoCredentialsError()
-        }
-
-        return this.pushedAtxToken
     }
 
     private async decodeCredentialsRequestToken<T>(request: UpdateCredentialsRequest): Promise<T> {
