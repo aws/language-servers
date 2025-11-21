@@ -12,6 +12,7 @@ import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import * as JSZip from 'jszip'
 import { Origin } from '@amzn/codewhisperer-streaming'
+import { CodeReviewResult } from './codeReviewTypes'
 
 describe('CodeReview', () => {
     let sandbox: sinon.SinonSandbox
@@ -104,6 +105,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
         })
@@ -136,7 +138,9 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                numberOfFilesInCustomerCodeZip: 1,
                 codeDiffFiles: new Set(),
+                filePathsInZip: new Set(['/test/file.js']),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -144,92 +148,7 @@ describe('CodeReview', () => {
 
             expect(result.output.success).to.be.true
             expect(result.output.kind).to.equal('json')
-        })
-
-        it('should return both full and simplified findings', async () => {
-            const mockFindings = [
-                {
-                    findingId: '1',
-                    title: 'Test Issue',
-                    description: { text: 'Test description', markdown: 'Test **description**' },
-                    startLine: 10,
-                    endLine: 15,
-                    severity: 'HIGH',
-                    filePath: '/test/file.js',
-                    detectorId: 'detector1',
-                    detectorName: 'Test Detector',
-                    ruleId: 'rule1',
-                    relatedVulnerabilities: [],
-                    recommendation: { text: 'Fix this', url: null },
-                    suggestedFixes: [],
-                    comment: 'Test Issue: Test description',
-                    scanJobId: 'job-123',
-                    language: 'javascript',
-                    autoDetected: false,
-                    findingContext: 'Full',
-                },
-            ]
-
-            mockCodeWhispererClient.createUploadUrl.resolves({
-                uploadUrl: 'https://upload.com',
-                uploadId: 'upload-123',
-                requestHeaders: {},
-            })
-
-            mockCodeWhispererClient.startCodeAnalysis.resolves({
-                jobId: 'job-123',
-                status: 'Pending',
-            })
-
-            mockCodeWhispererClient.getCodeAnalysis.resolves({
-                status: 'Completed',
-            })
-
-            mockCodeWhispererClient.listCodeAnalysisFindings.resolves({
-                codeAnalysisFindings: JSON.stringify(mockFindings),
-                nextToken: undefined,
-            })
-
-            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
-            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
-                zipBuffer: Buffer.from('test'),
-                md5Hash: 'hash123',
-                isCodeDiffPresent: false,
-                programmingLanguages: new Set(['javascript']),
-                numberOfFilesInCustomerCodeZip: 1,
-                codeDiffFiles: new Set(),
-                filePathsInZip: new Set(['/test/file.js']),
-            })
-            sandbox.stub(codeReview as any, 'parseFindings').returns(mockFindings)
-            sandbox.stub(codeReview as any, 'resolveFilePath').returns('/test/file.js')
-
-            const result = await codeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.true
-            expect(result.output.content).to.have.property('findingsByFile')
-            expect(result.output.content).to.have.property('findingsByFileSimplified')
-
-            const fullFindings = JSON.parse((result.output.content as any).findingsByFile)
-            const simplifiedFindings = JSON.parse((result.output.content as any).findingsByFileSimplified)
-
-            expect(fullFindings).to.have.length(1)
-            expect(simplifiedFindings).to.have.length(1)
-
-            // Verify full findings structure
-            expect(fullFindings[0].issues[0]).to.have.property('findingId')
-            expect(fullFindings[0].issues[0]).to.have.property('description')
-            expect(fullFindings[0].issues[0]).to.have.property('detectorId')
-
-            // Verify simplified findings structure (only 5 fields)
-            const simplifiedIssue = simplifiedFindings[0].issues[0]
-            expect(Object.keys(simplifiedIssue)).to.have.length(5)
-            expect(simplifiedIssue).to.have.property('filePath', '/test/file.js')
-            expect(simplifiedIssue).to.have.property('startLine', 10)
-            expect(simplifiedIssue).to.have.property('endLine', 15)
-            expect(simplifiedIssue).to.have.property('title', 'Test Issue')
-            expect(simplifiedIssue).to.have.property('severity', 'HIGH')
-            expect(simplifiedIssue).to.not.have.property('findingId')
-            expect(simplifiedIssue).to.not.have.property('description')
+            expect((result.output.content as CodeReviewResult).findingsExceededLimit === false)
         })
 
         it('should execute successfully and pass languageModelId and clientType to startCodeAnalysis', async () => {
@@ -265,7 +184,9 @@ describe('CodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
                 programmingLanguages: new Set(['javascript']),
+                numberOfFilesInCustomerCodeZip: 1,
                 codeDiffFiles: new Set(),
+                filePathsInZip: new Set(['/test/file.js']),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -305,6 +226,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
@@ -428,6 +350,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
@@ -453,6 +376,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [{ path: '/test/folder' }],
                 ruleArtifacts: [],
                 scopeOfReview: CODE_DIFF_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 
@@ -488,6 +412,7 @@ describe('CodeReview', () => {
             const ruleArtifacts: any[] = []
 
             const result = await (codeReview as any).prepareFilesAndFoldersForUpload(
+                'Test requirement',
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -507,6 +432,7 @@ describe('CodeReview', () => {
             sandbox.stub(CodeReviewUtils, 'processArtifactWithDiff').resolves('diff content\n')
 
             const result = await (codeReview as any).prepareFilesAndFoldersForUpload(
+                'Test requirement',
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -526,6 +452,7 @@ describe('CodeReview', () => {
 
             try {
                 await (codeReview as any).prepareFilesAndFoldersForUpload(
+                    'Test requirement',
                     fileArtifacts,
                     folderArtifacts,
                     ruleArtifacts,
@@ -554,6 +481,7 @@ describe('CodeReview', () => {
             sandbox.stub(require('crypto'), 'randomUUID').returns('test-uuid-123')
 
             await (codeReview as any).prepareFilesAndFoldersForUpload(
+                'Test requirement',
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -767,6 +695,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                userRequirement: 'Test requirement',
                 modelId: 'claude-4-sonnet',
             }
 

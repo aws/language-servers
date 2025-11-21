@@ -48,6 +48,7 @@ import {
     CreateWorkspaceRequest,
     DeleteWorkspaceCommand,
     DeleteWorkspaceRequest,
+    FeatureEvaluation,
     GenerateCompletionsCommand,
     GenerateCompletionsRequest,
     GenerateCompletionsResponse,
@@ -68,6 +69,7 @@ import {
     ListCodeAnalysisFindingsCommand,
     ListCodeAnalysisFindingsRequest,
     ListFeatureEvaluationsCommand,
+    ListFeatureEvaluationsCommandOutput,
     ListFeatureEvaluationsRequest,
     ListWorkspaceMetadataCommand,
     ListWorkspaceMetadataRequest,
@@ -81,6 +83,7 @@ import {
     StopTransformationRequest,
     SupplementalContext,
     SupplementalContextType,
+    UserContext,
 } from '@amzn/codewhisperer-runtime'
 import {
     GenerateRecommendationsCommand,
@@ -88,6 +91,10 @@ import {
     GenerateRecommendationsResponse,
     Recommendation,
 } from '@amzn/codewhisperer'
+
+const featureConfigPollIntervalInMs = 180 * 60 * 1000 // 180 mins
+
+const experimentName = 'MHS_TO_MPS_BEDROCK_INFERENCE_MIGRATION_30b'
 
 // Type guards for request classification
 export function isTokenRequest(request: GenerateSuggestionsRequest): request is GenerateTokenSuggestionsRequest {
@@ -140,13 +147,66 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
-export interface ClientFileContext {
-    leftFileContent: string
-    rightFileContent: string
-    filename: string
-    fileUri: string
-    programmingLanguage: {
+export class ClientFileContextClss {
+    readonly leftFileContent: string
+    readonly rightFileContent: string
+    readonly filename: string
+    readonly fileUri: string
+    readonly programmingLanguage: {
         languageName: CodewhispererLanguage
+    }
+    readonly leftContextAtCurLine: string
+    readonly rightContextAtCurLine: string
+
+    constructor(params: {
+        textDocument: TextDocument
+        position: Position
+        inferredLanguageId: CodewhispererLanguage
+        workspaceFolder: WorkspaceFolder | null | undefined
+    }) {
+        const left = params.textDocument.getText({
+            start: { line: 0, character: 0 },
+            end: params.position,
+        })
+        const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const right = params.textDocument.getText({
+            start: params.position,
+            end: params.textDocument.positionAt(params.textDocument.getText().length),
+        })
+        const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const relativeFilePath = params.workspaceFolder
+            ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+            : path.basename(params.textDocument.uri)
+
+        this.fileUri = params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT)
+        this.filename = relativeFilePath.substring(0, FILENAME_CHARS_LIMIT)
+        this.programmingLanguage = {
+            languageName: getRuntimeLanguage(params.inferredLanguageId),
+        }
+        this.leftFileContent = trimmedLeft
+        this.rightFileContent = trimmedRight
+
+        this.leftContextAtCurLine = params.textDocument.getText({
+            start: { line: params.position.line, character: 0 },
+            end: { line: params.position.line, character: params.position.character },
+        })
+
+        this.rightContextAtCurLine = params.textDocument.getText({
+            start: { line: params.position.line, character: params.position.character },
+            end: { line: params.position.line, character: Number.MAX_VALUE },
+        })
+    }
+
+    toServiceModel(): FileContext {
+        return {
+            fileUri: this.fileUri,
+            filename: this.filename,
+            programmingLanguage: this.programmingLanguage,
+            leftFileContent: this.leftFileContent,
+            rightFileContent: this.rightFileContent,
+        }
     }
 }
 
@@ -155,32 +215,8 @@ export function getFileContext(params: {
     position: Position
     inferredLanguageId: CodewhispererLanguage
     workspaceFolder: WorkspaceFolder | null | undefined
-}): ClientFileContext {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-    const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-    const relativeFilePath = params.workspaceFolder
-        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
-        : path.basename(params.textDocument.uri)
-
-    return {
-        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
-        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
-        programmingLanguage: {
-            languageName: getRuntimeLanguage(params.inferredLanguageId),
-        },
-        leftFileContent: trimmedLeft,
-        rightFileContent: trimmedRight,
-    }
+}): ClientFileContextClss {
+    return new ClientFileContextClss(params)
 }
 
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -191,6 +227,16 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
+
+    private _userContext: UserContext | undefined
+    set userContext(u: UserContext | undefined) {
+        this._userContext = u
+    }
+    get userContext(): UserContext | undefined {
+        return this._userContext
+    }
+
+    protected lastFeatureConfigResp: ListFeatureEvaluationsCommandOutput | undefined
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -221,6 +267,8 @@ export abstract class CodeWhispererServiceBase {
           }
         | undefined
     >
+
+    abstract scheduleABTestingFetching(): Promise<void>
 
     constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
@@ -289,6 +337,10 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     getCredentialsType(): CredentialsType {
         return 'iam'
+    }
+
+    override async scheduleABTestingFetching(): Promise<void> {
+        return
     }
 
     async constructSupplementalContext(
@@ -360,6 +412,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
+    #abTestingFetchingTimeout: NodeJS.Timeout | undefined
+    #features: FeatureEvaluation[] | undefined
+
     constructor(
         private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -367,6 +422,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator,
+        userContext: UserContext | undefined,
         customUserAgent?: string
     ) {
         super(codeWhispererRegion, codeWhispererEndpoint)
@@ -390,12 +446,53 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             sdkInitializator,
             logging,
             credentialsProvider,
-            this.shareCodeWhispererContentWithAWS
+            () => this.shareCodeWhispererContentWithAWS
         )
+        this.userContext = userContext
+        this.scheduleABTestingFetching()
+            .then()
+            .catch(e => {})
     }
 
     getCredentialsType(): CredentialsType {
         return 'bearer'
+    }
+
+    override async scheduleABTestingFetching(): Promise<void> {
+        const userContext = this.userContext
+        if (!userContext) {
+            this.logging.error(`empty user context, skipping ab config fetching`)
+            return
+        }
+
+        let logstr = ''
+        try {
+            this.#features = (await this.listFeatureEvaluations({ userContext: userContext })).featureEvaluations
+            logstr += `abconfig: ${JSON.stringify(this.#features)}`
+        } catch (e) {
+            logstr += `abconfig error: ${e}`
+        } finally {
+            this.logging.info(logstr)
+        }
+
+        this.#abTestingFetchingTimeout = setInterval(() => {
+            let logs = `abconfig: pulling latest result after ${featureConfigPollIntervalInMs}ms:`
+            clearInterval(this.#abTestingFetchingTimeout)
+            this.#abTestingFetchingTimeout = undefined
+
+            this.listFeatureEvaluations({ userContext })
+                .then(result => {
+                    const features = result.featureEvaluations
+                    this.#features = features
+                    logs += `${JSON.stringify(features)}`
+                })
+                .catch(error => {
+                    logs += `${(error as Error).message}`
+                })
+                .finally(() => {
+                    this.logging.info(logs)
+                })
+        }, featureConfigPollIntervalInMs)
     }
 
     async constructSupplementalContext(
@@ -414,6 +511,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
           }
         | undefined
     > {
+        const getRepomapTarget = () => {
+            const feat = this.#features?.find(f => {
+                return f.feature === experimentName
+            })
+            const group = feat?.variation
+            return group === 'TREATMENT' ? 'codemap-2hop' : 'codemap'
+        }
+
         const items: SupplementalContext[] = []
 
         const projectContext = await fetchSupplementalContext(
@@ -422,6 +527,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             workspace,
             logging,
             cancellationToken,
+            getRepomapTarget(),
             opentabs
         )
         if (projectContext) {
