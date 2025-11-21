@@ -1309,7 +1309,9 @@ export class McpManager {
                         isMCPServerConfig(serverCfg) ? serverCfg : null,
                         serverTools,
                         serverAllowedTools,
-                        agentPath
+                        agentPath,
+                        false,
+                        isRegistryServerConfig(serverCfg)
                     )
                 }
             }
