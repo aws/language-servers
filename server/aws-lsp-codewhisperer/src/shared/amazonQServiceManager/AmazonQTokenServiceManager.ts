@@ -225,7 +225,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         if (type === ('bearer' as CredentialsType)) {
             // Check if this is Q credentials or ATX credentials being deleted
             const hasQCredentials = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
-            const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
+            const atxCredentialsProvider = this.features.atxCredentialsProvider
             const hasAtxCredentials = atxCredentialsProvider?.hasCredentials('bearer')
 
             if (!hasQCredentials) {
@@ -260,7 +260,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 this.logging.log(`Q token updated: ${qCreds.token.substring(0, 20)}...`)
             }
 
-            const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
+            const atxCredentialsProvider = this.features.atxCredentialsProvider
             const atxCreds = atxCredentialsProvider?.getCredentials('bearer')
             if (atxCreds && 'token' in atxCreds && atxCreds.token) {
                 this.logging.log(`ATX token updated: ${atxCreds.token.substring(0, 20)}...`)
@@ -409,7 +409,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.logServiceState('Validate State of ATX SSO Connection')
 
         // Use the new getAtxCredentialsProvider() from runtime
-        const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
+        const atxCredentialsProvider = this.features.atxCredentialsProvider
         const noCreds = !atxCredentialsProvider || !atxCredentialsProvider.hasCredentials('bearer')
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
@@ -436,7 +436,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.activeAtxProfile?.identityDetails?.region
         )
 
-        this.cachedAtxCodewhispererService = this.serviceFactory(region, endpoint)
+        this.cachedAtxCodewhispererService = this.atxServiceFactory(region, endpoint)
         this.cachedAtxCodewhispererService.profileArn = this.activeAtxProfile?.arn
 
         this.cachedAtxStreamingClient = this.atxStreamingClientFactory(region, endpoint)
@@ -655,21 +655,38 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         // Log credential storage status
         setTimeout(() => {
-            const hasBearerAtx = this.features.credentialsProvider.hasCredentials('bearer' as any)
-            const hasBearer = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
-            this.logging.log(`credential check: bearer=${hasBearerAtx}, bearer=${hasBearer}`)
+            this.logging.log('DEBUG-ATX-TIMEOUT: Checking credential providers in setTimeout')
+            // Try multiple ways to access ATX credentials
+            const runtimeAuth = (this.features.runtime as any).auth
+            this.logging.log(`DEBUG-ATX-TIMEOUT: Runtime auth object: ${!!runtimeAuth}`)
 
-            if (hasBearerAtx) {
-                const atxCreds = this.features.credentialsProvider.getCredentials('bearer' as any)
+            // Debug runtime structure
+            this.logging.log(`DEBUG-ATX-TIMEOUT: Runtime keys: ${Object.keys(this.features.runtime || {})}`)
+            if (runtimeAuth) {
+                this.logging.log(`DEBUG-ATX-TIMEOUT: Runtime auth keys: ${Object.keys(runtimeAuth)}`)
+            }
+
+            const atxCredentialsProvider = runtimeAuth?.getAtxCredentialsProvider?.()
+            this.logging.log(
+                `DEBUG-ATX-TIMEOUT: getAtxCredentialsProvider function: ${typeof runtimeAuth?.getAtxCredentialsProvider}`
+            )
+            this.logging.log(`DEBUG-ATX-TIMEOUT: ATX provider available: ${!!atxCredentialsProvider}`)
+
+            const hasAtxCreds = atxCredentialsProvider?.hasCredentials('bearer')
+            const hasQCreds = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
+            this.logging.log(`credential check: atx=${hasAtxCreds}, q=${hasQCreds}`)
+
+            if (hasAtxCreds) {
+                const atxCreds = atxCredentialsProvider.getCredentials('bearer')
                 if (atxCreds && 'token' in atxCreds && atxCreds.token) {
-                    this.logging.log(`Found ATX credentials in bearer: ${atxCreds.token.substring(0, 20)}...`)
+                    this.logging.log(`Found ATX credentials: ${atxCreds.token.substring(0, 20)}...`)
                 }
             }
 
-            if (hasBearer) {
-                const bearerCreds = this.features.credentialsProvider.getCredentials('bearer' as CredentialsType)
-                if (bearerCreds && 'token' in bearerCreds && bearerCreds.token) {
-                    this.logging.log(`Found credentials in bearer: ${bearerCreds.token.substring(0, 20)}...`)
+            if (hasQCreds) {
+                const qCreds = this.features.credentialsProvider.getCredentials('bearer' as CredentialsType)
+                if (qCreds && 'token' in qCreds && qCreds.token) {
+                    this.logging.log(`Found Q credentials: ${qCreds.token.substring(0, 20)}...`)
                 }
             }
         }, 200)
@@ -700,13 +717,38 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
     public getAtxCodewhispererService(): CodeWhispererServiceToken {
         this.handleAtxSsoConnectionChange()
-
+        this.logging.log('DEBUG-ATX-SERVICE: Starting getAtxCodewhispererService')
+        this.logging.log(`DEBUG-ATX-SERVICE: Runtime object: ${!!this.features.runtime}`)
+        this.logging.log(`DEBUG-ATX-SERVICE: Runtime auth: ${!!(this.features.runtime as any).auth}`)
         // Use the new getAtxCredentialsProvider() from runtime
-        const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
-        if (!atxCredentialsProvider || !atxCredentialsProvider.hasCredentials('bearer')) {
+        const atxCredentialsProvider = this.features.atxCredentialsProvider
+        this.logging.log(
+            `DEBUG-ATX-SERVICE: getAtxCredentialsProvider function: ${typeof (this.features.runtime as any).auth?.getAtxCredentialsProvider}`
+        )
+        this.logging.log(`DEBUG-ATX-SERVICE: ATX provider: ${!!atxCredentialsProvider}`)
+        if (!atxCredentialsProvider) {
+            this.logging.log('DEBUG-ATX-REGION: ATX credentials provider not available in features')
             throw new AmazonQServicePendingSigninError()
         }
 
+        const hasBearer = atxCredentialsProvider.hasCredentials('bearer')
+        this.logging.log(`DEBUG-ATX-SERVICE: ATX hasCredentials('bearer'): ${hasBearer}`)
+
+        if (!hasBearer) {
+            this.logging.log('DEBUG-ATX-REGION: No valid credentials, ATX bearer token not set')
+            throw new AmazonQServicePendingSigninError()
+        }
+
+        // Validate credentials are actually usable
+        const creds = atxCredentialsProvider.getCredentials('bearer')
+        this.logging.log(`DEBUG-ATX-SERVICE: ATX credentials object: ${!!creds}`)
+        this.logging.log(`DEBUG-ATX-SERVICE: ATX has token property: ${creds && 'token' in creds}`)
+        this.logging.log(`DEBUG-ATX-SERVICE: ATX token exists: ${creds && 'token' in creds && !!creds.token}`)
+        if (!creds || !('token' in creds) || !creds.token) {
+            this.logging.log('DEBUG-ATX-REGION: No valid credentials, ATX token is empty or invalid')
+            throw new AmazonQServicePendingSigninError()
+        }
+        this.logging.log(`DEBUG-ATX-SERVICE: ATX token preview: ${creds.token.substring(0, 20)}...`)
         if (!this.cachedAtxCodewhispererService) {
             this.createAtxServiceInstances()
         }
@@ -781,7 +823,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         )
 
         // Initialize separate ATX service instances
-        this.cachedAtxCodewhispererService = this.serviceFactory(region, this.endpoint)
+        this.cachedAtxCodewhispererService = this.atxServiceFactory(region, this.endpoint)
         this.logging.log(
             `ATX CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`
         )
@@ -868,13 +910,50 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return streamingClient
     }
 
+    private atxServiceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
+        this.logging.log('Creating ATX CodeWhisperer service using ATX credentials provider')
+
+        const atxCredentialsProvider = this.features.atxCredentialsProvider
+        if (!atxCredentialsProvider) {
+            throw new Error('ATX credentials provider not available in features')
+        }
+
+        const customUserAgent = this.getCustomUserAgent()
+        const initParam = this.features.lsp.getClientInitializeParams()
+        const userContext = initParam
+            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
+            : undefined
+        const service = new CodeWhispererServiceToken(
+            atxCredentialsProvider,
+            this.features.workspace,
+            this.features.logging,
+            region,
+            endpoint,
+            this.features.sdkInitializator,
+            userContext,
+            customUserAgent
+        )
+
+        service.customizationArn = this.configurationCache.getProperty('customizationArn')
+        service.profileArn = this.activeAtxProfile?.arn
+        service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+            'shareCodeWhispererContentWithAWS'
+        )
+
+        this.logging.log('Configured ATX CodeWhispererServiceToken instance settings:')
+        this.logging.log(
+            `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
+        )
+
+        return service
+    }
     private atxStreamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
         this.logging.log('Creating ATX streaming client using runtime getAtxCredentialsProvider v2.0')
 
         // Use the new getAtxCredentialsProvider() from runtime
-        const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
+        const atxCredentialsProvider = this.features.atxCredentialsProvider
         if (!atxCredentialsProvider) {
-            throw new Error('ATX credentials provider not available from runtime')
+            throw new Error('ATX credentials provider not available in features')
         }
 
         const streamingClient = new StreamingClientServiceToken(

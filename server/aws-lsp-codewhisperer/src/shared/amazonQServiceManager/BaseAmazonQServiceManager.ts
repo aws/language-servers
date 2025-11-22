@@ -25,6 +25,7 @@ export interface QServiceManagerFeatures {
     credentialsProvider: CredentialsProvider
     sdkInitializator: SDKInitializator
     workspace: Workspace
+    atxCredentialsProvider?: CredentialsProvider
 }
 
 export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase, StreamingClientServiceBase>
