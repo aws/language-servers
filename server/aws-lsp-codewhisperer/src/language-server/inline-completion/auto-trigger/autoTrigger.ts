@@ -3,6 +3,7 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
 import { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument'
+import { lastTokenFromString } from '../utils/triggerUtils'
 
 type TypedCoefficients = typeof typedCoefficients
 type Coefficients = TypedCoefficients & {
@@ -223,8 +224,7 @@ export const autoTrigger = (
             classifierThreshold: TRIGGER_THRESHOLD,
         }
     }
-    const tokens = leftContextAtCurrentLine.trim().split(' ')
-    const lastToken = tokens[tokens.length - 1]
+    const lastToken = lastTokenFromString(fileContext.leftFileContent)
 
     const keyword = lastToken?.length > 1 ? lastToken : ''
 

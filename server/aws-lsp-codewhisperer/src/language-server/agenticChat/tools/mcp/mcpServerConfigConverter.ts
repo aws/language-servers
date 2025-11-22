@@ -1,0 +1,144 @@
+/*!
+ * Copyright Amazon.com, Inc. or its affiliates.
+ * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
+ */
+
+import { MCPServerConfig, McpRegistryServer } from './mcpTypes'
+import { MCP_REGISTRY_CONSTANTS } from './mcpRegistryConstants'
+
+export class McpServerConfigConverter {
+    convertRegistryServer(registryServer: McpRegistryServer, additionalEnv?: Record<string, string>): MCPServerConfig {
+        if (registryServer.remotes) {
+            return this.convertRemoteServer(registryServer.remotes)
+        } else if (registryServer.packages) {
+            return this.convertLocalServer(registryServer.packages, registryServer.version, additionalEnv)
+        }
+        throw new Error(`Invalid registry server: must have remotes or packages`)
+    }
+
+    private convertRemoteServer(remotes: McpRegistryServer['remotes']): MCPServerConfig {
+        const remote = remotes![0]
+        const config: MCPServerConfig = {
+            url: remote.url,
+        }
+
+        if (remote.headers && remote.headers.length > 0) {
+            config.headers = {}
+            remote.headers.forEach((header: { name: string; value: string }) => {
+                config.headers![header.name] = header.value
+            })
+        }
+
+        return config
+    }
+
+    private convertLocalServer(
+        packages: McpRegistryServer['packages'],
+        version: string,
+        additionalEnv?: Record<string, string>
+    ): MCPServerConfig {
+        const pkg = packages![0]
+        const isNpm = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.NPM
+        const isPypi = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.PYPI
+        const isOci = pkg.registryType === MCP_REGISTRY_CONSTANTS.REGISTRY_TYPES.OCI
+
+        const args: string[] = []
+
+        if (isNpm) {
+            args.push(MCP_REGISTRY_CONSTANTS.NPM.FLAG)
+        } else if (isOci) {
+            args.push(MCP_REGISTRY_CONSTANTS.OCI.FLAG)
+        }
+
+        if (isPypi && pkg.registryBaseUrl) {
+            args.push(`--default-index=${pkg.registryBaseUrl}`)
+        }
+
+        if (pkg.runtimeArguments && pkg.runtimeArguments.length > 0) {
+            pkg.runtimeArguments.forEach((arg: { type: string; value: string }) => {
+                args.push(arg.value)
+            })
+        }
+
+        // For OCI, add environment variables as -e flags before the image reference
+        if (isOci) {
+            const allEnv: Record<string, string> = {}
+            // Add registry env vars first
+            if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
+                pkg.environmentVariables.forEach((envVar: { name: string; value?: string }) => {
+                    const val = envVar.value ?? ''
+                    if (envVar.name.trim() && val.trim()) {
+                        allEnv[envVar.name] = val
+                    }
+                })
+            }
+            // Override with additional env vars (filter empty)
+            if (additionalEnv) {
+                Object.entries(additionalEnv).forEach(([key, value]) => {
+                    if (key.trim() && value.trim()) {
+                        allEnv[key] = value
+                    }
+                })
+            }
+            // Add all as -e flags
+            Object.entries(allEnv).forEach(([key, value]) => {
+                args.push('-e')
+                args.push(`${key}=${value}`)
+            })
+        }
+
+        if (isOci) {
+            // For OCI, identifier may already include tag (e.g., node:20-alpine)
+            // Only append version if identifier doesn't contain ':'
+            const hasTag = pkg.identifier.includes(':')
+            let imageRef: string
+
+            if (pkg.registryBaseUrl) {
+                imageRef = hasTag
+                    ? `${pkg.registryBaseUrl}/${pkg.identifier}`
+                    : `${pkg.registryBaseUrl}/${pkg.identifier}:${version}`
+            } else {
+                imageRef = hasTag ? pkg.identifier : `${pkg.identifier}:${version}`
+            }
+
+            args.push(imageRef)
+        } else {
+            args.push(`${pkg.identifier}@${version}`)
+        }
+
+        if (pkg.packageArguments && pkg.packageArguments.length > 0) {
+            pkg.packageArguments.forEach((arg: { type: string; value: string }) => {
+                args.push(arg.value)
+            })
+        }
+
+        let command: string
+        if (isNpm) {
+            command = MCP_REGISTRY_CONSTANTS.NPM.COMMAND
+        } else if (isPypi) {
+            command = MCP_REGISTRY_CONSTANTS.PYPI.COMMAND
+        } else {
+            command = MCP_REGISTRY_CONSTANTS.OCI.COMMAND
+        }
+
+        const config: MCPServerConfig = {
+            command,
+            args,
+            env: {},
+        }
+
+        // Set NPM registry URL as environment variable
+        if (pkg.registryBaseUrl && isNpm) {
+            config.env![MCP_REGISTRY_CONSTANTS.NPM.ENV_VAR] = pkg.registryBaseUrl
+        }
+
+        // All environmentVariables go into config.env for all registry types
+        if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
+            pkg.environmentVariables.forEach((envVar: { name: string; value?: string }) => {
+                config.env![envVar.name] = envVar.value ?? ''
+            })
+        }
+
+        return config
+    }
+}

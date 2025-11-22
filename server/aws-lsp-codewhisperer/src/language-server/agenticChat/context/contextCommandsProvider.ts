@@ -12,6 +12,10 @@ import { activeFileCmd } from './additionalContextProvider'
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
     private cachedContextCommands?: ContextCommandItem[]
+    private codeSymbolsPending = true
+    private filesAndFoldersPending = true
+    private workspacePending = true
+    private initialStateSent = false
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
@@ -24,11 +28,26 @@ export class ContextCommandsProvider implements Disposable {
         )
     }
 
+    onReady() {
+        if (!this.initialStateSent) {
+            this.initialStateSent = true
+            void this.processContextCommandUpdate([]).catch(e =>
+                this.logging.error(`Failed to send initial context commands: ${e}`)
+            )
+        }
+    }
+
     private async registerContextCommandHandler() {
         try {
             const controller = await LocalProjectContextController.getInstance()
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
+            }
+            controller.onIndexingInProgressChanged = (indexingInProgress: boolean) => {
+                if (this.workspacePending !== indexingInProgress) {
+                    this.workspacePending = indexingInProgress
+                    void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                }
             }
         } catch (e) {
             this.logging.warn(`Error processing context command update: ${e}`)
@@ -105,6 +124,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add all files in a folder to context',
             icon: 'folder',
+            disabledText: this.filesAndFoldersPending ? 'pending' : undefined,
         }
 
         const fileCmds: ContextCommand[] = [activeFileCmd]
@@ -118,6 +138,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add a file to context',
             icon: 'file',
+            disabledText: this.filesAndFoldersPending ? 'pending' : undefined,
         }
 
         const codeCmds: ContextCommand[] = []
@@ -131,6 +152,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add code to context',
             icon: 'code-block',
+            disabledText: this.codeSymbolsPending ? 'pending' : undefined,
         }
 
         const promptCmds: ContextCommand[] = []
@@ -152,10 +174,12 @@ export class ContextCommandsProvider implements Disposable {
             icon: 'image',
             placeholder: 'Select an image file',
         }
-        const workspaceCmd = {
+
+        const workspaceCmd: ContextCommand = {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
+            disabledText: this.workspacePending ? 'pending' : undefined,
         }
         const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
 
@@ -209,9 +233,14 @@ export class ContextCommandsProvider implements Disposable {
             await LocalProjectContextController.getInstance()
         ).shouldUpdateContextCommandSymbolsOnce()
         if (needUpdate) {
+            this.codeSymbolsPending = false
             const items = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
             await this.processContextCommandUpdate(items)
         }
+    }
+
+    setFilesAndFoldersPending(value: boolean) {
+        this.filesAndFoldersPending = value
     }
 
     dispose() {

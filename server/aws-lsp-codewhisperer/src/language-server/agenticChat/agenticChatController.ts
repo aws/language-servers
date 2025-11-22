@@ -204,6 +204,7 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { CodeReviewResult } from './tools/qCodeAnalysis/codeReviewTypes'
 import {
     CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
     DISPLAY_FINDINGS_MESSAGE_SUFFIX,
@@ -2022,7 +2023,16 @@ export class AgenticChatController implements ChatHandlers {
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
-                        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                        let originalNames
+                        try {
+                            originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                        } catch (error) {
+                            // McpManager not initialized, skip MCP tool handling
+                            this.#features.logging.debug(
+                                `McpManager not initialized, skipping MCP tool handling with error: ${error}`
+                            )
+                            originalNames = undefined
+                        }
 
                         // Remove explanation field from toolUse.input for MCP tools
                         // many MCP servers do not support explanation field and it will break the tool if this is altered
@@ -2038,9 +2048,17 @@ export class AgenticChatController implements ChatHandlers {
 
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
-                            const def = McpManager.instance
-                                .getAllTools()
-                                .find(d => d.serverName === serverName && d.toolName === toolName)
+                            let def
+                            try {
+                                def = McpManager.instance
+                                    .getAllTools()
+                                    .find(d => d.serverName === serverName && d.toolName === toolName)
+                            } catch (error) {
+                                this.#features.logging.debug(
+                                    `McpManager not initialized, cannot get tool definitions with error: ${error}`
+                                )
+                                def = undefined
+                            }
                             if (def) {
                                 const mcpTool = new McpTool(this.#features, def)
                                 const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
@@ -2125,17 +2143,20 @@ export class AgenticChatController implements ChatHandlers {
                     if (
                         codeReviewResult?.output?.kind === 'json' &&
                         codeReviewResult.output.success &&
-                        (codeReviewResult.output.content as any)?.findingsByFile
+                        (codeReviewResult.output.content as CodeReviewResult)?.findingsByFile
                     ) {
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
-                            body: (codeReviewResult.output.content as any).findingsByFile,
+                            body: (codeReviewResult.output.content as CodeReviewResult).findingsByFile,
                         })
-                        codeReviewResult.output.content = {
-                            codeReviewId: (codeReviewResult.output.content as any).codeReviewId,
-                            message: (codeReviewResult.output.content as any).message,
-                            findingsByFileSimplified: (codeReviewResult.output.content as any).findingsByFileSimplified,
+                        if ((codeReviewResult.output.content as CodeReviewResult).findingsExceededLimit) {
+                            codeReviewResult.output.content = {
+                                codeReviewId: (codeReviewResult.output.content as CodeReviewResult).codeReviewId,
+                                message: (codeReviewResult.output.content as CodeReviewResult).message,
+                                findingsExceededLimit: (codeReviewResult.output.content as CodeReviewResult)
+                                    .findingsExceededLimit,
+                            }
                         }
                     }
                 }
@@ -2328,7 +2349,16 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // Handle MCP tool failures
-                const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                let originalNames
+                try {
+                    originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                } catch (error) {
+                    // McpManager not initialized, skip MCP error handling
+                    this.#features.logging.debug(
+                        `McpManager not initialized, skipping MCP error handling with error: ${error}`
+                    )
+                    originalNames = undefined
+                }
                 if (originalNames && toolUse.toolUseId) {
                     const { toolName } = originalNames
                     const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
@@ -3847,9 +3877,11 @@ export class AgenticChatController implements ChatHandlers {
      */
     async onReady() {
         await this.restorePreviousChats()
+        this.#contextCommandsProvider.onReady()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
+            this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {
@@ -4160,7 +4192,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
-                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(err as Error).message}`)
                 })
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
             return
@@ -4304,7 +4336,7 @@ export class AgenticChatController implements ChatHandlers {
                     }
                 })
                 .catch(e => {
-                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${JSON.stringify(e)}`)
+                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${(e as Error).message}`)
                     // TOOD: for visibility, the least-bad option is showMessage, which appears as an IDE notification.
                     // But it likely makes sense to route this to chat ERROR_MESSAGE mynahApi.showError(), so the message will appear in chat.
                     // https://github.com/aws/language-servers/blob/1b154570c9cf1eb1d56141095adea4459426b774/chat-client/src/client/chat.ts#L176-L178
@@ -4648,7 +4680,17 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Clear tool name mapping to avoid conflicts from previous registrations
-        McpManager.instance.clearToolNameMapping()
+        try {
+            McpManager.instance.clearToolNameMapping()
+        } catch (error) {
+            // McpManager not initialized, return tools without MCP
+            this.#features.logging.debug(
+                `McpManager not initialized in #getTools, returning non-MCP tools with error: ${error}`
+            )
+            return session.pairProgrammingMode
+                ? allTools
+                : allTools.filter(tool => !builtInWriteTools.has(tool.toolSpecification?.name || ''))
+        }
 
         const tempMapping = new Map<string, { serverName: string; toolName: string }>()
 
@@ -4656,13 +4698,30 @@ export class AgenticChatController implements ChatHandlers {
         // TODO: mcp tool spec name will be server___tool.
         // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
         const allNamespacedTools = new Set<string>()
-        const mcpToolSpecNames = new Set(
-            McpManager.instance
-                .getAllTools()
-                .map(tool => createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools, tempMapping))
-        )
+        let mcpToolSpecNames: Set<string>
+        try {
+            mcpToolSpecNames = new Set(
+                McpManager.instance
+                    .getAllTools()
+                    .map(tool =>
+                        createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools, tempMapping)
+                    )
+            )
+        } catch (error) {
+            // McpManager not initialized, use empty set
+            this.#features.logging.debug(`McpManager not initialized, cannot get MCP tools because of error: ${error}`)
+            mcpToolSpecNames = new Set()
+        }
 
-        McpManager.instance.setToolNameMapping(tempMapping)
+        try {
+            McpManager.instance.setToolNameMapping(tempMapping)
+        } catch (error) {
+            // McpManager not initialized, skip setting mapping
+            this.#features.logging.debug(
+                `McpManager not initialized, cannot set tool name mapping because of error: ${error}`
+            )
+        }
+
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...builtInWriteTools])
 
         const readOnlyTools = allTools.filter(tool => {
@@ -4710,12 +4769,30 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Get original server and tool names from the mapping
-        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+        let originalNames
+        try {
+            originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+        } catch (error) {
+            // McpManager not initialized, skip MCP tool result handling
+            this.#features.logging.debug(
+                `McpManager not initialized, cannot handle MCP tool result because of error: ${error}`
+            )
+            originalNames = undefined
+        }
+
         if (originalNames) {
             const { serverName, toolName } = originalNames
-            const def = McpManager.instance
-                .getAllTools()
-                .find(d => d.serverName === serverName && d.toolName === toolName)
+            let def
+            try {
+                def = McpManager.instance
+                    .getAllTools()
+                    .find(d => d.serverName === serverName && d.toolName === toolName)
+            } catch (error) {
+                this.#features.logging.debug(
+                    `McpManager not initialized, cannot get tool definitions because of error: ${error}`
+                )
+                def = undefined
+            }
             if (def) {
                 // Format the tool result and input as JSON strings
                 const toolInput = JSON.stringify(toolUse.input, null, 2)

@@ -22,7 +22,7 @@ import { CodeWhispererSession, SessionManager } from '../session/sessionManager'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { CodewhispererLanguage, getSupportedLanguageId } from '../../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
-import { shouldTriggerEdits } from '../utils/triggerUtils'
+import { inferTriggerChar, shouldTriggerEdits } from '../utils/triggerUtils'
 import {
     emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
@@ -36,9 +36,11 @@ import { RejectedEditTracker } from '../tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from '../documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from '../contants/constants'
+import { EMPTY_RESULT } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
+import { UserDecisionReason } from '@amzn/codewhisperer-runtime'
 import { processEditSuggestion } from '../utils/diffUtils'
+import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -79,14 +81,15 @@ export class EditCompletionHandler {
      * Also as a followup, ideally it should be a message/event publish/subscribe pattern instead of manual invocation like this
      */
     documentChanged() {
-        if (this.debounceTimeout) {
-            if (this.isWaiting) {
-                this.hasDocumentChangedSinceInvocation = true
-            } else {
-                this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
-                this.debounceTimeout.refresh()
-            }
-        }
+        // TODO: Remove this entirely once we are sure we dont need debounce
+        // if (this.debounceTimeout) {
+        //     if (this.isWaiting) {
+        //         this.hasDocumentChangedSinceInvocation = true
+        //     } else {
+        //         this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
+        //         this.debounceTimeout.refresh()
+        //     }
+        // }
     }
 
     async onEditCompletion(
@@ -171,40 +174,18 @@ export class EditCompletionHandler {
             }
         }
 
-        return new Promise<InlineCompletionListWithReferences>(async resolve => {
-            this.debounceTimeout = setTimeout(async () => {
-                try {
-                    this.isWaiting = true
-                    const result = await this._invoke(
-                        params,
-                        startPreprocessTimestamp,
-                        token,
-                        textDocument,
-                        inferredLanguageId,
-                        currentSession
-                    ).finally(() => {
-                        this.isWaiting = false
-                    })
-                    if (this.hasDocumentChangedSinceInvocation) {
-                        this.logging.info(
-                            'EditCompletionHandler - Document changed during execution, resolving empty result'
-                        )
-                        resolve({
-                            sessionId: SessionManager.getInstance('EDITS').getActiveSession()?.id ?? '',
-                            items: [],
-                        })
-                    } else {
-                        this.logging.info('EditCompletionHandler - No document changes, resolving result')
-                        resolve(result)
-                    }
-                } finally {
-                    this.debounceTimeout = undefined
-                    this.hasDocumentChangedSinceInvocation = false
-                }
-            }, EDIT_DEBOUNCE_INTERVAL_MS)
-        }).finally(() => {
+        try {
+            return await this._invoke(
+                params,
+                startPreprocessTimestamp,
+                token,
+                textDocument,
+                inferredLanguageId,
+                currentSession
+            )
+        } finally {
             this.isInProgress = false
-        })
+        }
     }
 
     async _invoke(
@@ -218,19 +199,36 @@ export class EditCompletionHandler {
         // Build request context
         const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
         const maxResults = isAutomaticLspTriggerKind ? 1 : 5
-        const fileContext = getFileContext({
+        const fileContextClss = getFileContext({
             textDocument,
             inferredLanguageId,
             position: params.position,
             workspaceFolder: this.workspace.getWorkspaceFolder(textDocument.uri),
         })
 
+        // TODO: Parametrize these to a util function, duplicate code as inineCompletionHandler
+        const triggerCharacters = inferTriggerChar(fileContextClss, params.documentChangeParams)
+
         const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
         const workspaceId = workspaceState?.webSocketClient?.isConnected() ? workspaceState.workspaceId : undefined
 
-        const qEditsTrigger = shouldTriggerEdits(
+        const recentEdits = await this.recentEditsTracker.generateEditBasedContext(textDocument)
+
+        // TODO: Refactor and merge these 2 shouldTrigger into single one
+        const classifier = new EditClassifier(
+            {
+                fileContext: fileContextClss,
+                triggerChar: triggerCharacters,
+                recentEdits: recentEdits,
+                recentDecisions: this.sessionManager.userDecisionLog.map(it => it.decision),
+            },
+            this.logging
+        )
+        const classifierBasedTrigger = classifier.shouldTriggerEdits()
+
+        const ruleBasedTrigger = shouldTriggerEdits(
             this.codeWhispererService,
-            fileContext,
+            fileContextClss.toServiceModel(),
             params,
             this.cursorTracker,
             this.recentEditsTracker,
@@ -238,33 +236,34 @@ export class EditCompletionHandler {
             true
         )
 
-        if (!qEditsTrigger) {
+        // Both classifier and rule based conditions need to evaluate to true otherwise we wont fire Edits requests
+        const shouldFire = classifierBasedTrigger.shouldTrigger && ruleBasedTrigger !== undefined
+
+        if (!shouldFire) {
             return EMPTY_RESULT
         }
 
         const generateCompletionReq: GenerateSuggestionsRequest = {
-            fileContext: fileContext,
+            fileContext: fileContextClss.toServiceModel(),
             maxResults: maxResults,
             predictionTypes: ['EDITS'],
             workspaceId: workspaceId,
         }
 
-        if (qEditsTrigger) {
-            generateCompletionReq.editorState = {
-                document: {
-                    relativeFilePath: textDocument.uri,
-                    programmingLanguage: {
-                        languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
-                    },
-                    text: textDocument.getText(),
+        generateCompletionReq.editorState = {
+            document: {
+                relativeFilePath: textDocument.uri,
+                programmingLanguage: {
+                    languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
                 },
-                cursorState: {
-                    position: {
-                        line: params.position.line,
-                        character: params.position.character,
-                    },
+                text: textDocument.getText(),
+            },
+            cursorState: {
+                position: {
+                    line: params.position.line,
+                    character: params.position.character,
                 },
-            }
+            },
         }
 
         const supplementalContext = await this.codeWhispererService.constructSupplementalContext(
@@ -286,6 +285,7 @@ export class EditCompletionHandler {
         // Close ACTIVE session and record Discard trigger decision immediately
         if (currentSession && currentSession.state === 'ACTIVE') {
             // Emit user trigger decision at session close time for active session
+            // This is a discard, no userDecisionReason needed
             this.sessionManager.discardSession(currentSession)
             const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
@@ -298,6 +298,7 @@ export class EditCompletionHandler {
                 [],
                 [],
                 streakLength
+                // No itemId, no userDecisionReason
             )
         }
 
@@ -306,7 +307,7 @@ export class EditCompletionHandler {
             startPreprocessTimestamp: startPreprocessTimestamp,
             startPosition: params.position,
             triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
-            language: fileContext.programmingLanguage.languageName,
+            language: fileContextClss.programmingLanguage.languageName,
             requestContext: generateCompletionReq,
             autoTriggerType: undefined,
             triggerCharacter: '',
@@ -360,6 +361,7 @@ export class EditCompletionHandler {
             session.discardInflightSessionOnNewInvocation = false
             this.sessionManager.discardSession(session)
             const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
+            // This is a discard, no userDecisionReason needed
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -370,6 +372,7 @@ export class EditCompletionHandler {
                 [],
                 [],
                 streakLength
+                // No itemId, no userDecisionReason
             )
         }
 
