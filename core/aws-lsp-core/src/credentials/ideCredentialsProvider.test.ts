@@ -21,6 +21,7 @@ describe('IdeCredentialsProvider', function () {
                 warn: sinon.stub(),
                 error: sinon.stub(),
             },
+            onRequest: sinon.stub(),
         } as any
         provider = new IdeCredentialsProvider(mockConnection as any)
     })
@@ -43,6 +44,48 @@ describe('IdeCredentialsProvider', function () {
                 () => provider['validateIamCredentialsFields'](credentials),
                 /Missing property: secretAccessKey/
             )
+        })
+    })
+
+    describe('initialize', function () {
+        it('registers credential push handlers when IAM credentials are provided', function () {
+            const props = {
+                credentials: {
+                    providesIam: true,
+                },
+            }
+
+            provider.initialize(props)
+
+            assert(mockConnection.onRequest.called)
+        })
+
+        it('does not register handlers when no credentials config provided', function () {
+            const props = {}
+
+            provider.initialize(props)
+
+            assert(!mockConnection.onRequest.called)
+        })
+    })
+
+    describe('hasCredentials', function () {
+        it('returns false when no credentials are set', function () {
+            // IdeCredentialsProvider doesn't expose hasCredentials directly
+            // Test through resolveIamCredentials instead
+            assert.strictEqual(provider['pushedCredentials'], undefined)
+            assert.strictEqual(provider['pushedToken'], undefined)
+        })
+    })
+
+    describe('getCredentials', function () {
+        it('throws NoCredentialsError when no credentials available', async function () {
+            try {
+                await provider.resolveIamCredentials({} as any)
+                throw new Error('Expected error was not thrown')
+            } catch (error) {
+                assert.strictEqual((error as Error).constructor.name, 'NoCredentialsError')
+            }
         })
     })
 })

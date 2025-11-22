@@ -5,7 +5,6 @@ import {
     SsoConnectionType,
     CancellationToken,
     CredentialsType,
-    CredentialsProvider,
     InitializeParams,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
@@ -31,12 +30,11 @@ import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
-import { getUserAgent, makeUserContextObject } from '../telemetryUtils'
+import { getUserAgent } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
 import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
 import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
-import { UserContext } from '@amzn/codewhisperer-runtime'
 
 const ATX_CONFIGURATION_SECTION = 'aws.atx'
 
@@ -77,11 +75,25 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private region?: string
     private endpoint?: string
     private regionChangeListeners: Array<(region: string) => void> = []
-
+    
     // Separate profile tracking for ATX
     private activeAtxProfile?: AmazonQDeveloperProfile
+
+
+    /**
+     * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
+     * Supported states:
+     * PENDING_CONNECTION - Waiting for Bearer Token and StartURL to be passed
+     * PENDING_Q_PROFILE - (only for identityCenter connection) waiting for setting Developer Profile
+     * PENDING_Q_PROFILE_UPDATE (only for identityCenter connection) waiting for Developer Profile to complete
+     * INITIALIZED - Service is initialized
+     */
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
+
+    private constructor(features: QServiceManagerFeatures) {
+        super(features)
+    }
 
     // @VisibleForTesting, please DO NOT use in production
     setState(state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED') {
@@ -137,83 +149,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
 
-        // Setup separate ATX credential handler
-        this.setupAtxCredentialHandler()
-
-        // Setup credential update logging and routing
-        this.setupCredentialUpdateLogging()
-
         this.logging.log('Manager instance is initialize')
-    }
-
-    private setupAtxCredentialHandler(): void {
-        this.logging.log('Setting up separate ATX credential handler')
-        this.logging.log('Skipping ATX credential handler - using runtime provider directly')
-    }
-
-    private async decodeCredentialsRequestToken(request: any): Promise<any> {
-        // Simple passthrough for now - implement JWT decoding if needed
-        return request.data
-    }
-
-    private setupCredentialUpdateLogging(): void {
-        this.logging.log('Setting up credential update logging and ATX routing')
-
-        // Track which credential type was last updated to prevent cross-deletion
-        let lastCredentialType: 'q' | 'atx' | null = null
-
-        // Try to intercept LSP connection for credential updates
-        const connection = (this.features as any).lsp?.connection
-        if (connection && connection.onNotification) {
-            this.logging.log('Found LSP connection, setting up credential deletion interceptor')
-
-            // Intercept credential deletion to prevent token override
-            const originalOnNotification = connection.onNotification.bind(connection)
-            connection.onNotification = (type: any, handler: any) => {
-                if (typeof type === 'string' && type === 'aws/credentials/bearer/delete') {
-                    this.logging.log('Intercepting bearer credential deletion')
-                    return originalOnNotification(type, (notification: any) => {
-                        this.logging.log(`Credential deletion for: ${lastCredentialType || 'unknown'}`)
-
-                        // Only allow deletion if it matches the last credential type updated
-                        if (lastCredentialType === 'q') {
-                            this.logging.log('Allowing Q credential deletion')
-                            return handler(notification)
-                        } else if (lastCredentialType === 'atx') {
-                            this.logging.log('Blocking Q credential deletion - ATX was last updated')
-                            return // Block the deletion
-                        } else {
-                            this.logging.log('Unknown credential type - allowing deletion')
-                            return handler(notification)
-                        }
-                    })
-                }
-                return originalOnNotification(type, handler)
-            }
-
-            // Track credential updates to know which type was last updated
-            if (connection.onRequest) {
-                const originalOnRequest = connection.onRequest.bind(connection)
-                connection.onRequest = (type: any, handler: any) => {
-                    if (typeof type === 'string' && type === 'aws/credentials/token/update') {
-                        this.logging.log('Intercepting credential update to track type')
-                        return originalOnRequest(type, (request: any) => {
-                            if (request.credentialkey === 'atx-bearer') {
-                                this.logging.log('ATX credential update detected')
-                                lastCredentialType = 'atx'
-                            } else {
-                                this.logging.log('Q credential update detected')
-                                lastCredentialType = 'q'
-                            }
-                            return handler(request)
-                        })
-                    }
-                    return originalOnRequest(type, handler)
-                }
-            }
-        } else {
-            this.logging.log('Could not find LSP connection for intercepting')
-        }
     }
 
     public handleOnCredentialsDeleted(type: CredentialsType): void {
@@ -222,51 +158,20 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             return
         }
 
-        if (type === ('bearer' as CredentialsType)) {
-            // Check if this is Q credentials or ATX credentials being deleted
-            const hasQCredentials = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
-            const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
-            const hasAtxCredentials = atxCredentialsProvider?.hasCredentials('bearer')
+        if (type === 'bearer') {
+            // Clear Q-specific state only
+        ChatDatabase.clearModelCache()
 
-            if (!hasQCredentials) {
-                // Clear Q-specific state
-                this.logging.log(`Clearing Q credentials and state`)
-                ChatDatabase.clearModelCache()
-                this.cancelActiveProfileChangeToken()
-                this.resetCodewhispererService()
-                this.connectionType = 'none'
-                this.state = 'PENDING_CONNECTION'
-                ProfileStatusMonitor.resetMcpState()
-            }
+        this.cancelActiveProfileChangeToken()
 
-            if (!hasAtxCredentials) {
-                // Clear ATX-specific state
-                this.logging.log(`Clearing ATX credentials and state`)
-                this.cachedAtxCodewhispererService?.abortInflightRequests()
-                this.cachedAtxCodewhispererService = undefined
-                this.cachedAtxStreamingClient?.abortInflightRequests()
-                this.cachedAtxStreamingClient = undefined
-                this.activeAtxProfile = undefined
-            }
-        }
+        this.resetCodewhispererService()
+        this.connectionType = 'none'
+        this.state = 'PENDING_CONNECTION'
+
+        // Reset MCP state cache when auth changes
+        ProfileStatusMonitor.resetMcpState()
     }
-    public handleOnCredentialsUpdated(type: CredentialsType): void {
-        this.logging.log(`Received credentials update event for type: ${type}`)
-
-        if (type === ('bearer' as CredentialsType)) {
-            // Check both Q and ATX credentials
-            const qCreds = this.features.credentialsProvider.getCredentials('bearer' as CredentialsType)
-            if (qCreds && 'token' in qCreds && qCreds.token) {
-                this.logging.log(`Q token updated: ${qCreds.token.substring(0, 20)}...`)
-            }
-
-            const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
-            const atxCreds = atxCredentialsProvider?.getCredentials('bearer')
-            if (atxCreds && 'token' in atxCreds && atxCreds.token) {
-                this.logging.log(`ATX token updated: ${atxCreds.token.substring(0, 20)}...`)
-            }
-        }
-    }
+}
 
     public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
         try {
@@ -324,7 +229,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.logServiceState('Validate State of SSO Connection')
 
-        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
+        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer')
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
             // Connection was reset, wait for SSO connection token from client
@@ -349,7 +254,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         const endpointOverride =
             this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities
                 ?.textDocument?.inlineCompletionWithReferences?.endpointOverride
-
+    
         // Connection type changed to 'builderId' | 'external_idp'
         // for now pretend External IdP is just a special case of Builder ID where the subscription has already been established
         // and user does not need a profile
@@ -403,14 +308,13 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.logServiceState('Unknown Connection state')
     }
 
+
     private handleAtxSsoConnectionChange() {
         const newConnectionType = this.features.credentialsProvider.getConnectionType()
 
         this.logServiceState('Validate State of ATX SSO Connection')
 
-        // Use the new getAtxCredentialsProvider() from runtime
-        const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
-        const noCreds = !atxCredentialsProvider || !atxCredentialsProvider.hasCredentials('bearer')
+        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer-atx')
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
             // ATX connection was reset
@@ -438,8 +342,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.cachedAtxCodewhispererService = this.serviceFactory(region, endpoint)
         this.cachedAtxCodewhispererService.profileArn = this.activeAtxProfile?.arn
-
-        this.cachedAtxStreamingClient = this.atxStreamingClientFactory(region, endpoint)
+        
+        this.cachedAtxStreamingClient = this.streamingClientFactory(region, endpoint)
         this.cachedAtxStreamingClient.profileArn = this.activeAtxProfile?.arn
     }
     private cancelActiveProfileChangeToken() {
@@ -613,7 +517,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
     public async handleAtxProfileChange(profileArn: string | null, token: CancellationToken): Promise<void> {
         this.logging.log(`ATX Profile update is requested for profile ${profileArn}`)
-
+        
         if (profileArn === null) {
             // Clear ATX profile
             if (this.cachedAtxCodewhispererService) {
@@ -642,7 +546,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 region: parsedArn.region,
             },
         }
-
+        
         if (this.cachedAtxCodewhispererService) {
             this.cachedAtxCodewhispererService.profileArn = newProfile.arn
         }
@@ -652,27 +556,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         this.logging.log(`ATX profile updated to: ${newProfile.arn}`)
-
-        // Log credential storage status
-        setTimeout(() => {
-            const hasBearerAtx = this.features.credentialsProvider.hasCredentials('bearer' as any)
-            const hasBearer = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
-            this.logging.log(`credential check: bearer=${hasBearerAtx}, bearer=${hasBearer}`)
-
-            if (hasBearerAtx) {
-                const atxCreds = this.features.credentialsProvider.getCredentials('bearer' as any)
-                if (atxCreds && 'token' in atxCreds && atxCreds.token) {
-                    this.logging.log(`Found ATX credentials in bearer: ${atxCreds.token.substring(0, 20)}...`)
-                }
-            }
-
-            if (hasBearer) {
-                const bearerCreds = this.features.credentialsProvider.getCredentials('bearer' as CredentialsType)
-                if (bearerCreds && 'token' in bearerCreds && bearerCreds.token) {
-                    this.logging.log(`Found credentials in bearer: ${bearerCreds.token.substring(0, 20)}...`)
-                }
-            }
-        }, 200)
     }
     public getCodewhispererService(): CodeWhispererServiceToken {
         // Prevent initiating requests while profile change is in progress.
@@ -680,7 +563,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             throw new AmazonQServicePendingProfileUpdateError()
         }
         // Explicitly check for Q-specific bearer credentials
-        if (!this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)) {
+        if (!this.features.credentialsProvider.hasCredentials('bearer')) {
             throw new AmazonQServicePendingSigninError()
         }
         this.handleSsoConnectionChange()
@@ -699,19 +582,26 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceNotInitializedError()
     }
     public getAtxCodewhispererService(): CodeWhispererServiceToken {
-        this.handleAtxSsoConnectionChange()
+        // Prevent initiating requests while profile change is in progress.
+        if (this.state === 'PENDING_Q_PROFILE_UPDATE') {
+            throw new AmazonQServicePendingProfileUpdateError()
+        }
 
-        // Use the new getAtxCredentialsProvider() from runtime
-        const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
-        if (!atxCredentialsProvider || !atxCredentialsProvider.hasCredentials('bearer')) {
+        this.handleSsoConnectionChange()
+
+        if (this.state === 'INITIALIZED' && this.cachedAtxCodewhispererService) {
+            return this.cachedAtxCodewhispererService
+        }
+
+        if (this.state === 'PENDING_CONNECTION') {
             throw new AmazonQServicePendingSigninError()
         }
 
-        if (!this.cachedAtxCodewhispererService) {
-            this.createAtxServiceInstances()
+        if (this.state === 'PENDING_Q_PROFILE') {
+            throw new AmazonQServicePendingProfileError()
         }
 
-        return this.cachedAtxCodewhispererService!
+        throw new AmazonQServiceNotInitializedError()
     }
 
     public getStreamingClient() {
@@ -720,19 +610,12 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Trigger checks in token service
         const tokenService = this.getCodewhispererService()
 
-        // Use Q-specific region/endpoint from active profile
-        const { region, endpoint } = getAmazonQRegionAndEndpoint(
-            this.features.runtime,
-            this.features.logging,
-            this.activeIdcProfile?.identityDetails?.region
-        )
-
-        if (!tokenService || !region || !endpoint) {
+        if (!tokenService || !this.region || !this.endpoint) {
             throw new AmazonQServiceNotInitializedError()
         }
 
         if (!this.cachedStreamingClient) {
-            this.cachedStreamingClient = this.streamingClientFactory(region, endpoint)
+            this.cachedStreamingClient = this.streamingClientFactory(this.region, this.endpoint)
         }
 
         return this.cachedStreamingClient
@@ -771,26 +654,16 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         this.cachedCodewhispererService = this.serviceFactory(region, this.endpoint)
-        this.logging.log(
-            `CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`
-        )
+        this.logging.log(`CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`)
 
         this.cachedStreamingClient = this.streamingClientFactory(region, this.endpoint)
-        this.logging.log(
-            `StreamingClient service for connection type ${connectionType} was initialized, region=${region}`
-        )
-
+        this.logging.log(`StreamingClient service for connection type ${connectionType} was initialized, region=${region}`)
         // Initialize separate ATX service instances
         this.cachedAtxCodewhispererService = this.serviceFactory(region, this.endpoint)
-        this.logging.log(
-            `ATX CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`
-        )
+        this.logging.log(`ATX CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`)
 
-        this.cachedAtxStreamingClient = this.atxStreamingClientFactory(region, this.endpoint)
-        this.logging.log(
-            `ATX StreamingClient service for connection type ${connectionType} was initialized, region=${region}`
-        )
-
+        this.cachedAtxStreamingClient = this.streamingClientFactory(region, this.endpoint)
+        this.logging.log(`ATX StreamingClient service for connection type ${connectionType} was initialized, region=${region}`)
         this.logServiceState('CodewhispererService and StreamingClient Initialization finished')
     }
 
@@ -802,10 +675,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
         const customUserAgent = this.getCustomUserAgent()
-        const initParam = this.features.lsp.getClientInitializeParams()
-        const userContext = initParam
-            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
-            : undefined
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
@@ -813,7 +682,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             region,
             endpoint,
             this.features.sdkInitializator,
-            userContext,
             customUserAgent
         )
 
@@ -830,29 +698,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         return service
     }
-    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
-        // Ensure Q streaming client uses only 'bearer' credentials
-        this.logging.log('Creating Q-specific credentials provider for streaming client')
-        const qCredentialsProvider = {
-            hasCredentials: (type: CredentialsType) => {
-                this.logging.log(`Q credentials provider: checking hasCredentials for type ${type}`)
-                return this.features.credentialsProvider.hasCredentials(type)
-            },
-            getConnectionType: () => this.features.credentialsProvider.getConnectionType(),
-            getCredentials: (type: CredentialsType) => {
-                const creds = this.features.credentialsProvider.getCredentials(type)
-                this.logging.log(
-                    `Q credentials provider: getCredentials for ${type}, token present: ${creds && 'token' in creds && !!creds.token}`
-                )
-                if (creds && 'token' in creds && creds.token) {
-                    this.logging.log(`Q using token: ${creds.token.substring(0, 20)}...`)
-                }
-                return creds
-            },
-        } as CredentialsProvider
 
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
         const streamingClient = new StreamingClientServiceToken(
-            qCredentialsProvider,
+            this.features.credentialsProvider,
             this.features.sdkInitializator,
             this.features.logging,
             region,
@@ -865,32 +714,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         )
 
         this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
-        return streamingClient
-    }
-
-    private atxStreamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
-        this.logging.log('Creating ATX streaming client using runtime getAtxCredentialsProvider v2.0')
-
-        // Use the new getAtxCredentialsProvider() from runtime
-        const atxCredentialsProvider = (this.features as any).auth?.getAtxCredentialsProvider?.()
-        if (!atxCredentialsProvider) {
-            throw new Error('ATX credentials provider not available from runtime')
-        }
-
-        const streamingClient = new StreamingClientServiceToken(
-            atxCredentialsProvider,
-            this.features.sdkInitializator,
-            this.features.logging,
-            region,
-            endpoint,
-            this.getCustomUserAgent()
-        )
-        streamingClient.profileArn = this.activeAtxProfile?.arn
-        streamingClient.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
-            'shareCodeWhispererContentWithAWS'
-        )
-
-        this.logging.debug(`Created ATX streaming client instance region=${region}, endpoint=${endpoint}`)
         return streamingClient
     }
 

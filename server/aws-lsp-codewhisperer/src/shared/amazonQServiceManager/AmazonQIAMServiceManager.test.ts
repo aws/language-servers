@@ -55,5 +55,33 @@ describe('AmazonQIAMServiceManager', () => {
             // Verify that getting the client again returns the same instance
             deepStrictEqual(serviceManager.getStreamingClient(), streamingClient)
         })
+
+        it('should handle missing IAM credentials gracefully', () => {
+            features.credentialsProvider.hasCredentials.withArgs('iam').returns(false)
+
+            try {
+                serviceManager.getCodewhispererService()
+                throw new Error('Expected error was not thrown')
+            } catch (error) {
+                deepStrictEqual((error as Error).message.includes('No IAM credentials available'), true)
+            }
+        })
+
+        it('should validate credentials before creating service', () => {
+            const hasCredentialsSpy = sinon.spy(features.credentialsProvider, 'hasCredentials')
+
+            features.credentialsProvider.hasCredentials.withArgs('iam').returns(true)
+            serviceManager.getCodewhispererService()
+
+            sinon.assert.calledWith(hasCredentialsSpy, 'iam')
+        })
+
+        it('should return correct credential validation status', () => {
+            features.credentialsProvider.hasCredentials.withArgs('iam').returns(true)
+            deepStrictEqual(serviceManager.hasValidCredentials(), true)
+
+            features.credentialsProvider.hasCredentials.withArgs('iam').returns(false)
+            deepStrictEqual(serviceManager.hasValidCredentials(), false)
+        })
     })
 })

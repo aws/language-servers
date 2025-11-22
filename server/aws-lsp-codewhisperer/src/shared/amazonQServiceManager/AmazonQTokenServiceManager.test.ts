@@ -1051,4 +1051,135 @@ describe('AmazonQTokenServiceManager', () => {
             assert.throws(() => AmazonQTokenServiceManager.initInstance(features), AmazonQServiceInitializationError)
         })
     })
+
+    describe('ATX functionality coverage', () => {
+        it('should handle ATX credentials deletion', () => {
+            setupServiceManager()
+
+            amazonQTokenServiceManager.handleOnCredentialsDeleted('bearer-alternate' as any)
+
+            // Should not affect main Q state
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+        })
+
+        it('should handle ATX credentials update', () => {
+            setupServiceManager()
+
+            amazonQTokenServiceManager.handleOnCredentialsUpdated('bearer-alternate' as any)
+
+            // Should complete without error
+            assert.ok(true)
+        })
+
+        it('should handle ATX profile change with null', async () => {
+            setupServiceManager()
+
+            await amazonQTokenServiceManager.handleAtxProfileChange(null, {} as CancellationToken)
+
+            // Should complete without error
+            assert.ok(true)
+        })
+
+        it('should get ATX service when credentials available', () => {
+            setupServiceManager()
+
+            features.credentialsProvider.hasCredentials.withArgs('bearer-alternate' as any).returns(true)
+            features.credentialsProvider.getCredentials
+                .withArgs('bearer-alternate' as any)
+                .returns({ token: 'atx-token' })
+
+            const service = amazonQTokenServiceManager.getAtxCodewhispererService()
+            assert.ok(service)
+        })
+
+        it('should return endpoint override when configured', () => {
+            const endpointOverride = 'https://custom-endpoint.com'
+            features.setClientParams({
+                processId: 0,
+                rootUri: 'test',
+                capabilities: {},
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            textDocument: {
+                                inlineCompletionWithReferences: {
+                                    endpointOverride,
+                                },
+                            },
+                        },
+                    },
+                },
+            })
+
+            setupServiceManager()
+
+            assert.strictEqual(amazonQTokenServiceManager.endpointOverride(), endpointOverride)
+        })
+
+        it('should handle empty string profile ARN', async () => {
+            setupServiceManager()
+
+            await assert.rejects(
+                amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: { profileArn: '' },
+                    },
+                    {} as CancellationToken
+                ),
+                /Received invalid Profile ARN \(empty string\)/
+            )
+        })
+
+        it('should handle AtxCredentialsProvider hasCredentials', () => {
+            const mockProvider = { hasCredentials: sinon.stub().returns(true) }
+            const atxProvider = new (amazonQTokenServiceManager as any).AtxCredentialsProvider(
+                mockProvider,
+                features.logging
+            )
+
+            assert.strictEqual(atxProvider.hasCredentials('bearer-alternate'), true)
+        })
+
+        it('should handle AtxCredentialsProvider getCredentials', () => {
+            const mockCreds = { token: 'test-token' }
+            const mockProvider = {
+                hasCredentials: sinon.stub().returns(true),
+                getCredentials: sinon.stub().returns(mockCreds),
+            }
+            const atxProvider = new (amazonQTokenServiceManager as any).AtxCredentialsProvider(
+                mockProvider,
+                features.logging
+            )
+
+            const result = atxProvider.getCredentials('bearer-alternate')
+            assert.strictEqual(result, mockCreds)
+        })
+
+        it('should handle profile update cancellation', async () => {
+            setupServiceManager()
+
+            const cancelToken = { isCancellationRequested: true }
+
+            await assert.rejects(
+                amazonQTokenServiceManager.handleAtxProfileChange('test-arn', cancelToken as CancellationToken),
+                /Profile update was cancelled/
+            )
+        })
+
+        it('should validate profile ARN format', async () => {
+            setupServiceManager()
+
+            await assert.rejects(
+                amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: { profileArn: 'invalid-arn' },
+                    },
+                    {} as CancellationToken
+                ),
+                /Invalid Profile ARN format/
+            )
+        })
+    })
 })

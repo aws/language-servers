@@ -85,4 +85,37 @@ describe('AmazonQServiceServer', () => {
         features.credentialsProvider.onCredentialsDeleted.args[0]?.[0]('some-creds-type' as CredentialsType)
         sinon.assert.calledOnce(handleOnCredentialsDeletedSpy)
     })
+
+    it('should handle ATX configuration updates', async () => {
+        await features.initialize(server)
+
+        const atxConfigParams = {
+            section: 'aws.amazonq.transform',
+            settings: { profileArn: 'test-arn' },
+        } as UpdateConfigurationParams
+
+        // This should not throw an error
+        await features.doUpdateConfiguration(atxConfigParams, {} as any)
+        expect(true).to.be.true // Test passes if no error is thrown
+    })
+
+    it('should initialize ATX Token Service Manager', async () => {
+        await features.initialize(server)
+
+        // Verify ATX service manager is initialized (indirectly through no errors)
+        expect(true).to.be.true
+    })
+
+    it('should handle service manager initialization errors gracefully', () => {
+        const errorFactory = () => {
+            throw new Error('Service manager initialization failed')
+        }
+
+        const errorServer = AmazonQServiceServerFactory(errorFactory)
+
+        expect(() => {
+            errorServer(features)
+            features.doSendInitializeRequest({} as InitializeParams, {} as CancellationToken)
+        }).to.throw('Service manager initialization failed')
+    })
 })

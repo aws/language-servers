@@ -33,6 +33,7 @@ import {
     CancellationTokenSource,
     ContextCommand,
     ChatUpdateParams,
+    ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -69,6 +70,7 @@ import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import { SinonStub } from 'sinon'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -288,6 +290,15 @@ describe('AgenticChatController', () => {
         serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
+
+        // Add getConnectionMetadata to testFeatures.credentialsProvider
+        testFeatures.credentialsProvider.getConnectionMetadata = (
+            sinon.stub() as SinonStub<[], ConnectionMetadata | undefined>
+        ).returns({
+            sso: {
+                startUrl: undefined,
+            },
+        })
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),

@@ -346,6 +346,19 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
+export function getBearerTokenFromProviderWithType(credentialsProvider: CredentialsProvider, credentialType: any) {
+    if (!credentialsProvider.hasCredentials(credentialType)) {
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
+    }
+
+    const credentials = credentialsProvider.getCredentials(credentialType) as BearerCredentials
+
+    if (!credentials.token) {
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
+    }
+
+    return credentials.token
+}
 export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
     return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
         ? lspParams?.initializationOptions?.aws?.clientInfo?.name
