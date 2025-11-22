@@ -29,6 +29,7 @@
         "postinstall": "node ./script/install_transitive_dep.js"
     },
     "dependencies": {
+        "@amazon/elastic-gumby-frontend-client": "file:../../core/atx-fes-client/amazon-elastic-gumby-frontend-client-1.0.0.tgz",
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
         "@amzn/codewhisperer": "file:../../core/codewhisperer/amzn-codewhisperer-1.0.0.tgz",
         "@amzn/codewhisperer-runtime": "file:../../core/codewhisperer-runtime/amzn-codewhisperer-runtime-1.0.0.tgz",
@@ -37,7 +38,7 @@
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "0.1.68",
-        "@aws/language-server-runtimes": "0.3.6",
+        "@aws/language-server-runtimes": "0.3.7",
         "@aws/lsp-core": "^0.0.17",
         "@modelcontextprotocol/sdk": "^1.15.0",
         "@smithy/node-http-handler": "^2.5.0",
@@ -106,6 +107,7 @@
         "@amzn/codewhisperer",
         "@amzn/codewhisperer-runtime",
         "@amzn/codewhisperer-streaming",
-        "@amzn/amazon-q-developer-streaming-client"
+        "@amzn/amazon-q-developer-streaming-client",
+        "@amazon/elastic-gumby-frontend-client"
     ]
 }
