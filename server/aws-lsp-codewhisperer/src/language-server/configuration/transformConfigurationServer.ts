@@ -148,9 +148,6 @@ export class TransformConfigurationServer {
             const profiles = response.profiles || []
 
             const activeProfile = profiles.find((p: any) => p.arn)
-            const { configFile, credentialsFile } = await loadSharedConfigFiles()
-            const profileConfig = configFile[profileName] || credentialsFile[profileName]
-            const region = profileConfig?.region
             if (activeProfile?.arn) {
                 try {
                     const parsed = parse(activeProfile.arn)
