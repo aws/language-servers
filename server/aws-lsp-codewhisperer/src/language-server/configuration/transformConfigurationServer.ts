@@ -9,6 +9,7 @@ import {
     Server,
     BearerCredentials,
 } from '@aws/language-server-runtimes/server-interface'
+import { parse } from '@aws-sdk/util-arn-parser'
 import { AmazonQDeveloperProfile } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 import { ElasticGumbyFrontendClient, ListAvailableProfilesCommand } from '@amazon/elastic-gumby-frontend-client'
 import {
@@ -158,9 +159,11 @@ export class TransformConfigurationServer {
 
             const activeProfile = profiles.find((p: any) => p.arn)
             if (activeProfile?.arn) {
-                const arnParts = activeProfile.arn.split(':')
-                if (arnParts.length >= 4) {
-                    return arnParts[3]
+                try {
+                    const parsed = parse(activeProfile.arn)
+                    return parsed.region
+                } catch {
+                    return undefined
                 }
             }
 

@@ -1,5 +1,6 @@
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { ElasticGumbyFrontendClient, ListAvailableProfilesCommand } from '@amazon/elastic-gumby-frontend-client'
+import { parse } from '@aws-sdk/util-arn-parser'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { DEFAULT_ATX_FES_ENDPOINT_URL, DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR } from '../../shared/constants'
 
@@ -76,9 +77,11 @@ export class ATXTransformHandler {
 
             const activeProfile = profiles.find((p: any) => p.arn)
             if (activeProfile?.arn) {
-                const arnParts = activeProfile.arn.split(':')
-                if (arnParts.length >= 4) {
-                    return arnParts[3]
+                try {
+                    const parsed = parse(activeProfile.arn)
+                    return parsed.region
+                } catch {
+                    return undefined
                 }
             }
 
