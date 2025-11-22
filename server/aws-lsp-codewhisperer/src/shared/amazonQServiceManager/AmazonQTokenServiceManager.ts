@@ -159,57 +159,29 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private setupCredentialUpdateLogging(): void {
         this.logging.log('Setting up credential update logging and ATX routing')
 
-        // Track which credential type was last updated to prevent cross-deletion
-        let lastCredentialType: 'q' | 'atx' | null = null
-
-        // Try to intercept LSP connection for credential updates
         const connection = (this.features as any).lsp?.connection
         if (connection && connection.onNotification) {
             this.logging.log('Found LSP connection, setting up credential deletion interceptor')
 
-            // Intercept credential deletion to prevent token override
             const originalOnNotification = connection.onNotification.bind(connection)
             connection.onNotification = (type: any, handler: any) => {
                 if (typeof type === 'string' && type === 'aws/credentials/bearer/delete') {
                     this.logging.log('Intercepting bearer credential deletion')
                     return originalOnNotification(type, (notification: any) => {
-                        this.logging.log(`Credential deletion for: ${lastCredentialType || 'unknown'}`)
+                        const credentialType = notification?.credentialkey || 'q'
+                        this.logging.log(`Credential deletion for type: ${credentialType}`)
 
-                        // Only allow deletion if it matches the last credential type updated
-                        if (lastCredentialType === 'q') {
-                            this.logging.log('Allowing Q credential deletion')
-                            return handler(notification)
-                        } else if (lastCredentialType === 'atx') {
-                            this.logging.log('Blocking Q credential deletion - ATX was last updated')
-                            return // Block the deletion
+                        if (credentialType === 'atx-bearer') {
+                            this.logging.log('Deleting ATX credentials only')
+                            // Only delete ATX credentials, don't call Q handler
+                            return
                         } else {
-                            this.logging.log('Unknown credential type - allowing deletion')
+                            this.logging.log('Deleting Q credentials')
                             return handler(notification)
                         }
                     })
                 }
                 return originalOnNotification(type, handler)
-            }
-
-            // Track credential updates to know which type was last updated
-            if (connection.onRequest) {
-                const originalOnRequest = connection.onRequest.bind(connection)
-                connection.onRequest = (type: any, handler: any) => {
-                    if (typeof type === 'string' && type === 'aws/credentials/token/update') {
-                        this.logging.log('Intercepting credential update to track type')
-                        return originalOnRequest(type, (request: any) => {
-                            if (request.credentialkey === 'atx-bearer') {
-                                this.logging.log('ATX credential update detected')
-                                lastCredentialType = 'atx'
-                            } else {
-                                this.logging.log('Q credential update detected')
-                                lastCredentialType = 'q'
-                            }
-                            return handler(request)
-                        })
-                    }
-                    return originalOnRequest(type, handler)
-                }
             }
         } else {
             this.logging.log('Could not find LSP connection for intercepting')
