@@ -45,16 +45,6 @@ export class TransformConfigurationServer {
     async initialize(params: InitializeParams): Promise<any> {
         this.logging.log('TransformConfigurationServer: Initialize called')
 
-        // const profileType = (params.initializationOptions as any)?.aws?.profileType
-
-        // if (profileType !== 'transform') {
-        //     this.logging.log('TransformConfigurationServer: Not Transform Profile')
-        //     return {
-        //         capabilities: {},
-        //         awsServerCapabilities: {},
-        //     }
-        // }
-
         this.logging.log('TransformConfigurationServer: Transform Profile intialized section aws.transfomProfiles')
 
         return {
@@ -158,6 +148,9 @@ export class TransformConfigurationServer {
             const profiles = response.profiles || []
 
             const activeProfile = profiles.find((p: any) => p.arn)
+            const { configFile, credentialsFile } = await loadSharedConfigFiles()
+            const profileConfig = configFile[profileName] || credentialsFile[profileName]
+            const region = profileConfig?.region
             if (activeProfile?.arn) {
                 try {
                     const parsed = parse(activeProfile.arn)

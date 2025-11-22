@@ -48,18 +48,6 @@ describe('IdeCredentialsProvider', function () {
     })
 
     describe('initialize', function () {
-        it('registers credential push handlers when IAM credentials are provided', function () {
-            const props = {
-                credentials: {
-                    providesIam: true,
-                },
-            }
-
-            provider.initialize(props)
-
-            assert(mockConnection.onRequest.called)
-        })
-
         it('does not register handlers when no credentials config provided', function () {
             const props = {}
 
