@@ -23,7 +23,7 @@ const props = createTokenRuntimeProps(VERSION, [
     CodeWhispererSecurityScanServerTokenProxy,
     QConfigurationServerTokenProxy,
     TransformConfigurationServerTokenProxy,
-    AtxNetTransformServerTokenProxy,
+    AtxNetTransformServerTokenProxy as any,
     QNetTransformServerTokenProxy,
     QChatServerTokenProxy,
     IdentityServer.create,

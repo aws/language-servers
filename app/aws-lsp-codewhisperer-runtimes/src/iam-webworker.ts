@@ -8,7 +8,7 @@ import { AmazonQServiceServerIAM } from '@aws/lsp-codewhisperer/out/shared/amazo
 // to inject the AmazonQServiceServer does not work for webworker as it triggers missing polyfill errors
 const props: RuntimeProps = {
     version: '1.0.0',
-    servers: [AmazonQServiceServerIAM, CodeWhispererServerIAM, QChatServerIAM],
+    servers: [AmazonQServiceServerIAM as any, CodeWhispererServerIAM as any, QChatServerIAM as any],
     name: 'AWS CodeWhisperer',
 }
 

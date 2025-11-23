@@ -8,10 +8,10 @@ const createRuntimePropsFactory =
     (version: string, servers: Server[], name = 'AWS CodeWhisperer'): RuntimeProps => {
         return {
             version,
-            servers: [AmazonQServiceServer, ...servers],
+            servers: [AmazonQServiceServer as any, ...servers],
             name,
         }
     }
 
-export const createIAMRuntimeProps = createRuntimePropsFactory(AmazonQServiceServerIAM)
-export const createTokenRuntimeProps = createRuntimePropsFactory(AmazonQServiceServerToken)
+export const createIAMRuntimeProps = createRuntimePropsFactory(AmazonQServiceServerIAM as any)
+export const createTokenRuntimeProps = createRuntimePropsFactory(AmazonQServiceServerToken as any)

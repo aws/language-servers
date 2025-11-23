@@ -27,7 +27,7 @@ import {
     BaseAmazonQServiceManager,
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
-import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
+import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION, ATX_FES_ENDPOINTS } from '../constants'
 import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
@@ -629,10 +629,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Set ATX profile
         const parsedArn = parse(profileArn)
         const region = parsedArn.region
-        const endpoint = AWS_Q_ENDPOINTS.get(region)
+        const endpoint = ATX_FES_ENDPOINTS.get(region)
         if (!endpoint) {
             throw new Error('Requested profileArn region is not supported')
         }
+        this.logging.log(`Setting up for ${profileArn} with endpoint ${endpoint} and region ${region}`)
 
         // Create ATX profile object
         const newProfile: AmazonQDeveloperProfile = {
@@ -643,8 +644,12 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             },
         }
 
+        this.activeAtxProfile = newProfile
+
         if (this.cachedAtxCodewhispererService) {
             this.cachedAtxCodewhispererService.profileArn = newProfile.arn
+        } else {
+            this.createAtxServiceInstances()
         }
 
         if (this.cachedAtxStreamingClient) {
@@ -656,19 +661,13 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Log credential storage status
         setTimeout(() => {
             this.logging.log('DEBUG-ATX-TIMEOUT: Checking credential providers in setTimeout')
-            // Try multiple ways to access ATX credentials
-            const runtimeAuth = (this.features.runtime as any).auth
-            this.logging.log(`DEBUG-ATX-TIMEOUT: Runtime auth object: ${!!runtimeAuth}`)
 
             // Debug runtime structure
             this.logging.log(`DEBUG-ATX-TIMEOUT: Runtime keys: ${Object.keys(this.features.runtime || {})}`)
-            if (runtimeAuth) {
-                this.logging.log(`DEBUG-ATX-TIMEOUT: Runtime auth keys: ${Object.keys(runtimeAuth)}`)
-            }
 
-            const atxCredentialsProvider = runtimeAuth?.getAtxCredentialsProvider?.()
+            const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
             this.logging.log(
-                `DEBUG-ATX-TIMEOUT: getAtxCredentialsProvider function: ${typeof runtimeAuth?.getAtxCredentialsProvider}`
+                `DEBUG-ATX-TIMEOUT: getAtxCredentialsProvider function: ${typeof this.features.runtime.getAtxCredentialsProvider}`
             )
             this.logging.log(`DEBUG-ATX-TIMEOUT: ATX provider available: ${!!atxCredentialsProvider}`)
 
@@ -919,9 +918,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         const customUserAgent = this.getCustomUserAgent()
+        // Create ATX-specific userContext to avoid Q account ID override
         const initParam = this.features.lsp.getClientInitializeParams()
-        const userContext = initParam
-            ? makeUserContextObject(initParam, this.features.runtime.platform, 'token', this.serverInfo)
+        const atxUserContext = initParam
+            ? makeUserContextObject(initParam, this.features.runtime.platform, 'atx-token', this.serverInfo)
             : undefined
         const service = new CodeWhispererServiceToken(
             atxCredentialsProvider,
@@ -930,7 +930,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             region,
             endpoint,
             this.features.sdkInitializator,
-            userContext,
+            atxUserContext,
             customUserAgent
         )
 
