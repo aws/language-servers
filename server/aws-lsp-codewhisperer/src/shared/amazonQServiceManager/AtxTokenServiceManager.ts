@@ -5,6 +5,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { QServiceManagerFeatures } from './BaseAmazonQServiceManager'
 import { ATX_CONFIGURATION_SECTION } from '../../language-server/configuration/transformConfigurationServer'
+import { TransformConfigurationServer } from '../../language-server/configuration/transformConfigurationServer'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { ATX_FES_ENDPOINTS } from '../constants'
@@ -74,6 +75,8 @@ export class AtxTokenServiceManager {
             params.settings.profileArn !== undefined
         ) {
             const profileArn = params.settings.profileArn as string
+
+            await this.ensureProfilesLoaded()
 
             this.activeProfileArn = profileArn
             this.setActiveProfileByArn(profileArn)
@@ -281,6 +284,42 @@ export class AtxTokenServiceManager {
 
     public getActiveProfileArn(): string | null {
         return this.activeProfileArn
+    }
+
+    /**
+     * Ensure profiles are loaded from ATX FES before profile operations
+     */
+    public async ensureProfilesLoaded(): Promise<void> {
+        try {
+            if (this.cachedTransformProfiles.length === 0 && this.hasValidCredentials()) {
+                this.log('Fetching available ATX profiles from FES')
+                await this.refreshAvailableProfiles()
+            }
+        } catch (error) {
+            this.log(`Error ensuring profiles loaded: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Refresh available ATX profiles from FES using TransformConfigurationServer
+     */
+    public async refreshAvailableProfiles(): Promise<void> {
+        try {
+            this.log('Refreshing available ATX profiles from FES using TransformConfigurationServer')
+
+            if (!this.hasValidCredentials()) {
+                this.log('No valid credentials for refreshing profiles')
+                return
+            }
+
+            const configServer = new TransformConfigurationServer(this.features.logging, this.features)
+            const profiles = await configServer.listAvailableProfiles({} as CancellationToken)
+
+            this.log(`Refreshed ${profiles.length} ATX profiles using TransformConfigurationServer`)
+            this.cacheTransformProfiles(profiles)
+        } catch (error) {
+            this.log(`Error refreshing ATX profiles: ${String(error)}`)
+        }
     }
 
     public registerCacheCallback(callback: () => void): void {

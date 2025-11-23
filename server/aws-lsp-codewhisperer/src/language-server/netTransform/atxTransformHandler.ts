@@ -8,7 +8,6 @@ import AdmZip = require('adm-zip')
 import { ArtifactManager } from './artifactManager'
 import {
     ElasticGumbyFrontendClient,
-    ListAvailableProfilesCommand,
     CreateJobCommand,
     CreateArtifactUploadUrlCommand,
     CompleteArtifactUploadCommand,
@@ -29,7 +28,12 @@ import {
     SubmitCriticalHitlTaskResponse,
 } from '@amazon/elastic-gumby-frontend-client'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
-import { DEFAULT_ATX_FES_ENDPOINT_URL, DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR } from '../../shared/constants'
+import {
+    DEFAULT_ATX_FES_ENDPOINT_URL,
+    DEFAULT_ATX_FES_REGION,
+    ATX_FES_REGION_ENV_VAR,
+    ATX_FES_ENDPOINTS,
+} from '../../shared/constants'
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListOrCreateWorkspaceResponse,
@@ -83,14 +87,14 @@ export class ATXTransformHandler {
                 if (region) {
                     this.logging.log(`DEBUG-ATX-INIT: Using region from active profile: ${region}`)
                 } else {
-                    this.logging.log('DEBUG-ATX-INIT: No active profile region, using default region')
-                    region = DEFAULT_ATX_FES_REGION
-                    this.logging.log(`DEBUG-ATX-INIT: Using default region: ${region}`)
+                    this.logging.log('DEBUG-ATX-INIT: No region available - cannot initialize client without region')
+                    this.logging.log('DEBUG-ATX-INIT: Profile selection or multi-region discovery needed first')
+                    return false
                 }
             }
 
-            const endpoint = process.env.TCP_ENDPOINT || DEFAULT_ATX_FES_ENDPOINT_URL
-            this.logging.log(`DEBUG-ATX-INIT: Using endpoint: ${endpoint}`)
+            const endpoint = process.env.TCP_ENDPOINT || ATX_FES_ENDPOINTS.get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
+            this.logging.log(`DEBUG-ATX-INIT: Using region-specific endpoint for ${region}: ${endpoint}`)
 
             this.clearApplicationUrlCache()
             this.logging.log('DEBUG-ATX-INIT: Cleared application URL cache')
@@ -179,24 +183,6 @@ export class ATXTransformHandler {
                 priority: 'high',
             }
         )
-    }
-
-    /**
-     * List available Transform profiles from ATX FES
-     */
-    async listAvailableProfiles(maxResults: number = 100): Promise<{ profiles: any[] }> {
-        if (!this.atxClient && !(await this.initializeAtxClient())) {
-            throw new Error('ATX FES client not initialized')
-        }
-
-        const command = new ListAvailableProfilesCommand({
-            maxResults: maxResults,
-        })
-
-        await this.addAuthToCommand(command)
-        const response = await this.atxClient!.send(command)
-
-        return { profiles: response.profiles || [] }
     }
 
     /**
