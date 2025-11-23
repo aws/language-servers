@@ -31,7 +31,16 @@ describe('TransformConfigurationServer', () => {
             onCredentialsDeleted: sinon.stub(),
         } as any
 
-        server = new TransformConfigurationServer(mockLogging, mockCredentialsProvider)
+        const mockFeatures = {
+            lsp: {} as any,
+            logging: mockLogging,
+            runtime: {} as any,
+            credentialsProvider: mockCredentialsProvider,
+            workspace: {} as any,
+            sdkInitializator: {} as any,
+        }
+
+        server = new TransformConfigurationServer(mockLogging, mockFeatures)
     })
 
     afterEach(() => {

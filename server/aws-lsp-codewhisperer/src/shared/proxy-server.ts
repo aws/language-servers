@@ -28,7 +28,9 @@ export const QAgenticChatServerProxy = QAgenticChatServer()
 
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
 
-export const TransformConfigurationServerTokenProxy = TransformConfigurationServerToken()
+export const TransformConfigurationServerTokenProxy = TransformConfigurationServerToken(() =>
+    getOrThrowBaseTokenServiceManager()
+)
 
 export const QLocalProjectContextServerProxy = LocalProjectContextServer()
 

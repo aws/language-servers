@@ -19,6 +19,10 @@ import {
     getATXEndpoints,
 } from '../../shared/constants'
 import { getBearerTokenFromProvider } from '../../shared/utils'
+import {
+    QServiceManagerFeatures,
+    AmazonQBaseServiceManager,
+} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 // Transform Configuration Sections
 export const TRANSFORM_PROFILES_CONFIGURATION_SECTION = 'aws.transformProfiles'
@@ -34,9 +38,11 @@ export class TransformConfigurationServer {
 
     constructor(
         private readonly logging: Logging,
-        private readonly credentialsProvider: CredentialsProvider
+        private readonly features: QServiceManagerFeatures
     ) {
         this.logging.log('TransformConfigurationServer: Constructor called - server created')
+        this.logging.log(`TransformConfigurationServer: Features runtime available: ${!!this.features.runtime}`)
+        this.logging.log(`TransformConfigurationServer: Features keys: ${Object.keys(this.features).join(', ')}`)
     }
 
     /**
@@ -91,11 +97,22 @@ export class TransformConfigurationServer {
      */
     private async initializeAtxClient(): Promise<boolean> {
         try {
-            if (!this.credentialsProvider?.hasCredentials('bearer')) {
+            // Get ATX credentials provider from runtime
+            const runtime = this.features.runtime
+            this.logging.log(`TransformConfigurationServer: Runtime available: ${!!runtime}`)
+
+            const atxCredentialsProvider = runtime?.getAtxCredentialsProvider?.()
+            this.logging.log(
+                `TransformConfigurationServer: ATX credentials provider available: ${!!atxCredentialsProvider}`
+            )
+
+            if (!atxCredentialsProvider?.hasCredentials('bearer')) {
+                this.logging.log(`TransformConfigurationServer: No ATX bearer credentials available`)
                 return false
             }
 
-            const credentials = (await this.credentialsProvider.getCredentials('bearer')) as BearerCredentials
+            this.logging.log(`TransformConfigurationServer: ATX bearer credentials found`)
+            const credentials = (await atxCredentialsProvider.getCredentials('bearer')) as BearerCredentials
             if (!credentials?.token) {
                 return false
             }
@@ -145,7 +162,11 @@ export class TransformConfigurationServer {
 
     private async getRegionFromProfile(): Promise<string | undefined> {
         try {
-            if (!this.credentialsProvider?.hasCredentials('bearer')) {
+            // Get ATX credentials provider from runtime
+            const runtime = this.features.runtime
+            const atxCredentialsProvider = runtime?.getAtxCredentialsProvider?.()
+
+            if (!atxCredentialsProvider?.hasCredentials('bearer')) {
                 return undefined
             }
 
@@ -185,21 +206,46 @@ export class TransformConfigurationServer {
      * Add bearer token authentication to ATX FES command
      */
     private async addBearerTokenToCommand(command: any): Promise<void> {
-        const credentials = (await this.credentialsProvider.getCredentials('bearer')) as BearerCredentials
-        if (!credentials?.token) {
-            throw new Error('No bearer token available for ATX FES authentication')
-        }
+        try {
+            const runtime = this.features.runtime
+            this.logging.log(`TransformConfigurationServer: Runtime available: ${!!runtime}`)
 
-        command.middlewareStack?.add(
-            (next: any) => async (args: any) => {
-                args.request.headers = {
-                    ...args.request.headers,
-                    Authorization: `Bearer ${credentials.token}`,
-                }
-                return next(args)
-            },
-            { step: 'build', priority: 'high' }
-        )
+            const atxCredentialsProvider = runtime?.getAtxCredentialsProvider?.()
+            this.logging.log(
+                `TransformConfigurationServer: ATX credentials provider available: ${!!atxCredentialsProvider}`
+            )
+
+            if (!atxCredentialsProvider) {
+                throw new Error('ATX credentials provider not available')
+            }
+
+            const hasCredentials = atxCredentialsProvider.hasCredentials('bearer')
+            this.logging.log(`TransformConfigurationServer: Has bearer credentials: ${hasCredentials}`)
+
+            if (!hasCredentials) {
+                throw new Error('No ATX bearer credentials available')
+            }
+
+            const credentials = atxCredentialsProvider.getCredentials('bearer')
+            if (!credentials || !('token' in credentials) || !credentials.token) {
+                throw new Error('Bearer token is null or empty')
+            }
+
+            command.middlewareStack?.add(
+                (next: any) => async (args: any) => {
+                    args.request.headers = {
+                        ...args.request.headers,
+                        Authorization: `Bearer ${credentials.token}`,
+                    }
+                    return next(args)
+                },
+                { step: 'build', priority: 'high' }
+            )
+            this.logging.log(`TransformConfigurationServer: Bearer token added to command`)
+        } catch (error) {
+            this.logging.error(`TransformConfigurationServer: Failed to add ATX bearer token: ${error}`)
+            throw error
+        }
     }
 
     /**
@@ -275,47 +321,67 @@ export class TransformConfigurationServer {
     private async listAvailableProfilesForRegion(region: string, endpoint: string): Promise<AmazonQDeveloperProfile[]> {
         this.logging.log(`TransformConfigurationServer: Querying region: ${region}, endpoint: ${endpoint}`)
 
-        // Create region-specific client (similar to RTS approach)
-        const regionClient = new ElasticGumbyFrontendClient({
-            region: region,
-            endpoint: endpoint,
-        })
+        try {
+            // Create region-specific client (similar to RTS approach)
+            const regionClient = new ElasticGumbyFrontendClient({
+                region: region,
+                endpoint: endpoint,
+            })
 
-        const command = new ListAvailableProfilesCommand({
-            maxResults: 100,
-        })
+            const command = new ListAvailableProfilesCommand({
+                maxResults: 100,
+            })
 
-        await this.addBearerTokenToCommand(command)
-        const response = await regionClient.send(command)
+            this.logging.log(`TransformConfigurationServer: Adding bearer token to command for region: ${region}`)
+            await this.addBearerTokenToCommand(command)
 
-        // Convert ATX FES profiles to AmazonQDeveloperProfile format
-        const transformProfiles: AmazonQDeveloperProfile[] = (response.profiles || []).map((profile: any) => {
-            const convertedProfile = {
-                arn: profile.arn || '',
-                name: profile.profileName || profile.applicationUrl || 'Unnamed Transform Profile',
-                applicationUrl: (profile.applicationUrl || '').replace(/\/$/, ''), // Strip trailing slash
-                identityDetails: {
-                    region: region,
-                    accountId: profile.accountId || '',
-                },
-            }
+            this.logging.log(`TransformConfigurationServer: Sending command to region: ${region}`)
+            const response = await regionClient.send(command)
+            this.logging.log(
+                `TransformConfigurationServer: Received response from region: ${region}, profiles count: ${response.profiles?.length || 0}`
+            )
 
-            return convertedProfile
-        })
+            // Convert ATX FES profiles to AmazonQDeveloperProfile format
+            const transformProfiles: AmazonQDeveloperProfile[] = (response.profiles || []).map((profile: any) => {
+                const convertedProfile = {
+                    arn: profile.arn || '',
+                    name: profile.profileName || profile.applicationUrl || 'Unnamed Transform Profile',
+                    applicationUrl: (profile.applicationUrl || '').replace(/\/$/, ''), // Strip trailing slash
+                    identityDetails: {
+                        region: region,
+                        accountId: profile.accountId || '',
+                    },
+                }
 
-        return transformProfiles
+                return convertedProfile
+            })
+
+            this.logging.log(
+                `TransformConfigurationServer: Converted ${transformProfiles.length} profiles for region: ${region}`
+            )
+            return transformProfiles
+        } catch (error) {
+            this.logging.error(`TransformConfigurationServer: Error querying region ${region}: ${error}`)
+            return []
+        }
     }
 }
 
 /**
  * Transform Configuration Server Token - creates standalone Transform configuration server
  */
-export const TransformConfigurationServerToken = (): Server => {
-    return ({ credentialsProvider, lsp, logging }) => {
+export const TransformConfigurationServerToken = (serviceManager: () => AmazonQBaseServiceManager): Server => {
+    return ({ credentialsProvider, lsp, logging, runtime, workspace, sdkInitializator }) => {
         let transformConfigurationServer: TransformConfigurationServer
 
         lsp.addInitializer(async params => {
-            transformConfigurationServer = new TransformConfigurationServer(logging, credentialsProvider)
+            // Get features from the initialized service manager, but use the runtime from server parameters
+            const manager = serviceManager()
+            const features = {
+                ...(manager as any).features,
+                runtime: runtime, // Use the runtime from server parameters instead of service manager
+            } as QServiceManagerFeatures
+            transformConfigurationServer = new TransformConfigurationServer(logging, features)
             return transformConfigurationServer.initialize(params)
         })
 
