@@ -5,6 +5,13 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { QServiceManagerFeatures } from './BaseAmazonQServiceManager'
 import { ATX_CONFIGURATION_SECTION } from '../../language-server/configuration/transformConfigurationServer'
+import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { StreamingClientServiceToken } from '../streamingClientService'
+import { ATX_FES_ENDPOINTS } from '../constants'
+import { AmazonQDeveloperProfile } from './qDeveloperProfiles'
+import { parse } from '@aws-sdk/util-arn-parser'
+import { getUserAgent, makeUserContextObject } from '../telemetryUtils'
+import { AmazonQServicePendingSigninError } from './errors'
 
 export class AtxTokenServiceManager {
     private static instance: AtxTokenServiceManager | null = null
@@ -14,6 +21,11 @@ export class AtxTokenServiceManager {
     private activeProfileArn: string | null = null
     private cachedTransformProfiles: any[] = []
     private activeApplicationUrl: string | null = null
+
+    // ATX service instances
+    private cachedAtxCodewhispererService?: CodeWhispererServiceToken
+    private cachedAtxStreamingClient?: StreamingClientServiceToken
+    private activeAtxProfile?: AmazonQDeveloperProfile
 
     private constructor(features: QServiceManagerFeatures) {
         this.features = features
@@ -35,6 +47,18 @@ export class AtxTokenServiceManager {
     }
 
     public handleOnCredentialsDeleted(type: CredentialsType): void {
+        if (type === ('bearer' as CredentialsType)) {
+            const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
+            const hasAtxCredentials = atxCredentialsProvider?.hasCredentials('bearer')
+            if (!hasAtxCredentials) {
+                this.log(`Clearing ATX credentials and services`)
+                this.cachedAtxCodewhispererService?.abortInflightRequests()
+                this.cachedAtxCodewhispererService = undefined
+                this.cachedAtxStreamingClient?.abortInflightRequests()
+                this.cachedAtxStreamingClient = undefined
+                this.activeAtxProfile = undefined
+            }
+        }
         this.clearAllCaches()
     }
 
@@ -54,11 +78,173 @@ export class AtxTokenServiceManager {
             this.activeProfileArn = profileArn
             this.setActiveProfileByArn(profileArn)
 
-            // Get the main service manager and call ATX profile update
-            const { AmazonQTokenServiceManager } = await import('./AmazonQTokenServiceManager')
-            const mainServiceManager = AmazonQTokenServiceManager.getInstance()
-            await mainServiceManager.handleAtxProfileChange(profileArn, token)
+            // Handle ATX profile change directly
+            await this.handleAtxProfileChange(profileArn, token)
         }
+    }
+
+    public async handleAtxProfileChange(profileArn: string | null, token: CancellationToken): Promise<void> {
+        this.log(`ATX Profile change requested: ${profileArn}`)
+
+        if (profileArn === null) {
+            this.log('Clearing ATX profile')
+            if (this.cachedAtxCodewhispererService) {
+                this.cachedAtxCodewhispererService.profileArn = undefined
+            }
+            if (this.cachedAtxStreamingClient) {
+                this.cachedAtxStreamingClient.profileArn = undefined
+            }
+            this.activeAtxProfile = undefined
+            this.log('ATX profile cleared')
+            return
+        }
+
+        const parsedArn = parse(profileArn)
+        const region = parsedArn.region
+        const endpoint = ATX_FES_ENDPOINTS.get(region)
+        if (!endpoint) {
+            throw new Error('Requested profileArn region is not supported')
+        }
+        this.log(`Setting ATX profile for ${profileArn} with endpoint ${endpoint} and region ${region}`)
+
+        const newProfile: AmazonQDeveloperProfile = {
+            arn: profileArn,
+            name: 'ATX Client provided profile',
+            identityDetails: {
+                region: parsedArn.region,
+            },
+        }
+
+        this.activeAtxProfile = newProfile
+        this.log(`ATX profile set to: ${newProfile.arn}`)
+
+        if (this.cachedAtxCodewhispererService) {
+            this.cachedAtxCodewhispererService.profileArn = newProfile.arn
+        } else {
+            this.createAtxServiceInstances()
+        }
+
+        if (this.cachedAtxStreamingClient) {
+            this.cachedAtxStreamingClient.profileArn = newProfile.arn
+        }
+
+        this.log(`ATX profile updated successfully`)
+    }
+
+    private createAtxServiceInstances() {
+        this.log('Creating ATX service instances')
+        const region = this.activeAtxProfile?.identityDetails?.region || 'us-east-1'
+        const endpoint = ATX_FES_ENDPOINTS.get(region)
+
+        if (!endpoint) {
+            throw new Error(`ATX region ${region} is not supported`)
+        }
+
+        this.log(`ATX using region: ${region}, endpoint: ${endpoint}`)
+        this.cachedAtxCodewhispererService = this.atxServiceFactory(region, endpoint)
+        this.cachedAtxCodewhispererService.profileArn = this.activeAtxProfile?.arn
+
+        this.cachedAtxStreamingClient = this.atxStreamingClientFactory(region, endpoint)
+        this.cachedAtxStreamingClient.profileArn = this.activeAtxProfile?.arn
+        this.log('ATX service instances created successfully')
+    }
+
+    public getAtxCodewhispererService(): CodeWhispererServiceToken {
+        this.log('Getting ATX CodeWhisperer service')
+
+        const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
+        if (!atxCredentialsProvider) {
+            this.log('ATX credentials provider not available in runtime')
+            throw new AmazonQServicePendingSigninError()
+        }
+
+        const hasBearer = atxCredentialsProvider.hasCredentials('bearer')
+        if (!hasBearer) {
+            this.log('No ATX bearer credentials available')
+            throw new AmazonQServicePendingSigninError()
+        }
+
+        const creds = atxCredentialsProvider.getCredentials('bearer')
+        if (!creds || !('token' in creds) || !creds.token) {
+            this.log('ATX token is empty or invalid')
+            throw new AmazonQServicePendingSigninError()
+        }
+
+        if (!this.cachedAtxCodewhispererService) {
+            this.createAtxServiceInstances()
+        }
+
+        return this.cachedAtxCodewhispererService!
+    }
+
+    public getAtxStreamingClient(): StreamingClientServiceToken {
+        this.log('Getting ATX streaming client')
+
+        // Trigger service creation if needed
+        this.getAtxCodewhispererService()
+
+        return this.cachedAtxStreamingClient!
+    }
+
+    private atxServiceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
+        this.log('Creating ATX CodeWhisperer service')
+
+        const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
+        if (!atxCredentialsProvider) {
+            throw new Error('ATX credentials provider not available in runtime')
+        }
+
+        const customUserAgent = this.getCustomUserAgent()
+        const initParam = this.features.lsp.getClientInitializeParams()
+        const atxUserContext = initParam
+            ? makeUserContextObject(
+                  initParam,
+                  this.features.runtime.platform,
+                  'atx-token',
+                  this.features.runtime.serverInfo
+              )
+            : undefined
+
+        const service = new CodeWhispererServiceToken(
+            atxCredentialsProvider,
+            this.features.workspace,
+            this.features.logging,
+            region,
+            endpoint,
+            this.features.sdkInitializator,
+            atxUserContext,
+            customUserAgent
+        )
+
+        service.profileArn = this.activeAtxProfile?.arn
+        this.log('ATX CodeWhisperer service created')
+        return service
+    }
+
+    private atxStreamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
+        this.log('Creating ATX streaming client')
+
+        const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
+        if (!atxCredentialsProvider) {
+            throw new Error('ATX credentials provider not available in runtime')
+        }
+
+        const streamingClient = new StreamingClientServiceToken(
+            atxCredentialsProvider,
+            this.features.sdkInitializator,
+            this.features.logging,
+            region,
+            endpoint,
+            this.getCustomUserAgent()
+        )
+        streamingClient.profileArn = this.activeAtxProfile?.arn
+        this.log('ATX streaming client created')
+        return streamingClient
+    }
+
+    private getCustomUserAgent() {
+        const initializeParams = this.features.lsp.getClientInitializeParams() || {}
+        return getUserAgent(initializeParams as any, this.features.runtime.serverInfo)
     }
 
     /**

@@ -1063,6 +1063,11 @@ export class ATXTransformHandler {
                     request.TransformationJobId,
                     request.SolutionRootPath
                 )
+                const plan = await this.getTransformationPlan(
+                    request.WorkspaceId,
+                    request.TransformationJobId,
+                    request.SolutionRootPath
+                )
 
                 return {
                     TransformationJob: {
@@ -1071,6 +1076,7 @@ export class ATXTransformHandler {
                         Status: jobStatus,
                     } as AtxTransformationJob,
                     ArtifactPath: pathToArtifact,
+                    TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
                 this.logging.log(`DEBUG-ATX-GET-INFO: Job failed`)
