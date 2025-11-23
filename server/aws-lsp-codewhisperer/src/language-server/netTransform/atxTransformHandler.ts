@@ -725,7 +725,7 @@ export class ATXTransformHandler {
                 request.workspaceId,
                 createJobResponse.jobId,
                 zipFilePath,
-                CategoryType.CUSTOMER_OUTPUT,
+                CategoryType.CUSTOMER_INPUT,
                 FileType.ZIP
             )
 
