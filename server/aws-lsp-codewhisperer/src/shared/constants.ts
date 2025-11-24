@@ -19,6 +19,7 @@ export const ATX_FES_ENDPOINTS = new Map([
     [DEFAULT_ATX_FES_REGION, DEFAULT_ATX_FES_ENDPOINT_URL],
     ['us-west-2', 'https://api.transform.us-west-2.on.aws/'],
     ['eu-central-1', 'https://api.transform.eu-central-1.on.aws/'],
+    ['ap-southeast-2', 'https://api.transform.ap-southeast-2.on.aws/'],
 ])
 
 export const ATX_FES_GAMMA_ENDPOINTS = new Map([
