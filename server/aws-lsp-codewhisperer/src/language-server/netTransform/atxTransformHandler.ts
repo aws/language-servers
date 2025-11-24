@@ -404,6 +404,7 @@ export class ATXTransformHandler {
     async createJob(request: {
         workspaceId: string
         jobName?: string
+        targetFramework?: string
     }): Promise<{ jobId: string; status: string } | null> {
         try {
             this.logging.log(`DEBUG-ATX-CREATE-JOB: CreateJob operation started for workspace: ${request.workspaceId}`)
@@ -417,10 +418,12 @@ export class ATXTransformHandler {
             }
             this.logging.log('DEBUG-ATX-CREATE-JOB: ATX client initialized successfully')
 
-            this.logging.log('DEBUG-ATX-CREATE-JOB: creating CreateJobCommand...')
+            this.logging.log(
+                `DEBUG-ATX-CREATE-JOB: creating CreateJobCommand with targetFramework ${request.targetFramework}`
+            )
             const command = new CreateJobCommand({
                 workspaceId: request.workspaceId,
-                objective: JSON.stringify({ target_framework: 'net8.0' }),
+                objective: JSON.stringify({ target_framework: request.targetFramework || 'net10.0' }),
                 jobType: 'DOTNET_IDE' as any,
                 jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
@@ -685,6 +688,7 @@ export class ATXTransformHandler {
             const createJobResponse = await this.createJob({
                 workspaceId: request.workspaceId,
                 jobName: request.jobName || 'Transform Job',
+                targetFramework: (request.startTransformRequest as any).TargetFramework,
             })
 
             if (!createJobResponse?.jobId) {

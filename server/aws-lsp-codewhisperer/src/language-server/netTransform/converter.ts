@@ -42,7 +42,7 @@ export function getCWStartTransformRequest(
             target: {
                 language: 'C_SHARP',
                 runtimeEnv: {
-                    dotNet: targetFrameworkRecord[userInputRequest.TargetFramework] ?? 'NET_10_0',
+                    dotNet: targetFrameworkRecord[userInputRequest.TargetFramework] ?? 'NET_8_0',
                 },
                 platformConfig: {
                     operatingSystemFamily: 'LINUX',
