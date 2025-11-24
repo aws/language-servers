@@ -27,7 +27,7 @@ import {
     BaseAmazonQServiceManager,
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
-import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION, ATX_FES_ENDPOINTS } from '../constants'
+import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'

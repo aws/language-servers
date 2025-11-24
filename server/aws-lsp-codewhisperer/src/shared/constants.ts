@@ -28,6 +28,11 @@ export const ATX_FES_GAMMA_ENDPOINTS = new Map([
     ['eu-central-1', 'https://api.transform-gamma.eu-central-1.on.aws/'],
 ])
 
+export function getAtxEndPointByRegion(region: string): string {
+    var endpointsByStage = getATXEndpoints()
+    return endpointsByStage.get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
+}
+
 export function getATXEndpoints(): Map<string, string> {
     return process.env.TRANSFORM_ENV === 'GAMMA' ? ATX_FES_GAMMA_ENDPOINTS : ATX_FES_ENDPOINTS
 }

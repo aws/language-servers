@@ -8,7 +8,7 @@ import { ATX_CONFIGURATION_SECTION } from '../../language-server/configuration/t
 import { TransformConfigurationServer } from '../../language-server/configuration/transformConfigurationServer'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { StreamingClientServiceToken } from '../streamingClientService'
-import { ATX_FES_ENDPOINTS } from '../constants'
+import { getAtxEndPointByRegion } from '../constants'
 import { AmazonQDeveloperProfile } from './qDeveloperProfiles'
 import { parse } from '@aws-sdk/util-arn-parser'
 import { getUserAgent, makeUserContextObject } from '../telemetryUtils'
@@ -104,7 +104,7 @@ export class AtxTokenServiceManager {
 
         const parsedArn = parse(profileArn)
         const region = parsedArn.region
-        const endpoint = ATX_FES_ENDPOINTS.get(region)
+        const endpoint = getAtxEndPointByRegion(region)
         if (!endpoint) {
             throw new Error('Requested profileArn region is not supported')
         }
@@ -137,7 +137,7 @@ export class AtxTokenServiceManager {
     private createAtxServiceInstances() {
         this.log('Creating ATX service instances')
         const region = this.activeAtxProfile?.identityDetails?.region || 'us-east-1'
-        const endpoint = ATX_FES_ENDPOINTS.get(region)
+        const endpoint = getAtxEndPointByRegion(region)
 
         if (!endpoint) {
             throw new Error(`ATX region ${region} is not supported`)

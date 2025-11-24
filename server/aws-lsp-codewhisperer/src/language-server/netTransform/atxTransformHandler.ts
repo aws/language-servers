@@ -32,7 +32,7 @@ import {
     DEFAULT_ATX_FES_ENDPOINT_URL,
     DEFAULT_ATX_FES_REGION,
     ATX_FES_REGION_ENV_VAR,
-    ATX_FES_ENDPOINTS,
+    getAtxEndPointByRegion,
 } from '../../shared/constants'
 import {
     AtxListOrCreateWorkspaceRequest,
@@ -93,7 +93,7 @@ export class ATXTransformHandler {
                 }
             }
 
-            const endpoint = process.env.TCP_ENDPOINT || ATX_FES_ENDPOINTS.get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
+            const endpoint = process.env.TCP_ENDPOINT || getAtxEndPointByRegion(region)
             this.logging.log(`DEBUG-ATX-INIT: Using region-specific endpoint for ${region}: ${endpoint}`)
 
             this.clearApplicationUrlCache()
