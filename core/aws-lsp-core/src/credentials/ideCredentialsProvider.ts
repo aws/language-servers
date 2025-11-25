@@ -17,7 +17,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     private pushedCredentials: IamCredentials | undefined
     private pushedToken: BearerToken | undefined
 
-    private pushedAtxCredentials: IamCredentials | undefined
     private pushedAtxToken: BearerToken | undefined
 
     constructor(

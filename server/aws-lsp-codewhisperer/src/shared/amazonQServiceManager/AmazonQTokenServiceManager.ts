@@ -168,9 +168,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         if (type === ('bearer' as CredentialsType)) {
             // Check Q credentials
             const qCreds = this.features.credentialsProvider.getCredentials('bearer' as CredentialsType)
-            if (qCreds && 'token' in qCreds && qCreds.token) {
-                this.logging.log(`Q token updated: ${qCreds.token.substring(0, 20)}...`)
-            }
         }
     }
 

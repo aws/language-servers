@@ -361,7 +361,6 @@ export class AtxTokenServiceManager {
         const atxCredentialsProvider = runtime.getAtxCredentialsProvider()
         this.log(`ATX credentials provider: ${!!atxCredentialsProvider}`)
         const credentials = atxCredentialsProvider?.getCredentials('bearer')
-        this.log(`ATX credentials: ${!!credentials}`)
 
         if (!credentials || !('token' in credentials) || !credentials.token) {
             throw new Error('Bearer token is null or empty')
