@@ -250,7 +250,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             // region set by client -> runtime region -> default region
             const clientParams = this.features.lsp.getClientInitializeParams()
 
-            this.createQServiceInstances(
+            this.createCodewhispererServiceInstances(
                 newConnectionType,
                 clientParams?.initializationOptions?.aws?.region,
                 endpointOverride
@@ -279,7 +279,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 return
             }
 
-            this.createQServiceInstances('identityCenter', undefined, endpointOverride)
+            this.createCodewhispererServiceInstances('identityCenter', undefined, endpointOverride)
             this.state = 'INITIALIZED'
             this.logging.log('Initialized Amazon Q service with identityCenter connection')
 
@@ -384,7 +384,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (!this.activeIdcProfile) {
             this.activeIdcProfile = newProfile
-            this.createQServiceInstances('identityCenter', newProfile.identityDetails.region, this.endpointOverride())
+            this.createCodewhispererServiceInstances(
+                'identityCenter',
+                newProfile.identityDetails.region,
+                this.endpointOverride()
+            )
             this.state = 'INITIALIZED'
             this.logging.log(
                 `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
@@ -445,7 +449,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.activeIdcProfile = newProfile
 
-        this.createQServiceInstances('identityCenter', newProfile.identityDetails.region, this.endpointOverride())
+        this.createCodewhispererServiceInstances(
+            'identityCenter',
+            newProfile.identityDetails.region,
+            this.endpointOverride()
+        )
         this.state = 'INITIALIZED'
 
         // Emit auth success event
@@ -521,7 +529,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.logging.log('Q services reset complete')
     }
 
-    private createQServiceInstances(
+    private createCodewhispererServiceInstances(
         connectionType: Exclude<SsoConnectionType, 'none'>,
         clientOrProfileRegion: string | undefined,
         endpointOverride: string | undefined
