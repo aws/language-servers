@@ -37,7 +37,8 @@ export class AtxTokenServiceManager {
             AtxTokenServiceManager.instance = new AtxTokenServiceManager(features)
             return AtxTokenServiceManager.instance
         }
-        throw new Error('ATX Token Service Manager already initialized')
+        // throw new Error('ATX Token Service Manager already initialized')
+        return AtxTokenServiceManager.instance
     }
 
     public static getInstance(): AtxTokenServiceManager {

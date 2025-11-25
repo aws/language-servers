@@ -30,8 +30,6 @@ const props = {
         CodeWhispererServer,
         CodeWhispererSecurityScanServerTokenProxy,
         QConfigurationServerTokenProxy,
-        TransformConfigurationServerTokenProxy,
-        AtxNetTransformServerTokenProxy,
         QNetTransformServerTokenProxy,
         QAgenticChatServerProxy,
         IdentityServer.create,
@@ -44,6 +42,9 @@ const props = {
         // LspToolsServer,
         AmazonQServiceServerIAM,
         AmazonQServiceServerToken,
+        // ATX Servers
+        TransformConfigurationServerTokenProxy,
+        AtxNetTransformServerTokenProxy,
     ],
     name: 'AWS CodeWhisperer',
 } as RuntimeProps

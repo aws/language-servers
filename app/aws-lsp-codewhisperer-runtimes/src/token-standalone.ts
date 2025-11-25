@@ -22,13 +22,14 @@ const props = createTokenRuntimeProps(VERSION, [
     CodeWhispererServerTokenProxy,
     CodeWhispererSecurityScanServerTokenProxy,
     QConfigurationServerTokenProxy,
-    TransformConfigurationServerTokenProxy,
-    AtxNetTransformServerTokenProxy as any,
     QNetTransformServerTokenProxy,
     QChatServerTokenProxy,
     IdentityServer.create,
     QLocalProjectContextServerProxy,
     WorkspaceContextServerTokenProxy,
+
+    TransformConfigurationServerTokenProxy,
+    AtxNetTransformServerTokenProxy as any,
 ])
 
 standalone(props)
