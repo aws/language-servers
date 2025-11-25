@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { AtxTokenServiceManager } from './AtxTokenServiceManager'
+import { AtxTokenServiceManager } from '../amazonQServiceManager/AtxTokenServiceManager'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { CredentialsType } from '@aws/language-server-runtimes/server-interface'
 
