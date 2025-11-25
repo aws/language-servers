@@ -1,6 +1,10 @@
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { TransformConfigurationServer, TRANSFORM_PROFILES_CONFIGURATION_SECTION } from './transformConfigurationServer'
+import {
+    TransformConfigurationServer,
+    TRANSFORM_PROFILES_CONFIGURATION_SECTION,
+    ATX_TRANSFORM_PROFILES_CONFIGURATION_SECTION,
+} from './transformConfigurationServer'
 import {
     CancellationToken,
     InitializeParams,
@@ -62,7 +66,10 @@ describe('TransformConfigurationServer', () => {
                 capabilities: {},
                 awsServerCapabilities: {
                     configurationProvider: {
-                        sections: [TRANSFORM_PROFILES_CONFIGURATION_SECTION],
+                        sections: [
+                            TRANSFORM_PROFILES_CONFIGURATION_SECTION,
+                            ATX_TRANSFORM_PROFILES_CONFIGURATION_SECTION,
+                        ],
                     },
                 },
             })
