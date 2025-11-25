@@ -41,6 +41,10 @@ export const AmazonQServiceServerFactory =
                 sdkInitializator,
             })
 
+            /*
+            TODO: Transform team to isolate tightly coupled Q and AWS Transform into AWS Transform as separate server
+            Reference to suggestion -  https://github.com/aws/language-servers/pull/2521/files#r2558263205
+            */
             // Initialize ATX Token Service Manager for ATX FES support
             AtxTokenServiceManager.initInstance({
                 credentialsProvider,

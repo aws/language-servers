@@ -76,6 +76,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private endpoint?: string
     private regionChangeListeners: Array<(region: string) => void> = []
 
+    /**
+     * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
+     * Supported states:
+     * PENDING_CONNECTION - Waiting for Bearer Token and StartURL to be passed
+     * PENDING_Q_PROFILE - (only for identityCenter connection) waiting for setting Developer Profile
+     * PENDING_Q_PROFILE_UPDATE (only for identityCenter connection) waiting for Developer Profile to complete
+     * INITIALIZED - Service is initialized
+     */
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
@@ -176,7 +184,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                     throw new Error('Expected params.settings.profileArn to be of either type string or null')
                 }
 
-                this.logging.log(`Q Profile update is requested for profile ${profileArn}`)
+                this.log(`Profile update is requested for profile ${profileArn}`)
                 this.cancelActiveProfileChangeToken()
                 this.profileChangeTokenSource = new CancellationTokenSource()
 
