@@ -132,8 +132,9 @@ export class ATXTransformHandler {
             const applicationUrl = atxServiceManager.getActiveApplicationUrl()
 
             if (applicationUrl) {
+                this.logging.log(`DEBUG-ATX-REGION: Found applicationURL: ${applicationUrl}`)
                 // Extract region from applicationURL: https://xxx.transform.REGION.on.aws
-                const urlMatch = applicationUrl.match(/\.transform\.([^.]+)\.on\.aws/)
+                const urlMatch = applicationUrl.match(/\.transform(?:-gamma)?\.([^.]+)\.on\.aws/)
                 if (urlMatch && urlMatch[1]) {
                     const region = urlMatch[1]
                     this.logging.log(`DEBUG-ATX-REGION: Extracted region from applicationURL: ${region}`)
@@ -142,7 +143,7 @@ export class ATXTransformHandler {
             }
 
             this.logging.log('DEBUG-ATX-REGION: No active applicationURL, using default region')
-            return undefined
+            return DEFAULT_ATX_FES_REGION
         } catch (error) {
             this.logging.log(`DEBUG-ATX-REGION: Error in getRegionFromProfile: ${String(error)}`)
             return undefined
