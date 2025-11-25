@@ -382,10 +382,6 @@ export const McpToolsServer: Server = ({
             registerServerTools(server, defs)
         }
 
-        McpManager.instance.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
-            registerServerTools(server, defs)
-        })
-
         // Emit metrics after tools are registered
         McpManager.instance.emitMcpConfigMetrics()
     }
@@ -466,6 +462,14 @@ export const McpToolsServer: Server = ({
             // Wait for auth to be initialized before discovering servers
             const waitForAuthAndDiscover = async () => {
                 try {
+                    // Set up event listener for tool changes during server initialization
+                    McpManager.instance.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+                        if (!ProfileStatusMonitor.getMcpState()) {
+                            return
+                        }
+                        registerServerTools(server, defs)
+                    })
+
                     const serviceManager = AmazonQTokenServiceManager.getInstance()
                     const authState = serviceManager.getState()
 
