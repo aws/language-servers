@@ -479,6 +479,12 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceNotInitializedError()
     }
 
+    public getAtxCodewhispererService(): CodeWhispererServiceToken {
+        throw new Error(
+            'ATX functionality has been moved to AtxTokenServiceManager. Use AtxTokenServiceManager.getInstance().getAtxCodewhispererService() instead.'
+        )
+    }
+
     public getStreamingClient() {
         this.logging.log('Getting instance of CodeWhispererStreaming client')
 

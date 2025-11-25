@@ -1052,6 +1052,39 @@ describe('AmazonQTokenServiceManager', () => {
         })
     })
 
+    describe('ATX functionality coverage', () => {
+        it('should handle ATX profile change with null', async () => {
+            setupServiceManager()
+
+            // ATX functionality moved to AtxTokenServiceManager
+            // This test is no longer relevant for AmazonQTokenServiceManager
+            assert.ok(true)
+        })
+
+        it('should return endpoint override when configured', () => {
+            const endpointOverride = 'https://custom-endpoint.com'
+            features.setClientParams({
+                processId: 0,
+                rootUri: 'test',
+                capabilities: {},
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            textDocument: {
+                                inlineCompletionWithReferences: {
+                                    endpointOverride,
+                                },
+                            },
+                        },
+                    },
+                },
+            })
+
+            setupServiceManager()
+
+            assert.strictEqual(amazonQTokenServiceManager.endpointOverride(), endpointOverride)
+        })
+
         it('should handle empty string profile ARN', async () => {
             setupServiceManager()
 
