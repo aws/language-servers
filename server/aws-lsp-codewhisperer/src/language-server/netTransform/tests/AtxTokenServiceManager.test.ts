@@ -27,6 +27,7 @@ describe('AtxTokenServiceManager', () => {
         })
 
         it('throws error when instance already exists', () => {
+            AtxTokenServiceManager.initInstance(features)
             assert.throws(() => AtxTokenServiceManager.initInstance(features), /already initialized/)
         })
     })
