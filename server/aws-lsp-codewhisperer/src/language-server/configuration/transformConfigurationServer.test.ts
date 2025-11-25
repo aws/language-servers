@@ -183,8 +183,16 @@ describe('TransformConfigurationServer', () => {
         })
 
         it('should handle errors in ATX client initialization', async () => {
-            mockCredentialsProvider.hasCredentials.withArgs('bearer').returns(true)
-            mockCredentialsProvider.getCredentials.withArgs('bearer').throws(new Error('Credential error'))
+            const mockAtxCredentialsProvider = {
+                hasCredentials: sinon.stub().withArgs('bearer').returns(true),
+                getCredentials: sinon.stub().withArgs('bearer').throws(new Error('Credential error')),
+            }
+
+            const mockRuntime = {
+                getAtxCredentialsProvider: sinon.stub().returns(mockAtxCredentialsProvider),
+            }
+
+            ;(server as any).features.runtime = mockRuntime
 
             const initializeAtxClient = (server as any).initializeAtxClient.bind(server)
             const result = await initializeAtxClient()
