@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.93",
+    "version": "0.0.94",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -39,7 +39,7 @@
         "@aws/chat-client-ui-types": "0.1.68",
         "@aws/language-server-runtimes": "0.3.6",
         "@aws/lsp-core": "^0.0.17",
-        "@modelcontextprotocol/sdk": "^1.15.0",
+        "@modelcontextprotocol/sdk": "1.19.1",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
