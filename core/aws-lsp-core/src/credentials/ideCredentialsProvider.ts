@@ -169,17 +169,6 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     }
 
     /**
-     * Provides IAM based Atx credentials. Throws NoCredentialsError if no credentials are available
-     */
-    public async resolveIamAtxCredentials(token: CancellationToken): Promise<IamCredentials> {
-        if (!this.pushedAtxCredentials) {
-            throw new NoCredentialsError()
-        }
-
-        return this.pushedAtxCredentials
-    }
-
-    /**
      * Provides a atx bearer token. Throws NoCredentialsError if bearer token is not available
      */
     public async resolveAtxBearerToken(token: CancellationToken): Promise<BearerToken> {
