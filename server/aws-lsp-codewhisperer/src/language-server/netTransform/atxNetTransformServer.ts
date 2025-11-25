@@ -84,7 +84,7 @@ export const AtxNetTransformServerToken =
                     }
                 }
             } catch (e: any) {
-                throw e
+                logging.error(`ATXTransformServer: Error executing command: ${String(e)}`)
             }
         }
 
