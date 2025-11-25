@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.94](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.93...lsp-codewhisperer/v0.0.94) (2025-11-25)
+
+
+### Bug Fixes
+
+* fix for mcp tool resgistration on smus ([#2524](https://github.com/aws/language-servers/issues/2524)) ([8584723](https://github.com/aws/language-servers/commit/8584723839447dda878474e17a3b21a315ffc759))
+
 ## [0.0.93](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.92...lsp-codewhisperer/v0.0.93) (2025-11-21)
 
 
