@@ -955,38 +955,6 @@ describe('sanitizeRequestInput', () => {
         })
     })
 
-    describe('getBearerTokenFromProviderWithType', () => {
-        it('returns token for valid credentials', () => {
-            const mockProvider = {
-                hasCredentials: sinon.stub().returns(true),
-                getCredentials: sinon.stub().returns({ token: 'test-token' }),
-            }
-            const token = getBearerTokenFromProviderWithType(mockProvider as any, 'bearer-alternate')
-            assert.strictEqual(token, 'test-token')
-        })
-
-        it('throws error when no credentials available', () => {
-            const mockProvider = {
-                hasCredentials: sinon.stub().returns(false),
-            }
-            assert.throws(
-                () => getBearerTokenFromProviderWithType(mockProvider as any, 'bearer-alternate'),
-                /Missing bearer token/
-            )
-        })
-
-        it('throws error when token is null', () => {
-            const mockProvider = {
-                hasCredentials: sinon.stub().returns(true),
-                getCredentials: sinon.stub().returns({ token: null }),
-            }
-            assert.throws(
-                () => getBearerTokenFromProviderWithType(mockProvider as any, 'bearer-alternate'),
-                /Missing bearer token/
-            )
-        })
-    })
-
     describe('getOriginFromClientInfo', () => {
         it('returns MD_IDE for SMUS IDE client', () => {
             assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-test'), 'MD_IDE')

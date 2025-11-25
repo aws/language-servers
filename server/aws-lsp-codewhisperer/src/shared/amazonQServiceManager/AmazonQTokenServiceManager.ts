@@ -142,19 +142,16 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             return
         }
 
-        if (type === ('bearer' as CredentialsType)) {
-            // Only clear Q state when Q credentials are deleted
-            const hasQCredentials = this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
-            if (!hasQCredentials) {
-                this.logging.log(`Clearing Q credentials and state only`)
-                ChatDatabase.clearModelCache()
-                this.cancelActiveProfileChangeToken()
-                this.resetQOnlyService()
-                this.connectionType = 'none'
-                this.state = 'PENDING_CONNECTION'
-                ProfileStatusMonitor.resetMcpState()
-            }
-        }
+        // Clear model cache when credentials are deleted
+        ChatDatabase.clearModelCache()
+        this.cancelActiveProfileChangeToken()
+
+        this.resetCodewhispererService()
+        this.connectionType = 'none'
+        this.state = 'PENDING_CONNECTION'
+
+        // Reset MCP state cache when auth changes
+        ProfileStatusMonitor.resetMcpState()
     }
 
     public handleOnCredentialsUpdated(type: CredentialsType): void {
@@ -223,7 +220,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.logging.log(
                 `No active SSO connection is detected: no ${noCreds ? 'credentials' : 'connection type'} provided. Resetting the client`
             )
-            this.resetQOnlyService()
+            this.resetCodewhispererService()
             this.connectionType = 'none'
             this.state = 'PENDING_CONNECTION'
 
@@ -247,7 +244,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // and user does not need a profile
         if (newConnectionType === 'builderId' || newConnectionType === 'external_idp') {
             this.logging.log(`Detected New connection type: ${newConnectionType}`)
-            this.resetQOnlyService()
+            this.resetCodewhispererService()
 
             // For the builderId connection type regional endpoint discovery chain is:
             // region set by client -> runtime region -> default region
@@ -272,7 +269,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         if (newConnectionType === 'identityCenter') {
             this.logging.log('Detected New connection type: identityCenter')
 
-            this.resetQOnlyService()
+            this.resetCodewhispererService()
 
             if (this.enableDeveloperProfileSupport) {
                 this.connectionType = 'identityCenter'
@@ -352,7 +349,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Client sent an explicit null, indicating they want to reset the assigned profile (if any)
         if (newProfileArn === null) {
             this.logServiceState('Received null profile, resetting to PENDING_Q_PROFILE state')
-            this.resetQOnlyService()
+            this.resetCodewhispererService()
             this.state = 'PENDING_Q_PROFILE'
 
             return
@@ -377,7 +374,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (!newProfile || !newProfile.identityDetails?.region) {
             this.logging.log(`Amazon Q Profile ${newProfileArn} is not valid`)
-            this.resetQOnlyService()
+            this.resetCodewhispererService()
             this.state = 'PENDING_Q_PROFILE'
 
             throw new AmazonQServiceInvalidProfileError('Requested Amazon Q Profile does not exist')
@@ -444,7 +441,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.handleTokenCancellationRequest(token)
 
         // Selected new profile is in different region. Re-initialize service
-        this.resetQOnlyService()
+        this.resetCodewhispererService()
 
         this.activeIdcProfile = newProfile
 
@@ -482,12 +479,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceNotInitializedError()
     }
 
-    public getAtxCodewhispererService(): CodeWhispererServiceToken {
-        throw new Error(
-            'ATX functionality has been moved to AtxTokenServiceManager. Use AtxTokenServiceManager.getInstance().getAtxCodewhispererService() instead.'
-        )
-    }
-
     public getStreamingClient() {
         this.logging.log('Getting instance of CodeWhispererStreaming client')
 
@@ -512,7 +503,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.cachedStreamingClient
     }
 
-    private resetQOnlyService() {
+    private resetCodewhispererService() {
         this.logging.log('Resetting Q-only services')
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
@@ -610,9 +601,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 this.logging.log(
                     `Q credentials provider: getCredentials for ${type}, token present: ${creds && 'token' in creds && !!creds.token}`
                 )
-                if (creds && 'token' in creds && creds.token) {
-                    this.logging.log(`Q using token: ${creds.token.substring(0, 20)}...`)
-                }
                 return creds
             },
         } as CredentialsProvider
