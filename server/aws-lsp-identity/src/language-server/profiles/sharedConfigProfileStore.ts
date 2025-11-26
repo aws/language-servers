@@ -45,19 +45,27 @@ export class SharedConfigProfileStore implements ProfileStore {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
             switch (sectionHeader.type) {
                 case IniSectionType.PROFILE:
+                    const kinds: ProfileKind[] = []
+                    if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
+                        kinds.push(ProfileKind.SsoTokenProfile)
+                    }
+                    if (profileDuckTypers.SsoProfile.eval(settings)) {
+                        kinds.push(ProfileKind.SsoTokenProfile) // Use same kind for backward compatibility
+                    }
+                    if (kinds.length === 0) {
+                        kinds.push(ProfileKind.Unknown)
+                    }
+
                     result.profiles.push({
-                        kinds: [
-                            // As more profile kinds are added this will get more complex and need refactored
-                            profileDuckTypers.SsoTokenProfile.eval(settings)
-                                ? ProfileKind.SsoTokenProfile
-                                : ProfileKind.Unknown,
-                        ],
+                        kinds,
                         name: sectionHeader.name,
                         settings: {
                             // Only apply settings expected on Profile
                             region: settings.region,
                             sso_session: settings.sso_session,
-                        },
+                            ...(settings.sso_account_id && { sso_account_id: settings.sso_account_id }),
+                            ...(settings.sso_role_name && { sso_role_name: settings.sso_role_name }),
+                        } as any,
                     })
                     break
                 case IniSectionType.SSO_SESSION: {
