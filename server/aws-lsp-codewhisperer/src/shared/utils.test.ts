@@ -27,6 +27,8 @@ import {
     sanitizeInput,
     sanitizeRequestInput,
     isUsingIAMAuth,
+    getBearerTokenFromProviderWithType,
+    sanitizeLogInput,
 } from './utils'
 import { promises as fsPromises } from 'fs'
 
@@ -912,5 +914,77 @@ describe('sanitizeRequestInput', () => {
             Array.from(result.conversationState.currentMessage.userInputMessage.images[0].source.bytes),
             [137, 80, 78, 71, 13, 10, 26, 10]
         )
+    })
+
+    describe('isUsingIAMAuth', () => {
+        it('returns true when USE_IAM_AUTH env var is true', () => {
+            process.env.USE_IAM_AUTH = 'true'
+            assert.strictEqual(isUsingIAMAuth(), true)
+            delete process.env.USE_IAM_AUTH
+        })
+
+        it('returns true when only IAM credentials available', () => {
+            const mockProvider = {
+                getCredentials: sinon
+                    .stub()
+                    .withArgs('iam')
+                    .returns({ accessKeyId: 'key', secretAccessKey: 'secret' })
+                    .withArgs('bearer')
+                    .returns(null),
+            }
+            assert.strictEqual(isUsingIAMAuth(mockProvider as any), true)
+        })
+
+        it('returns false when bearer token available', () => {
+            const mockProvider = {
+                getCredentials: sinon
+                    .stub()
+                    .withArgs('iam')
+                    .returns({ accessKeyId: 'key', secretAccessKey: 'secret' })
+                    .withArgs('bearer')
+                    .returns({ token: 'bearer-token' }),
+            }
+            assert.strictEqual(isUsingIAMAuth(mockProvider as any), false)
+        })
+
+        it('returns false when credential access fails', () => {
+            const mockProvider = {
+                getCredentials: sinon.stub().throws(new Error('No credentials')),
+            }
+            assert.strictEqual(isUsingIAMAuth(mockProvider as any), false)
+        })
+    })
+
+    describe('getOriginFromClientInfo', () => {
+        it('returns MD_IDE for SMUS IDE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-test'), 'MD_IDE')
+        })
+
+        it('returns MD_IDE for SMUS CE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMUS-CE-test'), 'MD_IDE')
+        })
+
+        it('returns MD_IDE for SMAI CE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMAI-CE-test'), 'MD_IDE')
+        })
+
+        it('returns IDE for other clients', () => {
+            assert.strictEqual(getOriginFromClientInfo('VSCode'), 'IDE')
+            assert.strictEqual(getOriginFromClientInfo(undefined), 'IDE')
+        })
+    })
+
+    describe('sanitizeLogInput', () => {
+        it('replaces control characters with underscore', () => {
+            const input = 'test\nwith\rcontrol\tchars\x00'
+            const result = sanitizeLogInput(input)
+            assert.strictEqual(result, 'test_with_control_chars_')
+        })
+
+        it('preserves normal characters', () => {
+            const input = 'normal text 123'
+            const result = sanitizeLogInput(input)
+            assert.strictEqual(result, input)
+        })
     })
 })
