@@ -6,6 +6,8 @@ import {
     CodeWhispererServer,
     QAgenticChatServerProxy,
     QConfigurationServerTokenProxy,
+    TransformConfigurationServerTokenProxy,
+    AtxNetTransformServerTokenProxy,
     QLocalProjectContextServerProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
@@ -40,6 +42,9 @@ const props = {
         // LspToolsServer,
         AmazonQServiceServerIAM,
         AmazonQServiceServerToken,
+        // ATX Servers
+        TransformConfigurationServerTokenProxy,
+        AtxNetTransformServerTokenProxy,
     ],
     name: 'AWS CodeWhisperer',
 } as RuntimeProps
