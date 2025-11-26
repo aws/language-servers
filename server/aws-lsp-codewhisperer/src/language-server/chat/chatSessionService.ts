@@ -17,6 +17,7 @@ import { enabledModelSelection } from '../../shared/utils'
 import { QErrorTransformer } from '../agenticChat/retry/errorTransformer'
 import { DelayNotification } from '../agenticChat/retry/delayInterceptor'
 import { MAX_REQUEST_ATTEMPTS } from '../agenticChat/constants/constants'
+import { TokenLimits, TokenLimitsCalculator } from '../agenticChat/utils/tokenLimitsCalculator'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -47,6 +48,7 @@ export class ChatSessionService {
     #logging?: Logging
     #origin?: Origin
     #errorTransformer: QErrorTransformer
+    #tokenLimits: TokenLimits
 
     public getConversationType(): string {
         return this.#conversationType
@@ -138,6 +140,24 @@ export class ChatSessionService {
 
         // Initialize Q-specific error transformation
         this.#errorTransformer = new QErrorTransformer(logging, () => this.isModelSelectionEnabled())
+
+        // Initialize token limits with default values
+        this.#tokenLimits = TokenLimitsCalculator.calculate()
+    }
+
+    /**
+     * Gets the token limits for this session
+     */
+    public get tokenLimits(): TokenLimits {
+        return this.#tokenLimits
+    }
+
+    /**
+     * Sets the token limits for this session
+     * @param limits The token limits to set
+     */
+    public setTokenLimits(limits: TokenLimits): void {
+        this.#tokenLimits = limits
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
