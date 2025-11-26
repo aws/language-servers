@@ -57,6 +57,15 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
 
         return this.cachedCodewhispererService
     }
+    public getAtxCodewhispererService(): CodeWhispererServiceBase {
+        if (!this.cachedAtxCodewhispererService) {
+            throw new Error(
+                'Found undefined cached ATX service, make sure to setup TestAmazonQServiceManager class correctly'
+            )
+        }
+
+        return this.cachedAtxCodewhispererService
+    }
 
     public getStreamingClient(): StreamingClientServiceBase {
         if (!this.cachedStreamingClient) {
