@@ -4,6 +4,8 @@ import {
     CodeWhispererServerTokenProxy,
     QChatServerTokenProxy,
     QConfigurationServerTokenProxy,
+    TransformConfigurationServerTokenProxy,
+    AtxNetTransformServerTokenProxy,
     QNetTransformServerTokenProxy,
     QLocalProjectContextServerProxy,
     WorkspaceContextServerTokenProxy,
@@ -25,6 +27,9 @@ const props = createTokenRuntimeProps(VERSION, [
     IdentityServer.create,
     QLocalProjectContextServerProxy,
     WorkspaceContextServerTokenProxy,
+
+    TransformConfigurationServerTokenProxy,
+    AtxNetTransformServerTokenProxy as any,
 ])
 
 standalone(props)
