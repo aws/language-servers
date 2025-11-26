@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.20](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.19...lsp-partiql/v0.0.20) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
 ## [0.0.19](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.18...lsp-partiql/v0.0.19) (2025-11-21)
 
 
