@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.95](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.94...lsp-codewhisperer/v0.0.95) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.17 to ^0.0.18
+
 ## [0.0.94](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.93...lsp-codewhisperer/v0.0.94) (2025-11-25)
 
 
