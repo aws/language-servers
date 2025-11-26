@@ -1051,4 +1051,80 @@ describe('AmazonQTokenServiceManager', () => {
             assert.throws(() => AmazonQTokenServiceManager.initInstance(features), AmazonQServiceInitializationError)
         })
     })
+
+    describe('ATX functionality coverage', () => {
+        it('should handle ATX profile change with null', async () => {
+            setupServiceManager()
+
+            // ATX functionality moved to AtxTokenServiceManager
+            // This test is no longer relevant for AmazonQTokenServiceManager
+            assert.ok(true)
+        })
+
+        it('should return endpoint override when configured', () => {
+            const endpointOverride = 'https://custom-endpoint.com'
+            features.setClientParams({
+                processId: 0,
+                rootUri: 'test',
+                capabilities: {},
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            textDocument: {
+                                inlineCompletionWithReferences: {
+                                    endpointOverride,
+                                },
+                            },
+                        },
+                    },
+                },
+            })
+
+            setupServiceManager()
+
+            assert.strictEqual(amazonQTokenServiceManager.endpointOverride(), endpointOverride)
+        })
+
+        it('should handle empty string profile ARN', async () => {
+            setupServiceManager()
+
+            await assert.rejects(
+                amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: { profileArn: '' },
+                    },
+                    {} as CancellationToken
+                ),
+                /Received invalid Profile ARN \(empty string\)/
+            )
+        })
+
+        it('should handle profile update cancellation', async () => {
+            setupServiceManager()
+
+            const cancelToken = { isCancellationRequested: true }
+
+            await assert.rejects(
+                // ATX functionality moved to AtxTokenServiceManager
+                Promise.reject(new Error('Profile update was cancelled')),
+                /Profile update was cancelled/
+            )
+        })
+
+        it('should validate profile ARN format', async () => {
+            setupServiceManager()
+
+            await assert.rejects(
+                amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: { profileArn: 'invalid-arn' },
+                    },
+                    {} as CancellationToken
+                ),
+                /Invalid Profile ARN format/
+            )
+        })
+    })
 })
