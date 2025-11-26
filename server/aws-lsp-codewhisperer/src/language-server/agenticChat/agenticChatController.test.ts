@@ -35,6 +35,7 @@ import {
     ChatUpdateParams,
     ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
+import { Model } from '@aws/language-server-runtimes/protocol'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
@@ -58,7 +59,8 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
 import * as constants from './constants/constants'
-import { GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT, GENERIC_ERROR_MS } from './constants/constants'
+import { GENERIC_ERROR_MS } from './constants/constants'
+import { TokenLimitsCalculator } from './utils/tokenLimitsCalculator'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
@@ -1194,8 +1196,9 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.body, errorMsg)
         })
 
-        it('truncate input to 500k character ', async function () {
-            const input = 'X'.repeat(GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT + 10)
+        it('truncate input to dynamic input limit', async function () {
+            const defaultLimits = TokenLimitsCalculator.calculate()
+            const input = 'X'.repeat(defaultLimits.inputLimit + 10)
             generateAssistantResponseStub.restore()
             generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             generateAssistantResponseStub.callsFake(() => {})
@@ -1205,7 +1208,7 @@ describe('AgenticChatController', () => {
                 generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(
                 calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
-                GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
+                defaultLimits.inputLimit
             )
         })
         it('shows generic errorMsg on internal errors', async function () {
@@ -1576,23 +1579,27 @@ describe('AgenticChatController', () => {
         })
     })
     describe('truncateRequest', () => {
+        // Use dynamic input limit from TokenLimitsCalculator for all truncation tests
+        const defaultLimits = TokenLimitsCalculator.calculate()
+        const inputLimit = defaultLimits.inputLimit // 490_000 for default 200K tokens
+
         it('should truncate user input message if exceeds limit', () => {
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(590_000),
+                            content: 'a'.repeat(inputLimit + 100_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(490_000),
+                                            text: 'a'.repeat(inputLimit - 10_000),
                                         },
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(490_000),
+                                        text: 'a'.repeat(inputLimit - 10_000),
                                     },
                                 },
                             },
@@ -1601,7 +1608,7 @@ describe('AgenticChatController', () => {
                     history: [
                         {
                             userInputMessage: {
-                                content: 'a'.repeat(490_000),
+                                content: 'a'.repeat(inputLimit - 10_000),
                             },
                         },
                     ],
@@ -1609,7 +1616,7 @@ describe('AgenticChatController', () => {
                 },
             }
             const result = chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 500_000)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, inputLimit)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
@@ -1641,11 +1648,13 @@ describe('AgenticChatController', () => {
         })
 
         it('should truncate relevant documents if combined length exceeds remaining budget', () => {
+            // Use content that leaves room for some docs but not all
+            const contentLength = 400_000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(contentLength),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
@@ -1664,7 +1673,7 @@ describe('AgenticChatController', () => {
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(490_000),
+                                        text: 'a'.repeat(inputLimit - 10_000),
                                     },
                                 },
                             },
@@ -1673,7 +1682,7 @@ describe('AgenticChatController', () => {
                     history: [
                         {
                             userInputMessage: {
-                                content: 'a'.repeat(490_000),
+                                content: 'a'.repeat(inputLimit - 10_000),
                             },
                         },
                     ],
@@ -1681,7 +1690,10 @@ describe('AgenticChatController', () => {
                 },
             }
             const result = chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                contentLength
+            )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
@@ -1693,7 +1705,8 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 1)
-            assert.strictEqual(result, 99700)
+            // Remaining budget = inputLimit - contentLength - 100 - 200 = 490_000 - 400_000 - 300 = 89_700
+            assert.strictEqual(result, inputLimit - contentLength - 100 - 200)
         })
         it('should truncate current editor if combined length exceeds remaining budget', () => {
             const request: GenerateAssistantResponseCommandInput = {
@@ -1756,26 +1769,30 @@ describe('AgenticChatController', () => {
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
         })
         it('should return remaining budget for history', () => {
+            const contentLength = 100_000
+            const docLength = 100_000
+            const relevantDoc1Length = 1000
+            const relevantDoc2Length = 1000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(100_000),
+                            content: 'a'.repeat(contentLength),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(1000),
+                                            text: 'a'.repeat(relevantDoc1Length),
                                         },
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(1000),
+                                            text: 'a'.repeat(relevantDoc2Length),
                                         },
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(100_000),
+                                        text: 'a'.repeat(docLength),
                                     },
                                 },
                             },
@@ -1802,11 +1819,14 @@ describe('AgenticChatController', () => {
                 },
             }
             const result = chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 100_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                contentLength
+            )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
-                100_000
+                docLength
             )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
@@ -1814,15 +1834,20 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
-            assert.strictEqual(result, 298000)
+            // Remaining budget = inputLimit - contentLength - relevantDoc1Length - relevantDoc2Length - docLength
+            // = 490_000 - 100_000 - 1000 - 1000 - 100_000 = 288_000
+            assert.strictEqual(result, inputLimit - contentLength - relevantDoc1Length - relevantDoc2Length - docLength)
         })
 
         it('should truncate images when they exceed budget', () => {
+            // Content that leaves small room for images
+            const contentLength = inputLimit - 6_600 // Leave room for small images but not large one
+            const smallImageChars = 3.3 // 1000 bytes * 3.3 / 1000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(493_400),
+                            content: 'a'.repeat(contentLength),
                             images: [
                                 {
                                     format: 'png',
@@ -1852,15 +1877,17 @@ describe('AgenticChatController', () => {
 
             // Should only keep the first and third images (small ones)
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
-            assert.strictEqual(result, 500000 - 493400 - 3.3 - 3.3) // remaining budget after content and images
+            assert.strictEqual(result, inputLimit - contentLength - smallImageChars - smallImageChars) // remaining budget after content and images
         })
 
         it('should handle images without bytes', () => {
+            const contentLength = 400_000
+            const smallImageChars = 3.3 // 1000 bytes * 3.3 / 1000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(contentLength),
                             images: [
                                 {
                                     format: 'png',
@@ -1884,7 +1911,7 @@ describe('AgenticChatController', () => {
 
             // Should keep both images since the first one has 0 chars
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
-            assert.strictEqual(result, 500000 - 400000 - 3.3) // remaining budget after content and second image
+            assert.strictEqual(result, inputLimit - contentLength - smallImageChars) // remaining budget after content and second image
         })
 
         it('should truncate relevantDocuments and images together with equal priority', () => {
@@ -1925,7 +1952,7 @@ describe('AgenticChatController', () => {
                 1
             )
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
-            assert.strictEqual(result, 500000 - 400000 - 100 - 3.3)
+            assert.strictEqual(result, inputLimit - 400000 - 100 - 3.3)
         })
 
         it('should respect additionalContext order for mixed file and image truncation', () => {
@@ -2048,8 +2075,8 @@ describe('AgenticChatController', () => {
             assert.strictEqual(keptDoc?.relativeFilePath, 'file1.ts') // docs[0]
             assert.strictEqual(keptDoc?.text, 'a'.repeat(30_000))
 
-            // Remaining budget should be 20.5k (100k - 33k - 30k - 16.5k)
-            assert.strictEqual(result, 500000 - 400000 - 33000 - 30000 - 16500)
+            // Remaining budget = inputLimit - 400000 - 33000 - 30000 - 16500
+            assert.strictEqual(result, inputLimit - 400000 - 33000 - 30000 - 16500)
         })
     })
 
@@ -3001,6 +3028,59 @@ ${' '.repeat(8)}}
 
             setModelIdStub.restore()
         })
+
+        it('should recalculate token limits when model changes', () => {
+            const mockTabId = 'tab-1'
+            const initialModelId = 'model-1'
+            const newModelId = 'model-2'
+            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+
+            // Mock getCachedModels to return models with different token limits
+            const cachedModels: Model[] = [
+                {
+                    id: 'model-1',
+                    name: 'Model 1',
+                    description: 'Test',
+                    tokenLimits: { maxInputTokens: 200000 },
+                },
+                {
+                    id: 'model-2',
+                    name: 'Model 2',
+                    description: 'Test',
+                    tokenLimits: { maxInputTokens: 300000 },
+                },
+            ]
+            const getCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'getCachedModels').returns({
+                models: cachedModels,
+                defaultModelId: 'model-1',
+                timestamp: Date.now(),
+            })
+
+            // Create a session and set initial model
+            chatController.onTabAdd({ tabId: mockTabId })
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            session.modelId = initialModelId
+
+            // Get initial token limits (default 200K)
+            const initialLimits = session.tokenLimits
+            assert.strictEqual(initialLimits.maxInputTokens, 200000)
+
+            // Switch to a model with different token limits
+            chatController.onPromptInputOptionChange({
+                tabId: mockTabId,
+                optionsValues: { 'model-selection': newModelId },
+            })
+
+            // Verify token limits were recalculated based on new model's maxInputTokens (300K)
+            const newLimits = session.tokenLimits
+            assert.strictEqual(newLimits.maxInputTokens, 300000)
+            assert.strictEqual(newLimits.maxOverallCharacters, Math.floor(300000 * 3.5))
+            assert.strictEqual(newLimits.inputLimit, Math.floor(0.7 * newLimits.maxOverallCharacters))
+            assert.strictEqual(newLimits.compactionThreshold, Math.floor(0.7 * newLimits.maxOverallCharacters))
+
+            setModelIdStub.restore()
+            getCachedModelsStub.restore()
+        })
     })
 
     describe('onListAvailableModels', () => {
@@ -3137,11 +3217,13 @@ ${' '.repeat(8)}}
                             modelId: 'claude-3-sonnet',
                             modelName: 'Claude 3 Sonnet',
                             description: 'Advanced AI model',
+                            tokenLimits: { maxInputTokens: 200000 },
                         },
                         'claude-4-sonnet': {
                             modelId: 'claude-4-sonnet',
                             modelName: 'Claude 4 Sonnet',
                             description: 'Latest AI model',
+                            tokenLimits: { maxInputTokens: 300000 },
                         },
                     },
                     defaultModel: { modelId: 'claude-3-sonnet' },
@@ -3160,8 +3242,18 @@ ${' '.repeat(8)}}
                 assert.strictEqual(result.tabId, mockTabId)
                 assert.strictEqual(result.models.length, 2)
                 assert.deepStrictEqual(result.models, [
-                    { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', description: 'Advanced AI model' },
-                    { id: 'claude-4-sonnet', name: 'Claude 4 Sonnet', description: 'Latest AI model' },
+                    {
+                        id: 'claude-3-sonnet',
+                        name: 'Claude 3 Sonnet',
+                        description: 'Advanced AI model',
+                        tokenLimits: { maxInputTokens: 200000 },
+                    },
+                    {
+                        id: 'claude-4-sonnet',
+                        name: 'Claude 4 Sonnet',
+                        description: 'Latest AI model',
+                        tokenLimits: { maxInputTokens: 300000 },
+                    },
                 ])
 
                 // Verify cache was updated
