@@ -39,10 +39,11 @@ export const SsoSessionFields = {
 } as const
 
 export const profileDuckTypers = {
-    SsoTokenProfile: new DuckTyper()
+    SsoTokenProfile: new DuckTyper().requireProperty(ProfileFields.sso_session),
+    SsoProfile: new DuckTyper()
         .requireProperty(ProfileFields.sso_session)
-        .disallowProperty(ProfileFields.sso_account_id)
-        .disallowProperty(ProfileFields.sso_role_name),
+        .requireProperty(ProfileFields.sso_account_id)
+        .requireProperty(ProfileFields.sso_role_name),
 }
 
 export const ssoSessionDuckTyper = new DuckTyper()

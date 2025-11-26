@@ -89,4 +89,36 @@ describe('BaseAmazonQServiceManager', () => {
 
         sinon.assert.callCount(features.logging.debug.withArgs(CONFIGURATION_CHANGE_IN_PROGRESS_MSG), TOTAL_CALLS - 1)
     })
+
+    it('should handle configuration listener errors gracefully', async () => {
+        const errorListener = sinon.stub().rejects(new Error('Listener error'))
+        const successListener = sinon.stub().resolves()
+
+        await serviceManager.addDidChangeConfigurationListener(errorListener)
+        await serviceManager.addDidChangeConfigurationListener(successListener)
+
+        await serviceManager.handleDidChangeConfiguration()
+
+        sinon.assert.calledOnce(errorListener)
+        sinon.assert.calledOnce(successListener)
+    })
+
+    it('should update service configuration when cache changes', async () => {
+        const initialConfig = serviceManager.getConfiguration()
+        const updateCachedServiceConfigSpy = sinon.spy(serviceManager, 'updateCachedServiceConfig' as any)
+
+        features.lsp.workspace.getConfiguration.resolves({ customization: 'new-arn' })
+
+        await serviceManager.handleDidChangeConfiguration()
+
+        sinon.assert.calledOnce(updateCachedServiceConfigSpy)
+    })
+
+    it('should maintain configuration cache consistency', () => {
+        const config1 = serviceManager.getConfiguration()
+        const config2 = serviceManager.getConfiguration()
+
+        expect(config1).to.deep.equal(config2)
+        expect(config1).to.equal(config2) // Same reference
+    })
 })
