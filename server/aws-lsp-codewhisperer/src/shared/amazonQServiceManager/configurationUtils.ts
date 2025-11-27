@@ -100,7 +100,10 @@ interface CodeWhispererConfigSection {
     sendUserWrittenCodeMetrics: boolean
 }
 
-export type AmazonQWorkspaceConfig = QConfigSection & CodeWhispererConfigSection
+export type AmazonQWorkspaceConfig = QConfigSection &
+    CodeWhispererConfigSection & {
+        isDefaultConfig?: boolean
+    }
 
 /**
  * Attempts to fetch the workspace configurations set in:
@@ -184,6 +187,7 @@ export async function getAmazonQRelatedWorkspaceConfigs(
     return {
         ...qConfig,
         ...codeWhispererConfig,
+        isDefaultConfig: false,
     }
 }
 
@@ -212,6 +216,7 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
                 indexCacheDirPath: undefined,
             },
         },
+        isDefaultConfig: true,
     }
 }
 
