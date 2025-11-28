@@ -2,6 +2,8 @@ import { Features } from '../../../types'
 import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import { ChokidarFileWatcher } from './chokidarFileWatcher'
+import { MCP_TOOLS_CONTEXT_WINDOW_THRESHOLD } from '../../constants/constants'
+import { MaxOverallCharacters } from '../chatDb/chatDb'
 // eslint-disable-next-line import/no-nodejs-modules
 import {
     DetailedListGroup,
@@ -282,6 +284,30 @@ export class McpEventHandler {
 
         if (configLoadErrors) {
             return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+        }
+
+        // Check if MCP tools exceed context window threshold
+        const mcpManager = McpManager.instance
+        const totalCharacters = mcpManager
+            .getEnabledTools()
+            .reduce(
+                (sum, tool) =>
+                    sum +
+                    tool.toolName.length +
+                    (tool.description || '').length +
+                    JSON.stringify(tool.inputSchema || {}).length,
+                0
+            )
+
+        const contextWindowPercentage = (totalCharacters / MaxOverallCharacters) * 100
+        const thresholdPercentage = MCP_TOOLS_CONTEXT_WINDOW_THRESHOLD * 100
+
+        if (contextWindowPercentage > thresholdPercentage) {
+            return {
+                title: `MCP tools are using ${Math.round(contextWindowPercentage)}% of the context window, which exceeds the ${thresholdPercentage}% threshold. Please disable some MCP servers or tools.`,
+                icon: 'warning',
+                status: 'warning' as Status,
+            }
         }
 
         return undefined
