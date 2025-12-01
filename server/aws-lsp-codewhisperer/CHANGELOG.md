@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.96](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.95...lsp-codewhisperer/v0.0.96) (2025-12-01)
+
+
+### Features
+
+* adding new regions ([#2532](https://github.com/aws/language-servers/issues/2532)) ([29f08a6](https://github.com/aws/language-servers/commit/29f08a60e9919026c4e1a2b2502148d5c738554b))
+
 ## [0.0.95](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.94...lsp-codewhisperer/v0.0.95) (2025-11-26)
 
 
