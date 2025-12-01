@@ -1152,7 +1152,7 @@ export class ATXTransformHandler {
         }
 
         try {
-            const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.md')
+            const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.zip')
             await this.zipFile(request.PlanPath, pathToZip)
 
             const uploadInfo = await this.createArtifactUploadUrl(
