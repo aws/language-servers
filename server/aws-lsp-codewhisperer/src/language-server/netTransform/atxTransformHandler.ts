@@ -59,7 +59,6 @@ export class ATXTransformHandler {
     private logging: Logging
     private runtime: Runtime
     private atxClient: ElasticGumbyFrontendClient | null = null
-    private cachedApplicationUrl: string | null = null
     private cachedHitl: string | null = null
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
@@ -68,7 +67,7 @@ export class ATXTransformHandler {
         this.logging = logging
         this.runtime = runtime
 
-        this.serviceManager.registerCacheCallback(() => this.clearApplicationUrlCache())
+        this.serviceManager.registerCacheCallback(() => this.onProfileUpdate())
     }
 
     /**
@@ -95,9 +94,6 @@ export class ATXTransformHandler {
 
             const endpoint = process.env.TCP_ENDPOINT || getAtxEndPointByRegion(region)
             this.logging.log(`DEBUG-ATX-INIT: Using region-specific endpoint for ${region}: ${endpoint}`)
-
-            this.clearApplicationUrlCache()
-            this.logging.log('DEBUG-ATX-INIT: Cleared application URL cache')
 
             this.logging.log('DEBUG-ATX-INIT: About to create ElasticGumbyFrontendClient')
             this.atxClient = new ElasticGumbyFrontendClient({
@@ -191,12 +187,6 @@ export class ATXTransformHandler {
      */
     async getActiveTransformProfileApplicationUrl(): Promise<string | null> {
         try {
-            // Return cached URL if available (avoids expensive profile discovery)
-            if (this.cachedApplicationUrl) {
-                this.logging.log(`DEBUG-ATX-URL: Using cached applicationUrl: ${this.cachedApplicationUrl}`)
-                return this.cachedApplicationUrl
-            }
-
             // Get applicationUrl from service manager (cached from configuration)
             const applicationUrl = this.serviceManager.getActiveApplicationUrl()
 
@@ -208,8 +198,6 @@ export class ATXTransformHandler {
 
             this.logging.log(`DEBUG-ATX-URL: Using service manager applicationUrl: ${applicationUrl}`)
 
-            // Cache the applicationUrl for future use
-            this.cachedApplicationUrl = applicationUrl
             return applicationUrl
         } catch (error) {
             this.logging.error(`DEBUG-ATX-URL: Error getting applicationUrl: ${String(error)}`)
@@ -218,10 +206,10 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Clear cached applicationUrl (for token refresh scenarios)
+     * Reset atx client (for profile update scenarios)
      */
-    clearApplicationUrlCache(): void {
-        this.cachedApplicationUrl = null
+    onProfileUpdate(): void {
+        this.atxClient = null
     }
 
     /**
@@ -1216,7 +1204,7 @@ export class ATXTransformHandler {
                 const response = await this.getHitlAgentArtifact(
                     request.WorkspaceId,
                     request.TransformationJobId,
-                    path.dirname(request.PlanPath)
+                    path.dirname(path.dirname(path.dirname(request.PlanPath)))
                 )
 
                 return {
