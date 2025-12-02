@@ -36,6 +36,7 @@ import {
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
+    WEB_SEARCH,
 } from './constants/toolConstants'
 import {
     SendMessageCommandInput,
@@ -236,6 +237,7 @@ import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
 import { MemoryBankController } from './context/memorybank/memoryBankController'
+import { WebSearchToolsServer } from './tools/toolServer'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -2020,6 +2022,54 @@ export class AgenticChatController implements ChatHandlers {
                     case SemanticSearch.toolName:
                         // For internal A/B we don't need tool message
                         break
+                    case WEB_SEARCH: {
+                        const webSearchCard: ChatMessage = {
+                            type: 'tool',
+                            messageId: toolUse.toolUseId,
+                            summary: {
+                                content: {
+                                    header: {
+                                        icon: 'globe',
+                                        body: `Web search: ${(toolUse.input as any).query}`,
+                                        buttons: [
+                                            { id: BUTTON_ALLOW_TOOLS, text: 'Run', icon: 'play', status: 'clear' },
+                                            {
+                                                id: BUTTON_REJECT_MCP_TOOL,
+                                                text: 'Reject',
+                                                icon: 'cancel',
+                                                status: 'dimmed-clear' as Status,
+                                            },
+                                        ],
+                                    },
+                                },
+                                collapsedContent: [
+                                    {
+                                        header: { body: 'Parameters' },
+                                        body: '```json\n' + JSON.stringify(toolUse.input, null, 2) + '\n```',
+                                    },
+                                ],
+                            },
+                        }
+                        cachedButtonBlockId = await chatResultStream.writeResultBlock(webSearchCard)
+
+                        // Store the blockId in the session for later use
+                        if (toolUse.toolUseId) {
+                            const toolUseWithBlockId = {
+                                ...toolUse,
+                                cachedButtonBlockId,
+                            } as typeof toolUse & { cachedButtonBlockId: number }
+                            session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                        }
+
+                        await this.waitForToolApproval(
+                            toolUse,
+                            chatResultStream,
+                            cachedButtonBlockId,
+                            session,
+                            toolUse.name
+                        )
+                        break
+                    }
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
@@ -2265,6 +2315,9 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case SemanticSearch.toolName:
                         await this.#handleSemanticSearchToolResult(toolUse, result, session, chatResultStream)
+                        break
+                    case WEB_SEARCH:
+                        await this.#handleWebSearchToolResult(toolUse, result, session, chatResultStream)
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -2758,6 +2811,32 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 body = `File search ${isAccept ? 'allowed' : 'rejected'}: \`${searchPath}\``
                 break
+
+            case WEB_SEARCH:
+                return {
+                    type: 'tool',
+                    messageId: toolUse.toolUseId!,
+                    summary: {
+                        content: {
+                            header: {
+                                icon: 'globe',
+                                body: `Web search: ${(toolUse.input as any).query}`,
+                                status: {
+                                    status: isAccept ? 'success' : 'error',
+                                    icon: isAccept ? 'ok' : 'cancel',
+                                    text: isAccept ? 'Allowed' : 'Rejected',
+                                },
+                                fileList: undefined,
+                            },
+                        },
+                        collapsedContent: [
+                            {
+                                header: { body: 'Parameters' },
+                                body: '```json\n' + JSON.stringify(toolUse.input, null, 2) + '\n```',
+                            },
+                        ],
+                    },
+                }
 
             default:
                 // Default tool (not only MCP)
@@ -4905,6 +4984,78 @@ export class AgenticChatController implements ChatHandlers {
         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
         const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
 
+        if (cachedButtonBlockId !== undefined) {
+            // Update the existing card with the results
+            await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+        } else {
+            // Fallback to creating a new card
+            this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+            await chatResultStream.writeResultBlock(toolResultCard)
+        }
+    }
+
+    async #handleWebSearchToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        // Early return if toolUseId is undefined
+        if (!toolUse.toolUseId) {
+            this.#log(`Cannot handle web search tool result: missing toolUseId`)
+            return
+        }
+
+        // Parse search results
+        let searchResults: any[] = []
+        let totalResults = 0
+        try {
+            const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+            if (parsedResult.content?.[0]?.text) {
+                const searchData = JSON.parse(parsedResult.content[0].text)
+                searchResults = searchData.results || []
+                totalResults = searchData.totalResults || searchResults.length
+            }
+        } catch (error) {
+            this.#log(`Error parsing web search results: ${error}`)
+        }
+
+        // Create collapsed content for each search result
+        const collapsedContent = searchResults.map(result => {
+            const date = result.publishedDate
+                ? new Date(result.publishedDate).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                  })
+                : ''
+            // Replace square brackets with HTML entities
+            const escapedTitle = result.title.replace(/\[/g, '&#91;').replace(/\]/g, '&#93;')
+            return {
+                body: `**${result.domain}**${date ? ` - ${date}` : ''}\n\n[${escapedTitle}](${result.url})\n\n${result.snippet}`,
+            }
+        })
+
+        const toolResultCard: ChatMessage = {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            summary: {
+                content: {
+                    header: {
+                        icon: 'globe',
+                        body: `Web search: ${(toolUse.input as any).query}`,
+                        status: {
+                            text: `${totalResults} ${totalResults === 1 ? 'result' : 'results'}`,
+                        },
+                    },
+                },
+                collapsedContent,
+            },
+        }
+
+        // Get the stored blockId for this tool use
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+        const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
         if (cachedButtonBlockId !== undefined) {
             // Update the existing card with the results
             await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
