@@ -31,6 +31,7 @@ import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManage
 import { SERVICE_MANAGER_TIMEOUT_MS, SERVICE_MANAGER_POLL_INTERVAL_MS } from '../constants/constants'
 import { isUsingIAMAuth } from '../../../shared/utils'
 import { WEB_SEARCH } from '../constants/toolConstants'
+import { WebFetch, WebFetchParams } from './webFetch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -517,7 +518,18 @@ export const McpToolsServer: Server = ({
     }
 }
 
-export const WebSearchToolsServer: Server = ({ logging, agent, lsp }) => {
+export const WebToolsServer: Server = ({ logging, agent, lsp, runtime }) => {
+    const webFetchTool = new WebFetch({ logging, lsp, runtime })
+
+    // Add webFetch tool
+    agent.addTool(
+        webFetchTool.getSpec(),
+        async (input: WebFetchParams) => {
+            await webFetchTool.validate(input)
+            return await webFetchTool.invoke(input)
+        },
+        ToolClassification.BuiltIn
+    )
     const discoverWebSearch = async () => {
         const serviceManager = AmazonQTokenServiceManager.getInstance()
         const authState = serviceManager.getState()
