@@ -5103,7 +5103,7 @@ export class AgenticChatController implements ChatHandlers {
     ) {
         // Early return if toolUseId is undefined
         if (!toolUse.toolUseId) {
-            this.#log(`Cannot handle web search tool result: missing toolUseId`)
+            this.#log(`Cannot handle web fetch tool result: missing toolUseId`)
             return
         }
         const toolResultCard = WebFetch.getToolResultMessage(toolUse, result)
