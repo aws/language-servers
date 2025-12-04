@@ -1687,6 +1687,13 @@ export class McpManager {
 
             if (!wasActive) {
                 this.features.logging.info(`MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`)
+                // Only discover servers when registry is newly activated and not during periodic sync
+                if (!isPeriodicSync) {
+                    await this.discoverAllServers()
+                    this.features.logging.info(
+                        `MCP: discovered ${this.getAllTools().length} tools after registry activation`
+                    )
+                }
             } else {
                 this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
             }
