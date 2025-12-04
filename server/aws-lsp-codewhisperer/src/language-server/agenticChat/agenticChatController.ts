@@ -237,7 +237,7 @@ import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
 import { MemoryBankController } from './context/memorybank/memoryBankController'
-import { WebSearchToolsServer } from './tools/toolServer'
+import { WebSearch } from './tools/webSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -2023,33 +2023,7 @@ export class AgenticChatController implements ChatHandlers {
                         // For internal A/B we don't need tool message
                         break
                     case WEB_SEARCH: {
-                        const webSearchCard: ChatMessage = {
-                            type: 'tool',
-                            messageId: toolUse.toolUseId,
-                            summary: {
-                                content: {
-                                    header: {
-                                        icon: 'globe',
-                                        body: `Web search: ${(toolUse.input as any).query}`,
-                                        buttons: [
-                                            { id: BUTTON_ALLOW_TOOLS, text: 'Run', icon: 'play', status: 'clear' },
-                                            {
-                                                id: BUTTON_REJECT_MCP_TOOL,
-                                                text: 'Reject',
-                                                icon: 'cancel',
-                                                status: 'dimmed-clear' as Status,
-                                            },
-                                        ],
-                                    },
-                                },
-                                collapsedContent: [
-                                    {
-                                        header: { body: 'Parameters' },
-                                        body: '```json\n' + JSON.stringify(toolUse.input, null, 2) + '\n```',
-                                    },
-                                ],
-                            },
-                        }
+                        const webSearchCard = WebSearch.getToolConfirmationMessage(toolUse)
                         cachedButtonBlockId = await chatResultStream.writeResultBlock(webSearchCard)
 
                         // Store the blockId in the session for later use
@@ -2813,30 +2787,7 @@ export class AgenticChatController implements ChatHandlers {
                 break
 
             case WEB_SEARCH:
-                return {
-                    type: 'tool',
-                    messageId: toolUse.toolUseId!,
-                    summary: {
-                        content: {
-                            header: {
-                                icon: 'globe',
-                                body: `Web search: ${(toolUse.input as any).query}`,
-                                status: {
-                                    status: isAccept ? 'success' : 'error',
-                                    icon: isAccept ? 'ok' : 'cancel',
-                                    text: isAccept ? 'Allowed' : 'Rejected',
-                                },
-                                fileList: undefined,
-                            },
-                        },
-                        collapsedContent: [
-                            {
-                                header: { body: 'Parameters' },
-                                body: '```json\n' + JSON.stringify(toolUse.input, null, 2) + '\n```',
-                            },
-                        ],
-                    },
-                }
+                return WebSearch.getToolConfirmationResultMessage(toolUse, isAccept)
 
             default:
                 // Default tool (not only MCP)
@@ -5005,53 +4956,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#log(`Cannot handle web search tool result: missing toolUseId`)
             return
         }
-
-        // Parse search results
-        let searchResults: any[] = []
-        let totalResults = 0
-        try {
-            const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
-            if (parsedResult.content?.[0]?.text) {
-                const searchData = JSON.parse(parsedResult.content[0].text)
-                searchResults = searchData.results || []
-                totalResults = searchData.totalResults || searchResults.length
-            }
-        } catch (error) {
-            this.#log(`Error parsing web search results: ${error}`)
-        }
-
-        // Create collapsed content for each search result
-        const collapsedContent = searchResults.map(result => {
-            const date = result.publishedDate
-                ? new Date(result.publishedDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                  })
-                : ''
-            // Replace square brackets with HTML entities
-            const escapedTitle = result.title.replace(/\[/g, '&#91;').replace(/\]/g, '&#93;')
-            return {
-                body: `**${result.domain}**${date ? ` - ${date}` : ''}\n\n[${escapedTitle}](${result.url})\n\n${result.snippet}`,
-            }
-        })
-
-        const toolResultCard: ChatMessage = {
-            type: 'tool',
-            messageId: toolUse.toolUseId,
-            summary: {
-                content: {
-                    header: {
-                        icon: 'globe',
-                        body: `Web search: ${(toolUse.input as any).query}`,
-                        status: {
-                            text: `${totalResults} ${totalResults === 1 ? 'result' : 'results'}`,
-                        },
-                    },
-                },
-                collapsedContent,
-            },
-        }
+        const toolResultCard = WebSearch.getToolResultMessage(toolUse, result)
 
         // Get the stored blockId for this tool use
         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
