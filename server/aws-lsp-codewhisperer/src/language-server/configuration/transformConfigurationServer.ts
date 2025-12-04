@@ -105,7 +105,7 @@ export class TransformConfigurationServer {
                 { step: 'build', priority: 'high' }
             )
         } catch (error) {
-            this.logging.error(`TransformConfigurationServer: Failed to add ATX bearer token: ${String(error)}`)
+            this.logging.error(`TransformConfigurationServer: Failed to add ATX bearer token: ${error}`)
             throw error
         }
     }
