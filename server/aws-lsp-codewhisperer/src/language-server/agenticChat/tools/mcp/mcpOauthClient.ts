@@ -3,7 +3,6 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import type { RequestInit } from 'node-fetch'
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { spawn } from 'child_process'
