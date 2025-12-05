@@ -495,6 +495,11 @@ export class AgenticChatController implements ChatHandlers {
         const fileList = cachedToolUse.chatResult?.header?.fileList
         const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== BUTTON_UNDO_CHANGES)
 
+        const updatedModifiedFilesTracker = {
+            ...cachedToolUse.chatResult?.modifiedFilesTracker,
+            removeFile: true,
+        }
+
         const updatedHeader = {
             ...cachedToolUse.chatResult?.header,
             buttons: button,
@@ -531,6 +536,7 @@ export class AgenticChatController implements ChatHandlers {
                     {
                         ...cachedToolUse.chatResult,
                         header: updatedHeader,
+                        modifiedFilesTracker: updatedModifiedFilesTracker,
                     },
                 ],
             },
@@ -2547,6 +2553,9 @@ export class AgenticChatController implements ChatHandlers {
                     keepCardAfterClick: false,
                 },
             ],
+            modifiedFilesTracker: {
+                title: 'Following files were modified : ',
+            },
         })
         session.currentUndoAllId = undefined
     }
@@ -3196,6 +3205,9 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 },
                 buttons: [{ id: BUTTON_UNDO_CHANGES, text: 'Undo', icon: 'undo' }],
+            },
+            modifiedFilesTracker: {
+                title: 'Following files were modified : ',
             },
         }
     }
