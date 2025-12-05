@@ -167,6 +167,7 @@ import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { calculateModifiedLines } from './utils/fileModificationMetrics'
+import { TokenLimitsCalculator } from './utils/tokenLimitsCalculator'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -175,7 +176,6 @@ import { diffLines } from 'diff'
 import {
     GENERIC_ERROR_MS,
     LOADING_THRESHOLD_MS,
-    GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT,
     OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
@@ -187,8 +187,6 @@ import {
     DEFAULT_WINDOW_REJECT_SHORTCUT,
     DEFAULT_MACOS_STOP_SHORTCUT,
     DEFAULT_WINDOW_STOP_SHORTCUT,
-    COMPACTION_CHARACTER_THRESHOLD,
-    MAX_OVERALL_CHARACTERS,
     FSREAD_MEMORY_BANK_MAX_PER_FILE,
     FSREAD_MEMORY_BANK_MAX_TOTAL,
 } from './constants/constants'
@@ -726,11 +724,18 @@ export class AgenticChatController implements ChatHandlers {
             // Wait for the response to be completed before proceeding
             this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
             if (responseResult.models) {
-                models = Object.values(responseResult.models).map(({ modelId, modelName, description }) => ({
-                    id: modelId ?? 'unknown',
-                    name: modelName ?? modelId ?? 'unknown',
-                    description: description ?? '',
-                }))
+                models = Object.values(responseResult.models).map(
+                    ({ modelId, modelName, description, tokenLimits }) => ({
+                        id: modelId ?? 'unknown',
+                        name: modelName ?? modelId ?? 'unknown',
+                        description: description ?? '',
+                        tokenLimits: tokenLimits
+                            ? {
+                                  maxInputTokens: tokenLimits.maxInputTokens,
+                              }
+                            : undefined,
+                    })
+                )
             }
             defaultModelId = responseResult.defaultModel?.modelId
 
@@ -775,6 +780,13 @@ export class AgenticChatController implements ChatHandlers {
 
         // Handle error cases by returning default model
         if (!success || errorFromAPI) {
+            // Even in error cases, set the model with token limits
+            if (success && session) {
+                session.setModel(DEFAULT_MODEL_ID, models)
+                this.#log(
+                    `Model set for fallback (error case): ${DEFAULT_MODEL_ID}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`
+                )
+            }
             return {
                 tabId: params.tabId,
                 models: models,
@@ -815,8 +827,11 @@ export class AgenticChatController implements ChatHandlers {
             selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
         }
 
-        // Store the selected model in the session
-        session.modelId = selectedModelId
+        // Store the selected model in the session (automatically calculates token limits)
+        session.setModel(selectedModelId, models)
+        this.#log(
+            `Model set for initial selection: ${selectedModelId}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`
+        )
 
         return {
             tabId: params.tabId,
@@ -1195,8 +1210,8 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Runs the compaction, making requests and processing tool uses until completion
      */
-    #shouldCompact(currentRequestCount: number): boolean {
-        if (currentRequestCount > COMPACTION_CHARACTER_THRESHOLD) {
+    #shouldCompact(currentRequestCount: number, compactionThreshold: number): boolean {
+        if (currentRequestCount > compactionThreshold) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
@@ -1396,7 +1411,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
-            this.truncateRequest(currentRequestInput, additionalContext)
+            this.truncateRequest(currentRequestInput, additionalContext, session.tokenLimits.inputLimit)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -1672,13 +1687,17 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (this.#shouldCompact(currentRequestCount)) {
+        if (this.#shouldCompact(currentRequestCount, session.tokenLimits.compactionThreshold)) {
             this.#telemetryController.emitCompactNudge(
                 currentRequestCount,
                 this.#features.runtime.serverInfo.version ?? ''
             )
             const messageId = this.#getMessageIdForCompact(uuid())
-            const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
+            const confirmationResult = this.#processCompactConfirmation(
+                messageId,
+                currentRequestCount,
+                session.tokenLimits.maxOverallCharacters
+            )
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
             await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
             // Get the compaction request input
@@ -1731,10 +1750,17 @@ export class AgenticChatController implements ChatHandlers {
      * performs truncation of request before sending to backend service.
      * Returns the remaining character budget for chat history.
      * @param request
+     * @param additionalContext
+     * @param inputLimit - The dynamic input limit from the session's token limits
      */
-    truncateRequest(request: ChatCommandInput, additionalContext?: AdditionalContentEntryAddition[]): number {
-        // TODO: Confirm if this limit applies to SendMessage and rename this constant
-        let remainingCharacterBudget = GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
+    truncateRequest(
+        request: ChatCommandInput,
+        additionalContext?: AdditionalContentEntryAddition[],
+        inputLimit?: number
+    ): number {
+        // Use dynamic inputLimit from session, or fall back to default calculated value
+        const effectiveInputLimit = inputLimit ?? TokenLimitsCalculator.calculate().inputLimit
+        let remainingCharacterBudget = effectiveInputLimit
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return remainingCharacterBudget
         }
@@ -1743,9 +1769,9 @@ export class AgenticChatController implements ChatHandlers {
         // 1. prioritize user input message
         let truncatedUserInputMessage = ''
         if (message) {
-            if (message.length > GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT) {
-                this.#debug(`Truncating userInputMessage to ${GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT} characters}`)
-                truncatedUserInputMessage = message.substring(0, GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT)
+            if (message.length > effectiveInputLimit) {
+                this.#debug(`Truncating userInputMessage to ${effectiveInputLimit} characters}`)
+                truncatedUserInputMessage = message.substring(0, effectiveInputLimit)
                 remainingCharacterBudget = remainingCharacterBudget - truncatedUserInputMessage.length
                 request.conversationState.currentMessage.userInputMessage.content = truncatedUserInputMessage
             } else {
@@ -2826,7 +2852,7 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #processCompactConfirmation(messageId: string, characterCount: number): ChatResult {
+    #processCompactConfirmation(messageId: string, characterCount: number, maxOverallCharacters: number): ChatResult {
         const buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
         const header = {
             icon: 'warning',
@@ -2834,7 +2860,7 @@ export class AgenticChatController implements ChatHandlers {
             body: COMPACTION_HEADER_BODY,
             buttons,
         } as any
-        const body = COMPACTION_BODY(Math.round((characterCount / MAX_OVERALL_CHARACTERS) * 100))
+        const body = COMPACTION_BODY(Math.round((characterCount / maxOverallCharacters) * 100))
         return {
             type: 'tool',
             messageId,
@@ -4643,7 +4669,14 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
-        session.modelId = params.optionsValues['model-selection']
+        const newModelId = params.optionsValues['model-selection']
+
+        // Set model (automatically recalculates token limits)
+        if (newModelId !== session.modelId) {
+            const cachedData = this.#chatHistoryDb.getCachedModels()
+            session.setModel(newModelId, cachedData?.models)
+            this.#log(`Model set for model switch: ${newModelId}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`)
+        }
 
         this.#chatHistoryDb.setModelId(session.modelId)
         this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
