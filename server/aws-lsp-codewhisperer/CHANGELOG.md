@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.97](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.96...lsp-codewhisperer/v0.0.97) (2025-12-05)
+
+
+### Features
+
+* use dynamic token limits from listAvailableModels API ([#2539](https://github.com/aws/language-servers/issues/2539)) ([f87ac9f](https://github.com/aws/language-servers/commit/f87ac9fce32d235649f81957b71d424264aae9c8))
+
 ## [0.0.96](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.95...lsp-codewhisperer/v0.0.96) (2025-12-01)
 
 
