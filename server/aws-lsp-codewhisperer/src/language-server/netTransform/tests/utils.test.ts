@@ -8,15 +8,19 @@ import got from 'got'
 import AdmZip = require('adm-zip')
 import sinon = require('sinon')
 import { Readable } from 'stream'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { stubInterface } from 'ts-sinon'
 
 describe('Utils', () => {
     let tempDir: string
     let testFile: string
+    let mockLogger: any
 
     beforeEach(() => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'utils-test-'))
         testFile = path.join(tempDir, 'test.txt')
         fs.writeFileSync(testFile, 'test content')
+        mockLogger = stubInterface<Logging>()
     })
 
     afterEach(() => {
@@ -233,7 +237,8 @@ describe('Utils', () => {
                 'http://test-url',
                 { Authorization: 'Bearer token' },
                 tempDir,
-                'test.zip'
+                'test.zip',
+                mockLogger
             )
 
             expect(result).to.equal('/extracted/path')
@@ -246,7 +251,13 @@ describe('Utils', () => {
             const getStub = sinon.stub(got, 'get').resolves({ body: mockZipBuffer })
             const extractStub = sinon.stub(Utils, 'extractArchiveFromBuffer').resolves('/extracted/path')
 
-            const result = await Utils.downloadAndExtractArchive('http://test-url', null, tempDir, 'test.zip')
+            const result = await Utils.downloadAndExtractArchive(
+                'http://test-url',
+                null,
+                tempDir,
+                'test.zip',
+                mockLogger
+            )
 
             expect(result).to.equal('/extracted/path')
         })
@@ -264,7 +275,7 @@ describe('Utils', () => {
             const zipBuffer = fs.readFileSync(zipPath)
 
             const buffer = [zipBuffer]
-            const result = await Utils.extractArchiveFromBuffer('test.zip', buffer, tempDir)
+            const result = await Utils.extractArchiveFromBuffer('test.zip', buffer, tempDir, mockLogger)
 
             expect(result).to.equal(tempDir)
             expect(directoryExistsStub.calledOnce).to.be.true
@@ -308,7 +319,7 @@ describe('Utils', () => {
                 },
             ]
 
-            await Utils.extractAllEntriesTo(tempDir, entries as any)
+            await Utils.extractAllEntriesTo(tempDir, entries as any, mockLogger)
 
             expect(mkdirStub.calledOnce).to.be.true
             expect(writeFileStub.called).to.be.false
@@ -326,7 +337,7 @@ describe('Utils', () => {
                 },
             ]
 
-            await Utils.extractAllEntriesTo(tempDir, entries as any)
+            await Utils.extractAllEntriesTo(tempDir, entries as any, mockLogger)
 
             expect(mkdirStub.calledOnce).to.be.true
             expect(writeFileStub.calledOnce).to.be.true
@@ -345,12 +356,10 @@ describe('Utils', () => {
                 },
             ]
 
-            try {
-                await Utils.extractAllEntriesTo(tempDir, entries as any)
-                expect.fail('Should have thrown error')
-            } catch (error) {
-                expect((error as Error).message).to.include('does not exist')
-            }
+            await Utils.extractAllEntriesTo(tempDir, entries as any, mockLogger)
+
+            expect(mockLogger.error.calledOnce).to.be.true
+            expect(mockLogger.error.firstCall.args[0]).to.include('does not exist')
         })
 
         it('should rethrow non-ENOENT errors', async () => {
@@ -365,7 +374,7 @@ describe('Utils', () => {
             ]
 
             try {
-                await Utils.extractAllEntriesTo(tempDir, entries as any)
+                await Utils.extractAllEntriesTo(tempDir, entries as any, mockLogger)
                 expect.fail('Should have thrown error')
             } catch (error) {
                 expect((error as Error).message).to.equal('Other error')

@@ -658,7 +658,8 @@ export class ATXTransformHandler {
             const uploadSuccess = await Utils.uploadArtifact(
                 uploadResponse.uploadUrl,
                 zipFilePath,
-                uploadResponse.requestHeaders
+                uploadResponse.requestHeaders,
+                this.logging
             )
 
             if (!uploadSuccess) {
@@ -942,7 +943,8 @@ export class ATXTransformHandler {
                 downloadInfo.s3PresignedUrl,
                 downloadInfo.requestHeaders,
                 pathToDownload,
-                'transformation-plan-download.zip'
+                'transformation-plan-download.zip',
+                this.logging
             )
 
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
@@ -1093,11 +1095,15 @@ export class ATXTransformHandler {
 
             this.logging.log(`ATX: UploadPlan: Artifact upload URL created: ${uploadInfo.uploadUrl}`)
 
-            const uploadSuccess = await Utils.uploadArtifact(uploadInfo.uploadUrl, pathToZip, uploadInfo.requestHeaders)
+            const uploadSuccess = await Utils.uploadArtifact(
+                uploadInfo.uploadUrl,
+                pathToZip,
+                uploadInfo.requestHeaders,
+                this.logging
+            )
 
             if (!uploadSuccess) {
                 throw new Error('Failed to upload ZIP file to S3')
-                return null
             }
 
             const completeResponse = await this.completeArtifactUpload(
@@ -1217,7 +1223,8 @@ export class ATXTransformHandler {
                 downloadInfo.s3PresignedUrl,
                 downloadInfo.requestHeaders,
                 pathToDownload,
-                'ExportResultsArchive.zip'
+                'ExportResultsArchive.zip',
+                this.logging
             )
 
             return pathToDownload
@@ -1633,7 +1640,7 @@ export class ATXTransformHandler {
 
             return result.worklogs || []
         } catch (error) {
-            this.logging.error(`ListWorlogs error: ${String(error)}`)
+            this.logging.error(`ListWorklogs error: ${String(error)}`)
             return null
         }
     }

@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import * as archiver from 'archiver'
 import got from 'got'
 import * as path from 'path'
@@ -43,7 +44,12 @@ export class Utils {
     /**
      * Upload artifact to S3 using presigned URL and headers
      */
-    static async uploadArtifact(s3PreSignedUrl: string, filePath: string, requestHeaders?: any): Promise<boolean> {
+    static async uploadArtifact(
+        s3PreSignedUrl: string,
+        filePath: string,
+        requestHeaders?: any,
+        logger?: Logging
+    ): Promise<boolean> {
         try {
             const headers: any = {}
 
@@ -66,6 +72,7 @@ export class Utils {
                 return false
             }
         } catch (error) {
+            logger?.error(`Upload artifact error: ${String(error)}`)
             return false
         }
     }
@@ -117,7 +124,8 @@ export class Utils {
         downloadUrl: string,
         requestHeaders: any,
         saveToDir: string,
-        exportName: string
+        exportName: string,
+        logger: Logging
     ): Promise<string> {
         const response = await got.get(downloadUrl, {
             headers: requestHeaders || {},
@@ -126,7 +134,7 @@ export class Utils {
         })
 
         const buffer = [Buffer.from(response.body)]
-        return await this.extractArchiveFromBuffer(exportName, buffer, saveToDir)
+        return await this.extractArchiveFromBuffer(exportName, buffer, saveToDir, logger)
     }
 
     /**
@@ -135,7 +143,8 @@ export class Utils {
     static async extractArchiveFromBuffer(
         exportName: string,
         buffer: Uint8Array[],
-        saveToDir: string
+        saveToDir: string,
+        logger: Logging
     ): Promise<string> {
         const pathToArchive = path.join(saveToDir, exportName)
         await this.directoryExists(saveToDir)
@@ -144,7 +153,7 @@ export class Utils {
         const pathContainingArchive = path.dirname(pathToArchive)
         const zip = new AdmZip(pathToArchive)
         const zipEntries = zip.getEntries()
-        await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
+        await this.extractAllEntriesTo(pathContainingArchive, zipEntries, logger)
         return pathContainingArchive
     }
 
@@ -162,7 +171,11 @@ export class Utils {
     /**
      * Extracts all ZIP entries to target directory
      */
-    static async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]): Promise<void> {
+    static async extractAllEntriesTo(
+        pathContainingArchive: string,
+        zipEntries: AdmZip.IZipEntry[],
+        logger: Logging
+    ): Promise<void> {
         for (const entry of zipEntries) {
             try {
                 const entryPath = path.join(pathContainingArchive, entry.entryName)
@@ -175,7 +188,7 @@ export class Utils {
                 }
             } catch (extractError: any) {
                 if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
-                    throw new Error(`Attempted to extract a file that does not exist: ${entry.entryName}`)
+                    logger.error(`Attempted to extract a file that does not exist: ${entry.entryName}`)
                 } else {
                     throw extractError
                 }
