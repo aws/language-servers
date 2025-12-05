@@ -1632,11 +1632,11 @@ export class ATXTransformHandler {
             this.logging.log(
                 `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries for step ${stepId}`
             )
-            result.worklogs?.forEach(async (value, index) => {
+            for (const value of result.worklogs || []) {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
                 this.logging.log(`worklog entry: ${value.description}`)
                 await Utils.saveWorklogsToJson(jobId, currentStepId, value.description || '', solutionRootPath)
-            })
+            }
 
             return result.worklogs || []
         } catch (error) {

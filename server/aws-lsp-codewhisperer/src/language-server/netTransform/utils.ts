@@ -89,7 +89,7 @@ export class Utils {
         const worklogDir = path.join(solutionRootPath, workspaceFolderName, jobId)
         const worklogPath = path.join(worklogDir, 'worklogs.json')
 
-        await this.directoryExists(worklogDir)
+        await Utils.directoryExists(worklogDir)
 
         let worklogData: Record<string, string[]> = {}
 
@@ -134,7 +134,7 @@ export class Utils {
         })
 
         const buffer = [Buffer.from(response.body)]
-        return await this.extractArchiveFromBuffer(exportName, buffer, saveToDir, logger)
+        return await Utils.extractArchiveFromBuffer(exportName, buffer, saveToDir, logger)
     }
 
     /**
@@ -147,13 +147,13 @@ export class Utils {
         logger: Logging
     ): Promise<string> {
         const pathToArchive = path.join(saveToDir, exportName)
-        await this.directoryExists(saveToDir)
+        await Utils.directoryExists(saveToDir)
         await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
 
         const pathContainingArchive = path.dirname(pathToArchive)
         const zip = new AdmZip(pathToArchive)
         const zipEntries = zip.getEntries()
-        await this.extractAllEntriesTo(pathContainingArchive, zipEntries, logger)
+        await Utils.extractAllEntriesTo(pathContainingArchive, zipEntries, logger)
         return pathContainingArchive
     }
 
