@@ -44,6 +44,15 @@ function escapeMarkdown(text: string): string {
     return text.replace(/[\[\]()]/g, m => MARKDOWN_ESCAPES[m])
 }
 
+function isValidUrl(url: string): boolean {
+    try {
+        new URL(url)
+        return true
+    } catch {
+        return false
+    }
+}
+
 export class WebSearch {
     static getToolConfirmationMessage(toolUse: ToolUse): ChatResult {
         if (!isWebSearchInput(toolUse.input)) {
@@ -137,22 +146,24 @@ export class WebSearch {
             throw new Error(`Error parsing web search results: ${error}`)
         }
 
-        // Create collapsed content for each search result
-        const collapsedContent = searchResults.map(result => {
-            const date = result.publishedDate
-                ? new Date(result.publishedDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                  })
-                : ''
-            // Escape square brackets and parentheses in title and URL for markdown
-            const escapedTitle = escapeMarkdown(result.title)
-            const escapedUrl = escapeMarkdown(result.url)
-            return {
-                body: `**${result.domain}**${date ? ` - ${date}` : ''}\n\n[${escapedTitle}](${escapedUrl})`,
-            }
-        })
+        // Create collapsed content for each search result with valid URLs
+        const collapsedContent = searchResults
+            .filter(result => isValidUrl(result.url))
+            .map(result => {
+                const date = result.publishedDate
+                    ? new Date(result.publishedDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                      })
+                    : ''
+                // Escape square brackets and parentheses in title and URL for markdown
+                const escapedTitle = escapeMarkdown(result.title)
+                const escapedUrl = escapeMarkdown(result.url)
+                return {
+                    body: `**${result.domain}**${date ? ` - ${date}` : ''}\n\n[${escapedTitle}](${escapedUrl})`,
+                }
+            })
 
         return {
             type: 'tool',
