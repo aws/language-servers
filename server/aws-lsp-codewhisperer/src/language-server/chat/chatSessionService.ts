@@ -18,6 +18,7 @@ import { QErrorTransformer } from '../agenticChat/retry/errorTransformer'
 import { DelayNotification } from '../agenticChat/retry/delayInterceptor'
 import { MAX_REQUEST_ATTEMPTS } from '../agenticChat/constants/constants'
 import { TokenLimits, TokenLimitsCalculator } from '../agenticChat/utils/tokenLimitsCalculator'
+import { Model } from '@aws/language-server-runtimes/protocol'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -29,8 +30,8 @@ type DeferredHandler = {
 export class ChatSessionService {
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
-    public modelId: string | undefined
     public isMemoryBankGeneration: boolean = false
+    #modelId: string | undefined
     #lsp?: Features['lsp']
     #abortController?: AbortController
     #currentPromptId?: string
@@ -146,6 +147,13 @@ export class ChatSessionService {
     }
 
     /**
+     * Gets the model ID for this session
+     */
+    public get modelId(): string | undefined {
+        return this.#modelId
+    }
+
+    /**
      * Gets the token limits for this session
      */
     public get tokenLimits(): TokenLimits {
@@ -153,11 +161,15 @@ export class ChatSessionService {
     }
 
     /**
-     * Sets the token limits for this session
-     * @param limits The token limits to set
+     * Sets the model for this session, automatically calculating token limits.
+     * This encapsulates model ID and token limits as a single entity.
+     * @param modelId The model ID to set
+     * @param models Optional list of available models to look up token limits from
      */
-    public setTokenLimits(limits: TokenLimits): void {
-        this.#tokenLimits = limits
+    public setModel(modelId: string | undefined, models?: Model[]): void {
+        this.#modelId = modelId
+        const maxInputTokens = TokenLimitsCalculator.extractMaxInputTokens(models?.find(m => m.id === modelId))
+        this.#tokenLimits = TokenLimitsCalculator.calculate(maxInputTokens)
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {

@@ -780,13 +780,12 @@ export class AgenticChatController implements ChatHandlers {
 
         // Handle error cases by returning default model
         if (!success || errorFromAPI) {
-            // Even in error cases, calculate token limits from the default/fallback model
+            // Even in error cases, set the model with token limits
             if (success && session) {
-                const fallbackModel = models.find(model => model.id === DEFAULT_MODEL_ID)
-                const maxInputTokens = TokenLimitsCalculator.extractMaxInputTokens(fallbackModel)
-                const tokenLimits = TokenLimitsCalculator.calculate(maxInputTokens)
-                session.setTokenLimits(tokenLimits)
-                this.#log(`Token limits calculated for fallback model (error case): ${JSON.stringify(tokenLimits)}`)
+                session.setModel(DEFAULT_MODEL_ID, models)
+                this.#log(
+                    `Model set for fallback (error case): ${DEFAULT_MODEL_ID}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`
+                )
             }
             return {
                 tabId: params.tabId,
@@ -828,16 +827,10 @@ export class AgenticChatController implements ChatHandlers {
             selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
         }
 
-        // Store the selected model in the session
-        session.modelId = selectedModelId
-
-        // Extract maxInputTokens from the selected model and calculate token limits
-        const selectedModel = models.find(model => model.id === selectedModelId)
-        const maxInputTokens = TokenLimitsCalculator.extractMaxInputTokens(selectedModel)
-        const tokenLimits = TokenLimitsCalculator.calculate(maxInputTokens)
-        session.setTokenLimits(tokenLimits)
+        // Store the selected model in the session (automatically calculates token limits)
+        session.setModel(selectedModelId, models)
         this.#log(
-            `Token limits calculated for initial model selection (${selectedModelId}): ${JSON.stringify(tokenLimits)}`
+            `Model set for initial selection: ${selectedModelId}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`
         )
 
         return {
@@ -4678,17 +4671,13 @@ export class AgenticChatController implements ChatHandlers {
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
         const newModelId = params.optionsValues['model-selection']
 
-        // Recalculate token limits when model changes
-        if (newModelId && newModelId !== session.modelId) {
+        // Set model (automatically recalculates token limits)
+        if (newModelId !== session.modelId) {
             const cachedData = this.#chatHistoryDb.getCachedModels()
-            const selectedModel = cachedData?.models?.find(model => model.id === newModelId)
-            const maxInputTokens = TokenLimitsCalculator.extractMaxInputTokens(selectedModel)
-            const tokenLimits = TokenLimitsCalculator.calculate(maxInputTokens)
-            session.setTokenLimits(tokenLimits)
-            this.#log(`Token limits calculated for model switch (${newModelId}): ${JSON.stringify(tokenLimits)}`)
+            session.setModel(newModelId, cachedData?.models)
+            this.#log(`Model set for model switch: ${newModelId}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`)
         }
 
-        session.modelId = newModelId
         this.#chatHistoryDb.setModelId(session.modelId)
         this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
     }

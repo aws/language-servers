@@ -3059,7 +3059,7 @@ ${' '.repeat(8)}}
             // Create a session and set initial model
             chatController.onTabAdd({ tabId: mockTabId })
             const session = chatSessionManagementService.getSession(mockTabId).data!
-            session.modelId = initialModelId
+            session.setModel(initialModelId, cachedModels)
 
             // Get initial token limits (default 200K)
             const initialLimits = session.tokenLimits
@@ -3137,7 +3137,7 @@ ${' '.repeat(8)}}
                 getCachedModelsStub.returns(cachedData)
 
                 const session = chatSessionManagementService.getSession(mockTabId).data!
-                session.modelId = 'model1'
+                session.setModel('model1', cachedData.models)
 
                 const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
@@ -3324,7 +3324,7 @@ ${' '.repeat(8)}}
 
             it('should use defaultModelId from cache when session has no modelId', async () => {
                 const session = chatSessionManagementService.getSession(mockTabId).data!
-                session.modelId = undefined
+                session.setModel(undefined, undefined)
 
                 const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
@@ -3341,7 +3341,7 @@ ${' '.repeat(8)}}
                 })
 
                 const session = chatSessionManagementService.getSession(mockTabId).data!
-                session.modelId = undefined
+                session.setModel(undefined, undefined)
 
                 const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
