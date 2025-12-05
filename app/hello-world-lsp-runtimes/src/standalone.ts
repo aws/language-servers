@@ -6,5 +6,8 @@ const props: RuntimeProps = {
     version: '0.1.0',
     servers: [HelloWorldServer],
     name: 'Hello World',
-}
-standalone(props)
+} as RuntimeProps
+
+;(async () => {
+    await standalone(props)
+})()

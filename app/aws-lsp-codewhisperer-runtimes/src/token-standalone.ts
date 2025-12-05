@@ -12,6 +12,7 @@ import {
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 import { createTokenRuntimeProps } from './standalone-common'
+import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 
 const MAJOR = 0
 const MINOR = 1
@@ -30,6 +31,8 @@ const props = createTokenRuntimeProps(VERSION, [
 
     TransformConfigurationServerTokenProxy,
     AtxNetTransformServerTokenProxy as any,
-])
+]) as RuntimeProps
 
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
