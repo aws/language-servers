@@ -435,10 +435,6 @@ describe('profileService.DuckTypers', () => {
             },
             {},
             null,
-            {
-                sso_session: 'legacy SSO profile',
-                sso_account_id: '123',
-            },
         ]
 
         for (const profile of profiles) {

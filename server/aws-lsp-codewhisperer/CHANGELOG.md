@@ -1,5 +1,90 @@
 # Changelog
 
+## [0.0.96](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.95...lsp-codewhisperer/v0.0.96) (2025-12-01)
+
+
+### Features
+
+* adding new regions ([#2532](https://github.com/aws/language-servers/issues/2532)) ([29f08a6](https://github.com/aws/language-servers/commit/29f08a60e9919026c4e1a2b2502148d5c738554b))
+
+## [0.0.95](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.94...lsp-codewhisperer/v0.0.95) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.17 to ^0.0.18
+
+## [0.0.94](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.93...lsp-codewhisperer/v0.0.94) (2025-11-25)
+
+
+### Bug Fixes
+
+* fix for mcp tool resgistration on smus ([#2524](https://github.com/aws/language-servers/issues/2524)) ([8584723](https://github.com/aws/language-servers/commit/8584723839447dda878474e17a3b21a315ffc759))
+
+## [0.0.93](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.92...lsp-codewhisperer/v0.0.93) (2025-11-21)
+
+
+### Bug Fixes
+
+* fix for permission update for servers ([#2517](https://github.com/aws/language-servers/issues/2517)) ([ef86b5c](https://github.com/aws/language-servers/commit/ef86b5ce474993265f9ffa8cb184e96eb1d0daee))
+
+## [0.0.92](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.91...lsp-codewhisperer/v0.0.92) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+
+### Bug Fixes
+
+* **amazonq:** prevent base64 encoding error by passing undefined instead of empty object ([#2492](https://github.com/aws/language-servers/issues/2492)) ([30e28b7](https://github.com/aws/language-servers/commit/30e28b75499b1a55da904697fd446a30c6a87665))
+* incorrect error reference in previous fix ([9fddc8e](https://github.com/aws/language-servers/commit/9fddc8e11f583dbf089f93979e1602d8c8795a16))
+* preserve registry server config when updating permissions ([#2515](https://github.com/aws/language-servers/issues/2515)) ([49ca3bb](https://github.com/aws/language-servers/commit/49ca3bbb6dbf9eac4b281aa80cd5ff30b94b3a7e))
+* resolve process crash when managing BID subscription ([#2501](https://github.com/aws/language-servers/issues/2501)) ([5d6590a](https://github.com/aws/language-servers/commit/5d6590a1d8c7aeb80b75036eb0e1b3802afe5c08))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.16 to ^0.0.17
+
+## [0.0.91](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.90...lsp-codewhisperer/v0.0.91) (2025-11-18)
+
+
+### Bug Fixes
+
+* **amazonq:** handle large results ([#2497](https://github.com/aws/language-servers/issues/2497)) ([b3efa7c](https://github.com/aws/language-servers/commit/b3efa7cff0b23608dd0cca796c9c95a672c9321a))
+* resolve broken error handling in setPaidTierMode ([#2500](https://github.com/aws/language-servers/issues/2500)) ([8ccb067](https://github.com/aws/language-servers/commit/8ccb06768c4a386b0a4699d8b2e299f0aad110b1))
+
+## [0.0.90](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.89...lsp-codewhisperer/v0.0.90) (2025-11-13)
+
+
+### Bug Fixes
+
+* bearer client will not pick up telemetry optout and its always optout ([#2484](https://github.com/aws/language-servers/issues/2484)) ([ec6771f](https://github.com/aws/language-servers/commit/ec6771fc5dc162f9c65df4e979dcfc3ae4838f06))
+
+## [0.0.89](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.88...lsp-codewhisperer/v0.0.89) (2025-11-12)
+
+
+### Features
+
+* ab test setup for new repomap strategy ([#2474](https://github.com/aws/language-servers/issues/2474)) ([d28867f](https://github.com/aws/language-servers/commit/d28867f2a5e06693b83d0cfd0286f017cdc5e5b3))
+* differentiate implicit and explicit reject for inline completion ([#2475](https://github.com/aws/language-servers/issues/2475)) ([4b68eea](https://github.com/aws/language-servers/commit/4b68eea03374db79b8ad728aa048b623de8efa91))
+
+
+### Bug Fixes
+
+* McpManager not initialized error ([#2479](https://github.com/aws/language-servers/issues/2479)) ([7e2707b](https://github.com/aws/language-servers/commit/7e2707b8c2b4467aae1fe1c77bb419043e193ddc))
+
 ## [0.0.88](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.87...lsp-codewhisperer/v0.0.88) (2025-10-28)
 
 

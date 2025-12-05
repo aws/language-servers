@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.18](https://github.com/aws/language-servers/compare/lsp-core/v0.0.17...lsp-core/v0.0.18) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+## [0.0.17](https://github.com/aws/language-servers/compare/lsp-core/v0.0.16...lsp-core/v0.0.17) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
 ## [0.0.16](https://github.com/aws/language-servers/compare/lsp-core/v0.0.15...lsp-core/v0.0.16) (2025-10-01)
 
 
