@@ -623,7 +623,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     rightContextLength: ${tokenRequest.fileContext?.rightFileContent?.length},
     "language": ${tokenRequest.fileContext?.programmingLanguage?.languageName},
     "supplementalContextCount": ${tokenRequest.supplementalContexts?.length ?? 0},
-    "request.nextToken": ${tokenRequest.nextToken}\n`
+    "request.nextToken": ${tokenRequest.nextToken},\n`
             // "recentEdits": ${recentEditsLogStr}\n`
 
             const response = await this.client.send(new GenerateCompletionsCommand(this.withProfileArn(tokenRequest)))
