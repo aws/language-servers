@@ -37,6 +37,7 @@ import {
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
     WEB_SEARCH,
+    WEB_FETCH,
 } from './constants/toolConstants'
 import {
     SendMessageCommandInput,
@@ -238,6 +239,7 @@ import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
 import { MemoryBankController } from './context/memorybank/memoryBankController'
 import { WebSearch } from './tools/webSearch'
+import { WebFetch } from './tools/webFetch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -2044,6 +2046,28 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         break
                     }
+                    case WEB_FETCH: {
+                        const webFetchCard = WebFetch.getToolConfirmationMessage(toolUse)
+                        cachedButtonBlockId = await chatResultStream.writeResultBlock(webFetchCard)
+                        // Store the blockId in the session for later use
+                        if (toolUse.toolUseId) {
+                            const toolUseWithBlockId = {
+                                ...toolUse,
+                                cachedButtonBlockId,
+                            } as typeof toolUse & { cachedButtonBlockId: number }
+                            session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                        }
+
+                        await this.waitForToolApproval(
+                            toolUse,
+                            chatResultStream,
+                            cachedButtonBlockId,
+                            session,
+                            toolUse.name
+                        )
+
+                        break
+                    }
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
@@ -2292,6 +2316,9 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case WEB_SEARCH:
                         await this.#handleWebSearchToolResult(toolUse, result, session, chatResultStream)
+                        break
+                    case WEB_FETCH:
+                        await this.#handleWebFetchToolResult(toolUse, result, session, chatResultStream)
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -2788,6 +2815,9 @@ export class AgenticChatController implements ChatHandlers {
 
             case WEB_SEARCH:
                 return WebSearch.getToolConfirmationResultMessage(toolUse, isAccept)
+
+            case WEB_FETCH:
+                return WebFetch.getToolConfirmationResultMessage(toolUse, isAccept)
 
             default:
                 // Default tool (not only MCP)
@@ -4958,6 +4988,31 @@ export class AgenticChatController implements ChatHandlers {
         }
         const toolResultCard = WebSearch.getToolResultMessage(toolUse, result)
 
+        // Get the stored blockId for this tool use
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+        const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+        if (cachedButtonBlockId !== undefined) {
+            // Update the existing card with the results
+            await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+        } else {
+            // Fallback to creating a new card
+            this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+            await chatResultStream.writeResultBlock(toolResultCard)
+        }
+    }
+
+    async #handleWebFetchToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ) {
+        // Early return if toolUseId is undefined
+        if (!toolUse.toolUseId) {
+            this.#log(`Cannot handle web fetch tool result: missing toolUseId`)
+            return
+        }
+        const toolResultCard = WebFetch.getToolResultMessage(toolUse, result)
         // Get the stored blockId for this tool use
         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
         const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
