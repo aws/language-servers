@@ -30,7 +30,7 @@ import path = require('path')
 import AdmZip = require('adm-zip')
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
-const workspaceFolderName = 'artifactWorkspace'
+import { Utils, workspaceFolderName } from './utils'
 
 export class TransformHandler {
     private serviceManager: AmazonQTokenServiceManager
@@ -58,7 +58,7 @@ export class TransformHandler {
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
-            this.getWorkspacePath(userInputrequest.SolutionRootPath),
+            Utils.getWorkspacePath(userInputrequest.SolutionRootPath),
             userInputrequest.SolutionRootPath
         )
         try {
@@ -229,11 +229,11 @@ export class TransformHandler {
                     throw e
                 }
 
-                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
+                const expDelayMs = Utils.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
                 this.logging.log(
                     `Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(expDelayMs * 1000)
+                await Utils.sleep(expDelayMs * 1000)
             }
         }
     }
@@ -277,17 +277,13 @@ export class TransformHandler {
                     } as CancelTransformResponse
                 }
 
-                const expDelayMs = this.getExpDelayForApiRetryMs(cancelTransformationAttempt)
+                const expDelayMs = Utils.getExpDelayForApiRetryMs(cancelTransformationAttempt)
                 this.logging.log(
                     `Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(expDelayMs * 1000)
+                await Utils.sleep(expDelayMs * 1000)
             }
         }
-    }
-
-    async sleep(duration = 0): Promise<void> {
-        return new Promise(r => setTimeout(r, Math.max(duration, 0)))
     }
 
     async pollTransformation(request: GetTransformRequest, validExitStatus: string[], failureStates: string[]) {
@@ -332,7 +328,7 @@ export class TransformHandler {
                 }
 
                 status = response.transformationJob?.status!
-                await this.sleep(10 * 1000)
+                await Utils.sleep(10 * 1000)
                 timer += 10
 
                 if (timer > 24 * 3600 * 1000) {
@@ -351,11 +347,11 @@ export class TransformHandler {
                     break
                 }
 
-                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformAttempt)
+                const expDelayMs = Utils.getExpDelayForApiRetryMs(getTransformAttempt)
                 this.logging.log(
                     `Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(expDelayMs * 1000)
+                await Utils.sleep(expDelayMs * 1000)
             }
         }
         this.logging.log('Returning response from server : ' + JSON.stringify(response))
@@ -432,7 +428,7 @@ export class TransformHandler {
         try {
             const tempDir = path.join(saveToDir, exportId)
             const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
-            await this.directoryExists(tempDir)
+            await Utils.directoryExists(tempDir)
             await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
             let pathContainingArchive = ''
             pathContainingArchive = path.dirname(pathToArchive)
@@ -444,32 +440,6 @@ export class TransformHandler {
             this.logging.log(`error received ${JSON.stringify(error)}`)
             return ''
         }
-    }
-
-    async directoryExists(directoryPath: any) {
-        try {
-            await fs.accessSync(directoryPath)
-        } catch (error) {
-            // Directory doesn't exist, create it
-            this.logging.log(`Directory doesn't exist, creating it ${directoryPath}`)
-            await fs.mkdirSync(directoryPath, { recursive: true })
-        }
-    }
-
-    getWorkspacePath(solutionRootPath: string): string {
-        const randomPath = uuidv4().substring(0, 8)
-        const workspacePath = path.join(solutionRootPath, workspaceFolderName, randomPath)
-        if (!fs.existsSync(workspacePath)) {
-            fs.mkdirSync(workspacePath, { recursive: true })
-        }
-        return workspacePath
-    }
-
-    getExpDelayForApiRetryMs(attempt: number): number {
-        const exponentialDelayFactor = 2
-        const exponentialDelay = 10 * Math.pow(exponentialDelayFactor, attempt)
-        const jitteredDelay = Math.floor(Math.random() * 10)
-        return exponentialDelay + jitteredDelay // returns in milliseconds
     }
 
     logSuggestionForFailureResponse(
