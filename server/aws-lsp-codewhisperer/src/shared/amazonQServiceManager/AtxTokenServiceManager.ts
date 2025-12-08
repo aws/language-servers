@@ -18,7 +18,6 @@ export class AtxTokenServiceManager {
     private static instance: AtxTokenServiceManager | null = null
     private features: QServiceManagerFeatures
     private cacheCallbacks: (() => void)[] = []
-    private cachedApplicationUrl: string | null = null
     private activeProfileArn: string | null = null
     private cachedTransformProfiles: any[] = []
     private activeApplicationUrl: string | null = null
@@ -84,6 +83,9 @@ export class AtxTokenServiceManager {
 
             // Handle ATX profile change directly
             await this.handleAtxProfileChange(profileArn, token)
+
+            // Clears Transform Handler gumby client since profile changed
+            this.cacheCallbacks.forEach(callback => callback())
         }
     }
 
@@ -328,7 +330,6 @@ export class AtxTokenServiceManager {
     }
 
     private clearAllCaches(): void {
-        this.cachedApplicationUrl = null
         this.activeProfileArn = null
         this.activeApplicationUrl = null
         // Don't clear cachedTransformProfiles - they should persist
