@@ -401,5 +401,91 @@ describe('WebSearch Tool', () => {
                 'Should produce correctly escaped markdown link'
             )
         })
+
+        it('filters out invalid URLs from search results', () => {
+            const toolUse = createToolUse('test query')
+            const result = {
+                content: [
+                    {
+                        text: JSON.stringify({
+                            results: [
+                                {
+                                    title: 'Valid Result',
+                                    url: 'https://example.com',
+                                    snippet: 'Valid snippet',
+                                    publishedDate: null,
+                                    id: '1',
+                                    domain: 'example.com',
+                                    maxVerbatimWordLimit: 100,
+                                    publicDomain: true,
+                                },
+                                {
+                                    title: 'Invalid Result',
+                                    url: 'not-a-valid-url',
+                                    snippet: 'Invalid snippet',
+                                    publishedDate: null,
+                                    id: '2',
+                                    domain: 'invalid.com',
+                                    maxVerbatimWordLimit: 100,
+                                    publicDomain: true,
+                                },
+                            ],
+                            totalResults: 2,
+                            query: 'test query',
+                            error: null,
+                        }),
+                    },
+                ],
+                isError: false,
+            }
+
+            const chatResult = WebSearch.getToolResultMessage(toolUse, result)
+
+            assert.strictEqual(chatResult.summary?.collapsedContent?.length, 1)
+            assert.ok(chatResult.summary?.collapsedContent?.[0].body?.includes('Valid Result'))
+            assert.ok(chatResult.summary?.collapsedContent?.[0].body?.includes('https://example.com'))
+        })
+
+        it('handles all invalid URLs', () => {
+            const toolUse = createToolUse('test query')
+            const result = {
+                content: [
+                    {
+                        text: JSON.stringify({
+                            results: [
+                                {
+                                    title: 'Invalid Result 1',
+                                    url: 'invalid-url-1',
+                                    snippet: 'Snippet 1',
+                                    publishedDate: null,
+                                    id: '1',
+                                    domain: 'test.com',
+                                    maxVerbatimWordLimit: 100,
+                                    publicDomain: true,
+                                },
+                                {
+                                    title: 'Invalid Result 2',
+                                    url: 'also-invalid',
+                                    snippet: 'Snippet 2',
+                                    publishedDate: null,
+                                    id: '2',
+                                    domain: 'test2.com',
+                                    maxVerbatimWordLimit: 100,
+                                    publicDomain: true,
+                                },
+                            ],
+                            totalResults: 2,
+                            query: 'test query',
+                            error: null,
+                        }),
+                    },
+                ],
+                isError: false,
+            }
+
+            const chatResult = WebSearch.getToolResultMessage(toolUse, result)
+
+            assert.strictEqual(chatResult.summary?.collapsedContent?.length, 0)
+        })
     })
 })
