@@ -329,6 +329,45 @@ describe('Chat Session Service', () => {
         })
     })
 
+    describe('setModel encapsulation', () => {
+        let chatSessionService: ChatSessionService
+
+        beforeEach(() => {
+            chatSessionService = new ChatSessionService()
+        })
+
+        it('should initialize with undefined modelId and default token limits', () => {
+            assert.strictEqual(chatSessionService.modelId, undefined)
+            assert.strictEqual(chatSessionService.tokenLimits.maxInputTokens, 200_000)
+        })
+
+        it('should set modelId and calculate token limits together', () => {
+            const models = [
+                { id: 'model-1', name: 'Model 1', description: 'Test', tokenLimits: { maxInputTokens: 300_000 } },
+            ]
+
+            chatSessionService.setModel('model-1', models)
+
+            assert.strictEqual(chatSessionService.modelId, 'model-1')
+            assert.strictEqual(chatSessionService.tokenLimits.maxInputTokens, 300_000)
+            assert.strictEqual(chatSessionService.tokenLimits.maxOverallCharacters, Math.floor(300_000 * 3.5))
+        })
+
+        it('should use default token limits when model not found in list', () => {
+            chatSessionService.setModel('unknown-model', [])
+
+            assert.strictEqual(chatSessionService.modelId, 'unknown-model')
+            assert.strictEqual(chatSessionService.tokenLimits.maxInputTokens, 200_000)
+        })
+
+        it('should use default token limits when models list is undefined', () => {
+            chatSessionService.setModel('some-model', undefined)
+
+            assert.strictEqual(chatSessionService.modelId, 'some-model')
+            assert.strictEqual(chatSessionService.tokenLimits.maxInputTokens, 200_000)
+        })
+    })
+
     describe('IAM client source property', () => {
         it('sets source to Origin.IDE when using StreamingClientServiceIAM', async () => {
             const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
