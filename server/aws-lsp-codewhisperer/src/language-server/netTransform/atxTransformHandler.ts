@@ -41,7 +41,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
 import { TransformationPlan } from '@amzn/codewhisperer-runtime'
 
-export const ArtifactWorkspaceName = 'artifactWorkspace'
+import { Utils, workspaceFolderName } from './utils'
+
 /**
  * ATX Transform Handler - Business logic for ATX FES Transform operations
  * Parallel to RTS TransformHandler but uses AtxTokenServiceManager and ATX FES APIs
@@ -374,18 +375,6 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Calculate SHA256 hash of file contents using streaming (matches reference repo)
-     */
-    static async getSha256Async(fileName: string): Promise<string> {
-        const hasher = crypto.createHash('sha256')
-        const stream = fs.createReadStream(fileName)
-        for await (const chunk of stream) {
-            hasher.update(chunk)
-        }
-        return hasher.digest('base64')
-    }
-
-    /**
      * Create artifact upload URL
      */
     async createArtifactUploadUrl(
@@ -404,7 +393,7 @@ export class ATXTransformHandler {
             }
 
             // Calculate file checksum - exact reference repo implementation
-            const sha256 = await ATXTransformHandler.getSha256Async(filePath)
+            const sha256 = await Utils.getSha256Async(filePath)
 
             const command = new CreateArtifactUploadUrlCommand({
                 workspaceId: workspaceId,
@@ -507,7 +496,7 @@ export class ATXTransformHandler {
         try {
             this.logging.log('ATX: Starting ZIP file creation from solution')
 
-            const workspacePath = this.getWorkspacePath(request.SolutionRootPath)
+            const workspacePath = Utils.getWorkspacePath(request.SolutionRootPath)
 
             const artifactManager = new ArtifactManager(
                 this.workspace,
@@ -522,63 +511,6 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: createZip error: ${String(error)}`)
             throw error
-        }
-    }
-
-    /**
-     * Create workspace path like RTS does: {solutionRoot}/artifactWorkspace/{uuid}
-     */
-    getWorkspacePath(solutionRootPath: string): string {
-        const { v4: uuidv4 } = require('uuid')
-        const randomPath = uuidv4().substring(0, 8)
-        const path = require('path')
-        const workspacePath = path.join(solutionRootPath, 'artifactWorkspace', randomPath)
-        if (!fs.existsSync(workspacePath)) {
-            fs.mkdirSync(workspacePath, { recursive: true })
-        }
-        return workspacePath
-    }
-
-    /**
-     * Upload artifact to S3 using presigned URL and headers from ATX FES
-     */
-    async uploadArtifact(s3PreSignedUrl: string, filePath: string, requestHeaders?: any): Promise<boolean> {
-        try {
-            this.logging.log(`ATX: Starting S3 upload`)
-
-            const headers: any = {}
-
-            // Add required headers from ATX FES response
-            if (requestHeaders) {
-                Object.keys(requestHeaders).forEach(key => {
-                    const value = requestHeaders[key]
-                    // Handle array values (take first element)
-                    headers[key] = Array.isArray(value) ? value[0] : value
-                })
-            }
-
-            // Create file stream
-            const fileStream = fs.createReadStream(filePath)
-
-            // Upload to S3 using PUT request
-            const got = (await import('got')).default
-            const response = await got.put(s3PreSignedUrl, {
-                body: fileStream,
-                headers: headers,
-                timeout: { request: 300000 }, // 5 minutes timeout
-                retry: { limit: 0 },
-            })
-
-            if (response.statusCode === 200) {
-                this.logging.log('ATX: S3 upload completed successfully')
-                return true
-            } else {
-                this.logging.error(`ATX: S3 upload failed with status ${response.statusCode}`)
-                return false
-            }
-        } catch (error) {
-            this.logging.error(`ATX: S3 upload error: ${String(error)}`)
-            return false
         }
     }
 
@@ -627,10 +559,11 @@ export class ATXTransformHandler {
             }
 
             // Step 4: Upload ZIP file to S3
-            const uploadSuccess = await this.uploadArtifact(
+            const uploadSuccess = await Utils.uploadArtifact(
                 uploadResponse.uploadUrl,
                 zipFilePath,
-                uploadResponse.requestHeaders
+                uploadResponse.requestHeaders,
+                this.logging
             )
 
             if (!uploadSuccess) {
@@ -666,10 +599,6 @@ export class ATXTransformHandler {
             this.logging.error(`ATX: StartTransform workflow error: ${String(error)}`)
             return null
         }
-    }
-
-    async sleep(duration = 0): Promise<void> {
-        return new Promise(r => setTimeout(r, Math.max(duration, 0)))
     }
 
     async getJob(workspaceId: string, jobId: string): Promise<JobInfo | null> {
@@ -848,7 +777,7 @@ export class ATXTransformHandler {
                 } else if (jobStatus && jobStatus.status == 'CANCELLED') {
                     return 'Timeout occured during planning, proceeding with default plan....'
                 } else {
-                    await this.sleep(10 * 1000)
+                    await Utils.sleep(10 * 1000)
                     count++
                 }
             }
@@ -892,13 +821,14 @@ export class ATXTransformHandler {
                 throw new Error('Failed to get ATX FES download URL')
             }
 
-            const pathToDownload = path.join(solutionRootPath, ArtifactWorkspaceName, jobId)
+            const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId)
 
-            await this.downloadAndExtractArchive(
+            await Utils.downloadAndExtractArchive(
                 downloadInfo.s3PresignedUrl,
                 downloadInfo.requestHeaders,
                 pathToDownload,
-                'transformation-plan-download.zip'
+                'transformation-plan-download.zip',
+                this.logging
             )
 
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
@@ -1025,7 +955,7 @@ export class ATXTransformHandler {
 
         try {
             const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.zip')
-            await this.zipFile(request.PlanPath, pathToZip)
+            await Utils.zipFile(request.PlanPath, pathToZip)
 
             const uploadInfo = await this.createArtifactUploadUrl(
                 request.WorkspaceId,
@@ -1040,7 +970,12 @@ export class ATXTransformHandler {
                 return null
             }
 
-            const uploadSuccess = await this.uploadArtifact(uploadInfo.uploadUrl, pathToZip, uploadInfo.requestHeaders)
+            const uploadSuccess = await Utils.uploadArtifact(
+                uploadInfo.uploadUrl,
+                pathToZip,
+                uploadInfo.requestHeaders,
+                this.logging
+            )
 
             if (!uploadSuccess) {
                 throw new Error('Failed to upload ZIP file to S3')
@@ -1152,13 +1087,14 @@ export class ATXTransformHandler {
                 throw new Error('Failed to get ATX FES download URL')
             }
 
-            const pathToDownload = path.join(solutionRootPath, ArtifactWorkspaceName, jobId)
+            const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId)
 
-            await this.downloadAndExtractArchive(
+            await Utils.downloadAndExtractArchive(
                 downloadInfo.s3PresignedUrl,
                 downloadInfo.requestHeaders,
                 pathToDownload,
-                'ExportResultsArchive.zip'
+                'ExportResultsArchive.zip',
+                this.logging
             )
 
             this.logging.log(`ATX: Download final artifact completed successfully`)
@@ -1503,139 +1439,15 @@ export class ATXTransformHandler {
             const result = await this.atxClient!.send(command)
 
             this.logging.log(`ATX: ListWorklogs completed - Found ${result.worklogs?.length || 0} entries`)
-            result.worklogs?.forEach(async (value, index) => {
+            for (const value of result.worklogs || []) {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
-                await this.saveWorklogsToJson(jobId, currentStepId, value.description || '', solutionRootPath)
-            })
+                await Utils.saveWorklogsToJson(jobId, currentStepId, value.description || '', solutionRootPath)
+            }
 
             return result.worklogs || []
         } catch (error) {
             this.logging.error(`ATX: ListWorklogs error: ${String(error)}`)
             return null
         }
-    }
-
-    /**
-     * Saves worklogs to JSON file with stepId as key and description as value
-     */
-    private async saveWorklogsToJson(
-        jobId: string,
-        stepId: string | null,
-        description: string,
-        solutionRootPath: string
-    ): Promise<void> {
-        try {
-            const worklogDir = path.join(solutionRootPath, ArtifactWorkspaceName, jobId)
-            const worklogPath = path.join(worklogDir, 'worklogs.json')
-
-            await this.directoryExists(worklogDir)
-
-            let worklogData: Record<string, string[]> = {}
-
-            // Read existing worklog if it exists
-            if (fs.existsSync(worklogPath)) {
-                const existingData = fs.readFileSync(worklogPath, 'utf8')
-                worklogData = JSON.parse(existingData)
-            }
-
-            if (stepId == null) {
-                stepId = 'Progress'
-            }
-
-            // Initialize array if stepId doesn't exist
-            if (!worklogData[stepId]) {
-                worklogData[stepId] = []
-            }
-
-            // Add description if not already present
-            if (!worklogData[stepId].includes(description)) {
-                worklogData[stepId].push(description)
-            }
-
-            // Write back to file
-            fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
-        } catch (error) {
-            this.logging.error(`Error saving worklog: ${String(error)}`)
-        }
-    }
-
-    async downloadAndExtractArchive(
-        downloadUrl: string,
-        requestHeaders: any,
-        saveToDir: string,
-        exportName: string
-    ): Promise<string> {
-        const response = await got.get(downloadUrl, {
-            headers: requestHeaders || {},
-            timeout: { request: 300000 }, // 5 minutes
-            responseType: 'buffer',
-        })
-
-        // Save, extract, and return paths
-        const buffer = [Buffer.from(response.body)]
-        return await this.extractArchiveFromBuffer(exportName, buffer, saveToDir)
-    }
-
-    /**
-     * Extracts ZIP archive from buffer using AdmZip
-     */
-    async extractArchiveFromBuffer(exportName: string, buffer: Uint8Array[], saveToDir: string): Promise<string> {
-        const pathToArchive = path.join(saveToDir, exportName)
-        await this.directoryExists(saveToDir)
-        await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
-
-        const pathContainingArchive = path.dirname(pathToArchive)
-        const zip = new AdmZip(pathToArchive)
-        const zipEntries = zip.getEntries()
-        await this.extractAllEntriesTo(pathContainingArchive, zipEntries)
-        return pathContainingArchive
-    }
-
-    async directoryExists(directoryPath: string): Promise<void> {
-        try {
-            await fs.promises.access(directoryPath)
-        } catch (error) {
-            this.logging.log(`Directory doesn't exist, creating it: ${directoryPath}`)
-            await fs.promises.mkdir(directoryPath, { recursive: true })
-        }
-    }
-
-    /**
-     * Extracts all ZIP entries to target directory
-     */
-    async extractAllEntriesTo(pathContainingArchive: string, zipEntries: AdmZip.IZipEntry[]): Promise<void> {
-        for (const entry of zipEntries) {
-            try {
-                const entryPath = path.join(pathContainingArchive, entry.entryName)
-                if (entry.isDirectory) {
-                    await fs.promises.mkdir(entryPath, { recursive: true })
-                } else {
-                    const parentDir = path.dirname(entryPath)
-                    await fs.promises.mkdir(parentDir, { recursive: true })
-                    await fs.promises.writeFile(entryPath, entry.getData())
-                }
-            } catch (extractError: any) {
-                if (extractError instanceof Error && 'code' in extractError && extractError.code === 'ENOENT') {
-                    this.logging.log(`Attempted to extract a file that does not exist: ${entry.entryName}`)
-                } else {
-                    throw extractError
-                }
-            }
-        }
-    }
-
-    private async zipFile(sourceFilePath: string, outputZipPath: string): Promise<void> {
-        const archive = archiver('zip', { zlib: { level: 9 } })
-        const stream = fs.createWriteStream(outputZipPath)
-
-        return new Promise<void>((resolve, reject) => {
-            archive
-                .file(sourceFilePath, { name: path.basename(sourceFilePath) })
-                .on('error', err => reject(err))
-                .pipe(stream)
-
-            stream.on('close', () => resolve())
-            void archive.finalize()
-        })
     }
 }
