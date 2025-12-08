@@ -19,7 +19,6 @@ import {
     ListJobPlanStepsCommand,
     ListWorklogsCommand,
     ListArtifactsCommand,
-    GetJobResponse,
     StartJobCommand,
     StopJobCommand,
     CategoryType,
@@ -28,18 +27,12 @@ import {
     SubmitCriticalHitlTaskResponse,
 } from '@amazon/elastic-gumby-frontend-client'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
-import {
-    DEFAULT_ATX_FES_ENDPOINT_URL,
-    DEFAULT_ATX_FES_REGION,
-    ATX_FES_REGION_ENV_VAR,
-    getAtxEndPointByRegion,
-} from '../../shared/constants'
+import { DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR, getAtxEndPointByRegion } from '../../shared/constants'
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListOrCreateWorkspaceResponse,
     AtxGetTransformInfoRequest,
     AtxGetTransformInfoResponse,
-    AtxJobStatus,
     AtxTransformationJob,
     AtxUploadPlanRequest,
     AtxUploadPlanResponse,
@@ -60,7 +53,6 @@ export class ATXTransformHandler {
     private logging: Logging
     private runtime: Runtime
     private atxClient: ElasticGumbyFrontendClient | null = null
-    private cachedApplicationUrl: string | null = null
     private cachedHitl: string | null = null
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
@@ -69,7 +61,7 @@ export class ATXTransformHandler {
         this.logging = logging
         this.runtime = runtime
 
-        this.serviceManager.registerCacheCallback(() => this.clearApplicationUrlCache())
+        this.serviceManager.registerCacheCallback(() => this.onProfileUpdate())
     }
 
     /**
@@ -77,76 +69,56 @@ export class ATXTransformHandler {
      */
     private async initializeAtxClient(): Promise<boolean> {
         try {
-            this.logging.log('DEBUG-ATX-INIT: Starting ATX client initialization')
+            this.logging.log('ATX: Starting client initialization')
 
             let region = process.env[ATX_FES_REGION_ENV_VAR]
-            this.logging.log(`DEBUG-ATX-INIT: Environment region: ${region || 'not set'}`)
 
             if (!region) {
                 // Try to get region from active profile
                 region = await this.getRegionFromProfile()
-                if (region) {
-                    this.logging.log(`DEBUG-ATX-INIT: Using region from active profile: ${region}`)
-                } else {
-                    this.logging.log('DEBUG-ATX-INIT: No region available - cannot initialize client without region')
-                    this.logging.log('DEBUG-ATX-INIT: Profile selection or multi-region discovery needed first')
+                if (!region) {
+                    this.logging.error('ATX: No region available - cannot initialize client')
                     return false
                 }
             }
 
             const endpoint = process.env.TCP_ENDPOINT || getAtxEndPointByRegion(region)
-            this.logging.log(`DEBUG-ATX-INIT: Using region-specific endpoint for ${region}: ${endpoint}`)
+            this.logging.log(`ATX: Using region ${region} with endpoint ${endpoint}`)
 
-            this.clearApplicationUrlCache()
-            this.logging.log('DEBUG-ATX-INIT: Cleared application URL cache')
-
-            this.logging.log('DEBUG-ATX-INIT: About to create ElasticGumbyFrontendClient')
             this.atxClient = new ElasticGumbyFrontendClient({
                 region: region,
                 endpoint: endpoint,
             })
-            this.logging.log('DEBUG-ATX-INIT: ElasticGumbyFrontendClient created successfully')
 
+            this.logging.log('ATX: Client initialization completed')
             return true
         } catch (error) {
-            const region = process.env[ATX_FES_REGION_ENV_VAR] || DEFAULT_ATX_FES_REGION
-            const endpoint = process.env.TCP_ENDPOINT || DEFAULT_ATX_FES_ENDPOINT_URL
-            this.logging.log(
-                `DEBUG-ATX-INIT: Failed to initialize with region: ${region}, endpoint: ${endpoint}. Error: ${error}`
-            )
+            this.logging.error(`ATX: Failed to initialize client: ${String(error)}`)
             return false
         }
     }
 
     private async getRegionFromProfile(): Promise<string | undefined> {
         try {
-            this.logging.log('DEBUG-ATX-REGION: Starting getRegionFromProfile()')
-
             if (!this.serviceManager.hasValidCredentials()) {
-                this.logging.log('DEBUG-ATX-REGION: No valid credentials, returning undefined')
                 return undefined
             }
-            this.logging.log('DEBUG-ATX-REGION: Valid credentials found')
 
             // Get active profile applicationURL and extract region from it
             const atxServiceManager = AtxTokenServiceManager.getInstance()
             const applicationUrl = atxServiceManager.getActiveApplicationUrl()
 
             if (applicationUrl) {
-                this.logging.log(`DEBUG-ATX-REGION: Found applicationURL: ${applicationUrl}`)
                 // Extract region from applicationURL: https://xxx.transform.REGION.on.aws
                 const urlMatch = applicationUrl.match(/\.transform(?:-gamma)?\.([^.]+)\.on\.aws/)
                 if (urlMatch && urlMatch[1]) {
-                    const region = urlMatch[1]
-                    this.logging.log(`DEBUG-ATX-REGION: Extracted region from applicationURL: ${region}`)
-                    return region
+                    return urlMatch[1]
                 }
             }
 
-            this.logging.log('DEBUG-ATX-REGION: No active applicationURL, using default region')
             return DEFAULT_ATX_FES_REGION
         } catch (error) {
-            this.logging.log(`DEBUG-ATX-REGION: Error in getRegionFromProfile: ${String(error)}`)
+            this.logging.error(`ATX: Error getting region from profile: ${String(error)}`)
             return undefined
         }
     }
@@ -192,37 +164,26 @@ export class ATXTransformHandler {
      */
     async getActiveTransformProfileApplicationUrl(): Promise<string | null> {
         try {
-            // Return cached URL if available (avoids expensive profile discovery)
-            if (this.cachedApplicationUrl) {
-                this.logging.log(`DEBUG-ATX-URL: Using cached applicationUrl: ${this.cachedApplicationUrl}`)
-                return this.cachedApplicationUrl
-            }
-
             // Get applicationUrl from service manager (cached from configuration)
             const applicationUrl = this.serviceManager.getActiveApplicationUrl()
 
             if (!applicationUrl) {
-                this.logging.error('DEBUG-ATX-URL: No applicationUrl found in service manager cache')
-                this.logging.error('DEBUG-ATX-URL: Profile not selected or not cached yet')
+                this.logging.error('ATX: No applicationUrl found - profile not selected')
                 return null
             }
 
-            this.logging.log(`DEBUG-ATX-URL: Using service manager applicationUrl: ${applicationUrl}`)
-
-            // Cache the applicationUrl for future use
-            this.cachedApplicationUrl = applicationUrl
             return applicationUrl
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-URL: Error getting applicationUrl: ${String(error)}`)
+            this.logging.error(`ATX: Error getting applicationUrl: ${String(error)}`)
             return null
         }
     }
 
     /**
-     * Clear cached applicationUrl (for token refresh scenarios)
+     * Reset atx client (for profile update scenarios)
      */
-    clearApplicationUrlCache(): void {
-        this.cachedApplicationUrl = null
+    onProfileUpdate(): void {
+        this.atxClient = null
     }
 
     /**
@@ -230,34 +191,18 @@ export class ATXTransformHandler {
      */
     private async verifySession(): Promise<boolean> {
         try {
-            this.logging.log('DEBUG-ATX: VerifySession operation started')
-
-            this.logging.log('DEBUG-ATX: About to call initializeAtxClient()')
             if (!(await this.initializeAtxClient())) {
-                this.logging.error('DEBUG-ATX: Failed to initialize client for verifySession')
+                this.logging.error('ATX: Failed to initialize client for session verification')
                 return false
             }
-            this.logging.log('DEBUG-ATX: initializeAtxClient() completed successfully')
 
-            // Log authentication details for debugging
-            this.logging.log('DEBUG-ATX: About to call getBearerToken()')
-            const bearerToken = await this.serviceManager.getBearerToken()
-            this.logging.log('DEBUG-ATX: getBearerToken() completed')
+            // Verify authentication details
+            await this.serviceManager.getBearerToken()
+            await this.getActiveTransformProfileApplicationUrl()
 
-            this.logging.log('DEBUG-ATX: About to call getActiveTransformProfileApplicationUrl()')
-            const applicationUrl = await this.getActiveTransformProfileApplicationUrl()
-            this.logging.log('DEBUG-ATX: getActiveTransformProfileApplicationUrl() completed')
-
-            this.logging.log(`DEBUG-ATX: VerifySession - applicationUrl: ${applicationUrl || 'null'}`)
-            this.logging.log(
-                `DEBUG-ATX: VerifySession - bearer token length: ${bearerToken ? bearerToken.length : 0} characters`
-            )
-
-            // Always return true like reference repo
-            this.logging.log(`DEBUG-ATX: VerifySession successful`)
             return true
         } catch (error) {
-            this.logging.error(`DEBUG-ATX: VerifySession error: ${String(error)}`)
+            this.logging.error(`ATX: Session verification error: ${String(error)}`)
             return false
         }
     }
@@ -267,7 +212,7 @@ export class ATXTransformHandler {
      */
     async listWorkspaces(): Promise<any[]> {
         try {
-            this.logging.log('DEBUG-ATX: ListWorkspaces operation started')
+            this.logging.log('ATX: Starting ListWorkspaces operation')
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 throw new Error('ATX FES client not initialized')
@@ -277,9 +222,8 @@ export class ATXTransformHandler {
             const command = new ListWorkspacesCommand({})
             await this.addAuthToCommand(command)
 
-            this.logging.log('DEBUG-ATX: Sending ListWorkspaces command to ATX FES')
             const response = await this.atxClient!.send(command)
-            this.logging.log(`DEBUG-ATX: ListWorkspaces API returned ${response.items?.length || 0} workspaces`)
+            this.logging.log(`ATX: ListWorkspaces completed - found ${response.items?.length || 0} workspaces`)
             this.logging.log(`ATX: ListWorkspaces RequestId: ${response.$metadata?.requestId}`)
 
             // Convert ATX API format to IDE expected format
@@ -289,10 +233,9 @@ export class ATXTransformHandler {
                 CreatedDate: new Date().toISOString(), // Use current date since createdDate not available
             }))
 
-            this.logging.log(`DEBUG-ATX: Converted workspaces: ${JSON.stringify(workspaces, null, 2)}`)
             return workspaces
         } catch (error) {
-            this.logging.error(`DEBUG-ATX: ListWorkspaces error: ${String(error)}`)
+            this.logging.error(`ATX: ListWorkspaces error: ${String(error)}`)
             return []
         }
     }
@@ -304,9 +247,7 @@ export class ATXTransformHandler {
         workspaceName: string | null
     ): Promise<{ workspaceId: string; workspaceName: string } | null> {
         try {
-            this.logging.log(
-                `DEBUG-ATX: CreateWorkspace operation started with name: ${workspaceName || 'auto-generated'}`
-            )
+            this.logging.log(`ATX: Starting CreateWorkspace with name: ${workspaceName || 'auto-generated'}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 throw new Error('ATX FES client not initialized')
@@ -319,9 +260,7 @@ export class ATXTransformHandler {
             })
             await this.addAuthToCommand(command)
 
-            this.logging.log('DEBUG-ATX: Sending CreateWorkspace command to ATX FES')
             const response = await this.atxClient!.send(command)
-            this.logging.log(`DEBUG-ATX: CreateWorkspace API returned workspaceId: ${response.workspace?.id}`)
             this.logging.log(`ATX: CreateWorkspace RequestId: ${response.$metadata?.requestId}`)
 
             if (response.workspace?.id && response.workspace?.name) {
@@ -329,14 +268,14 @@ export class ATXTransformHandler {
                     workspaceId: response.workspace.id,
                     workspaceName: response.workspace.name,
                 }
-                this.logging.log(`DEBUG-ATX: CreateWorkspace success: ${JSON.stringify(result)}`)
+                this.logging.log(`ATX: CreateWorkspace completed successfully: ${response.workspace.id}`)
                 return result
             }
 
-            this.logging.log('DEBUG-ATX: CreateWorkspace failed - no workspace in response')
+            this.logging.error('ATX: CreateWorkspace failed - no workspace in response')
             return null
         } catch (error) {
-            this.logging.error(`DEBUG-ATX: CreateWorkspace error: ${String(error)}`)
+            this.logging.error(`ATX: CreateWorkspace error: ${String(error)}`)
             return null
         }
     }
@@ -348,17 +287,15 @@ export class ATXTransformHandler {
         request: AtxListOrCreateWorkspaceRequest
     ): Promise<AtxListOrCreateWorkspaceResponse | null> {
         try {
-            this.logging.log('DEBUG-ATX: ListOrCreateWorkspace consolidated operation started')
-            this.logging.log(`DEBUG-ATX: Request: ${JSON.stringify(request, null, 2)}`)
+            this.logging.log('ATX: Starting ListOrCreateWorkspace operation')
 
             // Call verifySession ONCE at the beginning
             if (!(await this.verifySession())) {
-                this.logging.error('DEBUG-ATX: VerifySession failed for listOrCreateWorkspace')
+                this.logging.error('ATX: Session verification failed for listOrCreateWorkspace')
                 return null
             }
 
             // Always get list of existing workspaces
-            this.logging.log('DEBUG-ATX: Getting list of existing workspaces')
             const workspaces = await this.listWorkspaces()
 
             const response: AtxListOrCreateWorkspaceResponse = {
@@ -368,9 +305,6 @@ export class ATXTransformHandler {
 
             // Optionally create new workspace
             if (request.CreateWorkspaceName !== undefined) {
-                this.logging.log(
-                    `DEBUG-ATX: Creating new workspace: ${request.CreateWorkspaceName || 'auto-generated'}`
-                )
                 const newWorkspace = await this.createWorkspace(request.CreateWorkspaceName)
 
                 if (newWorkspace) {
@@ -385,17 +319,15 @@ export class ATXTransformHandler {
                         Name: newWorkspace.workspaceName,
                         CreatedDate: new Date().toISOString(),
                     })
-                    this.logging.log(`DEBUG-ATX: Added new workspace to available list`)
                 }
             }
 
             this.logging.log(
-                `DEBUG-ATX: ListOrCreateWorkspace completed - ${response.AvailableWorkspaces.length} workspaces available`
+                `ATX: ListOrCreateWorkspace completed - ${response.AvailableWorkspaces.length} workspaces available`
             )
-            this.logging.log(`DEBUG-ATX: Final response: ${JSON.stringify(response, null, 2)}`)
             return response
         } catch (error) {
-            this.logging.error(`DEBUG-ATX: ListOrCreateWorkspace error: ${String(error)}`)
+            this.logging.error(`ATX: ListOrCreateWorkspace error: ${String(error)}`)
             return null
         }
     }
@@ -409,20 +341,13 @@ export class ATXTransformHandler {
         targetFramework?: string
     }): Promise<{ jobId: string; status: string } | null> {
         try {
-            this.logging.log(`DEBUG-ATX-CREATE-JOB: CreateJob operation started for workspace: ${request.workspaceId}`)
-            this.logging.log(`DEBUG-ATX-CREATE-JOB: jobName: ${request.jobName || 'auto-generated'}`)
+            this.logging.log(`ATX: Starting CreateJob for workspace: ${request.workspaceId}`)
 
             // Call ATX FES createJob API
-            this.logging.log('DEBUG-ATX-CREATE-JOB: initializing ATX client...')
-            await this.initializeAtxClient()
-            if (!this.atxClient) {
-                throw new Error('ATX client not initialized')
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
             }
-            this.logging.log('DEBUG-ATX-CREATE-JOB: ATX client initialized successfully')
 
-            this.logging.log(
-                `DEBUG-ATX-CREATE-JOB: creating CreateJobCommand with targetFramework ${request.targetFramework}`
-            )
             const command = new CreateJobCommand({
                 workspaceId: request.workspaceId,
                 objective: JSON.stringify({ target_framework: request.targetFramework || 'net10.0' }),
@@ -431,23 +356,20 @@ export class ATXTransformHandler {
                 intent: 'LANGUAGE_UPGRADE',
                 idempotencyToken: uuidv4(),
             })
-            this.logging.log('DEBUG-ATX-CREATE-JOB: command created, adding auth...')
 
             await this.addAuthToCommand(command)
-            this.logging.log('DEBUG-ATX-CREATE-JOB: auth added, sending command...')
-
-            const response = (await this.atxClient.send(command)) as any
-            this.logging.log(`DEBUG-ATX-CREATE-JOB: API returned jobId: ${response.jobId}, status: ${response.status}`)
+            const response = (await this.atxClient!.send(command)) as any
+            this.logging.log(`ATX: CreateJob completed - jobId: ${response.jobId}, status: ${response.status}`)
             this.logging.log(`ATX: CreateJob RequestId: ${response.$metadata?.requestId}`)
 
             if (response.jobId && response.status) {
                 return { jobId: response.jobId, status: response.status }
             }
 
-            this.logging.error('DEBUG-ATX-CREATE-JOB: API returned null jobId or status')
+            this.logging.error('ATX: CreateJob failed - no jobId or status in response')
             return null
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-CREATE-JOB: Error: ${String(error)}`)
+            this.logging.error(`ATX: CreateJob error: ${String(error)}`)
             return null
         }
     }
@@ -463,12 +385,11 @@ export class ATXTransformHandler {
         fileType: FileType
     ): Promise<{ uploadId: string; uploadUrl: string; requestHeaders?: any } | null> {
         try {
-            this.logging.log(`DEBUG-ATX-UPLOAD-URL: CreateArtifactUploadUrl operation started for job: ${jobId}`)
+            this.logging.log(`ATX: Starting CreateArtifactUploadUrl for job: ${jobId}`)
 
             // Initialize ATX client
-            await this.initializeAtxClient()
-            if (!this.atxClient) {
-                throw new Error('ATX client not initialized')
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
             }
 
             // Calculate file checksum - exact reference repo implementation
@@ -487,22 +408,22 @@ export class ATXTransformHandler {
             })
 
             await this.addAuthToCommand(command)
-            const result = (await this.atxClient.send(command)) as any
+            const result = (await this.atxClient!.send(command)) as any
             this.logging.log(`ATX: CreateArtifactUploadUrl RequestId: ${result.$metadata?.requestId}`)
 
             if (result && result.artifactId && result.s3PreSignedUrl) {
-                this.logging.log(`DEBUG-ATX-UPLOAD-URL: SUCCESS - Upload URL created`)
+                this.logging.log(`ATX: CreateArtifactUploadUrl completed successfully`)
                 return {
                     uploadId: result.artifactId,
                     uploadUrl: result.s3PreSignedUrl,
                     requestHeaders: result.requestHeaders,
                 }
             } else {
-                this.logging.error('DEBUG-ATX-UPLOAD-URL: Missing artifactId or s3PreSignedUrl in response')
+                this.logging.error('ATX: CreateArtifactUploadUrl failed - missing artifactId or s3PreSignedUrl')
                 return null
             }
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-UPLOAD-URL: Error: ${String(error)}`)
+            this.logging.error(`ATX: CreateArtifactUploadUrl error: ${String(error)}`)
             return null
         }
     }
@@ -516,16 +437,12 @@ export class ATXTransformHandler {
         artifactId: string
     ): Promise<{ success: boolean } | null> {
         try {
-            this.logging.log(
-                `DEBUG-ATX-COMPLETE-UPLOAD: CompleteArtifactUpload operation started for artifact: ${artifactId}`
-            )
+            this.logging.log(`ATX: Starting CompleteArtifactUpload for artifact: ${artifactId}`)
 
             // Initialize ATX client
-            await this.initializeAtxClient()
-            if (!this.atxClient) {
-                throw new Error('ATX client not initialized')
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
             }
-
             const command = new CompleteArtifactUploadCommand({
                 workspaceId: workspaceId,
                 jobId: jobId,
@@ -533,12 +450,12 @@ export class ATXTransformHandler {
             })
 
             await this.addAuthToCommand(command)
-            const result = (await this.atxClient.send(command)) as any
+            const result = (await this.atxClient!.send(command)) as any
 
-            this.logging.log(`DEBUG-ATX-COMPLETE-UPLOAD: Upload completed successfully`)
+            this.logging.log(`ATX: CompleteArtifactUpload completed successfully`)
             return { success: true }
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-COMPLETE-UPLOAD: Error: ${String(error)}`)
+            this.logging.error(`ATX: CompleteArtifactUpload error: ${String(error)}`)
             return null
         }
     }
@@ -548,12 +465,11 @@ export class ATXTransformHandler {
      */
     async startJob(workspaceId: string, jobId: string): Promise<{ success: boolean } | null> {
         try {
-            this.logging.log(`DEBUG-ATX-START-JOB: StartJob operation started for job: ${jobId}`)
+            this.logging.log(`ATX: Starting job: ${jobId}`)
 
             // Initialize ATX client
-            await this.initializeAtxClient()
-            if (!this.atxClient) {
-                throw new Error('ATX client not initialized')
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
             }
 
             const command = new StartJobCommand({
@@ -562,13 +478,13 @@ export class ATXTransformHandler {
             })
 
             await this.addAuthToCommand(command)
-            const result = (await this.atxClient.send(command)) as any
+            const result = (await this.atxClient!.send(command)) as any
             this.logging.log(`ATX: StartJob RequestId: ${result.$metadata?.requestId}`)
 
-            this.logging.log(`DEBUG-ATX-START-JOB: Job started successfully`)
+            this.logging.log(`ATX: Job started successfully`)
             return { success: true }
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-START-JOB: Error: ${String(error)}`)
+            this.logging.error(`ATX: StartJob error: ${String(error)}`)
             return null
         }
     }
@@ -578,7 +494,7 @@ export class ATXTransformHandler {
      */
     async createZip(request: any): Promise<string> {
         try {
-            this.logging.log('DEBUG-ATX: Creating ZIP file from solution')
+            this.logging.log('ATX: Starting ZIP file creation from solution')
 
             const workspacePath = Utils.getWorkspacePath(request.SolutionRootPath)
 
@@ -590,10 +506,10 @@ export class ATXTransformHandler {
             )
 
             const zipFilePath = await artifactManager.createZip(request)
-            this.logging.log(`DEBUG-ATX: ZIP file created successfully: ${zipFilePath}`)
+            this.logging.log(`ATX: ZIP file created successfully: ${zipFilePath}`)
             return zipFilePath
         } catch (error) {
-            this.logging.error(`DEBUG-ATX: createZip error: ${String(error)}`)
+            this.logging.error(`ATX: createZip error: ${String(error)}`)
             throw error
         }
     }
@@ -609,10 +525,9 @@ export class ATXTransformHandler {
         startTransformRequest: object
     }): Promise<{ TransformationJobId: string; ArtifactPath: string; UploadId: string } | null> {
         try {
-            this.logging.log(`DEBUG-ATX-START: StartTransform workflow started for workspace: ${request.workspaceId}`)
+            this.logging.log(`ATX: Starting transform workflow for workspace: ${request.workspaceId}`)
 
             // Step 1: Create transformation job
-            this.logging.log('DEBUG-ATX-START: Step 1 - Creating transformation job')
             const createJobResponse = await this.createJob({
                 workspaceId: request.workspaceId,
                 jobName: request.jobName || 'Transform Job',
@@ -623,22 +538,14 @@ export class ATXTransformHandler {
                 throw new Error('Failed to create ATX transformation job')
             }
 
-            this.logging.log(
-                `DEBUG-ATX-START: Step 1 - Created job: ${createJobResponse.jobId} with status: ${createJobResponse.status}`
-            )
-
             // Step 2: Create ZIP file
-            this.logging.log('DEBUG-ATX-START: Step 2 - Creating ZIP file from solution')
             const zipFilePath = await this.createZip(request.startTransformRequest)
 
             if (!zipFilePath) {
                 throw new Error('Failed to create ZIP file for ATX transformation')
             }
 
-            this.logging.log(`DEBUG-ATX-START: Step 2 - Created ZIP file: ${zipFilePath}`)
-
             // Step 3: Create artifact upload URL
-            this.logging.log('DEBUG-ATX-START: Step 3 - Creating artifact upload URL')
             const uploadResponse = await this.createArtifactUploadUrl(
                 request.workspaceId,
                 createJobResponse.jobId,
@@ -651,10 +558,7 @@ export class ATXTransformHandler {
                 throw new Error('Failed to create artifact upload URL')
             }
 
-            this.logging.log(`DEBUG-ATX-START: Step 3 - Created upload URL with uploadId: ${uploadResponse.uploadId}`)
-
             // Step 4: Upload ZIP file to S3
-            this.logging.log('DEBUG-ATX-START: Step 4 - Uploading ZIP file to S3')
             const uploadSuccess = await Utils.uploadArtifact(
                 uploadResponse.uploadUrl,
                 zipFilePath,
@@ -666,10 +570,7 @@ export class ATXTransformHandler {
                 throw new Error('Failed to upload ZIP file to S3')
             }
 
-            this.logging.log('DEBUG-ATX-START: Step 4 - Successfully uploaded ZIP file to S3')
-
             // Step 5: Complete artifact upload
-            this.logging.log('DEBUG-ATX-START: Step 5 - Completing artifact upload')
             const completeResponse = await this.completeArtifactUpload(
                 request.workspaceId,
                 createJobResponse.jobId,
@@ -680,18 +581,14 @@ export class ATXTransformHandler {
                 throw new Error('Failed to complete artifact upload')
             }
 
-            this.logging.log('DEBUG-ATX-START: Step 5 - Successfully completed artifact upload')
-
             // Step 6: Start the transformation job
-            this.logging.log('DEBUG-ATX-START: Step 6 - Starting transformation job')
             const startJobResponse = await this.startJob(request.workspaceId, createJobResponse.jobId)
 
             if (!startJobResponse?.success) {
                 throw new Error('Failed to start ATX transformation job')
             }
 
-            this.logging.log('DEBUG-ATX-START: Step 6 - Successfully started transformation job')
-            this.logging.log('DEBUG-ATX-START: Full workflow completed successfully!')
+            this.logging.log('ATX: Transform workflow completed successfully')
 
             return {
                 TransformationJobId: createJobResponse.jobId,
@@ -699,14 +596,14 @@ export class ATXTransformHandler {
                 UploadId: uploadResponse.uploadId,
             }
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-START: StartTransform workflow error: ${String(error)}`)
+            this.logging.error(`ATX: StartTransform workflow error: ${String(error)}`)
             return null
         }
     }
 
     async getJob(workspaceId: string, jobId: string): Promise<JobInfo | null> {
         try {
-            this.logging.log(`Getting job: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Getting job: ${jobId} in workspace: ${workspaceId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 this.logging.error('ATX: GetJob client not initialized')
@@ -722,7 +619,7 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const response = await this.atxClient!.send(command)
 
-            this.logging.log(`ATX: GetJob SUCCESS - Job status: ${response.job?.statusDetails?.status}`)
+            this.logging.log(`ATX: GetJob completed - Job status: ${response.job?.statusDetails?.status}`)
             return response.job || null
         } catch (error) {
             this.logging.error(`ATX: GetJob error: ${String(error)}`)
@@ -736,7 +633,7 @@ export class ATXTransformHandler {
         artifactId: string
     ): Promise<{ s3PresignedUrl: string; requestHeaders?: any } | null> {
         try {
-            this.logging.log(`DEBUG-ATX-UPLOAD-URL: CreateArtifactDownloadUrl operation started for job: ${jobId}`)
+            this.logging.log(`ATX: Starting CreateArtifactDownloadUrl for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 throw new Error('ATX client not initialized')
@@ -751,7 +648,7 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = (await this.atxClient!.send(command)) as any
             if (result && result.s3PreSignedUrl) {
-                this.logging.log(`ATX: DownloadArtifactUrl SUCCESS - Download URL created`)
+                this.logging.log(`ATX: CreateArtifactDownloadUrl completed successfully`)
 
                 const normalizedHeaders: Record<string, string> = {}
                 if (result.requestHeaders) {
@@ -765,22 +662,21 @@ export class ATXTransformHandler {
                     requestHeaders: normalizedHeaders,
                 }
             } else {
-                this.logging.error('ATX: DownloadArtifactUrl - Missing s3PreSignedUrl in response')
+                this.logging.error('ATX: CreateArtifactDownloadUrl failed - missing s3PreSignedUrl')
                 return null
             }
         } catch (error) {
-            this.logging.error(`DEBUG-ATX-UPLOAD-URL: Error: ${String(error)}`)
+            this.logging.error(`ATX: CreateArtifactDownloadUrl error: ${String(error)}`)
             return null
         }
     }
 
     async listHitls(workspaceId: string, jobId: string): Promise<any[] | null> {
         try {
-            this.logging.log('=== ATX FES ListHitls Operation (FES Client) ===')
-            this.logging.log(`Listing Hitls for job: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Starting ListHitls for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('ListHitls: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for ListHitls')
                 return null
             }
 
@@ -796,10 +692,10 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(`ListHitls: SUCCESS - Found ${result.hitlTasks?.length || 0} HITL_FROM_USER artifacts`)
+            this.logging.log(`ATX: ListHitls completed - Found ${result.hitlTasks?.length || 0} tasks`)
             return result.hitlTasks || []
         } catch (error) {
-            this.logging.error(`ListHitls error: ${String(error)}`)
+            this.logging.error(`ATX: ListHitls error: ${String(error)}`)
             return null
         }
     }
@@ -811,11 +707,10 @@ export class ATXTransformHandler {
         humanArtifactId: string
     ): Promise<SubmitCriticalHitlTaskResponse | null> {
         try {
-            this.logging.log('=== ATX FES SubmitHitl Operation (FES Client) ===')
-            this.logging.log(`Updating Hitl: ${taskId} for job: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Starting SubmitHitl for task: ${taskId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('SubmitHitl: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for SubmitHitl')
                 return null
             }
 
@@ -832,21 +727,20 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(`SubmitHitl: SUCCESS - task status: ${result.status || 'UNKNOWN'} `)
+            this.logging.log(`ATX: SubmitHitl completed - task status: ${result.status || 'UNKNOWN'}`)
             return result
         } catch (error) {
-            this.logging.error(`ListHitls error: ${String(error)}`)
+            this.logging.error(`ATX: SubmitHitl error: ${String(error)}`)
             return null
         }
     }
 
     async getHitl(workspaceId: string, jobId: string, taskId: string): Promise<any | null> {
         try {
-            this.logging.log('=== ATX FES Get Hitl Operation (FES Client) ===')
-            this.logging.log(`Getting Hitl: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Getting Hitl task: ${taskId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('GetHitl: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for GetHitl')
                 return null
             }
 
@@ -859,45 +753,39 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(`GetHitl: SUCCESS - Job data received`)
+            this.logging.log(`ATX: GetHitl completed successfully`)
             return result.task || null
         } catch (error) {
-            this.logging.error(`GetHitl error: ${String(error)}`)
+            this.logging.error(`ATX: GetHitl error: ${String(error)}`)
             return null
         }
     }
 
     async pollHitlTask(workspaceId: string, jobId: string, taskId: string): Promise<string | null> {
-        this.logging.log('Starting polling for hitl after upload')
+        this.logging.log('ATX: Starting polling for hitl after upload')
 
         try {
             var count = 0
             while (count < 100) {
                 const jobStatus = await this.getHitl(workspaceId, jobId, taskId)
-                this.logging.log(`Hitl Polling get status: ${jobStatus?.status}`)
+                this.logging.log(`ATX: Hitl polling status: ${jobStatus?.status}`)
 
                 if (jobStatus && jobStatus.status == 'CLOSED') {
-                    this.logging.log('Hitl Polling get status CLOSED')
                     return 'Validation Success!'
                 } else if (jobStatus && jobStatus.status == 'CLOSED_PENDING_NEXT_TASK') {
-                    // Fallback to placeholder if API call fails
-                    this.logging.log('Hitl Polling get status CLOSED_PENDING_NEXT_TASK')
                     return 'Submitted plan did not pass validation, please check the plan for details....'
                 } else if (jobStatus && jobStatus.status == 'CANCELLED') {
-                    // Fallback to placeholder if API call fails
-                    this.logging.log('Hitl Polling get status CANCELLED')
                     return 'Timeout occured during planning, proceeding with default plan....'
                 } else {
-                    this.logging.log('Hitl polling in progress....')
                     await Utils.sleep(10 * 1000)
                     count++
                 }
             }
 
-            this.logging.log('Returning null, 100 polls and no approve or reject')
+            this.logging.log('ATX: Hitl polling timeout after 100 attempts')
             return null
         } catch (error) {
-            this.logging.error(`Hitl polling error: ${String(error)}`)
+            this.logging.error(`ATX: Hitl polling error: ${String(error)}`)
             return null
         }
     }
@@ -908,25 +796,23 @@ export class ATXTransformHandler {
         solutionRootPath: string
     ): Promise<{ PlanPath: string; ReportPath: string } | null> {
         try {
-            this.logging.log('=== ATX FES Get Hitl Agent Artifact Operation (FES Client) ===')
-            this.logging.log(`Getting Hitl Agent Artifact: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Getting Hitl Agent Artifact for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('GetHitlAgentArtifact: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for GetHitlAgentArtifact')
                 return null
             }
 
             const hitls = await this.listHitls(workspaceId, jobId)
 
             if (hitls && hitls.length != 1) {
-                this.logging.log(`ATX FES Job ${jobId} - Found ${hitls.length} hitls`)
+                this.logging.log(`ATX: Found ${hitls.length} hitls (expected 1)`)
             } else if (!hitls) {
-                this.logging.log(`ATX FES Job ${jobId} - no or many hitls available for download (expects 1 hitl)`)
+                this.logging.error(`ATX: No hitls available for download`)
                 throw new Error('no or many HITLE_FROM_USER artifacts available for download (expects 1 artifact)')
             }
 
             const hitl = hitls[0]
-
             this.cachedHitl = hitl.taskId
 
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
@@ -934,8 +820,6 @@ export class ATXTransformHandler {
             if (!downloadInfo) {
                 throw new Error('Failed to get ATX FES download URL')
             }
-
-            this.logging.log(`ATX FES Job ${jobId} - Artifact download URL created: ${downloadInfo.s3PresignedUrl}`)
 
             const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId)
 
@@ -949,9 +833,10 @@ export class ATXTransformHandler {
 
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
             const reportPath = path.join(pathToDownload, 'assessment-report.md')
+            this.logging.log(`ATX: GetHitlAgentArtifact completed successfully`)
             return { PlanPath: planPath, ReportPath: reportPath }
         } catch (error) {
-            this.logging.error(`GetHitlAgentArtifact error: ${String(error)}`)
+            this.logging.error(`ATX: GetHitlAgentArtifact error: ${String(error)}`)
             return null
         }
     }
@@ -961,19 +846,18 @@ export class ATXTransformHandler {
      */
     async getTransformInfo(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse | null> {
         try {
-            this.logging.log(`DEBUG-ATX-GET-INFO: getTransformInfo called with: ${JSON.stringify(request)}`)
+            this.logging.log(`ATX: Getting transform info for job: ${request.TransformationJobId}`)
 
             const job = await this.getJob(request.WorkspaceId, request.TransformationJobId)
 
             if (!job) {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Get Job returned null`)
+                this.logging.error(`ATX: Job not found: ${request.TransformationJobId}`)
                 return null
             }
 
             const jobStatus = job.statusDetails?.status
 
             if (jobStatus === 'COMPLETED') {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Job completed successfully`)
                 const pathToArtifact = await this.downloadFinalArtifact(
                     request.WorkspaceId,
                     request.TransformationJobId,
@@ -995,7 +879,6 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Job failed`)
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -1006,7 +889,6 @@ export class ATXTransformHandler {
                     ErrorString: 'Transformation job failed',
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'STOPPING' || jobStatus === 'STOPPED') {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Job stopping`)
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -1016,7 +898,6 @@ export class ATXTransformHandler {
                     ErrorString: 'Transformation job stopped',
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'PLANNED') {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Job in PLANNED`)
                 const plan = await this.getTransformationPlan(
                     request.WorkspaceId,
                     request.TransformationJobId,
@@ -1032,8 +913,6 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'AWAITING_HUMAN_INPUT') {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Job in AWAITING_HUMAN_INPUT`)
-
                 const response = await this.getHitlAgentArtifact(
                     request.WorkspaceId,
                     request.TransformationJobId,
@@ -1050,8 +929,6 @@ export class ATXTransformHandler {
                     ReportPath: response?.ReportPath,
                 } as AtxGetTransformInfoResponse
             } else {
-                this.logging.log(`DEBUG-ATX-GET-INFO: Job in PLANNING`)
-
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
 
                 return {
@@ -1063,13 +940,13 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             }
         } catch (error) {
-            this.logging.error(`ATX: Get TransformInfo error: ${String(error)}`)
+            this.logging.error(`ATX: GetTransformInfo error: ${String(error)}`)
             return null
         }
     }
 
     async uploadPlan(request: AtxUploadPlanRequest): Promise<AtxUploadPlanResponse | null> {
-        this.logging.info('Starting upload plan')
+        this.logging.log('ATX: Starting upload plan')
 
         if (!this.cachedHitl) {
             this.logging.error('ATX: UploadPlan error: No cached hitl')
@@ -1077,7 +954,7 @@ export class ATXTransformHandler {
         }
 
         try {
-            const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.md')
+            const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.zip')
             await Utils.zipFile(request.PlanPath, pathToZip)
 
             const uploadInfo = await this.createArtifactUploadUrl(
@@ -1089,11 +966,9 @@ export class ATXTransformHandler {
             )
 
             if (!uploadInfo) {
-                this.logging.error('ATX: UploadPlan error: Failed to get ATX upload URL')
+                this.logging.error('ATX: UploadPlan error: Failed to get upload URL')
                 return null
             }
-
-            this.logging.log(`ATX: UploadPlan: Artifact upload URL created: ${uploadInfo.uploadUrl}`)
 
             const uploadSuccess = await Utils.uploadArtifact(
                 uploadInfo.uploadUrl,
@@ -1116,7 +991,7 @@ export class ATXTransformHandler {
                 throw new Error('Failed to complete artifact upload')
             }
 
-            this.logging.info('Uploaded plan, submitting hitl')
+            this.logging.log('ATX: Plan uploaded, submitting hitl')
 
             const submitHitl = await this.submitHitl(
                 request.WorkspaceId,
@@ -1129,7 +1004,7 @@ export class ATXTransformHandler {
                 throw new Error('Failed to submit hitl')
             }
 
-            this.logging.info('Submitted hitl, polling for status')
+            this.logging.log('ATX: Hitl submitted, polling for status')
 
             const validation = await this.pollHitlTask(
                 request.WorkspaceId,
@@ -1145,7 +1020,7 @@ export class ATXTransformHandler {
                 const response = await this.getHitlAgentArtifact(
                     request.WorkspaceId,
                     request.TransformationJobId,
-                    path.dirname(request.PlanPath)
+                    path.dirname(path.dirname(path.dirname(request.PlanPath)))
                 )
 
                 return {
@@ -1196,10 +1071,8 @@ export class ATXTransformHandler {
 
     async downloadFinalArtifact(workspaceId: string, jobId: string, solutionRootPath: string): Promise<string | null> {
         try {
-            this.logging.log('=== ATX FES Download Export Result Archive ===')
-            this.logging.log(`Called with jobId: ${jobId}, solutionRootPath: ${solutionRootPath}`)
+            this.logging.log(`ATX: Starting download final artifact for job: ${jobId}`)
 
-            this.logging.log(`Listing CUSTOMER_OUTPUT artifacts for job: ${jobId}`)
             const artifacts = await this.listArtifacts(workspaceId, jobId)
             if (!artifacts || artifacts.length === 0) {
                 throw new Error('No CUSTOMER_OUTPUT artifacts available for download')
@@ -1207,16 +1080,13 @@ export class ATXTransformHandler {
 
             const artifact = artifacts[0]
             const artifactId = artifact.artifactId
-            this.logging.log(`Found artifact: ${artifactId}, size: ${artifact.sizeInBytes} bytes`)
+            this.logging.log(`ATX: Found artifact: ${artifactId}, size: ${artifact.sizeInBytes} bytes`)
 
-            this.logging.log(`Creating download URL for artifactId: ${artifactId}`)
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, artifactId)
             if (!downloadInfo) {
                 throw new Error('Failed to get ATX FES download URL')
             }
-
-            this.logging.log(`ATX FES Job ${jobId} - Artifact download URL created: ${downloadInfo.s3PresignedUrl}`)
-
+          
             const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId)
 
             await Utils.downloadAndExtractArchive(
@@ -1227,9 +1097,10 @@ export class ATXTransformHandler {
                 this.logging
             )
 
+            this.logging.log(`ATX: Download final artifact completed successfully`)
             return pathToDownload
         } catch (error) {
-            this.logging.error(`ATX FES download failed: ${String(error)}`)
+            this.logging.error(`ATX: Download final artifact failed: ${String(error)}`)
             return null
         }
     }
@@ -1239,12 +1110,9 @@ export class ATXTransformHandler {
         jobId: string,
         solutionRootPath: string
     ): Promise<TransformationPlan> {
-        this.logging.log('Using ATX FES for Transform profile - real ListJobPlanSteps')
-
         try {
             // Get real plan steps from ATX FES (only if job status >= PLANNED)
             const planSteps = await this.getATXFESJobPlanSteps(workspaceId, jobId)
-            this.logging.log(`dbu ListWorklog all ${JSON.stringify(planSteps)}`)
 
             if (planSteps) {
                 this.logging.log(`ATX FES: Found ${planSteps.length} transformation steps`)
@@ -1260,7 +1128,6 @@ export class ATXTransformHandler {
                     return timeA - timeB
                 })
 
-                this.logging.log(`PlanSteps response: ` + JSON.stringify(planSteps))
                 // Return in exact same format as RTS with all required fields
                 const transformationPlan = {
                     transformationSteps: planSteps.map((step: any, index: number) => {
@@ -1290,15 +1157,9 @@ export class ATXTransformHandler {
                                         substepStatus = 'IN_PROGRESS' // No NOT_STARTED option in ProgressUpdate enum
                                         break
                                 }
-                                this.logging.log(
-                                    `this is progres update for step ${JSON.stringify(step)} and has substep is ${JSON.stringify(substep)}`
-                                )
 
                                 // Map nested progress updates (3rd level)
                                 const nestedProgressUpdates = (substep.substeps || []).map((nestedUpdate: any) => {
-                                    this.logging.log(
-                                        `Found nested progress update: ${nestedUpdate.stepName} with status: ${nestedUpdate.status}`
-                                    )
                                     let nestedStatus = 'IN_PROGRESS'
                                     switch (nestedUpdate.status) {
                                         case 'SUCCEEDED':
@@ -1327,10 +1188,6 @@ export class ATXTransformHandler {
                                     }
                                 })
 
-                                this.logging.log(
-                                    `Substep ${substep.stepName} has ${nestedProgressUpdates.length} nested progress updates`
-                                )
-
                                 return {
                                     name: substep.stepName || 'Unknown Substep',
                                     description: substep.description || '',
@@ -1357,10 +1214,6 @@ export class ATXTransformHandler {
                             const stepNumber = index + 1
                             const stepName = `Step ${stepNumber} - ${step.stepName || 'Unknown Step'}`
 
-                            this.logging.log(
-                                `ATX Step ${stepNumber}: ${step.stepName} (${step.status} → ${mappedStatus}) with ${progressUpdates.length} substeps`
-                            )
-
                             return {
                                 id: step.stepId || `step-${stepNumber}`,
                                 name: stepName,
@@ -1371,9 +1224,7 @@ export class ATXTransformHandler {
                                 endTime: step.endTime ? new Date(step.endTime) : undefined,
                             }
                         } catch (error) {
-                            this.logging.error(
-                                `ATX FES: Error mapping step ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`
-                            )
+                            this.logging.error(`ATX FES: Error mapping step ${index}: ${String(error)}`)
                             // Return a safe fallback step
                             const stepNumber = index + 1
                             return {
@@ -1397,11 +1248,6 @@ export class ATXTransformHandler {
                 this.logging.log(
                     `ATX FES: Successfully mapped ${transformationPlan.transformationSteps?.length || 0} steps`
                 )
-                if (transformationPlan.transformationSteps?.[0]) {
-                    this.logging.log(
-                        `ATX FES: First step mapped - id: ${transformationPlan.transformationSteps[0].id}, name: ${transformationPlan.transformationSteps[0].name}`
-                    )
-                }
 
                 return transformationPlan
             } else {
@@ -1411,9 +1257,7 @@ export class ATXTransformHandler {
                 } as TransformationPlan
             }
         } catch (error) {
-            this.logging.error(
-                `ATX FES getTransformationPlan error: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
+            this.logging.error(`ATX FES getTransformationPlan error: ${String(error)}`)
             // Return empty plan on error
             return {
                 transformationSteps: [] as any,
@@ -1428,7 +1272,6 @@ export class ATXTransformHandler {
             if (result) {
                 const steps = result || []
                 this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${steps.length} plan steps with substeps`)
-                this.logging.log(`PlanSteps are  ${JSON.stringify(result)}`)
                 return steps
             }
             return null
@@ -1443,10 +1286,10 @@ export class ATXTransformHandler {
      */
     private async listJobPlanSteps(workspaceId: string, jobId: string): Promise<any[] | null> {
         try {
-            this.logging.log('=== ATX FES ListJobPlanSteps Operation (FES Client) ===')
+            this.logging.log(`ATX: Starting ListJobPlanSteps for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('ListJobPlanSteps: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for ListJobPlanSteps')
                 return null
             }
 
@@ -1456,7 +1299,6 @@ export class ATXTransformHandler {
             if (rootSteps && rootSteps.length > 0) {
                 // For each root step, get its substeps
                 for (const step of rootSteps) {
-                    this.logging.log(`Getting substeps for step: ${step.stepName} (ID: ${step.stepId})`)
                     const substeps = await this.getStepsRecursive(workspaceId, jobId, step.stepId)
                     step.substeps = substeps || []
 
@@ -1472,9 +1314,6 @@ export class ATXTransformHandler {
                             return timeA - timeB
                         })
                         for (const substep of step.substeps) {
-                            this.logging.log(
-                                `Getting superSubstep for step: ${substep.stepName} (ID: ${substep.stepId})`
-                            )
                             const superSubsteps = await this.getStepsRecursive(workspaceId, jobId, substep.stepId)
                             substep.substeps = superSubsteps || []
 
@@ -1490,40 +1329,18 @@ export class ATXTransformHandler {
                                     return timeA - timeB
                                 })
                             }
-
-                            this.logging.log(`Step ${substep.stepName}: Found ${substep.substeps.length} substeps`)
-
-                            // Log substep details for debugging
-                            if (substep.substeps.length > 0) {
-                                substep.substeps.forEach((superSubstep: any, index: number) => {
-                                    this.logging.log(
-                                        `  SuperSubstep ${index + 1}: ${superSubstep.stepName} (${superSubstep.status || 'No status'})`
-                                    )
-                                })
-                            }
                         }
-                    }
-
-                    this.logging.log(`Step ${step.stepName}: Found ${step.substeps.length} substeps`)
-
-                    // Log substep details for debugging
-                    if (step.substeps.length > 0) {
-                        step.substeps.forEach((substep: any, index: number) => {
-                            this.logging.log(
-                                `  Substep ${index + 1}: ${substep.stepName} (${substep.status || 'No status'})`
-                            )
-                        })
                     }
                 }
 
-                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${rootSteps.length} steps with substeps`)
+                this.logging.log(`ATX: ListJobPlanSteps completed - Found ${rootSteps.length} steps with substeps`)
                 return rootSteps
             }
 
-            this.logging.log('ListJobPlanSteps: No root steps found')
+            this.logging.log('ATX: ListJobPlanSteps - No root steps found')
             return null
         } catch (error) {
-            this.logging.error(`ListJobPlanSteps error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            this.logging.error(`ATX: ListJobPlanSteps error: ${String(error)}`)
             return null
         }
     }
@@ -1544,15 +1361,12 @@ export class ATXTransformHandler {
             const result = await this.atxClient!.send(command)
 
             if (result && result.steps && result.steps.length > 0) {
-                this.logging.log(`Found ${result.steps.length} steps for parent: ${parentStepId}`)
                 return result.steps
             }
 
             return null
         } catch (error) {
-            this.logging.error(
-                `Error getting steps for parent ${parentStepId}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
+            this.logging.error(`Error getting steps for parent ${parentStepId}: ${String(error)}`)
             return null
         }
     }
@@ -1566,11 +1380,10 @@ export class ATXTransformHandler {
         filter: CategoryType = 'CUSTOMER_OUTPUT'
     ): Promise<any[] | null> {
         try {
-            this.logging.log('=== ATX FES ListArtifacts Operation (FES Client) ===')
-            this.logging.log(`Listing artifacts for job: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Starting ListArtifacts for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('ListArtifacts: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for ListArtifacts')
                 return null
             }
 
@@ -1585,12 +1398,10 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(
-                `ListArtifacts: SUCCESS - Found ${result.artifacts?.length || 0} CUSTOMER_OUTPUT artifacts`
-            )
+            this.logging.log(`ATX: ListArtifacts completed - Found ${result.artifacts?.length || 0} artifacts`)
             return result.artifacts || []
         } catch (error) {
-            this.logging.error(`ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            this.logging.error(`ATX: ListArtifacts error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             return null
         }
     }
@@ -1605,11 +1416,10 @@ export class ATXTransformHandler {
         stepId?: string
     ): Promise<any[] | null> {
         try {
-            this.logging.log('=== ATX FES ListWorklog Operation (FES Client) ===')
-            this.logging.log(`Listing ListWorklog for job: ${jobId} in workspace: ${workspaceId}`)
+            this.logging.log(`ATX: Starting ListWorklogs for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('ListWorklog: Failed to initialize ATX client')
+                this.logging.error('ATX: Failed to initialize client for ListWorklogs')
                 return null
             }
 
@@ -1627,20 +1437,16 @@ export class ATXTransformHandler {
 
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
-            this.logging.log(`dbu ListWorklog all ${JSON.stringify(result)}`)
 
-            this.logging.log(
-                `ListWorklog: SUCCESS - Found ${result.worklogs?.entries.length || 0} wokrlog entries for step ${stepId}`
-            )
+            this.logging.log(`ATX: ListWorklogs completed - Found ${result.worklogs?.length || 0} entries`)
             for (const value of result.worklogs || []) {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
-                this.logging.log(`worklog entry: ${value.description}`)
                 await Utils.saveWorklogsToJson(jobId, currentStepId, value.description || '', solutionRootPath)
             }
 
             return result.worklogs || []
         } catch (error) {
-            this.logging.error(`ListWorklogs error: ${String(error)}`)
+            this.logging.error(`ATX: ListWorklogs error: ${String(error)}`)
             return null
         }
     }
