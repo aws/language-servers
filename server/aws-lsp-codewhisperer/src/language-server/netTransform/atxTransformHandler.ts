@@ -1086,7 +1086,7 @@ export class ATXTransformHandler {
             if (!downloadInfo) {
                 throw new Error('Failed to get ATX FES download URL')
             }
-          
+
             const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId)
 
             await Utils.downloadAndExtractArchive(
