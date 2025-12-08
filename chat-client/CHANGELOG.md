@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.44](https://github.com/aws/language-servers/compare/chat-client/v0.1.43...chat-client/v0.1.44) (2025-12-08)
+
+
+### Features
+
+* use dynamic token limits from listAvailableModels API ([#2539](https://github.com/aws/language-servers/issues/2539)) ([f87ac9f](https://github.com/aws/language-servers/commit/f87ac9fce32d235649f81957b71d424264aae9c8))
+
 ## [0.1.43](https://github.com/aws/language-servers/compare/chat-client/v0.1.42...chat-client/v0.1.43) (2025-11-26)
 
 
