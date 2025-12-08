@@ -52,7 +52,7 @@ export class AtxTokenServiceManager {
             const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
             const hasAtxCredentials = atxCredentialsProvider?.hasCredentials('bearer')
             if (!hasAtxCredentials) {
-                this.log(`Clearing ATX credentials and services`)
+                this.log(`ATX: Clearing credentials and services`)
                 this.cachedAtxCodewhispererService?.abortInflightRequests()
                 this.cachedAtxCodewhispererService = undefined
                 this.cachedAtxStreamingClient?.abortInflightRequests()
@@ -90,10 +90,8 @@ export class AtxTokenServiceManager {
     }
 
     public async handleAtxProfileChange(profileArn: string | null, token: CancellationToken): Promise<void> {
-        this.log(`ATX Profile change requested: ${profileArn}`)
-
         if (profileArn === null) {
-            this.log('Clearing ATX profile')
+            this.log('ATX: Clearing profile')
             if (this.cachedAtxCodewhispererService) {
                 this.cachedAtxCodewhispererService.profileArn = undefined
             }
@@ -101,7 +99,6 @@ export class AtxTokenServiceManager {
                 this.cachedAtxStreamingClient.profileArn = undefined
             }
             this.activeAtxProfile = undefined
-            this.log('ATX profile cleared')
             return
         }
 
@@ -111,7 +108,7 @@ export class AtxTokenServiceManager {
         if (!endpoint) {
             throw new Error('Requested profileArn region is not supported')
         }
-        this.log(`Setting ATX profile for ${profileArn} with endpoint ${endpoint} and region ${region}`)
+        this.log(`ATX: Setting profile for region ${region}`)
 
         const newProfile: AmazonQDeveloperProfile = {
             arn: profileArn,
@@ -122,7 +119,6 @@ export class AtxTokenServiceManager {
         }
 
         this.activeAtxProfile = newProfile
-        this.log(`ATX profile set to: ${newProfile.arn}`)
 
         if (this.cachedAtxCodewhispererService) {
             this.cachedAtxCodewhispererService.profileArn = newProfile.arn
@@ -134,11 +130,10 @@ export class AtxTokenServiceManager {
             this.cachedAtxStreamingClient.profileArn = newProfile.arn
         }
 
-        this.log(`ATX profile updated successfully`)
+        this.log(`ATX: Profile updated successfully`)
     }
 
     private createAtxServiceInstances() {
-        this.log('Creating ATX service instances')
         const region = this.activeAtxProfile?.identityDetails?.region || 'us-east-1'
         const endpoint = getAtxEndPointByRegion(region)
 
@@ -146,33 +141,28 @@ export class AtxTokenServiceManager {
             throw new Error(`ATX region ${region} is not supported`)
         }
 
-        this.log(`ATX using region: ${region}, endpoint: ${endpoint}`)
+        this.log(`ATX: Creating service instances for region ${region}`)
         this.cachedAtxCodewhispererService = this.atxServiceFactory(region, endpoint)
         this.cachedAtxCodewhispererService.profileArn = this.activeAtxProfile?.arn
 
         this.cachedAtxStreamingClient = this.atxStreamingClientFactory(region, endpoint)
         this.cachedAtxStreamingClient.profileArn = this.activeAtxProfile?.arn
-        this.log('ATX service instances created successfully')
+        this.log('ATX: Service instances created successfully')
     }
 
     public getAtxCodewhispererService(): CodeWhispererServiceToken {
-        this.log('Getting ATX CodeWhisperer service')
-
         const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
         if (!atxCredentialsProvider) {
-            this.log('ATX credentials provider not available in runtime')
             throw new AmazonQServicePendingSigninError()
         }
 
         const hasBearer = atxCredentialsProvider.hasCredentials('bearer')
         if (!hasBearer) {
-            this.log('No ATX bearer credentials available')
             throw new AmazonQServicePendingSigninError()
         }
 
         const creds = atxCredentialsProvider.getCredentials('bearer')
         if (!creds || !('token' in creds) || !creds.token) {
-            this.log('ATX token is empty or invalid')
             throw new AmazonQServicePendingSigninError()
         }
 
@@ -184,8 +174,6 @@ export class AtxTokenServiceManager {
     }
 
     public getAtxStreamingClient(): StreamingClientServiceToken {
-        this.log('Getting ATX streaming client')
-
         // Trigger service creation if needed
         this.getAtxCodewhispererService()
 
@@ -193,8 +181,6 @@ export class AtxTokenServiceManager {
     }
 
     private atxServiceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
-        this.log('Creating ATX CodeWhisperer service')
-
         const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
         if (!atxCredentialsProvider) {
             throw new Error('ATX credentials provider not available in runtime')
@@ -223,13 +209,10 @@ export class AtxTokenServiceManager {
         )
 
         service.profileArn = this.activeAtxProfile?.arn
-        this.log('ATX CodeWhisperer service created')
         return service
     }
 
     private atxStreamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
-        this.log('Creating ATX streaming client')
-
         const atxCredentialsProvider = this.features.runtime.getAtxCredentialsProvider?.()
         if (!atxCredentialsProvider) {
             throw new Error('ATX credentials provider not available in runtime')
@@ -244,7 +227,6 @@ export class AtxTokenServiceManager {
             this.getCustomUserAgent()
         )
         streamingClient.profileArn = this.activeAtxProfile?.arn
-        this.log('ATX streaming client created')
         return streamingClient
     }
 
@@ -295,11 +277,11 @@ export class AtxTokenServiceManager {
     public async ensureProfilesLoaded(): Promise<void> {
         try {
             if (this.cachedTransformProfiles.length === 0 && this.hasValidCredentials()) {
-                this.log('Fetching available ATX profiles from FES')
+                this.log('ATX: Loading available profiles')
                 await this.refreshAvailableProfiles()
             }
         } catch (error) {
-            this.log(`Error ensuring profiles loaded: ${String(error)}`)
+            this.log(`ATX: Error ensuring profiles loaded: ${String(error)}`)
         }
     }
 
@@ -308,20 +290,18 @@ export class AtxTokenServiceManager {
      */
     public async refreshAvailableProfiles(): Promise<void> {
         try {
-            this.log('Refreshing available ATX profiles from FES using TransformConfigurationServer')
-
             if (!this.hasValidCredentials()) {
-                this.log('No valid credentials for refreshing profiles')
                 return
             }
 
+            this.log('ATX: Refreshing available profiles')
             const configServer = new TransformConfigurationServer(this.features.logging, this.features)
             const profiles = await configServer.listAvailableProfiles({} as CancellationToken)
 
-            this.log(`Refreshed ${profiles.length} ATX profiles using TransformConfigurationServer`)
+            this.log(`ATX: Refreshed ${profiles.length} profiles`)
             this.cacheTransformProfiles(profiles)
         } catch (error) {
-            this.log(`Error refreshing ATX profiles: ${String(error)}`)
+            this.log(`ATX: Error refreshing profiles: ${String(error)}`)
         }
     }
 
@@ -337,18 +317,11 @@ export class AtxTokenServiceManager {
     }
 
     public hasValidCredentials(): boolean {
-        this.log('Checking ATX credentials availability')
         const runtime = (this.features as any).runtime
-        this.log(`Runtime available: ${!!runtime}`)
         if (runtime && runtime.getAtxCredentialsProvider) {
-            this.log('Runtime has getAtxCredentialsProvider method')
             const atxCredentialsProvider = runtime.getAtxCredentialsProvider()
-            this.log(`ATX credentials provider: ${!!atxCredentialsProvider}`)
-            const hasCredentials = atxCredentialsProvider?.hasCredentials('bearer') || false
-            this.log(`ATX has bearer credentials: ${hasCredentials}`)
-            return hasCredentials
+            return atxCredentialsProvider?.hasCredentials('bearer') || false
         }
-        this.log('Runtime does not have getAtxCredentialsProvider method')
         return false
     }
 
@@ -356,11 +329,9 @@ export class AtxTokenServiceManager {
         if (!this.hasValidCredentials()) {
             throw new Error('No bearer credentials available for ATX')
         }
-        this.log('Getting ATX bearer token')
+
         const runtime = (this.features as any).runtime
-        this.log(`Runtime available: ${!!runtime}`)
         const atxCredentialsProvider = runtime.getAtxCredentialsProvider()
-        this.log(`ATX credentials provider: ${!!atxCredentialsProvider}`)
         const credentials = atxCredentialsProvider?.getCredentials('bearer')
 
         if (!credentials || !('token' in credentials) || !credentials.token) {
