@@ -10,4 +10,6 @@ const props: RuntimeProps = {
     servers: [YamlLanguageServer],
     name: 'AWS YAML server',
 }
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
