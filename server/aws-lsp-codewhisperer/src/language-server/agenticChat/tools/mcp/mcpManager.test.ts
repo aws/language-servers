@@ -1605,11 +1605,8 @@ describe('McpManager error handling', () => {
         expect(errors).to.not.be.undefined
         expect(errors).to.include('Initial error')
 
-        // Reinitialize to clear errors
+        // Reinitialize to clear errors - this will call discoverAllServers internally
         await mgr.reinitializeMcpServers()
-
-        // Call discoverAllServers again to reload config
-        await mgr.discoverAllServers()
 
         // Verify errors are cleared
         errors = mgr.getConfigLoadErrors()
