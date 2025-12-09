@@ -51,4 +51,6 @@ const props = {
     name: 'AWS CodeWhisperer',
 } as RuntimeProps
 
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
