@@ -584,6 +584,9 @@ export class McpMynahUi {
      * Handles adding/editing MCP server (registry or manual)
      */
     private handleAddOrEditServer(params: McpServerClickResult) {
+        // User is navigating away from list page
+        this.isMcpServersListActive = false
+
         const typedParams = params as McpServerParams
         this.mynahUi.toggleSplashLoader(false)
 
@@ -612,6 +615,9 @@ export class McpMynahUi {
     private handleOpenServer(params: McpServerClickResult) {
         const typedParams = params as McpServerParams
         this.mynahUi.toggleSplashLoader(false)
+
+        // User is navigating away from list page
+        this.isMcpServersListActive = false
 
         const isMcpRegistry = (params as any).isMcpRegistry === true
         const detailedList = this.createViewMcpServerDetailedList(typedParams, isMcpRegistry)
@@ -664,6 +670,9 @@ export class McpMynahUi {
         } else if (params.id === MCP_IDS.OPEN_SERVER) {
             this.handleOpenServer(params)
         } else if ([MCP_IDS.DISABLE_SERVER, MCP_IDS.DELETE_SERVER, MCP_IDS.ENABLE_SERVER].includes(params.id)) {
+            if (params.id === MCP_IDS.ENABLE_SERVER && !this.isMcpServersListActive) {
+                return
+            }
             this.messager.onListMcpServers()
         } else if (params.id === MCP_IDS.UPDATE_LIST) {
             if (this.isMcpServersListActive) {
