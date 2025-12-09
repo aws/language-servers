@@ -354,6 +354,15 @@ describe('McpMynahUi', () => {
         })
 
         it('should handle server management actions correctly', () => {
+            // First set isMcpServersListActive to true by calling listMcpServers
+            const listParams: ListMcpServersResult = {
+                list: [],
+            }
+            mcpMynahUi.listMcpServers(listParams)
+
+            // Reset call history after listMcpServers
+            ;(messager.onListMcpServers as sinon.SinonStub).resetHistory()
+
             // Test mcp-disable-server
             const disableParams: McpServerClickResult = {
                 id: 'mcp-disable-server',
@@ -374,7 +383,7 @@ describe('McpMynahUi', () => {
             // Reset call history
             ;(messager.onListMcpServers as sinon.SinonStub).resetHistory()
 
-            // Test mcp-enable-server
+            // Test mcp-enable-server (should work when isMcpServersListActive is true)
             const enableParams: McpServerClickResult = {
                 id: 'mcp-enable-server',
             }
