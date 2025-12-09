@@ -40,7 +40,7 @@
         "@aws/chat-client-ui-types": "0.1.68",
         "@aws/language-server-runtimes": "^0.3.10",
         "@aws/lsp-core": "^0.0.18",
-        "@modelcontextprotocol/sdk": "1.19.1",
+        "@modelcontextprotocol/sdk": "^1.23.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
