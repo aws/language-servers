@@ -616,6 +616,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             // }
 
             logstr += `@@request metadata@@
+    "version": "!!!!!!!!!!!!!!!!",
     "endpoint": ${this.codeWhispererEndpoint},
     "predictionType": ${tokenRequest.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "filename": ${tokenRequest.fileContext?.filename},
