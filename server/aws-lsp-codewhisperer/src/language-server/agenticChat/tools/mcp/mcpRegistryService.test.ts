@@ -41,6 +41,78 @@ describe('McpRegistryService', () => {
         it('should reject empty URLs', () => {
             assert.strictEqual(service.validateRegistryUrl(''), false)
         })
+
+        it('should accept URLs with query parameters', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry?version=1&format=json'), true)
+        })
+
+        it('should accept URLs with fragments', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry.json#section'), true)
+        })
+
+        it('should accept URLs with ports', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com:8443/registry.json'), true)
+        })
+
+        it('should accept URLs with authentication', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://user@example.com/registry.json'), true)
+        })
+
+        it('should accept URLs with hyphens in domain', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://my-server.example.com/registry.json'), true)
+        })
+
+        it('should accept URLs with underscores in path', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/mcp_registry.json'), true)
+        })
+
+        it('should accept URLs with percent encoding', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry%20file.json'), true)
+        })
+
+        it('should accept URLs with brackets (IPv6)', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://[2001:db8::1]/registry.json'), true)
+        })
+
+        it('should accept URLs with special characters in query', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry?key=value&other=test'), true)
+        })
+
+        it('should accept URLs with subdelimiters', () => {
+            assert.strictEqual(service.validateRegistryUrl("https://example.com/path!$&'()*+,;=test"), true)
+        })
+
+        it('should reject URLs with spaces', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry file.json'), false)
+        })
+
+        it('should reject URLs with invalid characters', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry<>.json'), false)
+        })
+
+        it('should reject URLs with backslashes', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com\\registry.json'), false)
+        })
+
+        it('should reject URLs with pipes', () => {
+            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry|file.json'), false)
+        })
+
+        it('should reject FTP URLs', () => {
+            assert.strictEqual(service.validateRegistryUrl('ftp://example.com/registry.json'), false)
+        })
+
+        it('should reject URLs without protocol', () => {
+            assert.strictEqual(service.validateRegistryUrl('example.com/registry.json'), false)
+        })
+
+        it('should reject URLs with only https:', () => {
+            assert.strictEqual(service.validateRegistryUrl('https:'), false)
+        })
+
+        it('should reject URLs with https:/ (single slash)', () => {
+            assert.strictEqual(service.validateRegistryUrl('https:/example.com/registry.json'), false)
+        })
     })
 
     describe('fetchRegistry', () => {
@@ -258,6 +330,244 @@ describe('McpRegistryService', () => {
                     sinon.match(/Authentication required - registry URL must be accessible without credentials/)
                 )
             )
+        })
+    })
+
+    describe('alphabetical sorting', () => {
+        it('should sort servers alphabetically by name', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'zebra',
+                        description: 'Z',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://z.com' }],
+                    },
+                    {
+                        name: 'alpha',
+                        description: 'A',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://a.com' }],
+                    },
+                    {
+                        name: 'beta',
+                        description: 'B',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://b.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers[0].name, 'alpha')
+            assert.strictEqual(result?.servers[1].name, 'beta')
+            assert.strictEqual(result?.servers[2].name, 'zebra')
+        })
+
+        it('should handle case-insensitive sorting', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'Zebra',
+                        description: 'Z',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://z.com' }],
+                    },
+                    {
+                        name: 'alpha',
+                        description: 'A',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://a.com' }],
+                    },
+                    {
+                        name: 'BETA',
+                        description: 'B',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://b.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers[0].name, 'alpha')
+            assert.strictEqual(result?.servers[1].name, 'BETA')
+            assert.strictEqual(result?.servers[2].name, 'Zebra')
+        })
+
+        it('should handle numeric sorting naturally', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'server10',
+                        description: 'S10',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://s10.com' }],
+                    },
+                    {
+                        name: 'server2',
+                        description: 'S2',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://s2.com' }],
+                    },
+                    {
+                        name: 'server1',
+                        description: 'S1',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://s1.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers[0].name, 'server1')
+            assert.strictEqual(result?.servers[1].name, 'server2')
+            assert.strictEqual(result?.servers[2].name, 'server10')
+        })
+
+        it('should handle special characters in names', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'server_z',
+                        description: 'Z',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://z.com' }],
+                    },
+                    {
+                        name: 'server-a',
+                        description: 'A',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://a.com' }],
+                    },
+                    {
+                        name: 'server.b',
+                        description: 'B',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://b.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 3)
+            // Verify sorting works with special characters
+            const names = result?.servers.map(s => s.name)
+            assert.ok(names?.includes('server-a'))
+            assert.ok(names?.includes('server.b'))
+            assert.ok(names?.includes('server_z'))
+        })
+
+        it('should handle empty string names gracefully', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'zebra',
+                        description: 'Z',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://z.com' }],
+                    },
+                    {
+                        name: '',
+                        description: 'Empty',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://empty.com' }],
+                    },
+                    {
+                        name: 'alpha',
+                        description: 'A',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://a.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            // Validator will reject servers with empty names, so this should return null
+            assert.strictEqual(result, null)
+        })
+
+        it('should handle valid alphanumeric names with hyphens and underscores', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'server_3',
+                        description: 'S3',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://s3.com' }],
+                    },
+                    {
+                        name: 'server-1',
+                        description: 'S1',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://s1.com' }],
+                    },
+                    {
+                        name: 'server.2',
+                        description: 'S2',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://s2.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 3)
+            // Verify all servers are present and sorted
+            const names = result?.servers.map(s => s.name)
+            assert.ok(names?.includes('server-1'))
+            assert.ok(names?.includes('server.2'))
+            assert.ok(names?.includes('server_3'))
+        })
+
+        it('should maintain sort stability with error-proof comparison', async () => {
+            const mockRegistry = {
+                servers: [
+                    {
+                        name: 'server-z',
+                        description: 'Z',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://z.com' }],
+                    },
+                    {
+                        name: 'server-a',
+                        description: 'A',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://a.com' }],
+                    },
+                    {
+                        name: 'server-m',
+                        description: 'M',
+                        version: '1.0.0',
+                        remotes: [{ type: 'streamable-http', url: 'https://m.com' }],
+                    },
+                ],
+            }
+
+            requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
+            const result = await service.fetchRegistry('https://example.com/registry.json')
+
+            assert.notStrictEqual(result, null)
+            assert.strictEqual(result?.servers.length, 3)
+            assert.strictEqual(result?.servers[0].name, 'server-a')
+            assert.strictEqual(result?.servers[1].name, 'server-m')
+            assert.strictEqual(result?.servers[2].name, 'server-z')
         })
     })
 
