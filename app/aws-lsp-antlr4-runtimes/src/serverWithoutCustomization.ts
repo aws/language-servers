@@ -14,4 +14,6 @@ const props: RuntimeProps = {
     ],
     name: 'PostgreSQL',
 }
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
