@@ -398,6 +398,20 @@ export const McpToolsServer: Server = ({
             // Initialize McpManager first, before profile monitor
             await initializeMcpManager()
 
+            const sendMcpUpdate = () => {
+                try {
+                    chat?.sendChatUpdate({
+                        tabId: 'mcpserver',
+                        data: {
+                            placeholderText: 'mcp-server-update',
+                            messages: [],
+                        },
+                    })
+                } catch (error) {
+                    logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+                }
+            }
+
             profileStatusMonitor = new ProfileStatusMonitor(
                 logging,
                 removeAllMcpTools,
@@ -406,31 +420,22 @@ export const McpToolsServer: Server = ({
                     await McpManager.instance.discoverAllServers()
                     logging.info(`MCP: discovered ${McpManager.instance.getAllTools().length} tools after re-enable`)
                     registerAllMcpTools()
+                    sendMcpUpdate()
                 },
                 async (registryUrl: string | null, isPeriodicSync: boolean = false) => {
                     if (registryUrl) {
                         McpManager.instance.setRegistryActive(true)
-                        await McpManager.instance.reinitializeMcpServers(true)
                         await McpManager.instance.updateRegistryUrl(registryUrl, isPeriodicSync)
-
-                        // Discover servers after registry update
-                        if (!isPeriodicSync) {
-                            await McpManager.instance.discoverAllServers()
-                            logging.info(
-                                `MCP: discovered ${McpManager.instance.getAllTools().length} tools after registry update`
-                            )
-                            registerAllMcpTools()
-                        }
+                        // Registry URL update handles server discovery internally
                     }
+                    sendMcpUpdate()
                 }
             )
 
             // Wait for profile ARN to be available before checking MCP state
             const checkAndInitialize = async () => {
                 try {
-                    await profileStatusMonitor!.checkInitialState()
-
-                    // Check if MCP is enabled via isMcpEnabled check
+                    // Check if MCP is enabled via isMcpEnabled check (only call once)
                     const mcpEnabled = await profileStatusMonitor!.checkInitialState()
 
                     if (mcpEnabled) {
