@@ -32,4 +32,6 @@ const props: RuntimeProps = {
     servers: [YamlLanguageServer],
     name: 'AWS JSON server With Custom YamlLanguageServer',
 }
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
