@@ -54,6 +54,17 @@ export class McpRegistryService {
             // Extract servers from wrapper structure if present
             const servers = parsed.servers.map((item: any) => item.server || item)
 
+            // Sort servers alphabetically by name (error-proof)
+            servers.sort((a: any, b: any) => {
+                try {
+                    const nameA = String(a?.name ?? '').toLowerCase()
+                    const nameB = String(b?.name ?? '').toLowerCase()
+                    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true })
+                } catch {
+                    return 0
+                }
+            })
+
             const registryData: McpRegistryData = {
                 servers,
                 lastFetched: new Date(),
@@ -103,8 +114,10 @@ export class McpRegistryService {
             )
             return false
         }
-        if (!url.startsWith('https://')) {
-            this.logging.error('MCP Registry: URL must use HTTPS protocol')
+        // Match server-side pattern: ^https://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+$
+        const httpsUrlPattern = /^https:\/\/[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]+$/
+        if (!httpsUrlPattern.test(url)) {
+            this.logging.error('MCP Registry: URL must be a valid HTTPS URL')
             return false
         }
         return true
