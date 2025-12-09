@@ -26,4 +26,6 @@ const props: RuntimeProps = {
     servers: [ANTLR4LanguageServer],
     name: 'PostgreSQL',
 }
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
