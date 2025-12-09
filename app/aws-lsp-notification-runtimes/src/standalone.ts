@@ -8,4 +8,6 @@ const props: RuntimeProps = {
     name: 'Notification Server',
 }
 
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
