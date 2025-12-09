@@ -258,6 +258,11 @@ export class McpEventHandler {
             actions: this.#getListMcpServersActions(configLoadErrors, mcpState, isRegistryActive),
         }
 
+        // Return empty list when MCP is disabled
+        if (mcpState === false) {
+            return { header, list: [] }
+        }
+
         return { header, list: groups }
     }
 
