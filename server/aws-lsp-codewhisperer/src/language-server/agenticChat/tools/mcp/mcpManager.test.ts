@@ -1178,44 +1178,7 @@ describe('reinitializeMcpServers()', () => {
         } catch {}
     })
 
-    it('closes servers without reloading when isManualRefresh is false', async () => {
-        const cfg1: MCPServerConfig = {
-            command: 'c',
-            args: [],
-            env: {},
-            timeout: 0,
-            disabled: false,
-            __configPath__: 'a.json',
-        }
-        const loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
-            servers: new Map([['srvA', cfg1]]),
-            serverNameMapping: new Map(),
-            errors: new Map(),
-            agentConfig: {
-                name: 'test-agent',
-                description: 'Test agent',
-                mcpServers: { srvA: cfg1 },
-                tools: ['@srvA'],
-                allowedTools: [],
-                toolsSettings: {},
-                includedFiles: [],
-                resources: [],
-            },
-        })
-        stubInitOneServer()
-
-        const mgr = await McpManager.init(['a.json'], features)
-        await mgr.discoverAllServers()
-        expect(mgr.getAllServerConfigs().has('srvA')).to.be.true
-
-        const closeSpy = sinon.spy(mgr, 'close' as any)
-        await mgr.reinitializeMcpServers(false)
-        expect(closeSpy.calledOnce).to.be.true
-        // loadAgentConfig should only be called once (during discoverAllServers)
-        expect(loadStub.callCount).to.equal(1)
-    })
-
-    it('closes then reloads servers when isManualRefresh is true', async () => {
+    it('closes and reloads servers', async () => {
         const cfg1: MCPServerConfig = {
             command: 'c',
             args: [],
@@ -1273,7 +1236,7 @@ describe('reinitializeMcpServers()', () => {
         expect(mgr.getAllServerConfigs().has('srvA')).to.be.true
 
         const closeSpy = sinon.spy(mgr, 'close' as any)
-        await mgr.reinitializeMcpServers(true)
+        await mgr.reinitializeMcpServers()
         expect(closeSpy.calledOnce).to.be.true
         expect(loadStub.callCount).to.equal(2)
         expect(mgr.getAllServerConfigs().has('srvB')).to.be.true
@@ -1642,11 +1605,8 @@ describe('McpManager error handling', () => {
         expect(errors).to.not.be.undefined
         expect(errors).to.include('Initial error')
 
-        // Reinitialize to clear errors
+        // Reinitialize to clear errors - this will call discoverAllServers internally
         await mgr.reinitializeMcpServers()
-
-        // Call discoverAllServers again to reload config
-        await mgr.discoverAllServers()
 
         // Verify errors are cleared
         errors = mgr.getConfigLoadErrors()
