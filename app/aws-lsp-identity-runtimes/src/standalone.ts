@@ -8,4 +8,6 @@ const props: RuntimeProps = {
     name: 'Identity Server',
 }
 
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()
