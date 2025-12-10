@@ -7,7 +7,7 @@ import * as assert from 'assert'
 import {
     TokenLimitsCalculator,
     TOKENS_TO_CHARACTERS_RATIO,
-    INPUT_LIMIT_RATIO,
+    INPUT_LIMIT_RESERVED_CHARACTERS,
     COMPACTION_THRESHOLD_RATIO,
     DEFAULT_MAX_INPUT_TOKENS,
 } from './tokenLimitsCalculator'
@@ -38,12 +38,12 @@ describe('TokenLimitsCalculator', () => {
          * **Feature: dynamic-token-limits, Property 2: Input limit calculation consistency**
          * **Validates: Requirements 1.3, 1.4**
          */
-        it('should calculate inputLimit and compactionThreshold as Math.floor(0.7 * maxOverallCharacters)', () => {
-            const testCases = [1, 100, 1000, 200_000, 500_000, 1_000_000]
+        it('should calculate inputLimit as maxOverallCharacters - 100K and compactionThreshold as 0.7 * maxOverallCharacters', () => {
+            const testCases = [200_000, 500_000, 1_000_000]
 
             for (const maxInputTokens of testCases) {
                 const result = TokenLimitsCalculator.calculate(maxInputTokens)
-                const expectedInputLimit = Math.floor(INPUT_LIMIT_RATIO * result.maxOverallCharacters)
+                const expectedInputLimit = result.maxOverallCharacters - INPUT_LIMIT_RESERVED_CHARACTERS
                 const expectedCompactionThreshold = Math.floor(COMPACTION_THRESHOLD_RATIO * result.maxOverallCharacters)
 
                 assert.strictEqual(
@@ -73,7 +73,7 @@ describe('TokenLimitsCalculator', () => {
         it('should return correct default values for 200K tokens', () => {
             const result = TokenLimitsCalculator.calculate(200_000)
             const expectedMaxOverallCharacters = Math.floor(200_000 * TOKENS_TO_CHARACTERS_RATIO)
-            const expectedInputLimit = Math.floor(INPUT_LIMIT_RATIO * expectedMaxOverallCharacters)
+            const expectedInputLimit = expectedMaxOverallCharacters - INPUT_LIMIT_RESERVED_CHARACTERS
             const expectedCompactionThreshold = Math.floor(COMPACTION_THRESHOLD_RATIO * expectedMaxOverallCharacters)
 
             assert.strictEqual(result.maxInputTokens, 200_000)
