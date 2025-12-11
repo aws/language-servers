@@ -20,8 +20,10 @@ import {
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@amzn/codewhisperer-streaming'
+// eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
+// eslint-disable-next-line import/no-nodejs-modules
 import { promises as fs } from 'fs'
 import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
