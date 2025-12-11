@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.0.97](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.96...lsp-codewhisperer/v0.0.97) (2025-12-08)
+
+
+### Features
+
+* use dynamic token limits from listAvailableModels API ([#2539](https://github.com/aws/language-servers/issues/2539)) ([f87ac9f](https://github.com/aws/language-servers/commit/f87ac9fce32d235649f81957b71d424264aae9c8))
+
+
+### Bug Fixes
+
+* ATX Transform Fix Retrieve Job Erroring on Profile changes ([#2538](https://github.com/aws/language-servers/issues/2538)) ([870d540](https://github.com/aws/language-servers/commit/870d5400dd5eb77f32e5592089525dacc001cb81))
+
+## [0.0.96](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.95...lsp-codewhisperer/v0.0.96) (2025-12-01)
+
+
+### Features
+
+* adding new regions ([#2532](https://github.com/aws/language-servers/issues/2532)) ([29f08a6](https://github.com/aws/language-servers/commit/29f08a60e9919026c4e1a2b2502148d5c738554b))
+
+## [0.0.95](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.94...lsp-codewhisperer/v0.0.95) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.17 to ^0.0.18
+
+## [0.0.94](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.93...lsp-codewhisperer/v0.0.94) (2025-11-25)
+
+
+### Bug Fixes
+
+* fix for mcp tool resgistration on smus ([#2524](https://github.com/aws/language-servers/issues/2524)) ([8584723](https://github.com/aws/language-servers/commit/8584723839447dda878474e17a3b21a315ffc759))
+
 ## [0.0.93](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.92...lsp-codewhisperer/v0.0.93) (2025-11-21)
 
 

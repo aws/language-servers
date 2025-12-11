@@ -1171,11 +1171,10 @@ export class McpManager {
     }
 
     /**
-     * Reinitialize all MCP servers by closing existing connections
-     * @param isManualRefresh - If true, automatically discovers servers after closing connections
+     * Reinitialize all MCP servers by closing existing connections and rediscovering servers
      */
-    public async reinitializeMcpServers(isManualRefresh: boolean = false): Promise<void> {
-        this.features.logging.info('Reinitializing MCP servers (closing connections)')
+    public async reinitializeMcpServers(): Promise<void> {
+        this.features.logging.info('Reinitializing MCP servers')
 
         try {
             // Save the current tool name mapping to preserve tool names across reinitializations
@@ -1187,18 +1186,14 @@ export class McpManager {
             // Restore the saved tool name mapping
             this.setToolNameMapping(savedToolNameMapping)
 
-            if (isManualRefresh) {
-                const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
-                if (shouldDiscoverServers) {
-                    await this.discoverAllServers()
-                }
-                const reinitializedServerCount = McpManager.#instance?.mcpServers.size
-                this.features.logging.info(
-                    `MCP servers reinitialization completed. Total servers: ${reinitializedServerCount}`
-                )
-            } else {
-                this.features.logging.info('MCP servers reinitialization completed (connections closed)')
+            const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
+            if (shouldDiscoverServers) {
+                await this.discoverAllServers()
             }
+            const reinitializedServerCount = McpManager.#instance?.mcpServers.size
+            this.features.logging.info(
+                `MCP servers reinitialization completed. Total servers: ${reinitializedServerCount}`
+            )
         } catch (err: any) {
             this.features.logging.error(`Error reinitializing MCP servers: ${err.message}`)
             throw err
@@ -1687,6 +1682,13 @@ export class McpManager {
 
             if (!wasActive) {
                 this.features.logging.info(`MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`)
+                // Only discover servers when registry is newly activated and not during periodic sync
+                if (!isPeriodicSync) {
+                    await this.discoverAllServers()
+                    this.features.logging.info(
+                        `MCP: discovered ${this.getAllTools().length} tools after registry activation`
+                    )
+                }
             } else {
                 this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
             }

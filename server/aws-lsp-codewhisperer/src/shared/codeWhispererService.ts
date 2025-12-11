@@ -616,6 +616,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             // }
 
             logstr += `@@request metadata@@
+    "version": "!!!!!!!!!!!!!!!!",
     "endpoint": ${this.codeWhispererEndpoint},
     "predictionType": ${tokenRequest.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "filename": ${tokenRequest.fileContext?.filename},
@@ -623,7 +624,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     rightContextLength: ${tokenRequest.fileContext?.rightFileContent?.length},
     "language": ${tokenRequest.fileContext?.programmingLanguage?.languageName},
     "supplementalContextCount": ${tokenRequest.supplementalContexts?.length ?? 0},
-    "request.nextToken": ${tokenRequest.nextToken}`
+    "request.nextToken": ${tokenRequest.nextToken},\n`
             // "recentEdits": ${recentEditsLogStr}\n`
 
             const response = await this.client.send(new GenerateCompletionsCommand(this.withProfileArn(tokenRequest)))

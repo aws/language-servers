@@ -258,6 +258,11 @@ export class McpEventHandler {
             actions: this.#getListMcpServersActions(configLoadErrors, mcpState, isRegistryActive),
         }
 
+        // Return empty list when MCP is disabled
+        if (mcpState === false) {
+            return { header, list: [] }
+        }
+
         return { header, list: groups }
     }
 
@@ -1744,7 +1749,7 @@ export class McpEventHandler {
 
         try {
             try {
-                await McpManager.instance.reinitializeMcpServers(true)
+                await McpManager.instance.reinitializeMcpServers()
             } catch (error) {
                 this.#features.logging.error(`McpManager not initialized for reinitializeMcpServers: ${error}`)
                 throw error
