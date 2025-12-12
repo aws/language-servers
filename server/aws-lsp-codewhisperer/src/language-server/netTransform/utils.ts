@@ -60,11 +60,10 @@ export class Utils {
                 })
             }
             const fileStream = fs.createReadStream(filePath)
+            logger?.info(`Artifact upload size: ${fs.statSync(filePath).size} bytes`)
             const response = await got.put(s3PreSignedUrl, {
                 body: fileStream,
                 headers: headers,
-                timeout: { request: 300000 },
-                retry: { limit: 0 },
             })
             if (response.statusCode === 200) {
                 return true
@@ -72,7 +71,9 @@ export class Utils {
                 return false
             }
         } catch (error) {
-            logger?.error(`Upload artifact error: ${String(error)}`)
+            logger?.error(
+                `Upload artifact error: ${String(error)}, please see https://docs.aws.amazon.com/transform/latest/userguide/dotnet-ide-troubleshoot.html`
+            )
             return false
         }
     }
@@ -129,7 +130,7 @@ export class Utils {
     ): Promise<string> {
         const response = await got.get(downloadUrl, {
             headers: requestHeaders || {},
-            timeout: { request: 300000 },
+            // timeout: { request: 300000 },
             responseType: 'buffer',
         })
 
