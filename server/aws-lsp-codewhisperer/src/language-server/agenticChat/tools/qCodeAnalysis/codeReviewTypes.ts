@@ -14,6 +14,7 @@ export enum SuccessMetricName {
 }
 
 export type ValidateInputAndSetupResult = {
+    userRequirement: string
     fileArtifacts: FileArtifacts
     folderArtifacts: FolderArtifacts
     isFullReviewRequest: boolean
@@ -21,6 +22,7 @@ export type ValidateInputAndSetupResult = {
     programmingLanguage: string
     scanName: string
     ruleArtifacts: RuleArtifacts
+    modelId?: string
 }
 
 export type PrepareAndUploadArtifactsResult = {
@@ -28,17 +30,21 @@ export type PrepareAndUploadArtifactsResult = {
     isCodeDiffPresent: boolean
     artifactSize: number
     programmingLanguages: Set<string>
+    numberOfFilesInCustomerCodeZip: number
+    codeDiffFiles: Set<string>
+    filePathsInZip: Set<string>
 }
 
 export type StartCodeAnalysisResult = {
     jobId: string
-    status: string
+    status: string | undefined
 }
 
 export type CodeReviewResult = {
     codeReviewId: string
     message: string
     findingsByFile: string
+    findingsExceededLimit: boolean
 }
 
 export type CodeReviewFinding = {

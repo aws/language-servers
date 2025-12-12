@@ -28,9 +28,10 @@ export async function fetchSupplementalContext(
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken,
+    wsContextConfig: 'codemap' | 'codemap-2hop',
     openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
-    const timesBeforeFetching = performance.now()
+    const timesBeforeFetching = Date.now()
 
     const isUtg = unitTestIntentDetector.detectUnitTestIntent(document)
 
@@ -55,7 +56,7 @@ export async function fetchSupplementalContext(
                                 },
                             ],
                             contentsLength: srcContent.length,
-                            latency: performance.now() - timesBeforeFetching,
+                            latency: Date.now() - timesBeforeFetching,
                             strategy: 'NEW_UTG',
                         }
                     }
@@ -72,6 +73,7 @@ export async function fetchSupplementalContext(
                 position,
                 workspace,
                 cancellationToken,
+                wsContextConfig,
                 openTabFiles
             )
         }
@@ -87,7 +89,7 @@ export async function fetchSupplementalContext(
                     (acc, curr) => acc + curr.content.length,
                     0
                 ),
-                latency: performance.now() - timesBeforeFetching,
+                latency: Date.now() - timesBeforeFetching,
                 strategy: supplementalContextValue.strategy,
             }
 
@@ -119,7 +121,7 @@ export async function fetchSupplementalContext(
                 isProcessTimeout: true,
                 supplementalContextItems: [],
                 contentsLength: 0,
-                latency: performance.now() - timesBeforeFetching,
+                latency: Date.now() - timesBeforeFetching,
                 strategy: 'Empty',
             }
         } else {

@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.1.44](https://github.com/aws/language-servers/compare/chat-client/v0.1.43...chat-client/v0.1.44) (2025-12-08)
+
+
+### Features
+
+* use dynamic token limits from listAvailableModels API ([#2539](https://github.com/aws/language-servers/issues/2539)) ([f87ac9f](https://github.com/aws/language-servers/commit/f87ac9fce32d235649f81957b71d424264aae9c8))
+
+## [0.1.43](https://github.com/aws/language-servers/compare/chat-client/v0.1.42...chat-client/v0.1.43) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+## [0.1.42](https://github.com/aws/language-servers/compare/chat-client/v0.1.41...chat-client/v0.1.42) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+## [0.1.41](https://github.com/aws/language-servers/compare/chat-client/v0.1.40...chat-client/v0.1.41) (2025-11-04)
+
+
+### Bug Fixes
+
+* **amazonq:** mcp tool panel blocks amazon q chat interface when using right-click context menu ([#2442](https://github.com/aws/language-servers/issues/2442)) ([11900ca](https://github.com/aws/language-servers/commit/11900ca371adee2611698427dbec7c9323ef8e01))
+
+## [0.1.40](https://github.com/aws/language-servers/compare/chat-client/v0.1.39...chat-client/v0.1.40) (2025-10-21)
+
+
+### Features
+
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
+## [0.1.39](https://github.com/aws/language-servers/compare/chat-client/v0.1.38...chat-client/v0.1.39) (2025-10-09)
+
+
+### Features
+
+* add model description to dropdown ([#2374](https://github.com/aws/language-servers/issues/2374)) ([ed8c6dd](https://github.com/aws/language-servers/commit/ed8c6dda1312f728e9ee7472f7ca447196ad9d84))
+
+## [0.1.38](https://github.com/aws/language-servers/compare/chat-client/v0.1.37...chat-client/v0.1.38) (2025-10-01)
+
+
+### Bug Fixes
+
+* **amazonq:** Fix mock fs clean; Node version upgrade ([#2324](https://github.com/aws/language-servers/issues/2324)) ([1d9afd4](https://github.com/aws/language-servers/commit/1d9afd410e19624223e300ca06ea7d08a112cc82))
+* optimize memory bank token usage and add new tab support ([#2366](https://github.com/aws/language-servers/issues/2366)) ([3057d56](https://github.com/aws/language-servers/commit/3057d56e4a3047d1715d6e3560e9f934d1de469c))
+
+## [0.1.37](https://github.com/aws/language-servers/compare/chat-client/v0.1.36...chat-client/v0.1.37) (2025-09-24)
+
+
+### Features
+
+* memory bank support ([#2314](https://github.com/aws/language-servers/issues/2314)) ([0e215fc](https://github.com/aws/language-servers/commit/0e215fc0e475b4c40a8237492371716982d4d532))
+
+## [0.1.36](https://github.com/aws/language-servers/compare/chat-client/v0.1.35...chat-client/v0.1.36) (2025-09-16)
+
+
+### Bug Fixes
+
+* migration from /agents ux ([#2248](https://github.com/aws/language-servers/issues/2248)) ([debeb41](https://github.com/aws/language-servers/commit/debeb414fd0d4d873af2f36cde0ebbeab16d16a4))
+
+## [0.1.35](https://github.com/aws/language-servers/compare/chat-client/v0.1.34...chat-client/v0.1.35) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+* **amazonq:** default to diff-based scans ([#2195](https://github.com/aws/language-servers/issues/2195)) ([da4c3db](https://github.com/aws/language-servers/commit/da4c3db5329bd50cfe249bf8c1d59afa9bcb0157))
+
 ## [0.1.34](https://github.com/aws/language-servers/compare/chat-client/v0.1.33...chat-client/v0.1.34) (2025-08-27)
 
 
@@ -459,8 +531,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.35
-- Update `@aws/language-server-runtimes-types` to 0.1.29
+- Update `@aws/chat-client-ui-types` to 0.1.63
+- Update `@aws/language-server-runtimes-types` to 0.1.57
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -484,8 +556,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.1.35
-- Update `@aws/language-server-runtimes-types` to 0.1.29
+- Update `@aws/chat-client-ui-types` to 0.1.63
+- Update `@aws/language-server-runtimes-types` to 0.1.57
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

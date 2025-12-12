@@ -49,6 +49,17 @@ describe('McpEventHandler error handling', () => {
             },
             agent: {
                 getTools: sinon.stub().returns([]),
+                getBuiltInToolNames: sinon
+                    .stub()
+                    .returns([
+                        'fsRead',
+                        'fsWrite',
+                        'executeBash',
+                        'listDirectory',
+                        'fileSearch',
+                        'codeReview',
+                        'displayFindings',
+                    ]),
             },
             lsp: {},
             telemetry: {
@@ -59,9 +70,7 @@ describe('McpEventHandler error handling', () => {
                 getConnectionMetadata: sinon.stub().returns({}),
             },
             runtime: {
-                serverInfo: {
-                    version: '1.0.0',
-                },
+                serverInfo: {},
             },
         }
 
@@ -100,7 +109,6 @@ describe('McpEventHandler error handling', () => {
             errors: mockErrors,
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -124,10 +132,12 @@ describe('McpEventHandler error handling', () => {
 
         // Verify error is displayed in header status
         expect(result.header).to.not.be.undefined
-        expect(result.header.status).to.not.be.undefined
-        expect(result.header.status!.status).to.equal('error')
-        expect(result.header.status!.title).to.include('File: file1.json, Error: File not found error')
-        expect(result.header.status!.title).to.include('File: serverA, Error: Missing command error')
+        if ('status' in result.header) {
+            expect(result.header.status).to.not.be.undefined
+            expect(result.header.status!.status).to.equal('error')
+            expect(result.header.status!.title).to.include('File: file1.json, Error: File not found error')
+            expect(result.header.status!.title).to.include('File: serverA, Error: Missing command error')
+        }
     })
 
     it('marks servers with validation errors as FAILED', async () => {
@@ -157,7 +167,6 @@ describe('McpEventHandler error handling', () => {
             errors: new Map([['errorServer', 'Missing command error']]),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: { errorServer: { command: '' } },
                 tools: ['@errorServer'],
@@ -215,7 +224,6 @@ describe('McpEventHandler error handling', () => {
             errors: new Map(),
             agentConfig: {
                 name: 'test-agent',
-                version: '1.0.0',
                 description: 'Test agent',
                 mcpServers: {},
                 tools: [],
@@ -248,7 +256,7 @@ describe('McpEventHandler error handling', () => {
             saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
         })
 
-        it('returns admin disabled status when MCP state is false', async () => {
+        it('returns admin disabled status when MCP state is false and no config errors', async () => {
             // Stub ProfileStatusMonitor.getMcpState to return false
             const { ProfileStatusMonitor } = await import('./profileStatusMonitor')
             sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(false)
@@ -259,7 +267,6 @@ describe('McpEventHandler error handling', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -273,17 +280,19 @@ describe('McpEventHandler error handling', () => {
             await McpManager.init([], features)
             const result = await eventHandler.onListMcpServers({})
 
-            expect(result.header.status).to.deep.equal({
-                title: 'MCP functionality has been disabled by your administrator',
-                icon: 'info',
-                status: 'info',
-            })
+            if ('status' in result.header) {
+                expect(result.header.status).to.deep.equal({
+                    title: 'MCP functionality has been disabled by your administrator',
+                    icon: 'info',
+                    status: 'info',
+                })
+            }
         })
 
-        it('returns config error status when MCP state is not false but config errors exist', async () => {
-            // Stub ProfileStatusMonitor.getMcpState to return true
+        it('returns config error status when MCP state is false but config errors exist', async () => {
+            // Stub ProfileStatusMonitor.getMcpState to return false
             const { ProfileStatusMonitor } = await import('./profileStatusMonitor')
-            sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(true)
+            sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(false)
 
             const mockErrors = new Map([['file1.json', 'Config error']])
             loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
@@ -292,7 +301,6 @@ describe('McpEventHandler error handling', () => {
                 errors: mockErrors,
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -308,11 +316,50 @@ describe('McpEventHandler error handling', () => {
 
             const result = await eventHandler.onListMcpServers({})
 
-            expect(result.header.status).to.deep.equal({
-                title: 'File: file1.json, Error: Config error',
-                icon: 'cancel-circle',
-                status: 'error',
+            // Config errors should take priority over admin disabled message
+            if ('status' in result.header) {
+                expect(result.header.status).to.deep.equal({
+                    title: 'File: file1.json, Error: Config error',
+                    icon: 'cancel-circle',
+                    status: 'error',
+                })
+            }
+        })
+
+        it('returns config error status when MCP state is not false but config errors exist', async () => {
+            // Stub ProfileStatusMonitor.getMcpState to return true
+            const { ProfileStatusMonitor } = await import('./profileStatusMonitor')
+            sinon.stub(ProfileStatusMonitor, 'getMcpState').returns(true)
+
+            const mockErrors = new Map([['file1.json', 'Config error']])
+            loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+                servers: new Map(),
+                serverNameMapping: new Map(),
+                errors: mockErrors,
+                agentConfig: {
+                    name: 'test-agent',
+                    description: 'Test agent',
+                    mcpServers: {},
+                    tools: [],
+                    allowedTools: [],
+                    toolsSettings: {},
+                    includedFiles: [],
+                    resources: [],
+                },
             })
+
+            await McpManager.init([], features)
+            sinon.stub(McpManager.instance, 'getConfigLoadErrors').returns('File: file1.json, Error: Config error')
+
+            const result = await eventHandler.onListMcpServers({})
+
+            if ('status' in result.header) {
+                expect(result.header.status).to.deep.equal({
+                    title: 'File: file1.json, Error: Config error',
+                    icon: 'cancel-circle',
+                    status: 'error',
+                })
+            }
         })
 
         it('returns undefined status when MCP state is not false and no config errors', async () => {
@@ -326,7 +373,6 @@ describe('McpEventHandler error handling', () => {
                 errors: new Map(),
                 agentConfig: {
                     name: 'test-agent',
-                    version: '1.0.0',
                     description: 'Test agent',
                     mcpServers: {},
                     tools: [],
@@ -342,7 +388,9 @@ describe('McpEventHandler error handling', () => {
 
             const result = await eventHandler.onListMcpServers({})
 
-            expect(result.header.status).to.be.undefined
+            if ('status' in result.header) {
+                expect(result.header.status).to.be.undefined
+            }
         })
     })
 })

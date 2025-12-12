@@ -10,9 +10,9 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { AWSError } from 'aws-sdk'
+import { ServiceException } from '@smithy/smithy-client'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
+import { CodeWhispererServer, CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -27,7 +27,6 @@ import {
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
-    EXPECTED_RESULT_EDITS,
     EXPECTED_RESULT_WITHOUT_IMPORTS,
     EXPECTED_RESULT_WITHOUT_REFERENCES,
     EXPECTED_RESULT_WITH_IMPORTS,
@@ -52,15 +51,16 @@ import {
     SPECIAL_CHARACTER_HELLO_WORLD,
     stubCodeWhispererService,
 } from '../../shared/testUtils'
-import { CodeDiffTracker } from './codeDiffTracker'
+import { CodeDiffTracker } from './tracker/codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import * as utils from '../../shared/utils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
-import { CONTEXT_CHARACTERS_LIMIT } from './constants'
+import { CONTEXT_CHARACTERS_LIMIT } from './contants/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const updateConfiguration = async (
@@ -107,6 +107,33 @@ describe('CodeWhisperer Server', () => {
             .callsFake(StubSessionIdGenerator)
         sessionManager = SessionManager.getInstance()
         sessionManagerSpy = sandbox.spy(sessionManager)
+
+        // Stub the global service manager functions to ensure they return test service managers
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager'),
+                'getOrThrowBaseTokenServiceManager'
+            )
+            .callsFake(() => {
+                // Create a new test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Also stub the IAM service manager
+        sandbox
+            .stub(
+                require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager'),
+                'getOrThrowBaseIAMServiceManager'
+            )
+            .callsFake(() => {
+                // Return the same test service manager
+                return TestAmazonQServiceManager.getInstance()
+            })
+
+        // Reset AmazonQTokenServiceManager singleton to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        AmazonQTokenServiceManager.resetInstance()
     })
 
     afterEach(() => {
@@ -115,6 +142,14 @@ describe('CodeWhisperer Server', () => {
         sandbox.restore()
         sinon.restore()
         SESSION_IDS_LOG = []
+
+        // Reset all service manager singletons to prevent cross-test interference
+        const AmazonQTokenServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQTokenServiceManager').AmazonQTokenServiceManager
+        const AmazonQIAMServiceManager =
+            require('../../shared/amazonQServiceManager/AmazonQIAMServiceManager').AmazonQIAMServiceManager
+        AmazonQTokenServiceManager.resetInstance()
+        AmazonQIAMServiceManager.resetInstance()
     })
 
     describe('Recommendations', () => {
@@ -648,7 +683,8 @@ describe('CodeWhisperer Server', () => {
 
         it('handles partialResultToken in request', async () => {
             const manager = SessionManager.getInstance()
-            manager.createSession(SAMPLE_SESSION_DATA)
+            const session = manager.createSession(SAMPLE_SESSION_DATA)
+            manager.activateSession(session)
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -728,12 +764,12 @@ describe('CodeWhisperer Server', () => {
             const secondCallArgs = service.generateSuggestions.secondCall.args[0]
 
             // Verify context truncation in first call
-            assert.strictEqual(firstCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
-            assert.strictEqual(firstCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext?.leftFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext.rightFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
 
             // Verify context truncation in second call (pagination)
-            assert.strictEqual(secondCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
-            assert.strictEqual(secondCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext?.leftFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext.rightFileContent?.length, CONTEXT_CHARACTERS_LIMIT)
 
             // Verify second call included the nextToken
             assert.strictEqual(secondCallArgs.nextToken, EXPECTED_NEXT_TOKEN)
@@ -1442,6 +1478,7 @@ describe('CodeWhisperer Server', () => {
 
         const sessionData: SessionData = {
             document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
+            startPreprocessTimestamp: 0,
             startPosition: { line: 0, character: 0 },
             triggerType: 'OnDemand',
             language: 'csharp',
@@ -1737,7 +1774,7 @@ describe('CodeWhisperer Server', () => {
                 },
                 errorData: {
                     reason: 'TestError',
-                    errorCode: undefined,
+                    errorCode: 'TestError',
                     httpStatusCode: undefined,
                 },
             }
@@ -1789,13 +1826,16 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
         })
 
-        it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with AWSError error type', async () => {
-            const error: AWSError = new Error('Fake Error') as AWSError
-            error.name = 'TestAWSError'
-            error.code = 'TestErrorStatusCode'
-            error.statusCode = 500
-            error.time = new Date()
-            error.requestId = 'failed-request-id'
+        it('should emit Failure ServiceInvocation telemetry with request metadata on failed response with ServiceException error type', async () => {
+            const error = new ServiceException({
+                name: 'TestServiceException',
+                $fault: 'client',
+                $metadata: {
+                    httpStatusCode: 500,
+                    requestId: 'failed-request-id',
+                },
+                message: 'Fake Error',
+            })
 
             service.generateSuggestions.callsFake(_request => {
                 clock.tick(1000)
@@ -1822,7 +1862,7 @@ describe('CodeWhisperer Server', () => {
                     codewhispererLastSuggestionIndex: -1,
                     codewhispererTriggerType: 'OnDemand',
                     codewhispererAutomatedTriggerType: undefined,
-                    reason: 'CodeWhisperer Invocation Exception: TestAWSError',
+                    reason: 'CodeWhisperer Invocation Exception: TestServiceException',
                     duration: 1000,
                     codewhispererLineNumber: 0,
                     codewhispererCursorOffset: 0,
@@ -1838,8 +1878,8 @@ describe('CodeWhisperer Server', () => {
                     traceId: 'notSet',
                 },
                 errorData: {
-                    reason: 'TestAWSError',
-                    errorCode: 'TestErrorStatusCode',
+                    reason: 'TestServiceException',
+                    errorCode: 'TestServiceException',
                     httpStatusCode: 500,
                 },
             }
@@ -2394,51 +2434,79 @@ describe('CodeWhisperer Server', () => {
             TestAmazonQServiceManager.resetInstance()
         })
     })
-    describe('getLanguageIdFromUri', () => {
-        it('should return python for notebook cell URIs', () => {
-            const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'
-            assert.strictEqual(getLanguageIdFromUri(uri), 'python')
+
+    describe('IAM Error Handling', () => {
+        it('should handle IAM access denied errors', async () => {
+            const service = sinon.createStubInstance(
+                CodeWhispererServiceToken
+            ) as StubbedInstance<CodeWhispererServiceToken>
+            service.generateSuggestions.rejects(new Error('not authorized'))
+
+            const features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            TestAmazonQServiceManager.resetInstance()
+            const server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await startServer(features, server)
+            features.openDocument(SOME_FILE)
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EMPTY_RESULT)
+            TestAmazonQServiceManager.resetInstance()
         })
+    })
 
-        it('should return abap for files with ABAP extensions', () => {
-            const uris = ['file:///path/to/file.asprog']
+    describe('Dynamic Service Manager Selection', () => {
+        it('should use Token service manager when not using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(false)
+            const mockTokenService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockTokenService.withCodeWhispererService(stubCodeWhispererService())
 
-            uris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), 'abap')
-            })
-        })
+            const features = new TestFeatures()
+            const server = CodeWhispererServer
 
-        it('should return empty string for non-ABAP files', () => {
-            const uris = ['file:///path/to/file.js', 'file:///path/to/file.ts', 'file:///path/to/file.py']
+            try {
+                await startServer(features, server)
 
-            uris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), '')
-            })
-        })
-
-        it('should return empty string for invalid URIs', () => {
-            const invalidUris = ['', 'invalid-uri', 'file:///']
-
-            invalidUris.forEach(uri => {
-                assert.strictEqual(getLanguageIdFromUri(uri), '')
-            })
-        })
-
-        it('should log errors when provided with a logging object', () => {
-            const mockLogger = {
-                log: sinon.spy(),
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
             }
-
-            const invalidUri = {} as string // Force type error
-            getLanguageIdFromUri(invalidUri, mockLogger)
-
-            sinon.assert.calledOnce(mockLogger.log)
-            sinon.assert.calledWith(mockLogger.log, sinon.match(/Error parsing URI to determine language:.*/))
         })
 
-        it('should handle URIs without extensions', () => {
-            const uri = 'file:///path/to/file'
-            assert.strictEqual(getLanguageIdFromUri(uri), '')
+        it('should use IAM service manager when using IAM auth', async () => {
+            // Create isolated stubs for this test only
+            const isUsingIAMAuthStub = sinon.stub(utils, 'isUsingIAMAuth').returns(true)
+            const mockIAMService = TestAmazonQServiceManager.initInstance(new TestFeatures())
+            mockIAMService.withCodeWhispererService(stubCodeWhispererService())
+
+            const features = new TestFeatures()
+            const server = CodeWhispererServer
+
+            try {
+                await startServer(features, server)
+
+                // Verify the correct service manager function was called
+                sinon.assert.calledWith(isUsingIAMAuthStub, features.credentialsProvider)
+            } finally {
+                isUsingIAMAuthStub.restore()
+                features.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
         })
     })
 })

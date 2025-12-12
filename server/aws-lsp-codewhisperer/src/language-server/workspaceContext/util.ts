@@ -1,5 +1,5 @@
 import { CredentialsProvider, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
+import { CreateUploadUrlResponse } from '@amzn/codewhisperer-runtime'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
 import * as crypto from 'crypto'
@@ -29,6 +29,13 @@ export const findWorkspaceRootFolder = (
     return matchingFolder
 }
 
+/**
+ * Helper function to normalize relative path e.g : src/java/test.java to file:///src/java/test/java for workspace context
+ */
+export const normalizeFileUri = (fileUri: string): string => {
+    return fileUri.startsWith('file://') ? fileUri : `file://${fileUri.startsWith('/') ? fileUri : '/' + fileUri}`
+}
+
 export const cleanUrl = (s3Url: string): string => {
     return new URL(s3Url).origin + new URL(s3Url).pathname
 }
@@ -49,7 +56,7 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
             'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
         })
     }
-    await axios.put(resp.uploadUrl, content, { headers: headersObj })
+    await axios.put(resp.uploadUrl ?? 'invalid-url', content, { headers: headersObj })
 }
 
 export const isDirectory = (path: string): boolean => {

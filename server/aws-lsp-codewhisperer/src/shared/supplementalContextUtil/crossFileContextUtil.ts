@@ -66,16 +66,17 @@ export async function fetchSupplementalContextForSrc(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
+    wsContextConfig: 'codemap' | 'codemap-2hop',
     openTabFiles?: string[]
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
-    const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
+    const supplementalContextConfig = isSupplementalContextSupported(document.languageId)
 
-    if (supplementalContextConfig === undefined) {
+    if (!supplementalContextConfig) {
         return undefined
     }
 
-    if (supplementalContextConfig === 'codemap') {
-        return await codemapContext(document, position, workspace, cancellationToken, openTabFiles)
+    if (wsContextConfig === 'codemap' || wsContextConfig === 'codemap-2hop') {
+        return await codemapContext(document, position, workspace, cancellationToken, wsContextConfig, openTabFiles)
     }
 
     return { supplementalContextItems: [], strategy: 'Empty' }
@@ -86,6 +87,7 @@ export async function codemapContext(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
+    wsContextConfig: 'codemap' | 'codemap-2hop',
     openTabFiles?: string[]
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     let strategy: SupplementalContextStrategy = 'Empty'
@@ -99,7 +101,7 @@ export async function codemapContext(
 
     const projectContextPromise = waitUntil(
         async function () {
-            return await fetchProjectContext(document, position, 'codemap')
+            return await fetchProjectContext(document, position, wsContextConfig)
         },
         { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
     )
@@ -137,7 +139,7 @@ export async function codemapContext(
 export async function fetchProjectContext(
     document: TextDocument,
     position: Position,
-    target: 'default' | 'codemap' | 'bm25'
+    target: 'default' | 'codemap' | 'bm25' | 'codemap-2hop'
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
     const fsPath = URI.parse(document.uri).fsPath
@@ -210,17 +212,8 @@ export async function fetchOpenTabsContext(
         })
     }
 
-    // Dedupe code chunks based on their filePath + content unique key
-    const seen = new Set<string>()
-    const deduped = supplementalContexts.filter(item => {
-        const key = `${item.filePath}:${item.content}`
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-    })
-
     // DO NOT send code chunk with empty content
-    return deduped.filter(item => item.content.trim().length !== 0)
+    return supplementalContexts.filter(item => item.content.trim().length !== 0)
 }
 
 function findBestKChunkMatches(chunkInput: Chunk, chunkReferences: Chunk[], k: number): Chunk[] {
@@ -265,8 +258,8 @@ function getInputChunk(document: TextDocument, cursorPosition: Position, chunkSi
  * @returns specifically returning undefined if the langueage is not supported,
  * otherwise true/false depending on if the language is fully supported or not belonging to the user group
  */
-function getSupplementalContextConfig(languageId: TextDocument['languageId']): SupplementalContextStrategy | undefined {
-    return isCrossFileSupported(languageId) ? 'codemap' : undefined
+function isSupplementalContextSupported(languageId: TextDocument['languageId']): boolean {
+    return isCrossFileSupported(languageId)
 }
 
 /**

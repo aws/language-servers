@@ -10,7 +10,6 @@ import {
     SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
 
-import { UserContext, OptOutPreference } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererSession } from '../../language-server/inline-completion/session/sessionManager'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { BUILDER_ID_START_URL } from '../constants'
@@ -18,6 +17,7 @@ import { ChatInteractionType } from './types'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import { OptOutPreference, SendTelemetryEventRequest, UserContext } from '@amzn/codewhisperer-runtime'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -281,7 +281,7 @@ describe('TelemetryService', () => {
                 },
             },
             optOutPreference: 'OPTIN',
-        }
+        } satisfies SendTelemetryEventRequest
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
                 startUrl: 'idc-start-url',
@@ -391,7 +391,7 @@ describe('TelemetryService', () => {
                         hasProjectLevelContext: false,
                     },
                 },
-            }
+            } satisfies SendTelemetryEventRequest
 
             sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
             sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
@@ -544,7 +544,7 @@ describe('TelemetryService', () => {
                 },
             },
             optOutPreference: 'OPTIN',
-        }
+        } satisfies SendTelemetryEventRequest
         mockCredentialsProvider.setConnectionMetadata({
             sso: {
                 startUrl: 'idc-start-url',
@@ -655,7 +655,7 @@ describe('TelemetryService', () => {
                 },
             },
             optOutPreference: 'OPTIN',
-        }
+        } satisfies SendTelemetryEventRequest
         sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
             name: 'codewhisperer_userModification',
             data: {
@@ -700,7 +700,7 @@ describe('TelemetryService', () => {
                 },
             },
             optOutPreference: 'OPTIN',
-        }
+        } satisfies SendTelemetryEventRequest
         sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
         sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
             name: 'amazonq_modifyCode',
@@ -810,7 +810,7 @@ describe('TelemetryService', () => {
                         result: 'SUCCEEDED',
                     },
                 },
-            }
+            } satisfies SendTelemetryEventRequest
 
             sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
             sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
@@ -859,6 +859,8 @@ describe('TelemetryService', () => {
                     cwsprChatPinnedFileContextCount: undefined,
                     cwsprChatPinnedFolderContextCount: undefined,
                     cwsprChatPinnedPromptContextCount: undefined,
+                    errorMessage: undefined,
+                    errorCode: undefined,
                 },
             })
         })
@@ -992,7 +994,7 @@ describe('TelemetryService', () => {
                         },
                     },
                 },
-            }
+            } satisfies SendTelemetryEventRequest
             sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
         })
 

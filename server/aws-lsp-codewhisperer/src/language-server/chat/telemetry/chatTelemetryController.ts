@@ -20,7 +20,7 @@ import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/codeDiffTracker'
+import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completion/tracker/codeDiffTracker'
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
@@ -294,7 +294,13 @@ export class ChatTelemetryController {
         })
     }
 
-    public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>, result?: string) {
+    public emitAddMessageMetric(
+        tabId: string,
+        metric: Partial<CombinedConversationEvent>,
+        result?: string,
+        errorMessage?: string,
+        errorCode?: string
+    ) {
         const conversationId = this.getConversationId(tabId)
         // Store the customization value associated with the message
         if (metric.cwsprChatMessageId && metric.codewhispererCustomizationArn) {
@@ -308,7 +314,7 @@ export class ChatTelemetryController {
                 conversationId: conversationId,
                 messageId: metric.cwsprChatMessageId,
                 customizationArn: metric.codewhispererCustomizationArn,
-                userIntent: metric.cwsprChatUserIntent,
+                userIntent: metric.cwsprChatUserIntent as UserIntent,
                 hasCodeSnippet: metric.cwsprChatHasCodeSnippet,
                 programmingLanguage: metric.cwsprChatProgrammingLanguage as CodewhispererLanguage,
                 activeEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
@@ -349,6 +355,8 @@ export class ChatTelemetryController {
                 requestIds: metric.requestIds,
                 experimentName: metric.experimentName,
                 userVariation: metric.userVariation,
+                errorMessage: errorMessage,
+                errorCode: errorCode,
             }
         )
     }

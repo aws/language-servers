@@ -8,7 +8,7 @@ import {
     GetTransformationRequest,
     StopTransformationRequest,
     TransformationJob,
-} from '../../client/token/codewhispererbearertokenclient'
+} from '@amzn/codewhisperer-runtime'
 import { ArtifactManager } from './artifactManager'
 import { getCWStartTransformRequest, getCWStartTransformResponse } from './converter'
 import {
@@ -30,7 +30,7 @@ import path = require('path')
 import AdmZip = require('adm-zip')
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
-const workspaceFolderName = 'artifactWorkspace'
+import { Utils, workspaceFolderName } from './utils'
 
 export class TransformHandler {
     private serviceManager: AmazonQTokenServiceManager
@@ -58,7 +58,8 @@ export class TransformHandler {
         const artifactManager = new ArtifactManager(
             this.workspace,
             this.logging,
-            this.getWorkspacePath(userInputrequest.SolutionRootPath)
+            Utils.getWorkspacePath(userInputrequest.SolutionRootPath),
+            userInputrequest.SolutionRootPath
         )
         try {
             const payloadFilePath = await this.zipCodeAsync(userInputrequest, artifactManager)
@@ -94,7 +95,7 @@ export class TransformHandler {
         }
     }
 
-    async preTransformationUploadCode(payloadFilePath: string): Promise<string> {
+    async preTransformationUploadCode(payloadFilePath: string): Promise<string | undefined> {
         try {
             const uploadId = await this.uploadPayloadAsync(payloadFilePath)
             this.logging.log('Artifact was successfully uploaded. Upload tracking id: ' + uploadId)
@@ -105,7 +106,7 @@ export class TransformHandler {
         }
     }
 
-    async uploadPayloadAsync(payloadFileName: string): Promise<string> {
+    async uploadPayloadAsync(payloadFileName: string): Promise<string | undefined> {
         const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
         let response: CreateUploadUrlResponse
         try {
@@ -143,7 +144,7 @@ export class TransformHandler {
         const headersObj = this.getHeadersObj(sha256, resp.kmsKeyArn)
         try {
             const fileStream = fs.createReadStream(fileName)
-            const response = await got.put(resp.uploadUrl, {
+            const response = await got.put(resp.uploadUrl ?? 'invalid-url', {
                 body: fileStream,
                 headers: headersObj,
             })
@@ -228,11 +229,11 @@ export class TransformHandler {
                     throw e
                 }
 
-                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
+                const expDelayMs = Utils.getExpDelayForApiRetryMs(getTransformationPlanAttempt)
                 this.logging.log(
                     `Attempt ${getTransformationPlanAttempt}/${getTransformationPlanMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(expDelayMs * 1000)
+                await Utils.sleep(expDelayMs * 1000)
             }
         }
     }
@@ -276,17 +277,13 @@ export class TransformHandler {
                     } as CancelTransformResponse
                 }
 
-                const expDelayMs = this.getExpDelayForApiRetryMs(cancelTransformationAttempt)
+                const expDelayMs = Utils.getExpDelayForApiRetryMs(cancelTransformationAttempt)
                 this.logging.log(
                     `Attempt ${cancelTransformationAttempt}/${cancelTransformationMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(expDelayMs * 1000)
+                await Utils.sleep(expDelayMs * 1000)
             }
         }
-    }
-
-    async sleep(duration = 0): Promise<void> {
-        return new Promise(r => setTimeout(r, Math.max(duration, 0)))
     }
 
     async pollTransformation(request: GetTransformRequest, validExitStatus: string[], failureStates: string[]) {
@@ -330,8 +327,8 @@ export class TransformHandler {
                     break
                 }
 
-                status = response.transformationJob.status!
-                await this.sleep(10 * 1000)
+                status = response.transformationJob?.status!
+                await Utils.sleep(10 * 1000)
                 timer += 10
 
                 if (timer > 24 * 3600 * 1000) {
@@ -350,11 +347,11 @@ export class TransformHandler {
                     break
                 }
 
-                const expDelayMs = this.getExpDelayForApiRetryMs(getTransformAttempt)
+                const expDelayMs = Utils.getExpDelayForApiRetryMs(getTransformAttempt)
                 this.logging.log(
                     `Attempt ${getTransformAttempt}/${getTransformMaxAttempts} to get transformation plan failed, retry in ${expDelayMs} seconds`
                 )
-                await this.sleep(expDelayMs * 1000)
+                await Utils.sleep(expDelayMs * 1000)
             }
         }
         this.logging.log('Returning response from server : ' + JSON.stringify(response))
@@ -431,7 +428,7 @@ export class TransformHandler {
         try {
             const tempDir = path.join(saveToDir, exportId)
             const pathToArchive = path.join(tempDir, 'ExportResultsArchive.zip')
-            await this.directoryExists(tempDir)
+            await Utils.directoryExists(tempDir)
             await fs.writeFileSync(pathToArchive, Buffer.concat(buffer))
             let pathContainingArchive = ''
             pathContainingArchive = path.dirname(pathToArchive)
@@ -445,33 +442,11 @@ export class TransformHandler {
         }
     }
 
-    async directoryExists(directoryPath: any) {
-        try {
-            await fs.accessSync(directoryPath)
-        } catch (error) {
-            // Directory doesn't exist, create it
-            this.logging.log(`Directory doesn't exist, creating it ${directoryPath}`)
-            await fs.mkdirSync(directoryPath, { recursive: true })
-        }
-    }
-
-    getWorkspacePath(solutionRootPath: string): string {
-        const randomPath = uuidv4().substring(0, 8)
-        const workspacePath = path.join(solutionRootPath, workspaceFolderName, randomPath)
-        if (!fs.existsSync(workspacePath)) {
-            fs.mkdirSync(workspacePath, { recursive: true })
-        }
-        return workspacePath
-    }
-
-    getExpDelayForApiRetryMs(attempt: number): number {
-        const exponentialDelayFactor = 2
-        const exponentialDelay = 10 * Math.pow(exponentialDelayFactor, attempt)
-        const jitteredDelay = Math.floor(Math.random() * 10)
-        return exponentialDelay + jitteredDelay // returns in milliseconds
-    }
-
-    logSuggestionForFailureResponse(request: GetTransformRequest, job: TransformationJob, failureStates: string[]) {
+    logSuggestionForFailureResponse(
+        request: GetTransformRequest,
+        job: TransformationJob | undefined,
+        failureStates: string[]
+    ) {
         let status = job?.status ?? PollTransformationStatus.NOT_FOUND
         let reason = job?.reason ?? ''
         if (failureStates.includes(status)) {
@@ -480,8 +455,7 @@ export class TransformHandler {
                 suggestion =
                     'Please close Visual Studio, delete the directories where build artifacts are generated (e.g. bin and obj), and try running the transformation again.'
             }
-            this.logging
-                .log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}". 
+            this.logging.log(`Transformation job for job ${request.TransformationJobId} is ${status} due to "${reason}".
                 ${suggestion}`)
         }
     }

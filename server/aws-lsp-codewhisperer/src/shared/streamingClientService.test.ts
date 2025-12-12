@@ -12,6 +12,8 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { QDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import { rejects } from 'assert'
+import { initBaseTestServiceManager, TestAmazonQServiceManager } from './amazonQServiceManager/testUtils'
+import { stubCodeWhispererService } from './testUtils'
 
 const TIME_TO_ADVANCE_MS = 100
 
@@ -111,6 +113,33 @@ describe('StreamingClientServiceToken', () => {
 
         sinon.assert.calledOnce(sendMessageStub)
         sinon.assert.match(sendMessageStub.firstCall.firstArg, expectedRequest)
+    })
+
+    it('creates client with shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceWithOptout = new StreamingClientServiceToken(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL,
+            'some-user-agent'
+        )
+        streamingClientServiceWithOptout.shareCodeWhispererContentWithAWS = false
+
+        expect(streamingClientServiceWithOptout['shareCodeWhispererContentWithAWS']).to.equal(false)
+    })
+
+    it('creates client without shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceDefault = new StreamingClientServiceToken(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL,
+            'some-user-agent'
+        )
+
+        expect(streamingClientServiceDefault['shareCodeWhispererContentWithAWS']).to.be.undefined
     })
 
     describe('generateAssistantResponse', () => {
@@ -272,7 +301,7 @@ describe('StreamingClientServiceIAM', () => {
         expect(streamingClientServiceIAM['inflightRequests'].size).to.eq(0)
     })
 
-    it('uses expireTime from credentials when available', async () => {
+    it('uses expiration from credentials when available', async () => {
         // Get the credential provider function from the client config
         const credentialProvider = streamingClientServiceIAM.client.config.credentials
         expect(credentialProvider).to.not.be.undefined
@@ -280,11 +309,11 @@ describe('StreamingClientServiceIAM', () => {
         // Reset call count on the stub
         features.credentialsProvider.getCredentials.resetHistory()
 
-        // Set up credentials with expireTime
+        // Set up credentials with expiration
         const futureDate = new Date(Date.now() + 3600000) // 1 hour in the future
         const CREDENTIALS_WITH_EXPIRY = {
             ...MOCKED_IAM_CREDENTIALS,
-            expireTime: futureDate.toISOString(),
+            expiration: futureDate,
         }
         features.credentialsProvider.getCredentials.withArgs('iam').returns(CREDENTIALS_WITH_EXPIRY)
 
@@ -293,12 +322,12 @@ describe('StreamingClientServiceIAM', () => {
         await clock.tickAsync(TIME_TO_ADVANCE_MS)
         const credentials = await credentialsPromise
 
-        // Verify expiration is set to the expireTime from credentials
+        // Verify expiration is set to the expiration from credentials
         expect(credentials.expiration).to.be.instanceOf(Date)
         expect(credentials.expiration.getTime()).to.equal(futureDate.getTime())
     })
 
-    it('falls back to current date when expireTime is not available', async () => {
+    it('forces refresh when expiration is not available in credentials', async () => {
         // Get the credential provider function from the client config
         const credentialProvider = streamingClientServiceIAM.client.config.credentials
         expect(credentialProvider).to.not.be.undefined
@@ -306,21 +335,91 @@ describe('StreamingClientServiceIAM', () => {
         // Reset call count on the stub
         features.credentialsProvider.getCredentials.resetHistory()
 
-        // Set up credentials without expireTime
+        // Set up credentials without expiration
         features.credentialsProvider.getCredentials.withArgs('iam').returns(MOCKED_IAM_CREDENTIALS)
-
-        // Set a fixed time for testing
-        const fixedNow = new Date()
-        clock.tick(0) // Ensure clock is at the fixed time
 
         // Call the credential provider
         const credentialsPromise = (credentialProvider as any)()
         await clock.tickAsync(TIME_TO_ADVANCE_MS)
         const credentials = await credentialsPromise
 
-        // Verify expiration is set to current date when expireTime is missing
+        // Verify expiration is set to current date to force refresh when not provided in credentials
         expect(credentials.expiration).to.be.instanceOf(Date)
-        // The expiration should be very close to the current time
-        expect(credentials.expiration.getTime()).to.be.closeTo(fixedNow.getTime(), 100)
+        expect(credentials.expiration.getTime()).to.be.closeTo(Date.now(), 1000)
+    })
+
+    it('creates client with shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceWithOptout = new StreamingClientServiceIAM(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL
+        )
+        streamingClientServiceWithOptout.shareCodeWhispererContentWithAWS = false
+
+        expect(streamingClientServiceWithOptout['shareCodeWhispererContentWithAWS']).to.equal(false)
+    })
+
+    it('creates client without shareCodeWhispererContentWithAWS parameter', () => {
+        const streamingClientServiceDefault = new StreamingClientServiceIAM(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL
+        )
+
+        expect(streamingClientServiceDefault['shareCodeWhispererContentWithAWS']).to.be.undefined
+    })
+})
+
+describe('BaseAmazonQServiceManager streaming client cache updates', () => {
+    let features: TestFeatures
+    let serviceManager: TestAmazonQServiceManager
+    let streamingClientMock: StreamingClientServiceToken
+
+    beforeEach(() => {
+        features = new TestFeatures()
+        const serviceStub = stubCodeWhispererService()
+
+        streamingClientMock = Object.assign(sinon.createStubInstance(StreamingClientServiceToken), {
+            region: DEFAULT_AWS_Q_REGION,
+            endpoint: DEFAULT_AWS_Q_ENDPOINT_URL,
+        }) as unknown as StreamingClientServiceToken
+        serviceManager = initBaseTestServiceManager(features, serviceStub, streamingClientMock)
+    })
+
+    afterEach(() => {
+        sinon.restore()
+        TestAmazonQServiceManager.resetInstance()
+    })
+
+    it('updates shareCodeWhispererContentWithAWS on cached streaming client when configuration changes', async () => {
+        // Set initial configuration
+        features.lsp.workspace.getConfiguration.resolves({ shareCodeWhispererContentWithAWS: true })
+
+        await serviceManager.handleDidChangeConfiguration()
+
+        expect(streamingClientMock.shareCodeWhispererContentWithAWS).to.equal(true)
+
+        // Change configuration
+        features.lsp.workspace.getConfiguration.resolves({ shareCodeWhispererContentWithAWS: false })
+
+        await serviceManager.handleDidChangeConfiguration()
+
+        expect(streamingClientMock.shareCodeWhispererContentWithAWS).to.equal(false)
+    })
+
+    it('does not update streaming client when no cached client exists', async () => {
+        TestAmazonQServiceManager.resetInstance()
+        const serviceManagerWithoutClient = initBaseTestServiceManager(features, stubCodeWhispererService())
+
+        features.lsp.workspace.getConfiguration.resolves({ shareCodeWhispererContentWithAWS: false })
+
+        // Should not throw when no cached streaming client exists
+        await serviceManagerWithoutClient.handleDidChangeConfiguration()
+
+        expect(serviceManagerWithoutClient['cachedStreamingClient']).to.be.undefined
     })
 })

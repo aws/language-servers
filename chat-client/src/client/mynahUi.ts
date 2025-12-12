@@ -69,12 +69,7 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import {
-    pairProgrammingModeOff,
-    pairProgrammingModeOn,
-    programmerModeCard,
-    createRerouteCard,
-} from './texts/pairProgramming'
+import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
 import { getModelSelectionChatItem, modelUnavailableBanner, modelThrottledBanner } from './texts/modelSelection'
 import {
@@ -285,11 +280,6 @@ export const handleChatPrompt = (
     // For /doc command, don't show any prompt in UI
     const displayPrompt = isReroutedCommand && prompt.command === '/doc' ? '' : userPrompt
     initializeChatResponse(mynahUi, tabId, displayPrompt, agenticMode)
-
-    // If this is a rerouted command AND reroute feature is enabled, show the reroute card after the prompt
-    if (isReroutedCommand && tabFactory?.isRerouteEnabled() && prompt.command) {
-        mynahUi.addChatItem(tabId, createRerouteCard(prompt.command))
-    }
 }
 
 const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string, agenticMode?: boolean) => {
@@ -404,9 +394,6 @@ export const createMynahUi = (
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
-                ...(tabFactory.isRerouteEnabled()
-                    ? { quickActionCommandsHeader: defaultTabBarData.quickActionCommandsHeader }
-                    : {}),
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: [
                     ...(contextCommandGroups || []),
@@ -1430,7 +1417,8 @@ export const createMynahUi = (
     const sendToPrompt = (params: SendToPromptParams) => {
         const tabId = getOrCreateTabId()
         if (!tabId) return
-
+        chatHistoryList.close()
+        mcpMynahUi.close()
         if (params.autoSubmit && params.prompt) {
             messager.onChatPrompt({ prompt: params.prompt, tabId, context: undefined }, 'contextMenu')
             initializeChatResponse(mynahUi, tabId, params.prompt.prompt, agenticMode)
@@ -1444,7 +1432,8 @@ export const createMynahUi = (
         let tabId = getOrCreateTabId()
 
         if (!tabId) return
-
+        chatHistoryList.close()
+        mcpMynahUi.close()
         // send to a new tab if the current tab is loading
         if (getTabStore(tabId)?.loadingChat) {
             tabId = createTabId()
@@ -1573,6 +1562,7 @@ ${params.message}`,
                 commands: toContextCommands(child.commands),
             })),
             icon: toMynahIcon(command.icon),
+            disabled: command.disabledText != null,
         }))
     }
 
@@ -1750,7 +1740,11 @@ ${params.message}`,
                     ? {
                           ...option,
                           type: 'select',
-                          options: params.models.map(model => ({ value: model.id, label: model.name })),
+                          options: params.models.map(model => ({
+                              value: model.id,
+                              label: model.name,
+                              description: model.description ?? '',
+                          })),
                           value: params.selectedModelId,
                       }
                     : option
@@ -1793,7 +1787,7 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
-const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform code analysis of the open file. If there is no open file, ask what the user would like to review.`
+const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform a diff review code analysis of the open file. If there is no open file, ask what the user would like to review. Please tell the user that the scan is a diff scan.`
 
 export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',

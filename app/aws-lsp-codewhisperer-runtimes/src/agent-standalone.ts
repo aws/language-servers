@@ -3,9 +3,11 @@ import {
     AmazonQServiceServerIAM,
     AmazonQServiceServerToken,
     CodeWhispererSecurityScanServerTokenProxy,
-    CodeWhispererServerTokenProxy,
+    CodeWhispererServer,
     QAgenticChatServerProxy,
     QConfigurationServerTokenProxy,
+    TransformConfigurationServerTokenProxy,
+    AtxNetTransformServerTokenProxy,
     QLocalProjectContextServerProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
@@ -16,6 +18,7 @@ import {
     FsToolsServer,
     QCodeAnalysisServer,
     McpToolsServer,
+    WebToolsServer,
 } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 
@@ -25,7 +28,7 @@ const version = versionJson.agenticChat
 const props = {
     version: version,
     servers: [
-        CodeWhispererServerTokenProxy,
+        CodeWhispererServer,
         CodeWhispererSecurityScanServerTokenProxy,
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
@@ -37,11 +40,17 @@ const props = {
         QLocalProjectContextServerProxy,
         WorkspaceContextServerTokenProxy,
         McpToolsServer,
+        WebToolsServer,
         // LspToolsServer,
         AmazonQServiceServerIAM,
         AmazonQServiceServerToken,
+        // ATX Servers
+        TransformConfigurationServerTokenProxy,
+        AtxNetTransformServerTokenProxy,
     ],
     name: 'AWS CodeWhisperer',
 } as RuntimeProps
 
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()

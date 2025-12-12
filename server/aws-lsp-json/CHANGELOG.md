@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.1.23](https://github.com/aws/language-servers/compare/lsp-json/v0.1.22...lsp-json/v0.1.23) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.17 to ^0.0.18
+
+## [0.1.22](https://github.com/aws/language-servers/compare/lsp-json/v0.1.21...lsp-json/v0.1.22) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.16 to ^0.0.17
+
+## [0.1.21](https://github.com/aws/language-servers/compare/lsp-json/v0.1.20...lsp-json/v0.1.21) (2025-10-14)
+
+
+### Bug Fixes
+
+* set resolveProvider to false in init handler json and yaml language servers ([#2391](https://github.com/aws/language-servers/issues/2391)) ([e11c544](https://github.com/aws/language-servers/commit/e11c544804e4fbe7dbad3e5373223ba919a34758))
+
+## [0.1.20](https://github.com/aws/language-servers/compare/lsp-json/v0.1.19...lsp-json/v0.1.20) (2025-10-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.15 to ^0.0.16
+
+## [0.1.19](https://github.com/aws/language-servers/compare/lsp-json/v0.1.18...lsp-json/v0.1.19) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.14 to ^0.0.15
+
 ## [0.1.18](https://github.com/aws/language-servers/compare/lsp-json/v0.1.17...lsp-json/v0.1.18) (2025-08-19)
 
 

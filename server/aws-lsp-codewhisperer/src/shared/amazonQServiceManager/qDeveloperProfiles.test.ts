@@ -1,11 +1,11 @@
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
-import { SsoConnectionType } from '../utils'
 import {
     AWSInitializationOptions,
     CancellationTokenSource,
     Logging,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
 import {
     AmazonQDeveloperProfile,
@@ -15,6 +15,7 @@ import {
 } from './qDeveloperProfiles'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../shared/constants'
 import { AmazonQServiceProfileThrottlingError } from './errors'
+import { ListAvailableProfilesCommandOutput } from '@amzn/codewhisperer-runtime'
 
 const SOME_Q_DEVELOPER_PROFILE_ARN = 'some-random-q-developer-profile-arn'
 const SOME_Q_DEVELOPER_PROFILE_NAME = 'some-random-q-developer-profile-name'
@@ -49,8 +50,8 @@ describe('ListAllAvailableProfiles Handler', () => {
                 profileName: SOME_Q_DEVELOPER_PROFILE_NAME,
             },
         ],
-        $response: {} as any,
-    }
+        $metadata: {},
+    } satisfies ListAvailableProfilesCommandOutput
 
     beforeEach(() => {
         logging = stubInterface<Logging>()

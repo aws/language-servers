@@ -4,15 +4,16 @@ import {
     Logging,
     LSPErrorCodes,
     ResponseError,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
-import { isBool, isObject, SsoConnectionType } from '../utils'
+import { isBool, isObject } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { AmazonQServiceProfileThrottlingError } from './errors'
 
 export interface AmazonQDeveloperProfile {
-    arn: string
-    name: string
+    arn: string | undefined
+    name: string | undefined
     identityDetails?: IdentityDetails
 }
 
@@ -147,13 +148,14 @@ async function fetchProfilesFromRegion(
 
             logging.debug(`Raw response from ${region}: ${JSON.stringify(response)}`)
 
-            const profiles = response.profiles.map(profile => ({
-                arn: profile.arn,
-                name: profile.profileName,
-                identityDetails: {
-                    region,
-                },
-            }))
+            const profiles =
+                response.profiles?.map(profile => ({
+                    arn: profile.arn,
+                    name: profile.profileName,
+                    identityDetails: {
+                        region,
+                    },
+                })) ?? []
 
             logging.log(`Fetched ${profiles.length} profiles from ${region} (page: ${numberOfPages + 1})`)
             if (profiles.length > 0) {

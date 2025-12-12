@@ -5,8 +5,8 @@ import {
     CreateWorkspaceResponse,
     WorkspaceMetadata,
     WorkspaceStatus,
-} from '../../client/token/codewhispererbearertokenclient'
-import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
+} from '@amzn/codewhisperer-runtime'
+import { Agent, CredentialsProvider, Logging, ToolClassification } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager, FileMetadata } from './artifactManager'
 import {
     cleanUrl,
@@ -19,19 +19,22 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { URI } from 'vscode-uri'
 import path = require('path')
-import { isAwsError } from '../../shared/utils'
+import { isAwsError, isServiceException } from '../../shared/utils'
 import { IdleWorkspaceManager } from './IdleWorkspaceManager'
+import { SemanticSearch, SemanticSearchParams } from '../agenticChat/tools/workspaceContext/semanticSearch'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
     messageQueue: any[]
     webSocketClient?: WebSocketClient
     workspaceId?: string
+    environmentId?: string
 }
 
 type WorkspaceRoot = string
 
 export class WorkspaceFolderManager {
+    private agent: Agent
     private serviceManager: AmazonQTokenServiceManager
     private logging: Logging
     private artifactManager: ArtifactManager
@@ -56,10 +59,12 @@ export class WorkspaceFolderManager {
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
     private featureDisabled: boolean = false // Serve as a server-side control. If true, stop WCS features
+    private semanticSearchToolEnabled: boolean = false
     private isCheckingRemoteWorkspaceStatus: boolean = false
     private isArtifactUploadedToRemoteWorkspace: boolean = false
 
     static createInstance(
+        agent: Agent,
         serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
@@ -70,6 +75,7 @@ export class WorkspaceFolderManager {
     ): WorkspaceFolderManager {
         if (!this.instance) {
             this.instance = new WorkspaceFolderManager(
+                agent,
                 serviceManager,
                 logging,
                 artifactManager,
@@ -87,6 +93,7 @@ export class WorkspaceFolderManager {
     }
 
     private constructor(
+        agent: Agent,
         serviceManager: AmazonQTokenServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
@@ -95,6 +102,7 @@ export class WorkspaceFolderManager {
         credentialsProvider: CredentialsProvider,
         workspaceIdentifier: string
     ) {
+        this.agent = agent
         this.serviceManager = serviceManager
         this.logging = logging
         this.artifactManager = artifactManager
@@ -118,7 +126,8 @@ export class WorkspaceFolderManager {
             this.remoteWorkspaceIdResolver = resolve
         })
         this.workspaceState = {
-            remoteWorkspaceState: 'CREATION_PENDING',
+            // TODO: CREATION_PENDING does not exist in WorkspaceStatus so we need to use type assertion for now.
+            remoteWorkspaceState: 'CREATION_PENDING' as WorkspaceStatus,
             messageQueue: [],
         }
     }
@@ -147,6 +156,10 @@ export class WorkspaceFolderManager {
 
     isFeatureDisabled(): boolean {
         return this.featureDisabled
+    }
+
+    setSemanticSearchToolStatus(semanticSearchToolEnabled: boolean): void {
+        this.semanticSearchToolEnabled = semanticSearchToolEnabled
     }
 
     getWorkspaceState(): WorkspaceState {
@@ -231,6 +244,7 @@ export class WorkspaceFolderManager {
         this.workspaceState.webSocketClient?.destroyClient()
         this.dependencyDiscoverer.dispose()
         this.artifactManager.dispose()
+        this.removeSemanticSearchTool()
     }
 
     /**
@@ -324,6 +338,10 @@ export class WorkspaceFolderManager {
         const webSocketClient = new WebSocketClient(websocketUrl, this.logging, this.credentialsProvider)
         this.workspaceState.remoteWorkspaceState = 'CONNECTED'
         this.workspaceState.webSocketClient = webSocketClient
+        this.workspaceState.environmentId = existingMetadata.environmentId
+        if (this.semanticSearchToolEnabled) {
+            this.registerSemanticSearchTool()
+        }
     }
 
     initializeWorkspaceStatusMonitor() {
@@ -402,8 +420,9 @@ export class WorkspaceFolderManager {
                         return
                     }
 
-                    this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
-
+                    if (metadata.workspaceStatus) {
+                        this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
+                    }
                     switch (metadata.workspaceStatus) {
                         case 'READY':
                             const client = this.workspaceState.webSocketClient
@@ -443,6 +462,9 @@ export class WorkspaceFolderManager {
         try {
             if (IdleWorkspaceManager.isSessionIdle()) {
                 this.resetWebSocketClient()
+                if (this.semanticSearchToolEnabled) {
+                    this.removeSemanticSearchTool()
+                }
                 this.logging.log('Session is idle, skipping remote workspace status check')
                 return
             }
@@ -484,8 +506,10 @@ export class WorkspaceFolderManager {
                 return
             }
 
-            this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
-            if (this.workspaceState.workspaceId === undefined) {
+            if (metadata.workspaceStatus) {
+                this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
+            }
+            if (this.workspaceState.workspaceId === undefined && metadata.workspaceId) {
                 this.setRemoteWorkspaceId(metadata.workspaceId)
             }
 
@@ -668,6 +692,32 @@ export class WorkspaceFolderManager {
         }
     }
 
+    private registerSemanticSearchTool() {
+        const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
+        if (!existingTool) {
+            const semanticSearchTool = new SemanticSearch(
+                this.logging,
+                this.credentialsProvider,
+                this.serviceManager.getRegion() || 'us-east-1'
+            )
+            this.agent.addTool(
+                semanticSearchTool.getSpec(),
+                async (input: SemanticSearchParams) => {
+                    semanticSearchTool.validate(input)
+                    return await semanticSearchTool.invoke(input)
+                },
+                ToolClassification.BuiltIn
+            )
+        }
+    }
+
+    private removeSemanticSearchTool() {
+        const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
+        if (existingTool) {
+            this.agent.removeTool(SemanticSearch.toolName)
+        }
+    }
+
     private async createNewWorkspace() {
         const createWorkspaceResult = await this.createWorkspace(this.workspaceIdentifier)
         const workspaceDetails = createWorkspaceResult.response
@@ -676,8 +726,10 @@ export class WorkspaceFolderManager {
             return createWorkspaceResult
         }
 
-        this.workspaceState.remoteWorkspaceState = workspaceDetails.workspace.workspaceStatus
-        if (this.workspaceState.workspaceId === undefined) {
+        if (workspaceDetails.workspace?.workspaceStatus) {
+            this.workspaceState.remoteWorkspaceState = workspaceDetails.workspace?.workspaceStatus
+        }
+        if (this.workspaceState.workspaceId === undefined && workspaceDetails.workspace?.workspaceId) {
             this.setRemoteWorkspaceId(workspaceDetails.workspace.workspaceId)
         }
 
@@ -777,7 +829,7 @@ export class WorkspaceFolderManager {
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
             const response = await this.serviceManager.getCodewhispererService().listWorkspaceMetadata(params)
-            metadata = response && response.workspaces.length ? response.workspaces[0] : null
+            metadata = response && response.workspaces?.length ? response.workspaces[0] : null
         } catch (e: any) {
             error = e
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
@@ -788,8 +840,10 @@ export class WorkspaceFolderManager {
                 this.logging.log(`User's administrator opted out server-side workspace context`)
                 optOut = true
             }
-            if (isAwsError(e) && e.code === 'AccessDeniedException' && e.message.includes('Feature is not supported')) {
-                featureDisabled = true
+            if (isServiceException(e) && e.name === 'AccessDeniedException') {
+                if (e.message.includes('Feature is not supported')) {
+                    featureDisabled = true
+                }
             }
         }
         return { metadata, optOut, featureDisabled, error }
@@ -811,7 +865,7 @@ export class WorkspaceFolderManager {
             this.logging.warn(
                 `Error while creating workspace (${workspaceRoot}): ${e.message}. Error is ${e.retryable ? '' : 'not'} retryable}`
             )
-            if (isAwsError(e) && e.code === 'ServiceQuotaExceededException') {
+            if (isServiceException(e) && e.name === 'ServiceQuotaExceededException') {
                 isServiceQuotaExceeded = true
             }
             error = {

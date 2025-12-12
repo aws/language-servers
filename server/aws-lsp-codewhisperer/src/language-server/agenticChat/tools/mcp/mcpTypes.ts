@@ -37,6 +37,25 @@ export interface MCPServerConfig {
     headers?: Record<string, string>
     disabled?: boolean
     __configPath__?: string
+    __cachedVersion__?: string // Cached version from registry for version sync
+    __additionalHeaders__?: Record<string, string> // Additional headers from agent config (for registry servers)
+    __additionalEnv__?: Record<string, string> // Additional env vars from agent config (for registry servers)
+    __registryError__?: string // Error message when registry server is not found in registry
+}
+
+export interface RegistryServerConfig {
+    type: 'registry'
+    timeout?: number // Optional request timeout in milliseconds
+    headers?: Record<string, string> // Optional additional HTTP headers for remote servers
+    env?: Record<string, string> // Optional additional environment variables for local servers
+}
+
+export function isRegistryServerConfig(config: MCPServerConfig | RegistryServerConfig): config is RegistryServerConfig {
+    return 'type' in config && config.type === 'registry'
+}
+
+export function isMCPServerConfig(config: MCPServerConfig | RegistryServerConfig): config is MCPServerConfig {
+    return !('type' in config) || config.type !== 'registry'
 }
 export interface MCPServerPermission {
     enabled: boolean
@@ -46,19 +65,26 @@ export interface MCPServerPermission {
 
 export interface AgentConfig {
     name: string // Required: Agent name
-    version: string // Required: Agent version (semver)
     description: string // Required: Agent description
+    prompt?: string // Optional: High-level context for the agent
     model?: string // Optional: Model that backs the agent
     tags?: string[] // Optional: Tags for categorization
     inputSchema?: any // Optional: Schema for agent inputs
-    mcpServers: Record<string, MCPServerConfig> // Map of server name to server config
+    mcpServers: Record<string, MCPServerConfig | RegistryServerConfig> // Map of server name to server config
     tools: string[] // List of enabled tools
+    toolAliases?: Record<string, string> // Tool name remapping
     allowedTools: string[] // List of tools that don't require approval
     toolsSettings?: Record<string, any> // Tool-specific settings
-    includedFiles?: string[] // Files to include in context
-    createHooks?: string[] // Hooks to run at conversation start
-    promptHooks?: string[] // Hooks to run per prompt
-    resources?: string[] // Resources for the agent (prompts, files, etc.)
+    resources?: string[] // Resources for the agent (file:// paths)
+    hooks?: {
+        agentSpawn?: Array<{ command: string }>
+        userPromptSubmit?: Array<{ command: string }>
+    } // Commands run at specific trigger points
+    useLegacyMcpJson?: boolean // Whether to include legacy MCP configuration
+    // Legacy fields for backward compatibility
+    includedFiles?: string[] // Deprecated: use resources instead
+    createHooks?: string[] // Deprecated: use hooks.agentSpawn instead
+    promptHooks?: string[] // Deprecated: use hooks.userPromptSubmit instead
 }
 
 export interface PersonaConfig {
@@ -71,20 +97,24 @@ export class AgentModel {
 
     static fromJson(doc: any): AgentModel {
         const cfg: AgentConfig = {
-            name: doc?.['name'] || 'default-agent',
-            version: doc?.['version'] || '1.0.0',
+            name: doc?.['name'] || 'q_ide_default',
             description: doc?.['description'] || 'Default agent configuration',
+            prompt: doc?.['prompt'],
             model: doc?.['model'],
             tags: Array.isArray(doc?.['tags']) ? doc['tags'] : undefined,
             inputSchema: doc?.['inputSchema'],
             mcpServers: typeof doc?.['mcpServers'] === 'object' ? doc['mcpServers'] : {},
             tools: Array.isArray(doc?.['tools']) ? doc['tools'] : [],
+            toolAliases: typeof doc?.['toolAliases'] === 'object' ? doc['toolAliases'] : {},
             allowedTools: Array.isArray(doc?.['allowedTools']) ? doc['allowedTools'] : [],
             toolsSettings: typeof doc?.['toolsSettings'] === 'object' ? doc['toolsSettings'] : {},
+            resources: Array.isArray(doc?.['resources']) ? doc['resources'] : [],
+            hooks: typeof doc?.['hooks'] === 'object' ? doc['hooks'] : undefined,
+            useLegacyMcpJson: doc?.['useLegacyMcpJson'],
+            // Legacy fields
             includedFiles: Array.isArray(doc?.['includedFiles']) ? doc['includedFiles'] : [],
             createHooks: Array.isArray(doc?.['createHooks']) ? doc['createHooks'] : [],
             promptHooks: Array.isArray(doc?.['promptHooks']) ? doc['promptHooks'] : [],
-            resources: Array.isArray(doc?.['resources']) ? doc['resources'] : [],
         }
         return new AgentModel(cfg)
     }
@@ -93,7 +123,7 @@ export class AgentModel {
         return this.cfg
     }
 
-    addServer(name: string, config: MCPServerConfig): void {
+    addServer(name: string, config: MCPServerConfig | RegistryServerConfig): void {
         this.cfg.mcpServers[name] = config
     }
 
@@ -185,4 +215,45 @@ export interface ListToolsResponse {
         inputSchema?: object
         [key: string]: any
     }[]
+}
+
+export interface McpRegistryServer {
+    name: string
+    title?: string
+    description: string
+    version: string
+    remotes?: Array<{
+        type: 'streamable-http' | 'sse'
+        url: string
+        headers?: Array<{
+            name: string
+            value: string
+        }>
+    }>
+    packages?: Array<{
+        registryType: 'npm' | 'pypi' | 'oci'
+        registryBaseUrl?: string
+        identifier: string
+        transport: {
+            type: 'stdio'
+        }
+        runtimeArguments?: Array<{
+            type: 'positional'
+            value: string
+        }>
+        packageArguments?: Array<{
+            type: 'positional'
+            value: string
+        }>
+        environmentVariables?: Array<{
+            name: string
+            value?: string
+        }>
+    }>
+}
+
+export interface McpRegistryData {
+    servers: McpRegistryServer[]
+    lastFetched: Date
+    url: string
 }

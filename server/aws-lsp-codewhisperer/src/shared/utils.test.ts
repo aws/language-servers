@@ -5,7 +5,7 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import { CredentialsProvider, Position, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
-import { AWSError } from 'aws-sdk'
+import { ServiceException } from '@smithy/smithy-client'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
 import * as os from 'os'
@@ -18,7 +18,6 @@ import {
     getUnmodifiedAcceptedTokens,
     isAwsThrottlingError,
     isUsageLimitError,
-    isQuotaExceededError,
     isStringOrNull,
     safeGet,
     getFileExtensionName,
@@ -27,6 +26,9 @@ import {
     getClientName,
     sanitizeInput,
     sanitizeRequestInput,
+    isUsingIAMAuth,
+    getBearerTokenFromProviderWithType,
+    sanitizeLogInput,
 } from './utils'
 import { promises as fsPromises } from 'fs'
 
@@ -182,6 +184,82 @@ describe('getOriginFromClientInfo', () => {
     it('returns IDE for client names that do not match SMUS patterns', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-Other-IDE')
         assert.strictEqual(result, 'IDE')
+    })
+})
+
+describe('isUsingIAMAuth', () => {
+    let originalEnv: string | undefined
+
+    beforeEach(() => {
+        originalEnv = process.env.USE_IAM_AUTH
+        delete process.env.USE_IAM_AUTH
+    })
+
+    afterEach(() => {
+        if (originalEnv !== undefined) {
+            process.env.USE_IAM_AUTH = originalEnv
+        } else {
+            delete process.env.USE_IAM_AUTH
+        }
+    })
+
+    it('should return true when USE_IAM_AUTH environment variable is "true"', () => {
+        process.env.USE_IAM_AUTH = 'true'
+        assert.strictEqual(isUsingIAMAuth(), true)
+    })
+
+    it('should return false when USE_IAM_AUTH environment variable is not set', () => {
+        assert.strictEqual(isUsingIAMAuth(), false)
+    })
+
+    it('should return true when only IAM credentials are available', () => {
+        const mockProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon
+                .stub()
+                .withArgs('iam')
+                .returns({ accessKeyId: 'AKIA...', secretAccessKey: 'secret' })
+                .withArgs('bearer')
+                .returns(null),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.strictEqual(isUsingIAMAuth(mockProvider), true)
+    })
+
+    it('should return false when bearer credentials are available', () => {
+        const mockProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon
+                .stub()
+                .withArgs('iam')
+                .returns({ accessKeyId: 'AKIA...', secretAccessKey: 'secret' })
+                .withArgs('bearer')
+                .returns({ token: 'bearer-token' }),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.strictEqual(isUsingIAMAuth(mockProvider), false)
+    })
+
+    it('should return false when credential access fails', () => {
+        const mockProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon.stub().throws(new Error('Access failed')),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.strictEqual(isUsingIAMAuth(mockProvider), false)
+    })
+
+    it('should return false when credentialsProvider is undefined', () => {
+        assert.strictEqual(isUsingIAMAuth(undefined), false)
     })
 })
 
@@ -385,29 +463,28 @@ describe('isAwsThrottlingError', function () {
     })
 
     it('false for non-throttling AWS errors', function () {
-        const nonThrottlingError = {
+        const nonThrottlingError = new ServiceException({
             name: 'AWSError',
             message: 'Not a throttling error',
-            code: 'SomeOtherError',
-            time: new Date(),
-        } as AWSError
+            $fault: 'server',
+            $metadata: {},
+        })
 
         assert.strictEqual(isAwsThrottlingError(nonThrottlingError), false)
     })
 
     it('true for AWS throttling errors', function () {
-        const sdkV2Error = new Error()
-        ;(sdkV2Error as any).name = 'ThrottlingException'
-        ;(sdkV2Error as any).message = 'Rate exceeded'
-        ;(sdkV2Error as any).code = 'ThrottlingException'
-        ;(sdkV2Error as any).time = new Date()
-        assert.strictEqual(isAwsThrottlingError(sdkV2Error), true)
-
         const sdkV3Error = new ThrottlingException({
             message: 'Too many requests',
             $metadata: {},
         })
         assert.strictEqual(isAwsThrottlingError(sdkV3Error), true)
+
+        // Test error with $metadata property
+        const errorWithMetadata = new Error('Rate exceeded')
+        ;(errorWithMetadata as any).$metadata = {}
+        ;(errorWithMetadata as any).name = 'ThrottlingException'
+        assert.strictEqual(isAwsThrottlingError(errorWithMetadata), true)
     })
 })
 
@@ -426,76 +503,23 @@ describe('isMonthlyLimitError', function () {
     })
 
     it('false for throttling errors without MONTHLY_REQUEST_COUNT reason', function () {
-        const throttlingError = new Error()
-        ;(throttlingError as any).name = 'ThrottlingException'
-        ;(throttlingError as any).message = 'Rate exceeded'
-        ;(throttlingError as any).code = 'ThrottlingException'
-        ;(throttlingError as any).time = new Date()
+        const throttlingError = new ThrottlingException({
+            message: 'Rate exceeded',
+            $metadata: {},
+        })
         ;(throttlingError as any).reason = 'SOME_OTHER_REASON'
 
         assert.strictEqual(isUsageLimitError(throttlingError), false)
     })
 
     it('true for throttling errors with MONTHLY_REQUEST_COUNT reason', function () {
-        const usageLimitError = new Error()
-        ;(usageLimitError as any).name = 'ThrottlingException'
-        ;(usageLimitError as any).message = 'Free tier limit reached'
-        ;(usageLimitError as any).code = 'ThrottlingException'
-        ;(usageLimitError as any).time = new Date()
-        ;(usageLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
-
-        assert.strictEqual(isUsageLimitError(usageLimitError), true)
-    })
-})
-
-describe('isQuotaExceededError', function () {
-    it('false for non-AWS errors', function () {
-        const regularError = new Error('Some error')
-        assert.strictEqual(isQuotaExceededError(regularError), false)
-
-        assert.strictEqual(isQuotaExceededError(undefined), false)
-        assert.strictEqual(isQuotaExceededError(null), false)
-        assert.strictEqual(isQuotaExceededError('error string'), false)
-    })
-
-    it('true for free tier limit errors', function () {
-        const e = new ThrottlingException({
+        const usageLimitError = new ThrottlingException({
             message: 'Free tier limit reached',
             $metadata: {},
         })
+        ;(usageLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
 
-        assert.strictEqual(isQuotaExceededError(e), true)
-    })
-
-    it('true for ServiceQuotaExceededException errors', function () {
-        const e = new ServiceQuotaExceededException({
-            message: 'Service quota exceeded',
-            $metadata: {},
-        })
-
-        assert.strictEqual(isQuotaExceededError(e), true)
-    })
-
-    it('true for specific messages', function () {
-        const reachedForThisMonth = new Error()
-        ;(reachedForThisMonth as any).name = 'ThrottlingException'
-        ;(reachedForThisMonth as any).message = 'You have reached the limit for this month'
-        ;(reachedForThisMonth as any).code = 'ThrottlingException'
-        ;(reachedForThisMonth as any).time = new Date()
-
-        const limitForIterationsError = new ThrottlingException({
-            message: 'You have reached the limit for number of iterations',
-            $metadata: {},
-        })
-
-        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), true)
-        assert.strictEqual(isQuotaExceededError(limitForIterationsError), true)
-
-        // Invalid cases
-        reachedForThisMonth.message = 'some other messsage'
-        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), false)
-        limitForIterationsError.message = 'foo bar'
-        assert.strictEqual(isQuotaExceededError(limitForIterationsError), false)
+        assert.strictEqual(isUsageLimitError(usageLimitError), true)
     })
 })
 
@@ -890,5 +914,77 @@ describe('sanitizeRequestInput', () => {
             Array.from(result.conversationState.currentMessage.userInputMessage.images[0].source.bytes),
             [137, 80, 78, 71, 13, 10, 26, 10]
         )
+    })
+
+    describe('isUsingIAMAuth', () => {
+        it('returns true when USE_IAM_AUTH env var is true', () => {
+            process.env.USE_IAM_AUTH = 'true'
+            assert.strictEqual(isUsingIAMAuth(), true)
+            delete process.env.USE_IAM_AUTH
+        })
+
+        it('returns true when only IAM credentials available', () => {
+            const mockProvider = {
+                getCredentials: sinon
+                    .stub()
+                    .withArgs('iam')
+                    .returns({ accessKeyId: 'key', secretAccessKey: 'secret' })
+                    .withArgs('bearer')
+                    .returns(null),
+            }
+            assert.strictEqual(isUsingIAMAuth(mockProvider as any), true)
+        })
+
+        it('returns false when bearer token available', () => {
+            const mockProvider = {
+                getCredentials: sinon
+                    .stub()
+                    .withArgs('iam')
+                    .returns({ accessKeyId: 'key', secretAccessKey: 'secret' })
+                    .withArgs('bearer')
+                    .returns({ token: 'bearer-token' }),
+            }
+            assert.strictEqual(isUsingIAMAuth(mockProvider as any), false)
+        })
+
+        it('returns false when credential access fails', () => {
+            const mockProvider = {
+                getCredentials: sinon.stub().throws(new Error('No credentials')),
+            }
+            assert.strictEqual(isUsingIAMAuth(mockProvider as any), false)
+        })
+    })
+
+    describe('getOriginFromClientInfo', () => {
+        it('returns MD_IDE for SMUS IDE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-test'), 'MD_IDE')
+        })
+
+        it('returns MD_IDE for SMUS CE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMUS-CE-test'), 'MD_IDE')
+        })
+
+        it('returns MD_IDE for SMAI CE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMAI-CE-test'), 'MD_IDE')
+        })
+
+        it('returns IDE for other clients', () => {
+            assert.strictEqual(getOriginFromClientInfo('VSCode'), 'IDE')
+            assert.strictEqual(getOriginFromClientInfo(undefined), 'IDE')
+        })
+    })
+
+    describe('sanitizeLogInput', () => {
+        it('replaces control characters with underscore', () => {
+            const input = 'test\nwith\rcontrol\tchars\x00'
+            const result = sanitizeLogInput(input)
+            assert.strictEqual(result, 'test_with_control_chars_')
+        })
+
+        it('preserves normal characters', () => {
+            const input = 'normal text 123'
+            const result = sanitizeLogInput(input)
+            assert.strictEqual(result, input)
+        })
     })
 })

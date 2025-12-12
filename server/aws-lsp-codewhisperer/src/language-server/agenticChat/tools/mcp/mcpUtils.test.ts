@@ -207,6 +207,7 @@ describe('loadAgentConfig', () => {
                 mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
                 getUserHomeDir: () => tmpDir,
             },
+            getAllWorkspaceFolders: () => [],
         }
         logger = { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} }
     })
@@ -218,7 +219,7 @@ describe('loadAgentConfig', () => {
     it('creates a default agent config when none exists', async () => {
         // Add the global agent path to the paths array
         const agentPath = getGlobalAgentConfigPath(tmpDir)
-        const result = await loadAgentConfig(workspace, logger, [agentPath])
+        const result = await loadAgentConfig(workspace, logger, [agentPath], null, false)
 
         // Check that the agent config has the expected structure
         expect(result.agentConfig).to.have.property('name')
@@ -238,7 +239,6 @@ describe('loadAgentConfig', () => {
 
         const agentConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {
                 testServer: {
@@ -256,7 +256,7 @@ describe('loadAgentConfig', () => {
 
         await workspace.fs.writeFile(agentPath, JSON.stringify(agentConfig))
 
-        const result = await loadAgentConfig(workspace, logger, [agentPath])
+        const result = await loadAgentConfig(workspace, logger, [agentPath], null, false)
 
         // Check that the server was loaded correctly
         expect(result.servers.size).to.equal(1)
@@ -329,7 +329,6 @@ describe('saveAgentConfig', () => {
         const configPath = path.join(tmpDir, 'agent-config.json')
         const config = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {},
             tools: ['tool1', 'tool2'],
@@ -353,7 +352,6 @@ describe('saveAgentConfig', () => {
         const configPath = path.join(tmpDir, 'nested', 'dir', 'agent-config.json')
         const config = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {},
             tools: [],
@@ -545,6 +543,17 @@ describe('createNamespacedToolName', () => {
             toolName: longTool,
         })
     })
+
+    it('truncates tool name and adds suffix when it exceeds MAX_TOOL_NAME_LENGTH', () => {
+        const longTool = 'Smartanalyzerthatreadssummariescreatesmappingrulesandupdatespayloads'
+        const result = createNamespacedToolName('ConnectiveRx', longTool, tools, toolNameMapping)
+        expect(result.length).to.equal(MAX_TOOL_NAME_LENGTH)
+        expect(tools.has(result)).to.be.true
+        expect(toolNameMapping.get(result)).to.deep.equal({
+            serverName: 'ConnectiveRx',
+            toolName: longTool,
+        })
+    })
 })
 
 describe('normalizePathFromUri', () => {
@@ -700,7 +709,7 @@ describe('convertPersonaToAgent', () => {
 
         const result = convertPersonaToAgent(persona, mcpServers, mockAgent)
 
-        expect(result.name).to.equal('default-agent')
+        expect(result.name).to.equal('q_ide_default')
         expect(result.mcpServers).to.have.property('testServer')
         expect(result.tools).to.include('@testServer')
         expect(result.tools).to.include('fs_read')
@@ -789,6 +798,216 @@ describe('migrateToAgentConfig', () => {
         expect(agentConfig.mcpServers).to.have.property('testServer')
     })
 })
+describe('loadAgentConfig with registry support', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+    let testRegistry: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'registryTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: async (p: string) => {
+                    if (fs.existsSync(p)) {
+                        return Promise.resolve(Buffer.from(fs.readFileSync(p)))
+                    }
+                    return Promise.reject(new Error('File not found'))
+                },
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+            getAllWorkspaceFolders: () => [],
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} }
+        testRegistry = {
+            servers: [
+                {
+                    name: 'test-remote',
+                    description: 'Test remote server',
+                    version: '1.0.0',
+                    remotes: [{ type: 'streamable-http', url: 'https://example.com/mcp' }],
+                },
+                {
+                    name: 'test-local',
+                    description: 'Test local server',
+                    version: '1.0.0',
+                    packages: [{ registryType: 'npm', identifier: '@test/server', transport: { type: 'stdio' } }],
+                },
+            ],
+            lastFetched: new Date(),
+            url: 'https://example.com/registry.json',
+        }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('should load registry servers when registry is active', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry' },
+                    'manual-server': { command: 'node', args: ['server.js'] },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
+
+        expect(result.servers.size).to.equal(1)
+        expect(result.servers.has('test-remote')).to.be.true
+        expect(result.servers.has('manual-server')).to.be.false
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+    })
+
+    it('should load manual servers when registry is not active', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry' },
+                    'manual-server': { command: 'node', args: ['server.js'] },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], null, false)
+
+        expect(result.servers.size).to.equal(1)
+        expect(result.servers.has('test-remote')).to.be.false
+        expect(result.servers.has('manual-server')).to.be.true
+        const server = result.servers.get('manual-server')!
+        expect(server.command).to.equal('node')
+    })
+
+    it('should warn when registry server not found in registry', async () => {
+        const errors: string[] = []
+        const errorLogger = { ...logger, error: (msg: string) => errors.push(msg) }
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: { 'unknown-server': { type: 'registry' } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, errorLogger, [agentPath], testRegistry, true)
+
+        // Should create placeholder server for missing registry server
+        expect(result.servers.size).to.equal(1)
+        expect(errors.some(e => e.includes('not found in registry'))).to.be.true
+        // Verify placeholder has error marker
+        const server = result.servers.get('unknown-server')
+        expect(server).to.exist
+        expect((server as any).__registryError__).to.include('not found in registry')
+    })
+
+    it('should convert local npm server correctly', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: { 'test-local': { type: 'registry' } },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-local')!
+        expect(server.command).to.equal('npx')
+        expect(server.args).to.deep.equal(['-y', '@test/server@1.0.0'])
+    })
+
+    it('should apply timeout from registry server config', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry', timeout: 60000 },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+        expect(server.timeout).to.equal(60000)
+    })
+
+    it('should not set timeout if not provided in registry server config', async () => {
+        const agentPath = path.join(tmpDir, 'agent.json')
+        fs.writeFileSync(
+            agentPath,
+            JSON.stringify({
+                name: 'test-agent',
+                description: 'Test agent',
+                mcpServers: {
+                    'test-remote': { type: 'registry' },
+                },
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                resources: [],
+                useLegacyMcpJson: false,
+            })
+        )
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath], testRegistry, true)
+
+        expect(result.servers.size).to.equal(1)
+        const server = result.servers.get('test-remote')!
+        expect(server.url).to.equal('https://example.com/mcp')
+        expect(server.timeout).to.be.undefined
+    })
+})
+
 describe('saveServerSpecificAgentConfig', () => {
     let tmpDir: string
     let workspace: any
@@ -840,7 +1059,6 @@ describe('saveServerSpecificAgentConfig', () => {
         // Create existing config
         const existingConfig = {
             name: 'existing-agent',
-            version: '1.0.0',
             description: 'Existing agent',
             mcpServers: {
                 existingServer: { command: 'existing-cmd' },
@@ -881,7 +1099,6 @@ describe('saveServerSpecificAgentConfig', () => {
         // Create existing config with server tools
         const existingConfig = {
             name: 'test-agent',
-            version: '1.0.0',
             description: 'Test agent',
             mcpServers: {
                 testServer: { command: 'old-cmd' },

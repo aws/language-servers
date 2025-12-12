@@ -12,8 +12,9 @@ import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './codeReviewConstants'
 export const CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: [
-        '**3 main fields in the tool:**',
+        '**4 main fields in the tool:**',
         '- scopeOfReview: CRITICAL - Must be set to either FULL_REVIEW (analyze entire file/folder/project/workspace) or CODE_DIFF_REVIEW (focus only on changes/modifications in the file/folder/project/workspace). This is a required field.',
+        '- userRequirement: CRITICAL - Must be set as a string to describe the user requirement by analyzing the current conversation and extracting all the related information for code review. This is a required field.',
         '- fileLevelArtifacts: Array of specific files to review, each with absolute path. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py"}]',
         '- folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]',
         "Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.",
@@ -22,20 +23,20 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
         scopeOfReview: {
             type: <const>'string',
             description: [
-                'IMPORTANT: You must explicitly set the value of "scopeOfReview" based on user request analysis.',
+                'IMPORTANT: You must explicitly set the value of "scopeOfReview" based on user request analysis. Usually, CODE_DIFF_REVIEW will be the value that is used.',
                 '',
-                'Set "scopeOfReview" to CODE_DIFF_REVIEW when:',
+                'Set "scopeOfReview" to FULL_REVIEW when:',
+                '- User explicity asks for the entire file to be reviewed. Example: "Review my entire file.", "Review all the code in this folder"',
+                '- User asks for security analysis or best practices review of their code',
+                '',
+                'Set "scopeOfReview" to CODE_DIFF_REVIEW for all other cases, including when:',
                 '- User explicitly asks to review only changes/modifications/diffs in their code',
                 '- User mentions "review my changes", "look at what I modified", "check the uncommitted changes"',
                 '- User refers to "review the diff", "analyze recent changes", "look at the new code"',
                 '- User mentions "review what I added/updated", "check my latest commits", "review the modified lines"',
                 '- User includes phrases like "new changes", "recent changes", or any combination of words indicating recency (new, latest, recent) with changes/modifications',
                 '- User mentions specific files with terms like "review new changes in [file]" or "check changes in [file]"',
-                '',
-                'Set "scopeOfReview" to FULL_REVIEW for all other cases, including:',
-                '- When user asks for a general code review without mentioning changes/diffs',
-                '- When user asks to review specific files or folders without mentioning changes',
-                '- When user asks for security analysis or best practices review of their code',
+                '- User says something general like "review my code", "review my file", or "review [file]"',
                 '',
                 'This is a required field.',
             ].join('\n'),
@@ -84,7 +85,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
             },
         },
     },
-    required: ['scopeOfReview'] as const,
+    required: ['scopeOfReview', 'userRequirement'] as const,
 }
 
 /**
@@ -92,6 +93,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
  */
 export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
     scopeOfReview: z.enum(SCOPE_OF_CODE_REVIEW as [string, ...string[]]),
+    userRequirement: z.string(),
     fileLevelArtifacts: z
         .array(
             z.object({
@@ -113,6 +115,7 @@ export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
             })
         )
         .optional(),
+    modelId: z.string(),
 })
 
 /**

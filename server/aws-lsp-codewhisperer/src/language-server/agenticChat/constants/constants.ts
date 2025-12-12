@@ -1,5 +1,3 @@
-import { BedrockModel } from './modelSelection'
-
 // Error message constants
 export const GENERIC_ERROR_MS = 'An unexpected error occurred, check the logs for more information.'
 export const OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG = 'output exceeds maximum character limit of'
@@ -11,10 +9,6 @@ export const CLIENT_TIMEOUT_MS = 245_000
 export const RESPONSE_TIMEOUT_MS = 240_000
 export const SERVICE_MANAGER_TIMEOUT_MS = 10_000 //10 seconds
 export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100
-
-// LLM Constants
-export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
-export const DEFAULT_MODEL_ID = BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
 
 // Compaction
 export const COMPACTION_BODY = (threshold: number) =>
@@ -79,6 +73,51 @@ The summary should have following main sections:
 - **toolUsage1**: Summary of what was done in toolUsage1 and ultimate result
 </example_output>
 `
+
+// Retry Strategy Constants
+export const RETRY_BASE_DELAY_MS = 1000
+export const RETRY_MAX_DELAY_MS = 10000
+export const RETRY_JITTER_MIN = 0.5
+export const RETRY_JITTER_MAX = 1.0
+export const RETRY_DELAY_NOTIFICATION_THRESHOLD_MS = 2000
+export const RETRY_BACKOFF_MULTIPLIER = 2
+
+// HTTP Status Codes
+export const HTTP_STATUS_TOO_MANY_REQUESTS = 429
+export const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500
+
+// Error Messages
+export const MONTHLY_LIMIT_ERROR_MARKER = 'MONTHLY_REQUEST_COUNT'
+export const CONTENT_LENGTH_EXCEEDS_THRESHOLD = 'CONTENT_LENGTH_EXCEEDS_THRESHOLD'
+export const HIGH_LOAD_ERROR_MESSAGE =
+    'Encountered unexpectedly high load when processing the request, please try again.'
+export const SERVICE_UNAVAILABLE_EXCEPTION = 'ServiceUnavailableException'
+export const INSUFFICIENT_MODEL_CAPACITY = 'INSUFFICIENT_MODEL_CAPACITY'
+export const INVALID_MODEL_ID = 'INVALID_MODEL_ID'
+export const SERVICE_QUOTA_EXCEPTION = 'ServiceQuotaExceededException'
+export const MAXIMUM_CHAT_CONTENT_MESSAGE = 'Exceeded max chat context length.'
+
+// Delay tracking constants
+export const MINOR_DELAY_THRESHOLD_MS = 2000 // 2 seconds
+export const MAJOR_DELAY_THRESHOLD_MS = 5000 // 5 seconds
+export const MAX_RETRY_DELAY_MS = 10000 // 10 seconds
+
+// Stalled stream protection constants
+export const STALLED_STREAM_GRACE_PERIOD_MS = 300000 // 5 minutes
+export const STALLED_STREAM_CHECK_INTERVAL_MS = 1000 // 1 second
+
+// Request attempt tracking
+export const MAX_REQUEST_ATTEMPTS = 3
+
+// FsRead limits
+export const FSREAD_MAX_PER_FILE = 200_000
+export const FSREAD_MAX_TOTAL = 400_000
+export const FSREAD_MEMORY_BANK_MAX_PER_FILE = 20_000
+export const FSREAD_MEMORY_BANK_MAX_TOTAL = 100_000
+
+// Memory Bank constants
+// Temporarily reduced from recommended 20 to 5 for token optimization
+export const MAX_NUMBER_OF_FILES_FOR_MEMORY_BANK_RANKING = 5
 
 // shortcut constant
 export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8679; &#8984; &#8629;'

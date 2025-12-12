@@ -11,7 +11,7 @@ import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
 import { CodeReview } from './qCodeAnalysis/codeReview'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalAgentConfigPath,
@@ -19,6 +19,8 @@ import {
     createNamespacedToolName,
     enabledMCP,
     migrateToAgentConfig,
+    migrateAgentConfigToCLIFormat,
+    normalizePathFromUri,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
@@ -27,6 +29,9 @@ import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
 import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { SERVICE_MANAGER_TIMEOUT_MS, SERVICE_MANAGER_POLL_INTERVAL_MS } from '../constants/constants'
+import { isUsingIAMAuth } from '../../../shared/utils'
+import { WEB_SEARCH } from '../constants/toolConstants'
+import { WebFetch, WebFetchParams } from './webFetch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -125,15 +130,25 @@ export const QCodeAnalysisServer: Server = ({
             return
         }
 
-        // Create the CodeWhisperer client
-        const codeWhispererClient = new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            logging,
-            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
+        // Create the CodeWhisperer client for review tool based on iam auth check
+        const codeWhispererClient = isUsingIAMAuth()
+            ? new CodeWhispererServiceIAM(
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
+            : new CodeWhispererServiceToken(
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator,
+                  undefined
+              )
 
         agent.addTool(
             {
@@ -210,7 +225,6 @@ export const McpToolsServer: Server = ({
     agent,
     telemetry,
     runtime,
-    sdkInitializator,
     chat,
 }) => {
     const registered: Record<string, string[]> = {}
@@ -312,7 +326,7 @@ export const McpToolsServer: Server = ({
         }
     }
 
-    async function initializeMcp() {
+    async function initializeMcpManager() {
         try {
             const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
             const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
@@ -321,34 +335,57 @@ export const McpToolsServer: Server = ({
 
             await migrateToAgentConfig(workspace, logging, agent)
 
-            const mgr = await McpManager.init(allAgentPaths, {
-                logging,
-                workspace,
-                lsp,
-                telemetry,
-                credentialsProvider,
-                runtime,
-            })
+            // Migrate existing agent configs to CLI format
+            for (const agentPath of allAgentPaths) {
+                const normalizedAgentPath = normalizePathFromUri(agentPath)
+                const exists = await workspace.fs.exists(normalizedAgentPath).catch(() => false)
+                if (exists) {
+                    await migrateAgentConfigToCLIFormat(workspace, logging, normalizedAgentPath)
+                }
+            }
+
+            // Get registry URL from profile monitor if available
+            let registryUrl: string | null = null
+            if (profileStatusMonitor) {
+                registryUrl = await profileStatusMonitor.getRegistryUrl()
+            }
+
+            // Always initialize McpManager regardless of MCP state
+            await McpManager.init(
+                allAgentPaths,
+                {
+                    logging,
+                    workspace,
+                    lsp,
+                    telemetry,
+                    credentialsProvider,
+                    runtime,
+                    agent,
+                },
+                registryUrl ? { registryUrl } : undefined
+            )
 
             McpManager.instance.clearToolNameMapping()
-
-            // Only register tools if MCP is enabled
-            if (ProfileStatusMonitor.getMcpState()) {
-                const byServer: Record<string, McpToolDefinition[]> = {}
-                for (const d of mgr.getEnabledTools()) {
-                    ;(byServer[d.serverName] ||= []).push(d)
-                }
-                for (const [server, defs] of Object.entries(byServer)) {
-                    registerServerTools(server, defs)
-                }
-
-                mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
-                    registerServerTools(server, defs)
-                })
-            }
         } catch (e) {
-            logging.error(`Failed to initialize MCP:' ${e}`)
+            logging.error(`Failed to initialize MCP Manager: ${e}`)
         }
+    }
+
+    function registerAllMcpTools() {
+        if (!ProfileStatusMonitor.getMcpState()) {
+            return
+        }
+
+        const byServer: Record<string, McpToolDefinition[]> = {}
+        for (const d of McpManager.instance.getEnabledTools()) {
+            ;(byServer[d.serverName] ||= []).push(d)
+        }
+        for (const [server, defs] of Object.entries(byServer)) {
+            registerServerTools(server, defs)
+        }
+
+        // Emit metrics after tools are registered
+        McpManager.instance.emitMcpConfigMetrics()
     }
 
     lsp.onInitialized(async () => {
@@ -358,61 +395,122 @@ export const McpToolsServer: Server = ({
                 return
             }
 
-            if (sdkInitializator) {
-                profileStatusMonitor = new ProfileStatusMonitor(
-                    credentialsProvider,
-                    workspace,
-                    logging,
-                    sdkInitializator,
-                    removeAllMcpTools,
-                    async () => {
-                        logging.info('MCP enabled by profile status monitor')
-                        await initializeMcp()
+            // Initialize McpManager first, before profile monitor
+            await initializeMcpManager()
+
+            const sendMcpUpdate = () => {
+                try {
+                    chat?.sendChatUpdate({
+                        tabId: 'mcpserver',
+                        data: {
+                            placeholderText: 'mcp-server-update',
+                            messages: [],
+                        },
+                    })
+                } catch (error) {
+                    logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+                }
+            }
+
+            profileStatusMonitor = new ProfileStatusMonitor(
+                logging,
+                removeAllMcpTools,
+                async () => {
+                    logging.info('MCP enabled by profile status monitor')
+                    await McpManager.instance.discoverAllServers()
+                    logging.info(`MCP: discovered ${McpManager.instance.getAllTools().length} tools after re-enable`)
+                    registerAllMcpTools()
+                    sendMcpUpdate()
+                },
+                async (registryUrl: string | null, isPeriodicSync: boolean = false) => {
+                    if (registryUrl) {
+                        McpManager.instance.setRegistryActive(true)
+                        await McpManager.instance.updateRegistryUrl(registryUrl, isPeriodicSync)
+                        // Registry URL update handles server discovery internally
                     }
-                )
+                    sendMcpUpdate()
+                }
+            )
 
-                // Wait for profile ARN to be available before checking MCP state
-                const checkAndInitialize = async () => {
-                    await profileStatusMonitor!.checkInitialState()
-                    // Always initialize McpManager to handle UI requests
-                    await initializeMcp()
+            // Wait for profile ARN to be available before checking MCP state
+            const checkAndInitialize = async () => {
+                try {
+                    // Check if MCP is enabled via isMcpEnabled check (only call once)
+                    const mcpEnabled = await profileStatusMonitor!.checkInitialState()
 
-                    // Remove tools if MCP is disabled
-                    if (!ProfileStatusMonitor.getMcpState()) {
+                    if (mcpEnabled) {
+                        logging.info('MCP is enabled, discovering servers')
+                        await McpManager.instance.discoverAllServers()
+                        logging.info(
+                            `MCP: discovered ${McpManager.instance.getAllTools().length} tools across all servers`
+                        )
+                        registerAllMcpTools()
+                    } else {
+                        logging.info('MCP is disabled, skipping server discovery')
                         removeAllMcpTools()
                     }
 
                     profileStatusMonitor!.start()
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : String(error)
+                    logging.error(`MCP initialization failed: ${errorMsg}`)
+                    // Store registry errors in McpManager for display in server list
+                    if (errorMsg.includes('MCP Registry:')) {
+                        try {
+                            ;(McpManager.instance as any).configLoadErrors.set('registry', errorMsg)
+                        } catch (e) {
+                            logging.debug('Failed to store registry error in McpManager')
+                        }
+                    }
+                    throw error
                 }
+            }
 
-                // Check if service manager is ready
+            // Wait for auth to be initialized before discovering servers
+            const waitForAuthAndDiscover = async () => {
                 try {
+                    // Set up event listener for tool changes during server initialization
+                    McpManager.instance.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+                        if (!ProfileStatusMonitor.getMcpState()) {
+                            return
+                        }
+                        registerServerTools(server, defs)
+                    })
+
                     const serviceManager = AmazonQTokenServiceManager.getInstance()
-                    if (serviceManager.getState() === 'INITIALIZED') {
+                    const authState = serviceManager.getState()
+
+                    if (authState === 'INITIALIZED') {
+                        logging.info('Auth is initialized, checking MCP state and discovering servers')
                         await checkAndInitialize()
                     } else {
-                        // Poll for service manager to be ready with 10s timeout
+                        logging.info(`Auth not ready (state: ${authState}), waiting before discovering MCP servers`)
+                        // Poll for auth to be ready with 10s timeout
                         const startTime = Date.now()
                         const pollForReady = async () => {
-                            if (serviceManager.getState() === 'INITIALIZED') {
+                            const currentState = serviceManager.getState()
+                            if (currentState === 'INITIALIZED') {
+                                logging.info('Auth initialized, proceeding with MCP discovery')
                                 await checkAndInitialize()
                             } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
                                 setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                             } else {
-                                logging.warn('Service manager not ready after 10s, initializing MCP manager')
-                                await initializeMcp()
+                                logging.warn(
+                                    `Auth not ready after ${SERVICE_MANAGER_TIMEOUT_MS}ms, starting profile monitor without discovery`
+                                )
                                 profileStatusMonitor!.start()
                             }
                         }
                         setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                     }
                 } catch (error) {
-                    // Service manager not initialized yet, always initialize McpManager
-                    logging.info('Service manager not ready, initializing MCP manager')
-                    await initializeMcp()
-                    profileStatusMonitor!.start()
+                    const errorMsg = error instanceof Error ? error.message : String(error)
+                    logging.error(`Failed to initialize MCP: ${errorMsg}`)
+                    // Don't start profile monitor if there's an error
                 }
             }
+
+            await waitForAuthAndDiscover()
         } catch (error) {
             console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', error)
             logging.error(`Failed to initialize MCP in onInitialized: ${error}`)
@@ -423,4 +521,92 @@ export const McpToolsServer: Server = ({
         profileStatusMonitor?.stop()
         await McpManager.instance.close()
     }
+}
+
+export const WebToolsServer: Server = ({ logging, agent, lsp, runtime }) => {
+    const webFetchTool = new WebFetch({ logging, lsp, runtime })
+
+    // Add webFetch tool
+    agent.addTool(
+        webFetchTool.getSpec(),
+        async (input: WebFetchParams) => {
+            await webFetchTool.validate(input)
+            return await webFetchTool.invoke(input)
+        },
+        ToolClassification.BuiltIn
+    )
+    const discoverWebSearch = async () => {
+        const serviceManager = AmazonQTokenServiceManager.getInstance()
+        const authState = serviceManager.getState()
+
+        if (authState !== 'INITIALIZED') {
+            logging.info(`WebSearch: Auth not ready (state: ${authState}), scheduling retry`)
+            setTimeout(discoverWebSearch, SERVICE_MANAGER_POLL_INTERVAL_MS)
+            return
+        }
+
+        try {
+            const streamingClient = serviceManager.getStreamingClient()
+
+            const response = await streamingClient.invokeMCP({
+                jsonrpc: '2.0',
+                id: 'webSearch-discovery',
+                method: 'tools/list',
+            })
+
+            if (response.result) {
+                let tools = []
+                if (typeof response.result === 'string') {
+                    try {
+                        const parsed = JSON.parse(response.result)
+                        tools = parsed?.tools || []
+                    } catch (e) {
+                        logging.error(`WebSearch: Failed to parse result as JSON: ${e}`)
+                        return
+                    }
+                } else {
+                    tools = (response.result as any)?.tools || []
+                }
+
+                logging.info(`WebSearch: Discovered ${tools.length} tools`)
+
+                const webSearchTool = tools.find((tool: any) => tool.name === WEB_SEARCH)
+
+                if (webSearchTool) {
+                    logging.info(`WebSearch: Registering tool ${webSearchTool.name}`)
+
+                    agent.addTool(
+                        {
+                            name: webSearchTool.name,
+                            description: webSearchTool.description,
+                            inputSchema: webSearchTool.inputSchema,
+                        },
+                        async (input: any) => {
+                            const toolResponse = await streamingClient.invokeMCP({
+                                jsonrpc: '2.0',
+                                id: `webSearch-${Date.now()}`,
+                                method: 'tools/call',
+                                params: {
+                                    name: webSearchTool.name,
+                                    arguments: input,
+                                },
+                            })
+                            return toolResponse.result
+                        },
+                        ToolClassification.BuiltIn
+                    )
+                } else {
+                    logging.info('WebSearch: Tool not found in available tools')
+                }
+            }
+        } catch (error) {
+            logging.error(`WebSearch: Discovery failed: ${error}`)
+        }
+    }
+
+    lsp.onInitialized(() => {
+        void discoverWebSearch()
+    })
+
+    return () => {}
 }

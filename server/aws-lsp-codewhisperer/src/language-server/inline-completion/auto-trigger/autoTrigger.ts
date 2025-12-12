@@ -3,6 +3,7 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
 import { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument'
+import { lastTokenFromString } from '../utils/triggerUtils'
 
 type TypedCoefficients = typeof typedCoefficients
 type Coefficients = TypedCoefficients & {
@@ -32,7 +33,7 @@ export type CodewhispererTriggerType = 'AutoTrigger' | 'OnDemand'
 
 // Two triggers are explicitly handled, SpecialCharacters and Enter. Everything else is expected to be a trigger
 // based on regular typing, and is considered a 'Classifier' trigger.
-export type CodewhispererAutomatedTriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier'
+export type CodewhispererAutomatedTriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier' | 'IntelliSenseAcceptance'
 
 /**
  * Determine the trigger type based on the file context. Currently supports special cases for Special Characters and Enter keys,
@@ -104,6 +105,10 @@ function isTabKey(str: string): boolean {
     return false
 }
 
+function isIntelliSenseAcceptance(str: string) {
+    return str === 'IntelliSenseAcceptance'
+}
+
 // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L222
 // Enter, Special character guarantees a trigger
 // Regular keystroke input will be evaluated by classifier
@@ -126,6 +131,8 @@ export const getAutoTriggerType = (
             return undefined
         } else if (isUserTypingSpecialChar(changedText)) {
             return 'SpecialCharacters'
+        } else if (isIntelliSenseAcceptance(changedText)) {
+            return 'IntelliSenseAcceptance'
         } else if (changedText.length === 1) {
             return 'Classifier'
         } else if (new RegExp('^[ ]+$').test(changedText)) {
@@ -211,15 +218,13 @@ export const autoTrigger = (
         rightContextAtCurrentLine.trim() !== ')' &&
         ['VSCODE', 'JETBRAINS'].includes(ide)
     ) {
-        logging.debug(`Skip auto trigger: immediate right context`)
         return {
             shouldTrigger: false,
             classifierResult: 0,
             classifierThreshold: TRIGGER_THRESHOLD,
         }
     }
-    const tokens = leftContextAtCurrentLine.trim().split(' ')
-    const lastToken = tokens[tokens.length - 1]
+    const lastToken = lastTokenFromString(fileContext.leftFileContent)
 
     const keyword = lastToken?.length > 1 ? lastToken : ''
 
