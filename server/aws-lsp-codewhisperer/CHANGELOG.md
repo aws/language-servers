@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.0.98](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.97...lsp-codewhisperer/v0.0.98) (2025-12-12)
+
+
+### Features
+
+* add alphabetical sorting for MCP registry servers and URL validation ([#2555](https://github.com/aws/language-servers/issues/2555)) ([d936673](https://github.com/aws/language-servers/commit/d936673e570301b9abc4e587ef0d7cc92e1d470b))
+* **amazonq:** show kiro pricing information for Amazon Q builderId paid tier users ([#2556](https://github.com/aws/language-servers/issues/2556)) ([5896298](https://github.com/aws/language-servers/commit/58962981604d1d0d5363b23c0e52df119bcc824e))
+* Update SMAI clients to return SM_AI_STUDIO_IDE origin ([#2558](https://github.com/aws/language-servers/issues/2558)) ([dc1d216](https://github.com/aws/language-servers/commit/dc1d21652d48c2ebeb6ddebc6b6ab351d688017c))
+* web search ([09c4769](https://github.com/aws/language-servers/commit/09c47695c48df967e0a22e93290cc69f95b32ac3))
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+* fix for mcp servers refresh ([#2550](https://github.com/aws/language-servers/issues/2550)) ([cd75394](https://github.com/aws/language-servers/commit/cd753948c3b3b9b07b626fc41391bd91b55a0d39))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.18 to ^0.0.19
+
 ## [0.0.97](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.96...lsp-codewhisperer/v0.0.97) (2025-12-08)
 
 
