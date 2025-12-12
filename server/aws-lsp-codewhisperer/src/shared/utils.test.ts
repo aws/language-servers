@@ -171,6 +171,16 @@ describe('getOriginFromClientInfo', () => {
         assert.strictEqual(result, 'SM_AI_STUDIO_IDE')
     })
 
+    it('returns SM_AI_STUDIO_IDE when first condition false, second condition true', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMAI-IDE-only')
+        assert.strictEqual(result, 'SM_AI_STUDIO_IDE')
+    })
+
+    it('returns MD_IDE when first condition false, second condition true', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE-only')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
     it('returns IDE for non-SMUS client name', () => {
         const result = getOriginFromClientInfo('VSCode-Extension')
         assert.strictEqual(result, 'IDE')
