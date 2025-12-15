@@ -13,7 +13,7 @@ export interface TokenLimits {
     maxInputTokens: number
     /** Maximum character count for overall context window: maxInputTokens * 3.5 */
     maxOverallCharacters: number
-    /** Input character limit for assistant responses: 0.7 * maxOverallCharacters */
+    /** Input character limit for assistant responses: maxOverallCharacters - 100K */
     inputLimit: number
     /** Threshold at which compaction is triggered: 0.7 * maxOverallCharacters */
     compactionThreshold: number
@@ -25,8 +25,8 @@ export const DEFAULT_MAX_INPUT_TOKENS = 200_000
 /** Ratio for converting tokens to characters (approximately 3.5 characters per token) */
 export const TOKENS_TO_CHARACTERS_RATIO = 3.5
 
-/** Ratio of max overall characters used for input limit */
-export const INPUT_LIMIT_RATIO = 0.7
+/** Fixed characters reserved from maxOverallCharacters for input limit */
+export const INPUT_LIMIT_RESERVED_CHARACTERS = 100_000
 
 /** Ratio of max overall characters used for compaction threshold */
 export const COMPACTION_THRESHOLD_RATIO = 0.7
@@ -42,7 +42,7 @@ export class TokenLimitsCalculator {
      */
     static calculate(maxInputTokens: number = DEFAULT_MAX_INPUT_TOKENS): TokenLimits {
         const maxOverallCharacters = Math.floor(maxInputTokens * TOKENS_TO_CHARACTERS_RATIO)
-        const inputLimit = Math.floor(INPUT_LIMIT_RATIO * maxOverallCharacters)
+        const inputLimit = maxOverallCharacters - INPUT_LIMIT_RESERVED_CHARACTERS
         const compactionThreshold = Math.floor(COMPACTION_THRESHOLD_RATIO * maxOverallCharacters)
 
         return {

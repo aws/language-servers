@@ -1581,7 +1581,7 @@ describe('AgenticChatController', () => {
     describe('truncateRequest', () => {
         // Use dynamic input limit from TokenLimitsCalculator for all truncation tests
         const defaultLimits = TokenLimitsCalculator.calculate()
-        const inputLimit = defaultLimits.inputLimit // 490_000 for default 200K tokens
+        const inputLimit = defaultLimits.inputLimit // 600_000 for default 200K tokens
 
         it('should truncate user input message if exceeds limit', () => {
             const request: GenerateAssistantResponseCommandInput = {
@@ -1649,7 +1649,7 @@ describe('AgenticChatController', () => {
 
         it('should truncate relevant documents if combined length exceeds remaining budget', () => {
             // Use content that leaves room for some docs but not all
-            const contentLength = 400_000
+            const contentLength = 510_000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
@@ -1705,7 +1705,7 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 1)
-            // Remaining budget = inputLimit - contentLength - 100 - 200 = 490_000 - 400_000 - 300 = 89_700
+            // Remaining budget = inputLimit - contentLength - 100 - 200 = 600_000 - 510_000 - 300 = 89_700
             assert.strictEqual(result, inputLimit - contentLength - 100 - 200)
         })
         it('should truncate current editor if combined length exceeds remaining budget', () => {
@@ -1713,7 +1713,7 @@ describe('AgenticChatController', () => {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(510_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
@@ -1755,7 +1755,7 @@ describe('AgenticChatController', () => {
                 },
             }
             chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 510_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
@@ -1835,7 +1835,7 @@ describe('AgenticChatController', () => {
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
             // Remaining budget = inputLimit - contentLength - relevantDoc1Length - relevantDoc2Length - docLength
-            // = 490_000 - 100_000 - 1000 - 1000 - 100_000 = 288_000
+            // = 600_000 - 100_000 - 1000 - 1000 - 100_000 = 398_000
             assert.strictEqual(result, inputLimit - contentLength - relevantDoc1Length - relevantDoc2Length - docLength)
         })
 
@@ -1915,12 +1915,12 @@ describe('AgenticChatController', () => {
         })
 
         it('should truncate relevantDocuments and images together with equal priority', () => {
-            // 400_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
+            // 510_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(510_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
@@ -1952,7 +1952,7 @@ describe('AgenticChatController', () => {
                 1
             )
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
-            assert.strictEqual(result, inputLimit - 400000 - 100 - 3.3)
+            assert.strictEqual(result, inputLimit - 510_000 - 100 - 3.3)
         })
 
         it('should respect additionalContext order for mixed file and image truncation', () => {
@@ -1960,7 +1960,7 @@ describe('AgenticChatController', () => {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(500_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
@@ -2075,8 +2075,8 @@ describe('AgenticChatController', () => {
             assert.strictEqual(keptDoc?.relativeFilePath, 'file1.ts') // docs[0]
             assert.strictEqual(keptDoc?.text, 'a'.repeat(30_000))
 
-            // Remaining budget = inputLimit - 400000 - 33000 - 30000 - 16500
-            assert.strictEqual(result, inputLimit - 400000 - 33000 - 30000 - 16500)
+            // Remaining budget = inputLimit - 500000 - 33000 - 30000 - 16500
+            assert.strictEqual(result, inputLimit - 500_000 - 33000 - 30000 - 16500)
         })
     })
 
@@ -3075,7 +3075,7 @@ ${' '.repeat(8)}}
             const newLimits = session.tokenLimits
             assert.strictEqual(newLimits.maxInputTokens, 300000)
             assert.strictEqual(newLimits.maxOverallCharacters, Math.floor(300000 * 3.5))
-            assert.strictEqual(newLimits.inputLimit, Math.floor(0.7 * newLimits.maxOverallCharacters))
+            assert.strictEqual(newLimits.inputLimit, newLimits.maxOverallCharacters - 100_000)
             assert.strictEqual(newLimits.compactionThreshold, Math.floor(0.7 * newLimits.maxOverallCharacters))
 
             setModelIdStub.restore()
