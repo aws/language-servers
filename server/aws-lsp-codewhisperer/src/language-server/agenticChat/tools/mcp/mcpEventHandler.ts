@@ -251,15 +251,20 @@ export class McpEventHandler {
         // Return the result in the expected format
         const mcpState = ProfileStatusMonitor.getMcpState()
         const isRegistryActive = mcpManager.isRegistryModeActive()
+        const hasRegistryErrors = !!(configLoadErrors && configLoadErrors.includes('MCP Registry:'))
+
+        // Treat MCP as disabled if there are registry errors
+        const effectiveMcpState = hasRegistryErrors ? false : mcpState
+
         const header = {
             title: 'MCP Servers',
-            description: mcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
-            status: this.#getListMcpServersStatus(configLoadErrors, mcpState),
-            actions: this.#getListMcpServersActions(configLoadErrors, mcpState, isRegistryActive),
+            description: effectiveMcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
+            status: this.#getListMcpServersStatus(configLoadErrors, mcpState, hasRegistryErrors),
+            actions: this.#getListMcpServersActions(configLoadErrors, effectiveMcpState, isRegistryActive),
         }
 
-        // Return empty list when MCP is disabled
-        if (mcpState === false) {
+        // Return empty list when MCP is effectively disabled
+        if (effectiveMcpState === false) {
             return { header, list: [] }
         }
 
@@ -271,13 +276,16 @@ export class McpEventHandler {
      */
     #getListMcpServersStatus(
         configLoadErrors: string | undefined,
-        mcpState: boolean | undefined
+        mcpState: boolean | undefined,
+        hasRegistryErrors: boolean = false
     ): { title: string; icon: string; status: Status } | undefined {
+        // Show registry errors first, even if MCP is disabled
+        if (hasRegistryErrors && configLoadErrors) {
+            return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+        }
+
         if (mcpState === false) {
-            // If MCP is disabled and there are config errors, show the error instead
-            if (configLoadErrors) {
-                return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
-            }
+            // Always show generic MCP disabled message when MCP is administratively disabled
             return {
                 title: 'MCP functionality has been disabled by your administrator',
                 icon: 'info',
@@ -297,12 +305,13 @@ export class McpEventHandler {
      */
     #getListMcpServersActions(
         configLoadErrors: string | undefined,
-        mcpState: boolean | undefined,
+        effectiveMcpState: boolean | undefined,
         isRegistryActive: boolean = false
     ) {
-        // Show buttons if MCP is enabled AND (no errors OR registry is active)
-        // When registry is active, errors are just about missing registry servers, not config issues
-        return mcpState !== false && (!configLoadErrors || configLoadErrors === '' || isRegistryActive)
+        // Show buttons only if MCP is effectively enabled AND no registry errors
+        const hasRegistryErrors = !!(configLoadErrors && configLoadErrors.includes('MCP Registry:'))
+
+        return effectiveMcpState !== false && !hasRegistryErrors
             ? [
                   {
                       id: 'add-new-mcp',
@@ -1679,8 +1688,8 @@ export class McpEventHandler {
             return
         }
         const activeServers = Array.from(serverConfigs.entries()).filter(
-            ([name, _]) => !mcpManager.isServerDisabled(name)
-        )
+            ([name, _]: [string, MCPServerConfig]) => !mcpManager.isServerDisabled(name)
+        ) as Array<[string, MCPServerConfig]>
 
         // Get the global paths
         const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
