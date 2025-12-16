@@ -464,7 +464,8 @@ export class TelemetryService {
                     codewhispererTotalTokens: params.totalCharacterCount,
                     codewhispererLanguage: params.languageId,
                     codewhispererSuggestedTokens: params.acceptedCharacterCount,
-                    codewhispererPercentage: additionalParams.percentage,
+                    // codewhispererPercentage does not allow null and UserWrittenTracker returns null for this field so added an extra 0 for type safety
+                    codewhispererPercentage: additionalParams.percentage ?? 0,
                     successCount: additionalParams.successCount,
                     codewhispererCustomizationArn: params.customizationArn,
                     credentialStartUrl: additionalParams.credentialStartUrl,
