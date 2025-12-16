@@ -19,12 +19,10 @@ export class McpRegistryService {
     }
 
     async fetchRegistry(url: string): Promise<McpRegistryData | null> {
-        if (!this.validateRegistryUrl(url)) {
-            this.logging.error(`MCP Registry: Invalid registry URL format: ${url}`)
-            return null
-        }
-
         try {
+            // Validate URL first
+            this.validateRegistryUrl(url)
+
             const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy
             const agent = proxyUrl ? new HttpsProxyAgent({ proxy: proxyUrl }) : undefined
             const response = await httpsUtils.requestContent(url, agent)
@@ -35,20 +33,20 @@ export class McpRegistryService {
                 !response.contentType.includes('application/json') &&
                 !response.contentType.includes('text/plain')
             ) {
-                this.logging.error(
-                    `MCP Registry: Invalid content type '${response.contentType}' from ${url}. Expected JSON.`
+                const errorMsg = `Invalid content type '${response.contentType}' from registry URL. Expected JSON.`
+                this.logging.error(`MCP Registry: ${errorMsg} (URL: ${url})`)
+                throw new Error(
+                    `MCP Registry: Invalid content type '${response.contentType}' from registry URL. Expected JSON.`
                 )
-                return null
             }
 
             const parsed = JSON.parse(response.content)
 
             const validationResult = this.validator.validateRegistryJson(parsed)
             if (!validationResult.isValid) {
-                this.logging.error(
-                    `MCP Registry: Invalid registry format in ${url}: ${validationResult.errors.join(', ')}`
-                )
-                return null
+                const errorMsg = `Invalid registry format: ${validationResult.errors.join(', ')}`
+                this.logging.error(`MCP Registry: ${errorMsg} (URL: ${url})`)
+                throw new Error(`MCP Registry: ${errorMsg}`)
             }
 
             // Extract servers from wrapper structure if present
@@ -79,23 +77,28 @@ export class McpRegistryService {
             return registryData
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
+            let specificError: string
+
             if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
-                this.logging.error(`MCP Registry: Network error - unable to reach ${url}: ${errorMsg}`)
+                specificError = `Network error - unable to reach registry URL: ${errorMsg}`
             } else if (
                 errorMsg.includes('401') ||
                 errorMsg.includes('403') ||
                 errorMsg.includes('Unauthorized') ||
                 errorMsg.includes('Forbidden')
             ) {
-                this.logging.error(
-                    `MCP Registry: Authentication required - registry URL must be accessible without credentials: ${url}`
-                )
+                specificError = `Authentication required - registry URL must be accessible without credentials`
             } else if (errorMsg.includes('JSON')) {
-                this.logging.error(`MCP Registry: Invalid JSON format in registry at ${url}: ${errorMsg}`)
+                specificError = `Invalid JSON format in registry: ${errorMsg}`
+            } else if (errorMsg.startsWith('MCP Registry:')) {
+                // Re-throw registry-specific errors as-is
+                throw error
             } else {
-                this.logging.error(`MCP Registry: Failed to fetch registry from ${url}: ${errorMsg}`)
+                specificError = `Failed to fetch registry: ${errorMsg}`
             }
-            return null
+
+            this.logging.error(`MCP Registry: ${specificError} (URL: ${url})`)
+            throw new Error(`MCP Registry: ${specificError}`)
         }
     }
 
@@ -105,20 +108,21 @@ export class McpRegistryService {
 
     validateRegistryUrl(url: string): boolean {
         if (!url) {
-            this.logging.error('MCP Registry: URL is empty or undefined')
-            return false
+            const errorMsg = 'URL is empty or undefined'
+            this.logging.error(`MCP Registry: ${errorMsg} (URL: ${url})`)
+            throw new Error(`MCP Registry: ${errorMsg}`)
         }
         if (url.length > MCP_REGISTRY_CONSTANTS.MAX_REGISTRY_URL_LENGTH) {
-            this.logging.error(
-                `MCP Registry: URL exceeds maximum length of ${MCP_REGISTRY_CONSTANTS.MAX_REGISTRY_URL_LENGTH} characters`
-            )
-            return false
+            const errorMsg = `URL exceeds maximum length of ${MCP_REGISTRY_CONSTANTS.MAX_REGISTRY_URL_LENGTH} characters`
+            this.logging.error(`MCP Registry: ${errorMsg} (URL: ${url})`)
+            throw new Error(`MCP Registry: ${errorMsg}`)
         }
         // Match server-side pattern: ^https://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+$
         const httpsUrlPattern = /^https:\/\/[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]+$/
         if (!httpsUrlPattern.test(url)) {
-            this.logging.error('MCP Registry: URL must be a valid HTTPS URL')
-            return false
+            const errorMsg = 'URL must be a valid HTTPS URL'
+            this.logging.error(`MCP Registry: ${errorMsg} (URL: ${url})`)
+            throw new Error(`MCP Registry: ${errorMsg}`)
         }
         return true
     }
