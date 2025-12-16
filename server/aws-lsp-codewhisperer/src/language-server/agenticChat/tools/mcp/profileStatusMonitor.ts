@@ -109,6 +109,7 @@ export class ProfileStatusMonitor {
 
             if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
                 ProfileStatusMonitor.setMcpState(isMcpEnabled)
+                this.logging.info(`MCP State changed: ${ProfileStatusMonitor.lastMcpState} -> ${isMcpEnabled}`)
                 if (!isMcpEnabled) {
                     this.logging.info('MCP configuration disabled - removing tools')
                     this.onMcpDisabled()
@@ -116,6 +117,8 @@ export class ProfileStatusMonitor {
                     this.logging.info('MCP configuration enabled - initializing tools')
                     this.onMcpEnabled()
                 }
+            } else {
+                this.logging.info(`MCP State unchanged: ${isMcpEnabled}`)
             }
 
             return isMcpEnabled
