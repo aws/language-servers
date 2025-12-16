@@ -316,12 +316,12 @@ describe('McpEventHandler error handling', () => {
 
             const result = await eventHandler.onListMcpServers({})
 
-            // Config errors should take priority over admin disabled message
+            // Admin disabled message should take priority over non-registry config errors
             if ('status' in result.header) {
                 expect(result.header.status).to.deep.equal({
-                    title: 'File: file1.json, Error: Config error',
-                    icon: 'cancel-circle',
-                    status: 'error',
+                    title: 'MCP functionality has been disabled by your administrator',
+                    icon: 'info',
+                    status: 'info',
                 })
             }
         })
