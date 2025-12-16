@@ -30,16 +30,19 @@ describe('McpRegistryService', () => {
         })
 
         it('should reject HTTP URLs', () => {
-            assert.strictEqual(service.validateRegistryUrl('http://example.com/registry.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('http://example.com/registry.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject URLs over 1024 characters', () => {
             const longUrl = 'https://example.com/' + 'a'.repeat(MCP_REGISTRY_CONSTANTS.MAX_REGISTRY_URL_LENGTH)
-            assert.strictEqual(service.validateRegistryUrl(longUrl), false)
+            assert.throws(() => service.validateRegistryUrl(longUrl), /MCP Registry:.*exceeds maximum length/)
         })
 
         it('should reject empty URLs', () => {
-            assert.strictEqual(service.validateRegistryUrl(''), false)
+            assert.throws(() => service.validateRegistryUrl(''), /MCP Registry:.*URL is empty or undefined/)
         })
 
         it('should accept URLs with query parameters', () => {
@@ -83,35 +86,56 @@ describe('McpRegistryService', () => {
         })
 
         it('should reject URLs with spaces', () => {
-            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry file.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('https://example.com/registry file.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject URLs with invalid characters', () => {
-            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry<>.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('https://example.com/registry<>.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject URLs with backslashes', () => {
-            assert.strictEqual(service.validateRegistryUrl('https://example.com\\registry.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('https://example.com\\registry.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject URLs with pipes', () => {
-            assert.strictEqual(service.validateRegistryUrl('https://example.com/registry|file.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('https://example.com/registry|file.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject FTP URLs', () => {
-            assert.strictEqual(service.validateRegistryUrl('ftp://example.com/registry.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('ftp://example.com/registry.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject URLs without protocol', () => {
-            assert.strictEqual(service.validateRegistryUrl('example.com/registry.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('example.com/registry.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
         it('should reject URLs with only https:', () => {
-            assert.strictEqual(service.validateRegistryUrl('https:'), false)
+            assert.throws(() => service.validateRegistryUrl('https:'), /MCP Registry:.*URL must be a valid HTTPS URL/)
         })
 
         it('should reject URLs with https:/ (single slash)', () => {
-            assert.strictEqual(service.validateRegistryUrl('https:/example.com/registry.json'), false)
+            assert.throws(
+                () => service.validateRegistryUrl('https:/example.com/registry.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
     })
 
@@ -161,23 +185,29 @@ describe('McpRegistryService', () => {
             assert.strictEqual(result?.url, 'https://example.com/registry.json')
         })
 
-        it('should return null for invalid URL', async () => {
-            const result = await service.fetchRegistry('http://example.com/registry.json')
-            assert.strictEqual(result, null)
+        it('should throw error for invalid URL', async () => {
+            await assert.rejects(
+                () => service.fetchRegistry('http://example.com/registry.json'),
+                /MCP Registry:.*URL must be a valid HTTPS URL/
+            )
         })
 
-        it('should return null for missing servers array', async () => {
+        it('should throw error for missing servers array', async () => {
             requestContentStub.resolves({ content: '{}', contentType: 'application/json' })
 
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Registry must have a servers array/
+            )
         })
 
         it('should handle network errors', async () => {
             requestContentStub.rejects(new Error('Network error'))
 
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Failed to fetch registry.*Network error/
+            )
         })
     })
 
@@ -226,46 +256,52 @@ describe('McpRegistryService', () => {
     })
 
     describe('error handling and logging', () => {
-        it('should log error for empty URL', async () => {
-            const result = await service.fetchRegistry('')
-            assert.strictEqual(result, null)
-            assert.ok(mockLogging.error.calledWith('MCP Registry: URL is empty or undefined'))
+        it('should throw error for empty URL', async () => {
+            await assert.rejects(() => service.fetchRegistry(''), /MCP Registry:.*URL is empty or undefined/)
+            assert.ok(mockLogging.error.calledWith('MCP Registry: URL is empty or undefined (URL: )'))
         })
 
-        it('should log error for URL exceeding max length', async () => {
+        it('should throw error for URL exceeding max length', async () => {
             const longUrl = 'https://' + 'a'.repeat(1100) + '.com/registry.json'
-            const result = await service.fetchRegistry(longUrl)
-            assert.strictEqual(result, null)
+            await assert.rejects(() => service.fetchRegistry(longUrl), /MCP Registry:.*exceeds maximum length/)
             assert.ok(mockLogging.error.calledWith(sinon.match(/exceeds maximum length/)))
         })
 
-        it('should log network error for ENOTFOUND', async () => {
+        it('should throw network error for ENOTFOUND', async () => {
             const error = new Error('getaddrinfo ENOTFOUND invalid-domain.com')
             requestContentStub.rejects(error)
-            const result = await service.fetchRegistry('https://invalid-domain.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://invalid-domain.com/registry.json'),
+                /MCP Registry:.*Network error - unable to reach/
+            )
             assert.ok(mockLogging.error.calledWith(sinon.match(/Network error - unable to reach/)))
         })
 
-        it('should log network error for ECONNREFUSED', async () => {
+        it('should throw network error for ECONNREFUSED', async () => {
             const error = new Error('connect ECONNREFUSED 127.0.0.1:443')
             requestContentStub.rejects(error)
-            const result = await service.fetchRegistry('https://localhost/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://localhost/registry.json'),
+                /MCP Registry:.*Network error - unable to reach/
+            )
             assert.ok(mockLogging.error.calledWith(sinon.match(/Network error - unable to reach/)))
         })
 
-        it('should log error for invalid JSON', async () => {
+        it('should throw error for invalid JSON', async () => {
             requestContentStub.resolves({ content: '{ invalid json }', contentType: 'application/json' })
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Invalid JSON format/
+            )
             assert.ok(mockLogging.error.calledWith(sinon.match(/Invalid JSON format/)))
         })
 
-        it('should log error for non-array servers field', async () => {
+        it('should throw error for non-array servers field', async () => {
             requestContentStub.resolves({ content: '{"servers": "not-an-array"}', contentType: 'application/json' })
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Invalid registry format.*Registry must have a servers array/
+            )
             assert.ok(
                 mockLogging.error.calledWith(sinon.match(/Invalid registry format.*Registry must have a servers array/))
             )
@@ -288,19 +324,23 @@ describe('McpRegistryService', () => {
             assert.ok(mockLogging.info.calledWith(sinon.match(/Successfully fetched registry.*with 1 servers/)))
         })
 
-        it('should log generic error for unknown failures', async () => {
+        it('should throw generic error for unknown failures', async () => {
             const error = new Error('Unknown error occurred')
             requestContentStub.rejects(error)
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Failed to fetch registry.*Unknown error occurred/
+            )
             assert.ok(mockLogging.error.calledWith(sinon.match(/Failed to fetch registry.*Unknown error occurred/)))
         })
 
-        it('should log authentication error for 401 Unauthorized', async () => {
+        it('should throw authentication error for 401 Unauthorized', async () => {
             const error = new Error('HTTP 401 Unauthorized')
             requestContentStub.rejects(error)
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Authentication required/
+            )
             assert.ok(
                 mockLogging.error.calledWith(
                     sinon.match(/Authentication required - registry URL must be accessible without credentials/)
@@ -308,11 +348,13 @@ describe('McpRegistryService', () => {
             )
         })
 
-        it('should log authentication error for 403 Forbidden', async () => {
+        it('should throw authentication error for 403 Forbidden', async () => {
             const error = new Error('HTTP 403 Forbidden')
             requestContentStub.rejects(error)
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Authentication required/
+            )
             assert.ok(
                 mockLogging.error.calledWith(
                     sinon.match(/Authentication required - registry URL must be accessible without credentials/)
@@ -320,11 +362,13 @@ describe('McpRegistryService', () => {
             )
         })
 
-        it('should log authentication error for Unauthorized message', async () => {
+        it('should throw authentication error for Unauthorized message', async () => {
             const error = new Error('Request failed: Unauthorized access')
             requestContentStub.rejects(error)
-            const result = await service.fetchRegistry('https://example.com/registry.json')
-            assert.strictEqual(result, null)
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Authentication required/
+            )
             assert.ok(
                 mockLogging.error.calledWith(
                     sinon.match(/Authentication required - registry URL must be accessible without credentials/)
@@ -494,10 +538,12 @@ describe('McpRegistryService', () => {
             }
 
             requestContentStub.resolves({ content: JSON.stringify(mockRegistry), contentType: 'application/json' })
-            const result = await service.fetchRegistry('https://example.com/registry.json')
 
-            // Validator will reject servers with empty names, so this should return null
-            assert.strictEqual(result, null)
+            // Validator will reject servers with empty names, so this should throw an error
+            await assert.rejects(
+                () => service.fetchRegistry('https://example.com/registry.json'),
+                /MCP Registry:.*Invalid registry format/
+            )
         })
 
         it('should handle valid alphanumeric names with hyphens and underscores', async () => {
