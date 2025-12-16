@@ -20,8 +20,10 @@ import {
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@amzn/codewhisperer-streaming'
+// eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
+// eslint-disable-next-line import/no-nodejs-modules
 import { promises as fs } from 'fs'
 import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
@@ -366,12 +368,10 @@ export function getClientName(lspParams: InitializeParams | undefined): string |
 }
 
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
-    // TODO: Update with a new origin for SMAI case, as a short-term solution Sagemaker AI CE is using same origin as that of Sagemaker Unified Studio's IDE and CE
-    if (
-        clientName?.startsWith('AmazonQ-For-SMUS-IDE') ||
-        clientName?.startsWith('AmazonQ-For-SMUS-CE') ||
-        clientName?.startsWith('AmazonQ-For-SMAI-CE')
-    ) {
+    if (clientName?.startsWith('AmazonQ-For-SMAI-CE') || clientName?.startsWith('AmazonQ-For-SMAI-IDE')) {
+        return 'SM_AI_STUDIO_IDE'
+    }
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE') || clientName?.startsWith('AmazonQ-For-SMUS-CE')) {
         return 'MD_IDE'
     }
     return 'IDE'
