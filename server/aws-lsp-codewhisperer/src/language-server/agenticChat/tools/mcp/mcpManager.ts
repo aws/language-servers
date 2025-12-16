@@ -62,7 +62,7 @@ export class McpManager {
     private mcpTools: McpToolDefinition[]
     private mcpServers: Map<string, MCPServerConfig>
     private mcpServerStates: Map<string, McpServerRuntimeState>
-    private configLoadErrors: Map<string, string>
+    public configLoadErrors: Map<string, string>
     private mcpServerPermissions: Map<string, MCPServerPermission>
     public readonly events: EventEmitter
     private static readonly configMutex = new Mutex()
@@ -118,12 +118,12 @@ export class McpManager {
                         features.logging.info(
                             `MCP Registry: Registry mode ACTIVE - ${registry.servers.length} servers from ${options.registryUrl}`
                         )
-                    } else {
-                        features.logging.error('MCP Registry: Failed to fetch registry')
                     }
                 } catch (error) {
                     const errorMsg = error instanceof Error ? error.message : String(error)
                     features.logging.error(`MCP Registry: Error during initialization: ${errorMsg}`)
+                    // Store the specific registry error for display in UI
+                    mgr.configLoadErrors.set('registry', errorMsg)
                 }
             }
 
@@ -238,12 +238,19 @@ export class McpManager {
         this.serverNameMapping = result.serverNameMapping
 
         // Reset the configuration errors after every refresh.
+        // But preserve registry errors when registry mode is active
+        const savedRegistryError = this.isRegistryModeActive() ? this.configLoadErrors.get('registry') : undefined
         this.configLoadErrors.clear()
 
         // Store any config load errors
         result.errors.forEach((errorMsg, key) => {
             this.configLoadErrors.set(key, errorMsg)
         })
+
+        // Restore registry errors if they existed and no new registry errors were found
+        if (savedRegistryError && !this.configLoadErrors.has('registry')) {
+            this.configLoadErrors.set('registry', savedRegistryError)
+        }
 
         this.features.logging.info('Using agent configuration')
 
@@ -1179,12 +1186,19 @@ export class McpManager {
         try {
             // Save the current tool name mapping to preserve tool names across reinitializations
             const savedToolNameMapping = this.getToolNameMapping()
+            // Save registry errors only if registry is active
+            const isRegistryActive = this.isRegistryModeActive()
+            const savedRegistryErrors = isRegistryActive ? this.configLoadErrors.get('registry') : undefined
 
             // close clients, clear state, but don't reset singleton
             await this.close(true)
 
             // Restore the saved tool name mapping
             this.setToolNameMapping(savedToolNameMapping)
+            // Restore registry errors if they existed
+            if (savedRegistryErrors) {
+                this.configLoadErrors.set('registry', savedRegistryErrors)
+            }
 
             const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
             if (shouldDiscoverServers) {
@@ -1663,6 +1677,11 @@ export class McpManager {
      */
     public setRegistryActive(active: boolean): void {
         this.registryUrlProvided = active
+        if (!active) {
+            // Clear registry data and errors when deactivating
+            this.currentRegistry = null
+            this.configLoadErrors.delete('registry')
+        }
     }
 
     /**
@@ -1676,34 +1695,42 @@ export class McpManager {
 
         const wasActive = this.registryUrlProvided
 
-        const registry = await this.registryService.fetchRegistry(registryUrl)
-        if (registry) {
-            this.currentRegistry = registry
+        try {
+            const registry = await this.registryService.fetchRegistry(registryUrl)
+            if (registry) {
+                this.currentRegistry = registry
+                // Clear any previous registry errors on success
+                this.configLoadErrors.delete('registry')
 
-            if (!wasActive) {
-                this.features.logging.info(`MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`)
-                // Only discover servers when registry is newly activated and not during periodic sync
-                if (!isPeriodicSync) {
-                    await this.discoverAllServers()
+                if (!wasActive) {
                     this.features.logging.info(
-                        `MCP: discovered ${this.getAllTools().length} tools after registry activation`
+                        `MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`
                     )
+                    // Only discover servers when registry is newly activated and not during periodic sync
+                    if (!isPeriodicSync) {
+                        await this.discoverAllServers()
+                        this.features.logging.info(
+                            `MCP: discovered ${this.getAllTools().length} tools after registry activation`
+                        )
+                    }
+                } else {
+                    this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
                 }
-            } else {
-                this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
-            }
 
-            // Only sync during periodic updates, not at startup
-            if (isPeriodicSync) {
-                this.isPeriodicSync = true
-                await this.syncWithRegistry()
-                this.isPeriodicSync = false
+                // Only sync during periodic updates, not at startup
+                if (isPeriodicSync) {
+                    this.isPeriodicSync = true
+                    await this.syncWithRegistry()
+                    this.isPeriodicSync = false
+                }
             }
-        } else {
-            const errorMsg = 'Failed to fetch or validate registry'
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
             this.features.logging.error(`MCP Registry: ${errorMsg}`)
             this.currentRegistry = null
-            throw new Error(errorMsg)
+            // Store the specific registry error for display in UI
+            this.configLoadErrors.set('registry', errorMsg)
+            throw error
         }
     }
 

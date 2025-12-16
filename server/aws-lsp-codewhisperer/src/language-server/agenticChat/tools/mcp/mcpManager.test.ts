@@ -1663,7 +1663,7 @@ describe('Registry Synchronization', () => {
 
         it('should clear current registry and throw when fetch fails', async () => {
             const mockRegistryService = {
-                fetchRegistry: sandbox.stub().resolves(null),
+                fetchRegistry: sandbox.stub().rejects(new Error('Failed to fetch or validate registry')),
             }
             ;(mgr as any).registryService = mockRegistryService
 
