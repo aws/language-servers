@@ -130,7 +130,6 @@ export class Utils {
     ): Promise<string> {
         const response = await got.get(downloadUrl, {
             headers: requestHeaders || {},
-            // timeout: { request: 300000 },
             responseType: 'buffer',
         })
 
