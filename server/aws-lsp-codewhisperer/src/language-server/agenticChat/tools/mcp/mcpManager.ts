@@ -391,17 +391,12 @@ export class McpManager {
         }
         const serverMutex = this.serverInitMutexes.get(serverName)!
 
-        this.features.logging.info(`MCP: [${serverName}] acquiring initialization mutex`)
         return serverMutex.runExclusive(async () => {
-            this.features.logging.info(`MCP: [${serverName}] mutex acquired, starting initialization`)
             try {
                 await this.initOneServerInternal(serverName, cfg, authIntent)
-                this.features.logging.info(`MCP: [${serverName}] initialization completed successfully`)
             } catch (error) {
                 this.features.logging.error(`MCP: [${serverName}] initialization failed: ${error}`)
                 throw error
-            } finally {
-                this.features.logging.info(`MCP: [${serverName}] mutex released`)
             }
         })
     }
@@ -480,22 +475,15 @@ export class McpManager {
                         // Store PID for process cleanup
                         if (transport.pid) {
                             this.processPids.set(serverName, transport.pid)
-                            this.features.logging.info(`MCP: [${serverName}] stored PID ${transport.pid}`)
 
                             // Track Docker container for Docker commands (lightweight approach)
                             if (cfg.command && cfg.command.includes('docker')) {
-                                this.features.logging.info(
-                                    `MCP: [${serverName}] detected Docker command, tracking container`
-                                )
                                 try {
                                     const { execSync } = require('child_process')
                                     // Get the most recent container (likely ours)
                                     const containerId = execSync('docker ps -q --latest', { encoding: 'utf8' }).trim()
                                     if (containerId) {
                                         this.dockerContainers.set(serverName, containerId)
-                                        this.features.logging.info(
-                                            `MCP: [${serverName}] tracking Docker container ${containerId}`
-                                        )
                                     }
                                 } catch (dockerError) {
                                     this.features.logging.warn(
@@ -503,8 +491,6 @@ export class McpManager {
                                     )
                                 }
                             }
-                        } else {
-                            this.features.logging.warn(`MCP: [${serverName}] no PID available from transport`)
                         }
                     } catch (err: any) {
                         let errorMessage = err?.message ?? String(err)
@@ -1257,7 +1243,6 @@ export class McpManager {
         // Kill our tracked processes (no timeout delays)
         for (const [name, pid] of this.processPids.entries()) {
             try {
-                this.features.logging.info(`MCP: terminating process ${pid} for ${name}`)
                 process.kill(pid, 'SIGTERM')
             } catch (e: any) {
                 if (e.code !== 'ESRCH') {
@@ -1271,7 +1256,6 @@ export class McpManager {
             try {
                 const { execSync } = require('child_process')
                 execSync(`docker kill ${containerId}`, { stdio: 'ignore' })
-                this.features.logging.info(`MCP: killed Docker container ${containerId} for ${name}`)
             } catch (e: any) {
                 this.features.logging.warn(
                     `MCP: error killing Docker container ${containerId} for ${name}: ${e.message}`
@@ -1735,13 +1719,10 @@ export class McpManager {
             return // Nothing to clean up
         }
 
-        this.features.logging.info(`MCP: [${serverName}] cleaning up existing server instance`)
-
         // Close client first
         if (existingClient) {
             try {
                 await existingClient.close()
-                this.features.logging.info(`MCP: [${serverName}] closed existing client`)
             } catch (e) {
                 this.features.logging.warn(`MCP: [${serverName}] error closing client: ${e}`)
             }
@@ -1752,7 +1733,6 @@ export class McpManager {
         if (existingPid) {
             try {
                 process.kill(existingPid, 'SIGTERM')
-                this.features.logging.info(`MCP: [${serverName}] terminated process ${existingPid}`)
             } catch (e: any) {
                 if (e.code !== 'ESRCH') {
                     this.features.logging.warn(`MCP: [${serverName}] error killing process: ${e.message}`)
@@ -1766,7 +1746,6 @@ export class McpManager {
             try {
                 const { execSync } = require('child_process')
                 execSync(`docker kill ${existingContainer}`, { stdio: 'ignore' })
-                this.features.logging.info(`MCP: [${serverName}] killed container ${existingContainer}`)
             } catch (e) {
                 this.features.logging.warn(`MCP: [${serverName}] error killing container: ${e}`)
             }
