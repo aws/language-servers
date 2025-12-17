@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.24](https://github.com/aws/language-servers/compare/lsp-json/v0.1.23...lsp-json/v0.1.24) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.18 to ^0.0.19
+
 ## [0.1.23](https://github.com/aws/language-servers/compare/lsp-json/v0.1.22...lsp-json/v0.1.23) (2025-11-26)
 
 
