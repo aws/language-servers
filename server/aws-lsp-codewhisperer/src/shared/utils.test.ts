@@ -146,9 +146,9 @@ describe('getOriginFromClientInfo', () => {
         assert.strictEqual(result, 'MD_IDE')
     })
 
-    it('returns MD_IDE for client names starting with SMAI-CE prefix', () => {
+    it('returns SM_AI_STUDIO_IDE for client names starting with SMAI-CE prefix', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMAI-CE-1.0.0')
-        assert.strictEqual(result, 'MD_IDE')
+        assert.strictEqual(result, 'SM_AI_STUDIO_IDE')
     })
 
     it('returns MD_IDE for SMUS-IDE client name', () => {
@@ -161,8 +161,23 @@ describe('getOriginFromClientInfo', () => {
         assert.strictEqual(result, 'MD_IDE')
     })
 
-    it('returns MD_IDE for SMAI-CE client name', () => {
+    it('returns SM_AI_STUDIO_IDE for SMAI-CE client name', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMAI-CE')
+        assert.strictEqual(result, 'SM_AI_STUDIO_IDE')
+    })
+
+    it('returns SM_AI_STUDIO_IDE for SMAI-IDE client name', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMAI-IDE')
+        assert.strictEqual(result, 'SM_AI_STUDIO_IDE')
+    })
+
+    it('returns SM_AI_STUDIO_IDE when first condition false, second condition true', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMAI-IDE-only')
+        assert.strictEqual(result, 'SM_AI_STUDIO_IDE')
+    })
+
+    it('returns MD_IDE when first condition false, second condition true', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE-only')
         assert.strictEqual(result, 'MD_IDE')
     })
 
@@ -964,8 +979,8 @@ describe('sanitizeRequestInput', () => {
             assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMUS-CE-test'), 'MD_IDE')
         })
 
-        it('returns MD_IDE for SMAI CE client', () => {
-            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMAI-CE-test'), 'MD_IDE')
+        it('returns SM_AI_STUDIO_IDE for SMAI CE client', () => {
+            assert.strictEqual(getOriginFromClientInfo('AmazonQ-For-SMAI-CE-test'), 'SM_AI_STUDIO_IDE')
         })
 
         it('returns IDE for other clients', () => {

@@ -412,21 +412,49 @@ export const McpToolsServer: Server = ({
 
             profileStatusMonitor = new ProfileStatusMonitor(
                 logging,
-                removeAllMcpTools,
+                () => {
+                    logging.info('MCP configuration disabled - removing tools')
+                    // Clear registry errors when MCP is administratively disabled
+                    try {
+                        if (McpManager.instance) {
+                            McpManager.instance.configLoadErrors.clear()
+                        }
+                    } catch (error) {
+                        logging.debug('McpManager not initialized for clearing errors')
+                    }
+                    removeAllMcpTools()
+                },
                 async () => {
                     logging.info('MCP enabled by profile status monitor')
+                    // Don't clear registry errors when re-enabling MCP
+                    const existingErrors = McpManager.instance.getConfigLoadErrors()
                     await McpManager.instance.discoverAllServers()
+                    // Restore registry errors if they existed
+                    if (existingErrors && existingErrors.includes('MCP Registry:')) {
+                        McpManager.instance.configLoadErrors.set('registry', existingErrors)
+                    }
                     logging.info(`MCP: discovered ${McpManager.instance.getAllTools().length} tools after re-enable`)
                     registerAllMcpTools()
                     sendMcpUpdate()
                 },
                 async (registryUrl: string | null, isPeriodicSync: boolean = false) => {
-                    if (registryUrl) {
-                        McpManager.instance.setRegistryActive(true)
-                        await McpManager.instance.updateRegistryUrl(registryUrl, isPeriodicSync)
-                        // Registry URL update handles server discovery internally
+                    try {
+                        if (registryUrl) {
+                            McpManager.instance.setRegistryActive(true)
+                            await McpManager.instance.updateRegistryUrl(registryUrl, isPeriodicSync)
+                            // Registry URL update handles server discovery internally
+                        } else {
+                            // No registry URL - ensure registry is not active and discover manual servers
+                            McpManager.instance.setRegistryActive(false)
+                            await McpManager.instance.discoverAllServers()
+                        }
+                        sendMcpUpdate()
+                    } catch (error) {
+                        const errorMsg = error instanceof Error ? error.message : String(error)
+                        logging.error(`Registry URL update failed: ${errorMsg}`)
+                        // Error is already stored in McpManager.configLoadErrors by updateRegistryUrl
+                        sendMcpUpdate()
                     }
-                    sendMcpUpdate()
                 }
             )
 
@@ -438,7 +466,13 @@ export const McpToolsServer: Server = ({
 
                     if (mcpEnabled) {
                         logging.info('MCP is enabled, discovering servers')
+                        // Preserve any existing registry errors before discovering servers
+                        const existingErrors = McpManager.instance.getConfigLoadErrors()
                         await McpManager.instance.discoverAllServers()
+                        // Restore registry errors if they existed
+                        if (existingErrors && existingErrors.includes('MCP Registry:')) {
+                            McpManager.instance.configLoadErrors.set('registry', existingErrors)
+                        }
                         logging.info(
                             `MCP: discovered ${McpManager.instance.getAllTools().length} tools across all servers`
                         )
@@ -455,7 +489,7 @@ export const McpToolsServer: Server = ({
                     // Store registry errors in McpManager for display in server list
                     if (errorMsg.includes('MCP Registry:')) {
                         try {
-                            ;(McpManager.instance as any).configLoadErrors.set('registry', errorMsg)
+                            McpManager.instance.configLoadErrors.set('registry', errorMsg)
                         } catch (e) {
                             logging.debug('Failed to store registry error in McpManager')
                         }

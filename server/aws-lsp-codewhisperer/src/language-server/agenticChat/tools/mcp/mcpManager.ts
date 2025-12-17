@@ -59,14 +59,17 @@ export enum AuthIntent {
 export class McpManager {
     static #instance?: McpManager
     private clients: Map<string, Client>
+    private processPids: Map<string, number>
+    private dockerContainers: Map<string, string>
     private mcpTools: McpToolDefinition[]
     private mcpServers: Map<string, MCPServerConfig>
     private mcpServerStates: Map<string, McpServerRuntimeState>
-    private configLoadErrors: Map<string, string>
+    public configLoadErrors: Map<string, string>
     private mcpServerPermissions: Map<string, MCPServerPermission>
     public readonly events: EventEmitter
     private static readonly configMutex = new Mutex()
     private static readonly personaMutex = new Mutex()
+    private readonly serverInitMutexes = new Map<string, Mutex>()
     private toolNameMapping: Map<string, { serverName: string; toolName: string }>
     private serverNameMapping: Map<string, string>
     private agentConfig!: AgentConfig
@@ -85,6 +88,8 @@ export class McpManager {
     ) {
         this.mcpTools = []
         this.clients = new Map<string, Client>()
+        this.processPids = new Map<string, number>()
+        this.dockerContainers = new Map<string, string>()
         this.mcpServers = new Map<string, MCPServerConfig>()
         this.mcpServerStates = new Map<string, McpServerRuntimeState>()
         this.configLoadErrors = new Map<string, string>()
@@ -118,12 +123,12 @@ export class McpManager {
                         features.logging.info(
                             `MCP Registry: Registry mode ACTIVE - ${registry.servers.length} servers from ${options.registryUrl}`
                         )
-                    } else {
-                        features.logging.error('MCP Registry: Failed to fetch registry')
                     }
                 } catch (error) {
                     const errorMsg = error instanceof Error ? error.message : String(error)
                     features.logging.error(`MCP Registry: Error during initialization: ${errorMsg}`)
+                    // Store the specific registry error for display in UI
+                    mgr.configLoadErrors.set('registry', errorMsg)
                 }
             }
 
@@ -238,12 +243,19 @@ export class McpManager {
         this.serverNameMapping = result.serverNameMapping
 
         // Reset the configuration errors after every refresh.
+        // But preserve registry errors when registry mode is active
+        const savedRegistryError = this.isRegistryModeActive() ? this.configLoadErrors.get('registry') : undefined
         this.configLoadErrors.clear()
 
         // Store any config load errors
         result.errors.forEach((errorMsg, key) => {
             this.configLoadErrors.set(key, errorMsg)
         })
+
+        // Restore registry errors if they existed and no new registry errors were found
+        if (savedRegistryError && !this.configLoadErrors.has('registry')) {
+            this.configLoadErrors.set('registry', savedRegistryError)
+        }
 
         this.features.logging.info('Using agent configuration')
 
@@ -373,7 +385,32 @@ export class McpManager {
         cfg: MCPServerConfig,
         authIntent: AuthIntent = AuthIntent.Silent
     ): Promise<void> {
+        // Get or create mutex for this server to prevent concurrent initialization
+        if (!this.serverInitMutexes.has(serverName)) {
+            this.serverInitMutexes.set(serverName, new Mutex())
+        }
+        const serverMutex = this.serverInitMutexes.get(serverName)!
+
+        return serverMutex.runExclusive(async () => {
+            try {
+                await this.initOneServerInternal(serverName, cfg, authIntent)
+            } catch (error) {
+                this.features.logging.error(`MCP: [${serverName}] initialization failed: ${error}`)
+                throw error
+            }
+        })
+    }
+
+    private async initOneServerInternal(
+        serverName: string,
+        cfg: MCPServerConfig,
+        authIntent: AuthIntent = AuthIntent.Silent
+    ): Promise<void> {
         const DEFAULT_SERVER_INIT_TIMEOUT_MS = 120_000
+
+        // Lightweight cleanup - only kill our tracked processes
+        await this.cleanupExistingServer(serverName)
+
         this.setState(serverName, McpServerStatus.INITIALIZING, 0)
 
         try {
@@ -446,6 +483,27 @@ export class McpManager {
                             `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
                             'MCPServerConnectionFailed'
                         )
+                    }
+
+                    // Store PID for process cleanup
+                    if (transport.pid) {
+                        this.processPids.set(serverName, transport.pid)
+
+                        // Track Docker container for Docker commands (lightweight approach)
+                        if (cfg.command && cfg.command.includes('docker')) {
+                            try {
+                                const { execSync } = require('child_process')
+                                // Get the most recent container (likely ours)
+                                const containerId = execSync('docker ps -q --latest', { encoding: 'utf8' }).trim()
+                                if (containerId) {
+                                    this.dockerContainers.set(serverName, containerId)
+                                }
+                            } catch (dockerError) {
+                                this.features.logging.warn(
+                                    `MCP: [${serverName}] error tracking Docker container: ${dockerError}`
+                                )
+                            }
+                        }
                     }
                 } else {
                     // streamable http/SSE transport - merge additional headers with base headers
@@ -589,6 +647,33 @@ export class McpManager {
                 await client.close()
                 this.clients.delete(serverName)
             }
+            // Clean up PID and Docker container references
+            const pid = this.processPids.get(serverName)
+            if (pid) {
+                try {
+                    process.kill(pid, 'SIGTERM')
+                } catch (killError: any) {
+                    if (killError.code !== 'ESRCH') {
+                        this.features.logging.warn(
+                            `MCP: error terminating failed server process ${pid}: ${killError.message}`
+                        )
+                    }
+                }
+            }
+            this.processPids.delete(serverName)
+
+            const containerId = this.dockerContainers.get(serverName)
+            if (containerId) {
+                try {
+                    const { execSync } = require('child_process')
+                    execSync(`docker kill ${containerId}`, { stdio: 'ignore' })
+                } catch (killError: any) {
+                    this.features.logging.warn(
+                        `MCP: error killing failed Docker container ${containerId}: ${killError.message}`
+                    )
+                }
+            }
+            this.dockerContainers.delete(serverName)
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
             this.handleError(serverName, e)
         }
@@ -1142,16 +1227,47 @@ export class McpManager {
      * Close all clients, clear state, and reset singleton.
      */
     public async close(keepInstance: boolean = false): Promise<void> {
-        this.features.logging.info('MCP: closing all clients')
+        this.features.logging.info('MCP: closing all clients and tracked processes')
+
+        // Close all clients in parallel for faster shutdown
+        const clientClosePromises = []
         for (const [name, client] of this.clients.entries()) {
+            clientClosePromises.push(
+                client
+                    .close()
+                    .catch(e => this.features.logging.error(`MCP: error closing client ${name}: ${e.message}`))
+            )
+        }
+
+        // Kill our tracked processes (no timeout delays)
+        for (const [name, pid] of this.processPids.entries()) {
             try {
-                await client.close()
-                this.features.logging.info(`MCP: closed client for ${name}`)
+                process.kill(pid, 'SIGTERM')
             } catch (e: any) {
-                this.features.logging.error(`MCP: error closing client ${name}: ${e.message}`)
+                if (e.code !== 'ESRCH') {
+                    this.features.logging.warn(`MCP: error terminating process ${pid} for ${name}: ${e.message}`)
+                }
             }
         }
+
+        // Kill our tracked Docker containers
+        for (const [name, containerId] of this.dockerContainers.entries()) {
+            try {
+                const { execSync } = require('child_process')
+                execSync(`docker kill ${containerId}`, { stdio: 'ignore' })
+            } catch (e: any) {
+                this.features.logging.warn(
+                    `MCP: error killing Docker container ${containerId} for ${name}: ${e.message}`
+                )
+            }
+        }
+
+        // Wait for all clients to close
+        await Promise.all(clientClosePromises)
+
         this.clients.clear()
+        this.processPids.clear()
+        this.dockerContainers.clear()
         this.mcpTools = []
         this.mcpServers.clear()
         this.mcpServerStates.clear()
@@ -1179,12 +1295,19 @@ export class McpManager {
         try {
             // Save the current tool name mapping to preserve tool names across reinitializations
             const savedToolNameMapping = this.getToolNameMapping()
+            // Save registry errors only if registry is active
+            const isRegistryActive = this.isRegistryModeActive()
+            const savedRegistryErrors = isRegistryActive ? this.configLoadErrors.get('registry') : undefined
 
             // close clients, clear state, but don't reset singleton
             await this.close(true)
 
             // Restore the saved tool name mapping
             this.setToolNameMapping(savedToolNameMapping)
+            // Restore registry errors if they existed
+            if (savedRegistryErrors) {
+                this.configLoadErrors.set('registry', savedRegistryErrors)
+            }
 
             const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
             if (shouldDiscoverServers) {
@@ -1583,6 +1706,53 @@ export class McpManager {
     }
 
     /**
+     * Clean up existing server instance (only our tracked processes)
+     * @private
+     */
+    private async cleanupExistingServer(serverName: string): Promise<void> {
+        const existingClient = this.clients.get(serverName)
+        const existingPid = this.processPids.get(serverName)
+        const existingContainer = this.dockerContainers.get(serverName)
+
+        if (!existingClient && !existingPid && !existingContainer) {
+            return // Nothing to clean up
+        }
+
+        // Close client first
+        if (existingClient) {
+            try {
+                await existingClient.close()
+            } catch (e) {
+                this.features.logging.warn(`MCP: [${serverName}] error closing client: ${e}`)
+            }
+            this.clients.delete(serverName)
+        }
+
+        // Kill our tracked process
+        if (existingPid) {
+            try {
+                process.kill(existingPid, 'SIGTERM')
+            } catch (e: any) {
+                if (e.code !== 'ESRCH') {
+                    this.features.logging.warn(`MCP: [${serverName}] error killing process: ${e.message}`)
+                }
+            }
+            this.processPids.delete(serverName)
+        }
+
+        // Kill our tracked container
+        if (existingContainer) {
+            try {
+                const { execSync } = require('child_process')
+                execSync(`docker kill ${existingContainer}`, { stdio: 'ignore' })
+            } catch (e) {
+                this.features.logging.warn(`MCP: [${serverName}] error killing container: ${e}`)
+            }
+            this.dockerContainers.delete(serverName)
+        }
+    }
+
+    /**
      * Ensure the server-specific config is internally consistent.
      * Mutates `cfg` in-place, trimming fields that don't belong to the selected transport.
      * @private
@@ -1663,6 +1833,11 @@ export class McpManager {
      */
     public setRegistryActive(active: boolean): void {
         this.registryUrlProvided = active
+        if (!active) {
+            // Clear registry data and errors when deactivating
+            this.currentRegistry = null
+            this.configLoadErrors.delete('registry')
+        }
     }
 
     /**
@@ -1676,34 +1851,42 @@ export class McpManager {
 
         const wasActive = this.registryUrlProvided
 
-        const registry = await this.registryService.fetchRegistry(registryUrl)
-        if (registry) {
-            this.currentRegistry = registry
+        try {
+            const registry = await this.registryService.fetchRegistry(registryUrl)
+            if (registry) {
+                this.currentRegistry = registry
+                // Clear any previous registry errors on success
+                this.configLoadErrors.delete('registry')
 
-            if (!wasActive) {
-                this.features.logging.info(`MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`)
-                // Only discover servers when registry is newly activated and not during periodic sync
-                if (!isPeriodicSync) {
-                    await this.discoverAllServers()
+                if (!wasActive) {
                     this.features.logging.info(
-                        `MCP: discovered ${this.getAllTools().length} tools after registry activation`
+                        `MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`
                     )
+                    // Only discover servers when registry is newly activated and not during periodic sync
+                    if (!isPeriodicSync) {
+                        await this.discoverAllServers()
+                        this.features.logging.info(
+                            `MCP: discovered ${this.getAllTools().length} tools after registry activation`
+                        )
+                    }
+                } else {
+                    this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
                 }
-            } else {
-                this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
-            }
 
-            // Only sync during periodic updates, not at startup
-            if (isPeriodicSync) {
-                this.isPeriodicSync = true
-                await this.syncWithRegistry()
-                this.isPeriodicSync = false
+                // Only sync during periodic updates, not at startup
+                if (isPeriodicSync) {
+                    this.isPeriodicSync = true
+                    await this.syncWithRegistry()
+                    this.isPeriodicSync = false
+                }
             }
-        } else {
-            const errorMsg = 'Failed to fetch or validate registry'
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
             this.features.logging.error(`MCP Registry: ${errorMsg}`)
             this.currentRegistry = null
-            throw new Error(errorMsg)
+            // Store the specific registry error for display in UI
+            this.configLoadErrors.set('registry', errorMsg)
+            throw error
         }
     }
 
