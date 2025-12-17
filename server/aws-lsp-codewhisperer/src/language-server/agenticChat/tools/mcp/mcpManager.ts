@@ -470,28 +470,6 @@ export class McpManager {
                     this.features.logging.info(`MCP: Connecting MCP server using StdioClientTransport`)
                     try {
                         await client.connect(transport)
-                        this.features.logging.info(`MCP: [${serverName}] client connected successfully`)
-
-                        // Store PID for process cleanup
-                        if (transport.pid) {
-                            this.processPids.set(serverName, transport.pid)
-
-                            // Track Docker container for Docker commands (lightweight approach)
-                            if (cfg.command && cfg.command.includes('docker')) {
-                                try {
-                                    const { execSync } = require('child_process')
-                                    // Get the most recent container (likely ours)
-                                    const containerId = execSync('docker ps -q --latest', { encoding: 'utf8' }).trim()
-                                    if (containerId) {
-                                        this.dockerContainers.set(serverName, containerId)
-                                    }
-                                } catch (dockerError) {
-                                    this.features.logging.warn(
-                                        `MCP: [${serverName}] error tracking Docker container: ${dockerError}`
-                                    )
-                                }
-                            }
-                        }
                     } catch (err: any) {
                         let errorMessage = err?.message ?? String(err)
                         if (err?.code === 'ENOENT') {
@@ -505,6 +483,27 @@ export class McpManager {
                             `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
                             'MCPServerConnectionFailed'
                         )
+                    }
+
+                    // Store PID for process cleanup
+                    if (transport.pid) {
+                        this.processPids.set(serverName, transport.pid)
+
+                        // Track Docker container for Docker commands (lightweight approach)
+                        if (cfg.command && cfg.command.includes('docker')) {
+                            try {
+                                const { execSync } = require('child_process')
+                                // Get the most recent container (likely ours)
+                                const containerId = execSync('docker ps -q --latest', { encoding: 'utf8' }).trim()
+                                if (containerId) {
+                                    this.dockerContainers.set(serverName, containerId)
+                                }
+                            } catch (dockerError) {
+                                this.features.logging.warn(
+                                    `MCP: [${serverName}] error tracking Docker container: ${dockerError}`
+                                )
+                            }
+                        }
                     }
                 } else {
                     // streamable http/SSE transport - merge additional headers with base headers
