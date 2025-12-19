@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.20](https://github.com/aws/language-servers/compare/lsp-core/v0.0.19...lsp-core/v0.0.20) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
 ## [0.0.19](https://github.com/aws/language-servers/compare/lsp-core/v0.0.18...lsp-core/v0.0.19) (2025-12-17)
 
 
