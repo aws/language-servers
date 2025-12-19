@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.99](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.98...lsp-codewhisperer/v0.0.99) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.19 to ^0.0.20
+
 ## [0.0.98](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.97...lsp-codewhisperer/v0.0.98) (2025-12-17)
 
 
