@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.46](https://github.com/aws/language-servers/compare/chat-client/v0.1.45...chat-client/v0.1.46) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
 ## [0.1.45](https://github.com/aws/language-servers/compare/chat-client/v0.1.44...chat-client/v0.1.45) (2025-12-17)
 
 
