@@ -1,9 +1,9 @@
 {
-    "chat-client": "0.1.45",
-    "core/aws-lsp-core": "0.0.19",
-    "server/aws-lsp-antlr4": "0.1.23",
-    "server/aws-lsp-codewhisperer": "0.0.98",
-    "server/aws-lsp-json": "0.1.24",
-    "server/aws-lsp-partiql": "0.0.21",
-    "server/aws-lsp-yaml": "0.1.24"
+    "chat-client": "0.1.46",
+    "core/aws-lsp-core": "0.0.20",
+    "server/aws-lsp-antlr4": "0.1.24",
+    "server/aws-lsp-codewhisperer": "0.0.99",
+    "server/aws-lsp-json": "0.1.25",
+    "server/aws-lsp-partiql": "0.0.22",
+    "server/aws-lsp-yaml": "0.1.25"
 }
