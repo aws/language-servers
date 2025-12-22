@@ -1,0 +1,10 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "types": ["jest", "node"],
+        "typeRoots": ["./node_modules/@types", "../node_modules/@types"],
+        "lib": ["ES2019", "ES2015", "DOM", "DOM.Iterable"]
+    },
+    "include": ["src/**/*"],
+    "exclude": ["dist", "node_modules", "ui-tests"]
+}

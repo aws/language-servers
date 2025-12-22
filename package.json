@@ -10,7 +10,8 @@
         "core/*",
         "server/*",
         "server/**",
-        "integration-tests/*"
+        "integration-tests/*",
+        "mynah-ui"
     ],
     "scripts": {
         "prepare": "husky .husky",

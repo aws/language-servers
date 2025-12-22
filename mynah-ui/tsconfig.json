@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "jsx": "react",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "module": "CommonJS",
+        "lib": ["ES2019", "ES2015", "DOM", "DOM.Iterable"],
+        "target": "ES2019",
+        "outDir": "./dist",
+        "sourceMap": true,
+        "declaration": true,
+        "declarationMap": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "preserveConstEnums": true,
+        "typeRoots": ["./node_modules/@types"],
+        "strictPropertyInitialization": false,
+        "forceConsistentCasingInFileNames": true,
+        "moduleResolution": "node"
+    },
+    "exclude": ["dist", "node_modules", "ui-tests", "**/__test__/**", "**/*.spec.ts", "**/*.test.ts"]
+}

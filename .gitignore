@@ -26,8 +26,12 @@ build
 *.tsbuildinfo
 app/aws-lsp-partiql-*
 
-# Mynah
-!mynah-ui/dist
+# Mynah UI
+mynah-ui/__results__/
+mynah-ui/e2e-results/
+mynah-ui/ui-tests/__results__/
+mynah-ui/ui-tests/__snapshots__/
+mynah-ui/**api-docs
 
 # Coverage (C8)
 **/coverage/
