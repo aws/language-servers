@@ -255,9 +255,8 @@ class ButtonInternal extends ButtonAbstract {
     }
 
     public readonly updateLabel = (label: HTMLElement | ExtendedHTMLElement | string): void => {
-        ;(this.render.querySelector('.mynah-button-label') as ExtendedHTMLElement).replaceWith(
-            DomBuilder.getInstance().build(this.getButtonLabelDomBuilderObject(label)[0])
-        )
+        const labelElement = this.render.querySelector('.mynah-button-label') as ExtendedHTMLElement
+        labelElement.replaceWith(DomBuilder.getInstance().build(this.getButtonLabelDomBuilderObject(label)[0]))
     }
 
     public readonly setEnabled = (enabled: boolean): void => {
