@@ -69,7 +69,8 @@ export class MynahUIDataStore {
         this.tabId = tabId
         this.store = Object.assign(this.store, initialData)
         this.subscriptions = Object.create({})
-        ;(Object.keys(this.store) as Array<keyof MynahUIDataModel>).forEach(storeKey => {
+        const storeKeys = Object.keys(this.store) as Array<keyof MynahUIDataModel>
+        storeKeys.forEach(storeKey => {
             if (dataModelKeys.includes(storeKey)) {
                 Object.assign(this.subscriptions, { [storeKey]: {} })
             }
@@ -83,7 +84,8 @@ export class MynahUIDataStore {
     public setDefaults = (defaults: MynahUIDataModel | null): void => {
         this.defaults = defaults
         if (this.defaults != null) {
-            ;(Object.keys(this.defaults) as Array<keyof MynahUIDataModel>).forEach(storeKey => {
+            const defaultKeys = Object.keys(this.defaults) as Array<keyof MynahUIDataModel>
+            defaultKeys.forEach(storeKey => {
                 if (!dataModelKeys.includes(storeKey)) {
                     delete this.defaults?.[storeKey]
                 }
@@ -145,7 +147,8 @@ export class MynahUIDataStore {
      */
     public updateStore = (data: MynahUIDataModel, skipSubscribers?: boolean): void => {
         if (skipSubscribers !== true) {
-            ;(Object.keys(data) as Array<keyof MynahUIDataModel>).forEach(storeKey => {
+            const dataKeys = Object.keys(data) as Array<keyof MynahUIDataModel>
+            dataKeys.forEach(storeKey => {
                 if (dataModelKeys.includes(storeKey)) {
                     Object.keys(this.subscriptions[storeKey]).forEach((subscriptionId: string) => {
                         if (

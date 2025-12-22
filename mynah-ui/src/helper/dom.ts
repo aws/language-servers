@@ -246,28 +246,23 @@ export class DomBuilder {
 
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         buildedDom.classList.add(...(readyToBuildObject.classNames?.filter(className => className !== '') || []))
-        ;(Object.keys(readyToBuildObject.events ?? {}) as Array<Partial<GenericEvents>>).forEach(
-            (eventName: GenericEvents) => {
-                if (readyToBuildObject?.events !== undefined) {
-                    if (typeof readyToBuildObject?.events[eventName] === 'function') {
-                        buildedDom.addEventListener(
-                            eventName,
-                            readyToBuildObject.events[eventName] as (event?: any) => any
-                        )
-                    } else if (typeof readyToBuildObject?.events[eventName] === 'object') {
-                        buildedDom.addEventListener(
-                            eventName,
-                            (readyToBuildObject.events[eventName] as DomBuilderEventHandlerWithOptions).handler,
-                            (readyToBuildObject.events[eventName] as DomBuilderEventHandlerWithOptions).options ??
-                                undefined
-                        )
-                    }
-                    if (eventName === 'dblclick' || eventName === 'click') {
-                        buildedDom.classList.add('mynah-ui-clickable-item')
-                    }
+        const eventKeys = Object.keys(readyToBuildObject.events ?? {}) as Array<Partial<GenericEvents>>
+        eventKeys.forEach((eventName: GenericEvents) => {
+            if (readyToBuildObject?.events !== undefined) {
+                if (typeof readyToBuildObject?.events[eventName] === 'function') {
+                    buildedDom.addEventListener(eventName, readyToBuildObject.events[eventName] as (event?: any) => any)
+                } else if (typeof readyToBuildObject?.events[eventName] === 'object') {
+                    buildedDom.addEventListener(
+                        eventName,
+                        (readyToBuildObject.events[eventName] as DomBuilderEventHandlerWithOptions).handler,
+                        (readyToBuildObject.events[eventName] as DomBuilderEventHandlerWithOptions).options ?? undefined
+                    )
+                }
+                if (eventName === 'dblclick' || eventName === 'click') {
+                    buildedDom.classList.add('mynah-ui-clickable-item')
                 }
             }
-        )
+        })
 
         Object.keys(readyToBuildObject.attributes ?? {}).forEach(attributeName =>
             buildedDom.setAttribute(
@@ -300,8 +295,9 @@ export class DomBuilder {
             ])
         }
 
-        ;(buildedDom as ExtendedHTMLElement).builderObject = readyToBuildObject
-        ;(buildedDom as ExtendedHTMLElement).update = (builderObject: DomBuilderObjectFilled): ExtendedHTMLElement => {
+        const extendedDom = buildedDom as ExtendedHTMLElement
+        extendedDom.builderObject = readyToBuildObject
+        extendedDom.update = (builderObject: DomBuilderObjectFilled): ExtendedHTMLElement => {
             return this.update(buildedDom as ExtendedHTMLElement, builderObject)
         }
         this.extendDomFunctionality(buildedDom)
@@ -318,7 +314,8 @@ export class DomBuilder {
                 domToUpdate.classList.add(...domBuilderObject.classNames.filter(className => className !== ''))
             }
 
-            ;(Object.keys(domBuilderObject.events ?? {}) as Array<Partial<GenericEvents>>).forEach(eventName => {
+            const updateEventKeys = Object.keys(domBuilderObject.events ?? {}) as Array<Partial<GenericEvents>>
+            updateEventKeys.forEach(eventName => {
                 if (domToUpdate.builderObject.events !== undefined && domToUpdate.builderObject.events[eventName]) {
                     domToUpdate.removeEventListener(
                         eventName,

@@ -99,7 +99,8 @@ export const mergeHTMLPlugin = (function () {
         }
 
         function render(event: Event): void {
-            ;(event.event === 'start' ? open : close)(event.node)
+            const fn = event.event === 'start' ? open : close
+            fn(event.node)
         }
 
         while (original.length > 0 || highlighted.length > 0) {
