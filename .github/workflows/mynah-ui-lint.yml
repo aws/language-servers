@@ -25,7 +25,6 @@ jobs:
 
             - name: Install dependencies
               run: npm ci
-              working-directory: ./mynah-ui
 
             - name: Build
               run: npm run build && cd ./ui-tests && npm install && cd ..
