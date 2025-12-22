@@ -349,7 +349,7 @@ export class ChatItemFormItemsWrapper {
         }
     }
 
-    private readonly getHandlers = (chatItemOption: ChatItemFormItem): Object => {
+    private readonly getHandlers = (chatItemOption: ChatItemFormItem): object => {
         if (
             chatItemOption.mandatory === true ||
             (['textarea', 'textinput', 'numericinput', 'email', 'pillbox'].includes(chatItemOption.type) &&

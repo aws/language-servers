@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* eslint-disable @typescript-eslint/brace-style */
+/* eslint-disable brace-style */
 import { DomBuilder, DomBuilderObject, ExtendedHTMLElement } from '../helper/dom'
 import { generateUID } from '../helper/guid'
 import { StyleLoader } from '../helper/style-loader'
