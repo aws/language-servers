@@ -167,6 +167,26 @@ describe('Utils', () => {
 
             expect(result).to.be.true
         })
+
+        it('should log file size when logger provided', async () => {
+            const putStub = sinon.stub(got, 'put').resolves({ statusCode: 200 })
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(new Readable() as fs.ReadStream)
+
+            const result = await Utils.uploadArtifact('http://test-url', testFile, {}, mockLogger)
+
+            expect(result).to.be.true
+            expect(mockLogger.info.calledOnce).to.be.true
+        })
+
+        it('should log error when upload fails', async () => {
+            const putStub = sinon.stub(got, 'put').rejects(new Error('Network error'))
+            const createReadStreamStub = sinon.stub(fs, 'createReadStream').returns(new Readable() as fs.ReadStream)
+
+            const result = await Utils.uploadArtifact('http://test-url', testFile, {}, mockLogger)
+
+            expect(result).to.be.false
+            expect(mockLogger.error.calledOnce).to.be.true
+        })
     })
 
     describe('saveWorklogsToJson', () => {

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.46](https://github.com/aws/language-servers/compare/chat-client/v0.1.45...chat-client/v0.1.46) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+## [0.1.45](https://github.com/aws/language-servers/compare/chat-client/v0.1.44...chat-client/v0.1.45) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+* fix for mcp servers refresh ([#2550](https://github.com/aws/language-servers/issues/2550)) ([cd75394](https://github.com/aws/language-servers/commit/cd753948c3b3b9b07b626fc41391bd91b55a0d39))
+
 ## [0.1.44](https://github.com/aws/language-servers/compare/chat-client/v0.1.43...chat-client/v0.1.44) (2025-12-08)
 
 

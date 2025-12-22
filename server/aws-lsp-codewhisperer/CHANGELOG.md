@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.0.99](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.98...lsp-codewhisperer/v0.0.99) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.19 to ^0.0.20
+
+## [0.0.98](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.97...lsp-codewhisperer/v0.0.98) (2025-12-17)
+
+
+### Features
+
+* add alphabetical sorting for MCP registry servers and URL validation ([#2555](https://github.com/aws/language-servers/issues/2555)) ([d936673](https://github.com/aws/language-servers/commit/d936673e570301b9abc4e587ef0d7cc92e1d470b))
+* **amazonq:** show kiro pricing information for Amazon Q builderId paid tier users ([#2556](https://github.com/aws/language-servers/issues/2556)) ([5896298](https://github.com/aws/language-servers/commit/58962981604d1d0d5363b23c0e52df119bcc824e))
+* Update SMAI clients to return SM_AI_STUDIO_IDE origin ([#2558](https://github.com/aws/language-servers/issues/2558)) ([dc1d216](https://github.com/aws/language-servers/commit/dc1d21652d48c2ebeb6ddebc6b6ab351d688017c))
+* web search ([09c4769](https://github.com/aws/language-servers/commit/09c47695c48df967e0a22e93290cc69f95b32ac3))
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+* fix for mcp registry error handling ([#2561](https://github.com/aws/language-servers/issues/2561)) ([f5f8b36](https://github.com/aws/language-servers/commit/f5f8b36aa6a6b4ca6228ba3c1110d0532cda65bd))
+* fix for mcp servers refresh ([#2550](https://github.com/aws/language-servers/issues/2550)) ([cd75394](https://github.com/aws/language-servers/commit/cd753948c3b3b9b07b626fc41391bd91b55a0d39))
+* fix null value for codewhisperer percentage ([#2523](https://github.com/aws/language-servers/issues/2523)) ([e898ab4](https://github.com/aws/language-servers/commit/e898ab4a84e7976f6478a434b5ba7694e6ddcb38))
+* prevent MCP server process duplicates with lightweight tracking ([#2562](https://github.com/aws/language-servers/issues/2562)) ([4ba6eb2](https://github.com/aws/language-servers/commit/4ba6eb27400fe352660128f406e837df34acc247))
+* remove s3 artifact upload and download timeout ([#2560](https://github.com/aws/language-servers/issues/2560)) ([c0b3523](https://github.com/aws/language-servers/commit/c0b35232c0946d4957ffca7bbd5b8cbf66b88b4e))
+* update inputLimit calculation to use fixed 100K reserved characters ([#2557](https://github.com/aws/language-servers/issues/2557)) ([ef04639](https://github.com/aws/language-servers/commit/ef0463937898570e33b45d48800a9d33bc6adc3b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.18 to ^0.0.19
+
 ## [0.0.97](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.96...lsp-codewhisperer/v0.0.97) (2025-12-08)
 
 

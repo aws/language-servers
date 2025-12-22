@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.22](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.21...lsp-partiql/v0.0.22) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+## [0.0.21](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.20...lsp-partiql/v0.0.21) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+
 ## [0.0.20](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.19...lsp-partiql/v0.0.20) (2025-11-26)
 
 
