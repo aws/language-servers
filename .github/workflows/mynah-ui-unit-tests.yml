@@ -32,7 +32,7 @@ jobs:
               working-directory: ./mynah-ui
 
             - name: Run Unit tests
-              run: npm run tests:unit
+              run: npm run test:unit
               working-directory: ./mynah-ui
 
             - name: Upload coverage reports
