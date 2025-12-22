@@ -214,9 +214,11 @@ export class Tab {
             this.currentValue = value
             const elmToCheck = this.render.querySelector(`#${this.props.name}-${value}`)
             if (elmToCheck !== undefined) {
-                ;(elmToCheck as HTMLInputElement).click()
-                ;(elmToCheck as HTMLInputElement).checked = true
-                ;((elmToCheck as HTMLInputElement).nextSibling as HTMLLabelElement).classList.remove('indication')
+                const inputEl = elmToCheck as HTMLInputElement
+                inputEl.click()
+                inputEl.checked = true
+                const labelEl = inputEl.nextSibling as HTMLLabelElement
+                labelEl.classList.remove('indication')
             }
         }
     }
@@ -259,7 +261,8 @@ export class Tab {
             `span[key="${this.props.name}-${value}"] .mynah-tab-item-label-text`
         )
         if (elmToCheck !== undefined) {
-            ;(elmToCheck as HTMLSpanElement).innerHTML = title
+            const spanEl = elmToCheck as HTMLSpanElement
+            spanEl.innerHTML = title
         }
     }
 

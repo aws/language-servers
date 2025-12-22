@@ -133,9 +133,8 @@ export class SyntaxHighlighter {
                                 ? {
                                       onHover: e => {
                                           if (e.target != null) {
-                                              ;(e.target as HTMLButtonElement).classList.remove(
-                                                  'mynah-button-flash-by-parent-focus'
-                                              )
+                                              const target = e.target as HTMLButtonElement
+                                              target.classList.remove('mynah-button-flash-by-parent-focus')
                                           }
                                       },
                                   }
@@ -143,9 +142,8 @@ export class SyntaxHighlighter {
                             onClick: e => {
                                 cancelEvent(e)
                                 if (e.target != null) {
-                                    ;(e.target as HTMLButtonElement).classList.remove(
-                                        'mynah-button-flash-by-parent-focus'
-                                    )
+                                    const target = e.target as HTMLButtonElement
+                                    target.classList.remove('mynah-button-flash-by-parent-focus')
                                 }
                                 const selectedCode = this.getSelectedCode()
                                 if (this.props?.onCodeBlockAction !== undefined) {

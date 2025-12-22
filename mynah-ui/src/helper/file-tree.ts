@@ -76,7 +76,8 @@ export const fileListToTree = (
 
                 if (i === filePath.length - 1) {
                     // Handle file (last item in path)
-                    ;(currentNode as FolderNode).children?.push({
+                    const folderNode = currentNode as FolderNode
+                    folderNode.children?.push({
                         type: 'file',
                         name: fileOrFolder,
                         filePath: currentFullPath,
@@ -106,7 +107,8 @@ export const fileListToTree = (
                             type: 'folder',
                             children: [],
                         }
-                        ;(currentNode as FolderNode).children?.push(newItem)
+                        const folderNode = currentNode as FolderNode
+                        folderNode.children?.push(newItem)
                         currentNode = newItem
                     }
                 }

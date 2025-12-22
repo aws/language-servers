@@ -76,11 +76,9 @@ export class CardBody {
                           return processedNode
                       })
                     : this.props.children.map((node, index): HTMLElement => {
-                          ;(node as HTMLElement)?.setAttribute?.(
-                              'render-index',
-                              (bodyChildren.length + index).toString()
-                          )
-                          return node as HTMLElement
+                          const htmlNode = node as HTMLElement
+                          htmlNode?.setAttribute?.('render-index', (bodyChildren.length + index).toString())
+                          return htmlNode
                       })
                 : []),
         ]

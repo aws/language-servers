@@ -55,9 +55,8 @@ export class ChatItemButtonsWrapper {
                         ? {
                               onHover: e => {
                                   if (e.target != null) {
-                                      ;(e.target as HTMLButtonElement).classList.remove(
-                                          'mynah-button-flash-by-parent-focus'
-                                      )
+                                      const target = e.target as HTMLButtonElement
+                                      target.classList.remove('mynah-button-flash-by-parent-focus')
                                   }
                               },
                           }
@@ -68,7 +67,8 @@ export class ChatItemButtonsWrapper {
                     status: chatActionAction.status,
                     onClick: e => {
                         if (e.target != null) {
-                            ;(e.target as HTMLButtonElement).classList.remove('mynah-button-flash-by-parent-focus')
+                            const target = e.target as HTMLButtonElement
+                            target.classList.remove('mynah-button-flash-by-parent-focus')
                         }
                         if (props.formItems != null) {
                             props.formItems.disableAll()

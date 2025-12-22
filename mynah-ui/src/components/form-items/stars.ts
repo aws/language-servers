@@ -42,10 +42,12 @@ export class Stars {
                         ],
                         events: {
                             click: (e: MouseEvent) => {
-                                ;(this.starsContainer.querySelector('.selected') as ExtendedHTMLElement)?.removeClass(
-                                    'selected'
-                                )
-                                ;(e.currentTarget as ExtendedHTMLElement).addClass('selected')
+                                const selectedElement = this.starsContainer.querySelector(
+                                    '.selected'
+                                ) as ExtendedHTMLElement
+                                selectedElement?.removeClass('selected')
+                                const currentTarget = e.currentTarget as ExtendedHTMLElement
+                                currentTarget.addClass('selected')
                                 if (props.onChange !== undefined) {
                                     props.onChange((index + 1).toString())
                                 }
