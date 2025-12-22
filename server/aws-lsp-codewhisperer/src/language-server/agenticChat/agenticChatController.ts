@@ -3911,6 +3911,8 @@ export class AgenticChatController implements ChatHandlers {
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {
+            this.#contextCommandsProvider.setFilesAndFoldersFailed(true)
+            await this.#contextCommandsProvider.processContextCommandUpdate([])
             this.#log('Error initializing context commands: ' + error)
         }
     }

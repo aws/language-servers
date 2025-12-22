@@ -130,4 +130,51 @@ describe('ContextCommandsProvider', () => {
             sinon.assert.calledWith(processUpdateSpy, [])
         })
     })
+
+    describe('setFilesAndFoldersFailed', () => {
+        it('should set filesAndFoldersFailed to true and filesAndFoldersPending to false', () => {
+            provider.setFilesAndFoldersFailed(true)
+
+            sinon.assert.match((provider as any).filesAndFoldersFailed, true)
+            sinon.assert.match((provider as any).filesAndFoldersPending, false)
+        })
+
+        it('should show failed disabledText when filesAndFoldersFailed is true', async () => {
+            fsExistsStub.resolves(false)
+            provider.setFilesAndFoldersFailed(true)
+
+            const result = await provider.mapContextCommandItems([])
+            const filesCmd = result[0].commands?.find(cmd => cmd.command === 'Files')
+            const foldersCmd = result[0].commands?.find(cmd => cmd.command === 'Folders')
+
+            sinon.assert.match(filesCmd?.disabledText, 'failed')
+            sinon.assert.match(foldersCmd?.disabledText, 'failed')
+        })
+
+        it('should show pending disabledText when filesAndFoldersPending is true and not failed', async () => {
+            fsExistsStub.resolves(false)
+            ;(provider as any).filesAndFoldersPending = true
+            ;(provider as any).filesAndFoldersFailed = false
+
+            const result = await provider.mapContextCommandItems([])
+            const filesCmd = result[0].commands?.find(cmd => cmd.command === 'Files')
+            const foldersCmd = result[0].commands?.find(cmd => cmd.command === 'Folders')
+
+            sinon.assert.match(filesCmd?.disabledText, 'pending')
+            sinon.assert.match(foldersCmd?.disabledText, 'pending')
+        })
+
+        it('should show no disabledText when not pending and not failed', async () => {
+            fsExistsStub.resolves(false)
+            provider.setFilesAndFoldersPending(false)
+            ;(provider as any).filesAndFoldersFailed = false
+
+            const result = await provider.mapContextCommandItems([])
+            const filesCmd = result[0].commands?.find(cmd => cmd.command === 'Files')
+            const foldersCmd = result[0].commands?.find(cmd => cmd.command === 'Folders')
+
+            sinon.assert.match(filesCmd?.disabledText, undefined)
+            sinon.assert.match(foldersCmd?.disabledText, undefined)
+        })
+    })
 })
