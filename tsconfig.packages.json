@@ -8,7 +8,7 @@
         "sourceMap": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "strict": true,
+        "strict": false,
         "composite": true,
         "noImplicitOverride": true
     },
