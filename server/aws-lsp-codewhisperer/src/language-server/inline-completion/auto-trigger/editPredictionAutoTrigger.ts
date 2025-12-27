@@ -7,7 +7,7 @@ import { ClientFileContextClss, FileContext } from '../../../shared/codeWhispere
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { EditPredictionConfigManager } from './editPredictionConfig'
-import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
 import { UserTriggerDecision } from '../session/sessionManager'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { lastTokenFromString } from '../utils/triggerUtils'
@@ -343,19 +343,19 @@ ${JSON.stringify(
         const editHistory = oldest ? EditClassifier.processEditHistory(oldest.content) : undefined
         const normalizedEditHistory = editHistory ? EditClassifier.normalizedRecentEdit(editHistory) : undefined
 
-        this.logging.log(`lastLineFileContext: 
-${params.fileContext.leftContextAtCurLine}
-recent decisions: 
-${JSON.stringify(params.recentDecisions)}
-recent edits:
-@@raw oldest edit@@
-${oldest.content}
-@@raw numbers@@
-${JSON.stringify(editHistory, undefined, 2)}
-@@normalized numbers@@
-${JSON.stringify(normalizedEditHistory, undefined, 2)}
-@@edits array@@
-${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
+        //         this.logging.log(`lastLineFileContext:
+        // ${params.fileContext.leftContextAtCurLine}
+        // recent decisions:
+        // ${JSON.stringify(params.recentDecisions)}
+        // recent edits:
+        // @@raw oldest edit@@
+        // ${oldest?.content}
+        // @@raw numbers@@
+        // ${JSON.stringify(editHistory, undefined, 2)}
+        // @@normalized numbers@@
+        // ${JSON.stringify(normalizedEditHistory, undefined, 2)}
+        // @@edits array@@
+        // ${params.recentEdits.supplementalContextItems.map(it => it.content)}`)
 
         // 6. Language
         const lang = params.fileContext.programmingLanguage

@@ -294,22 +294,41 @@ export const autoTrigger = (
     const shouldTrigger = r > TRIGGER_THRESHOLD
 
     logging.log(`@@autotrigger@@
-    classifierResult: ${r},
-    triggerChar: ${char},
-    coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')=${coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')},
-    coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')=${coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')},
-    coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')=${coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')},
-    coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')=${coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')},
-    osCoefficient=${osCoefficient},
-    triggerTypeCoefficient=${triggerTypeCoefficient},
-    charCoefficient=${charCoefficient},
-    keyWordCoefficient=${keyWordCoefficient},
-    ideCoefficient=${ideCoefficient},
-    coefficients.intercept=${coefficients.intercept},
-    previousDecisionCoefficient=${previousDecisionCoefficient},
-    languageCoefficient=${languageCoefficient},
-    leftContextLengthCoefficient=${leftContextLengthCoefficient}
-    `)
+version: Postflare
+classifierResult: ${r}
+triggerChar: ${char}
+
+Coefficient Contributions:
+    lengthOfRight:  ${coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')},
+    lengthOfLeftCurrent: ${coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')},
+    lengthOfLeftPrev: ${coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')},
+    lineNum: ${coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')},
+    osCoefficient: ${osCoefficient},
+    triggerType: ${triggerTypeCoefficient},
+    char: ${charCoefficient},
+    keyWord: ${keyWordCoefficient},
+    ide: ${ideCoefficient},
+    intercept: ${coefficients.intercept},
+    previousDecision: ${previousDecisionCoefficient},
+    language: ${languageCoefficient},
+    leftContextLength: ${leftContextLengthCoefficient}
+    --------------------------------------------------------------
+    lengthOfRight = ${coefficients.lengthOfRightCoefficient} * ${normalize(lengthOfRight, 'lenRight')};
+    lengthOfLeftCurrent = ${coefficients.lengthOfLeftCurrentCoefficient} * ${normalize(lengthOfLeftCurrent, 'lenLeftCur')};
+    lengthOfLeftPrev = ${coefficients.lengthOfLeftPrevCoefficient} * ${normalize(lengthOfLeftPrev, 'lenLeftPrev')};
+    ---------------------------------------------------------------
+`)
+
+    logging.log(`
+right context (length=${fileContext.rightFileContent.length})
+${fileContext.rightFileContent}
+***************************************
+left current context (length=${leftContextLines[leftContextLines.length - 1].length})
+${leftContextLines[leftContextLines.length - 1]}
+***************************************
+left prev context (length=${leftContextLines[leftContextLines.length - 2].length})
+${leftContextLines[leftContextLines.length - 2]}
+***************************************`)
 
     return {
         shouldTrigger,
