@@ -1,0 +1,18 @@
+name: Mynah UI CI
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'mynah-ui/**'
+    pull_request:
+        paths:
+            - 'mynah-ui/**'
+
+jobs:
+    lint:
+        uses: ./.github/workflows/mynah-ui-lint.yml
+    unit-tests:
+        uses: ./.github/workflows/mynah-ui-unit-tests.yml
+    e2e-linux:
+        uses: ./.github/workflows/mynah-ui-e2e-linux.yml
