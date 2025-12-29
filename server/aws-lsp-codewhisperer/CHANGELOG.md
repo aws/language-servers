@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.100](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.99...lsp-codewhisperer/v0.0.100) (2025-12-29)
+
+
+### Bug Fixes
+
+* **amazonq:** adding failed state for pin context features ([#2573](https://github.com/aws/language-servers/issues/2573)) ([981c6e1](https://github.com/aws/language-servers/commit/981c6e1c733d3bb8d171bd9697f443fab7a50c20))
+
 ## [0.0.99](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.98...lsp-codewhisperer/v0.0.99) (2025-12-19)
 
 
