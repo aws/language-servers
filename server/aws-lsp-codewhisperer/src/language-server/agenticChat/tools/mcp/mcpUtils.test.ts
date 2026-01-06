@@ -903,8 +903,8 @@ describe('loadAgentConfig with registry support', () => {
     })
 
     it('should warn when registry server not found in registry', async () => {
-        const errors: string[] = []
-        const errorLogger = { ...logger, error: (msg: string) => errors.push(msg) }
+        const infos: string[] = []
+        const infoLogger = { ...logger, info: (msg: string) => infos.push(msg) }
         const agentPath = path.join(tmpDir, 'agent.json')
         fs.writeFileSync(
             agentPath,
@@ -920,11 +920,11 @@ describe('loadAgentConfig with registry support', () => {
             })
         )
 
-        const result = await loadAgentConfig(workspace, errorLogger, [agentPath], testRegistry, true)
+        const result = await loadAgentConfig(workspace, infoLogger, [agentPath], testRegistry, true)
 
         // Should create placeholder server for missing registry server
         expect(result.servers.size).to.equal(1)
-        expect(errors.some(e => e.includes('not found in registry'))).to.be.true
+        expect(infos.some(e => e.includes('Created empty config for missing registry server'))).to.be.true
         // Verify placeholder has error marker
         const server = result.servers.get('unknown-server')
         expect(server).to.exist
