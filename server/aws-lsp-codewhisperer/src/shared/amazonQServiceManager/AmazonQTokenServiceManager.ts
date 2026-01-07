@@ -221,13 +221,15 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         const noCreds = !this.features.credentialsProvider.hasCredentials('bearer' as CredentialsType)
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
-            // Connection was reset, wait for SSO connection token from client
-            this.logging.log(
-                `No active SSO connection is detected: no ${noCreds ? 'credentials' : 'connection type'} provided. Resetting the client`
-            )
-            this.resetCodewhispererService()
-            this.connectionType = 'none'
-            this.state = 'PENDING_CONNECTION'
+            // Only log and reset if we're transitioning from a connected state
+            if (this.state !== 'PENDING_CONNECTION') {
+                this.logging.log(
+                    `No active SSO connection is detected: no ${noCreds ? 'credentials' : 'connection type'} provided. Resetting the client`
+                )
+                this.resetCodewhispererService()
+                this.connectionType = 'none'
+                this.state = 'PENDING_CONNECTION'
+            }
 
             return
         }
