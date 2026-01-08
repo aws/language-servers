@@ -51,6 +51,9 @@ describe('ATX .NET Transform Integration Tests', () => {
     const testFixturePath = path.resolve(__dirname, 'testFixture', 'bobs-used-bookstore-classic')
     const solutionFilePath = path.join(testFixturePath, 'BobsBookstoreClassic.sln')
     const webProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Web', 'Bookstore.Web.csproj')
+    const commonProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Common', 'Bookstore.Common.csproj')
+    const dataProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Data', 'Bookstore.Data.csproj')
+    const domainProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Domain', 'Bookstore.Domain.csproj')
 
     // Refresh token every 180 polls (30 minutes at 10s intervals)
     const TOKEN_REFRESH_INTERVAL = 180
@@ -87,6 +90,33 @@ describe('ATX .NET Transform Integration Tests', () => {
                         ProjectTargetFramework: 'net48',
                         ProjectLanguage: 'csharp',
                         ProjectType: 'Web',
+                        SourceCodeFilePaths: sourceFiles,
+                        ExternalReferences: [],
+                    },
+                    {
+                        Name: 'Bookstore.Common',
+                        ProjectPath: commonProjectPath,
+                        ProjectTargetFramework: 'net48',
+                        ProjectLanguage: 'csharp',
+                        ProjectType: 'Library',
+                        SourceCodeFilePaths: sourceFiles,
+                        ExternalReferences: [],
+                    },
+                    {
+                        Name: 'Bookstore.Data',
+                        ProjectPath: dataProjectPath,
+                        ProjectTargetFramework: 'net48',
+                        ProjectLanguage: 'csharp',
+                        ProjectType: 'Library',
+                        SourceCodeFilePaths: sourceFiles,
+                        ExternalReferences: [],
+                    },
+                    {
+                        Name: 'Bookstore.Domain',
+                        ProjectPath: domainProjectPath,
+                        ProjectTargetFramework: 'net48',
+                        ProjectLanguage: 'csharp',
+                        ProjectType: 'Library',
                         SourceCodeFilePaths: sourceFiles,
                         ExternalReferences: [],
                     },
