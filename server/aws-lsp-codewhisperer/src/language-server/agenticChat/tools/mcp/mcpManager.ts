@@ -1840,6 +1840,10 @@ export class McpManager {
         }
     }
 
+    public resetRegistryService(): void {
+        this.registryService = undefined
+    }
+
     /**
      * Update registry URL and refetch registry
      * @throws Error if registry fetch or validation fails

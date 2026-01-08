@@ -163,6 +163,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         ProfileStatusMonitor.resetMcpState()
         if (McpManager.isInitialized()) {
             McpManager.instance.setRegistryActive(false)
+            McpManager.instance.resetRegistryService()
             void McpManager.instance.close(true)
         }
     }
