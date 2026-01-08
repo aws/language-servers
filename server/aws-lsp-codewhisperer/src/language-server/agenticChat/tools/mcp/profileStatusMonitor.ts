@@ -14,6 +14,7 @@ import { EventEmitter } from 'events'
 import { McpRegistryService } from './mcpRegistryService'
 import { McpRegistryData } from './mcpTypes'
 import { GetProfileResponse } from '@amzn/codewhisperer-runtime'
+import { McpManager } from './mcpManager'
 
 export const AUTH_SUCCESS_EVENT = 'authSuccess'
 
@@ -180,6 +181,24 @@ export class ProfileStatusMonitor {
 
     static resetMcpState(): void {
         ProfileStatusMonitor.setMcpState(true)
+    }
+
+    static resetMcpManager(): void {
+        if (McpManager.isInitialized()) {
+            McpManager.instance.setRegistryActive(false)
+            McpManager.instance.resetRegistryService()
+            void McpManager.instance.close(true)
+        }
+    }
+
+    static discoverMcpServers(): void {
+        if (McpManager.isInitialized()) {
+            void McpManager.instance.discoverAllServers()
+        }
+    }
+
+    static isMcpManagerInitialized(): boolean {
+        return McpManager.isInitialized()
     }
 
     static emitAuthSuccess(): void {

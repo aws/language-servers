@@ -37,8 +37,6 @@ import { parse } from '@aws-sdk/util-arn-parser'
 import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
 import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
 import { UserContext } from '@amzn/codewhisperer-runtime'
-import { McpManager } from '../../language-server/agenticChat/tools/mcp/mcpManager'
-
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
  * instance of CodeWhispererServiceToken SDK client to any consuming code.
@@ -161,11 +159,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         // Reset MCP state cache when auth changes
         ProfileStatusMonitor.resetMcpState()
-        if (McpManager.isInitialized()) {
-            McpManager.instance.setRegistryActive(false)
-            McpManager.instance.resetRegistryService()
-            void McpManager.instance.close(true)
-        }
+        ProfileStatusMonitor.resetMcpManager()
     }
 
     public handleOnCredentialsUpdated(type: CredentialsType): void {
@@ -270,9 +264,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             )
             this.state = 'INITIALIZED'
             this.logging.log(`Initialized Amazon Q service with ${newConnectionType} connection`)
-            if (McpManager.isInitialized()) {
-                void McpManager.instance.discoverAllServers()
-            }
+
+            ProfileStatusMonitor.discoverServersWhenNoProfiles()
 
             return
         }
