@@ -14,7 +14,6 @@ import { EventEmitter } from 'events'
 import { McpRegistryService } from './mcpRegistryService'
 import { McpRegistryData } from './mcpTypes'
 import { GetProfileResponse } from '@amzn/codewhisperer-runtime'
-import { McpManager } from './mcpManager'
 
 export const AUTH_SUCCESS_EVENT = 'authSuccess'
 
@@ -184,10 +183,16 @@ export class ProfileStatusMonitor {
     }
 
     static resetMcpManager(): void {
-        if (McpManager.isInitialized()) {
-            McpManager.instance.setRegistryActive(false)
-            McpManager.instance.resetRegistryService()
-            void McpManager.instance.close(true)
+        try {
+            // note: use dynamic require to satisfy webpack requirements for webworker
+            const { McpManager } = require('./mcpManager')
+            if (McpManager.isInitialized()) {
+                McpManager.instance.setRegistryActive(false)
+                McpManager.instance.resetRegistryService()
+                void McpManager.instance.close(true)
+            }
+        } catch (error) {
+            ProfileStatusMonitor.logging?.error(`Failed to reset MCP manager: ${error}`)
         }
     }
 
@@ -196,8 +201,14 @@ export class ProfileStatusMonitor {
      * re-discover mcp servers for non-profile connections
      */
     static discoverServersWhenNoProfiles(): void {
-        if (McpManager.isInitialized()) {
-            void McpManager.instance.discoverAllServers()
+        try {
+            // note: use dynamic require to satisfy webpack requirements for webworker
+            const { McpManager } = require('./mcpManager')
+            if (McpManager.isInitialized()) {
+                void McpManager.instance.discoverAllServers()
+            }
+        } catch (error) {
+            ProfileStatusMonitor.logging?.error(`Failed to discover mcp servers when no profiles available: ${error}`)
         }
     }
 
