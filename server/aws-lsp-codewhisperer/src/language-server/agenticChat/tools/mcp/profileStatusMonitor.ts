@@ -185,7 +185,7 @@ export class ProfileStatusMonitor {
     static resetMcpManager(): void {
         try {
             // note: use dynamic require to satisfy webpack requirements for webworker
-            const { McpManager } = require('./mcpManager')
+            const McpManager = eval('require')('./mcpManager').McpManager
             if (McpManager.isInitialized()) {
                 McpManager.instance.setRegistryActive(false)
                 McpManager.instance.resetRegistryService()
@@ -203,7 +203,7 @@ export class ProfileStatusMonitor {
     static discoverServersWhenNoProfiles(): void {
         try {
             // note: use dynamic require to satisfy webpack requirements for webworker
-            const { McpManager } = require('./mcpManager')
+            const McpManager = eval('require')('./mcpManager').McpManager
             if (McpManager.isInitialized()) {
                 void McpManager.instance.discoverAllServers()
             }
