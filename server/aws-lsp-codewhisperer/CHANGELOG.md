@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.100](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.99...lsp-codewhisperer/v0.0.100) (2026-01-07)
+
+
+### Bug Fixes
+
+* **amazonq:** adding failed state for pin context features ([#2573](https://github.com/aws/language-servers/issues/2573)) ([981c6e1](https://github.com/aws/language-servers/commit/981c6e1c733d3bb8d171bd9697f443fab7a50c20))
+* **amazonq:** reduce excessive logging from amazon q token service manager causing performance issues [#6111](https://github.com/aws/language-servers/issues/6111) ([#2578](https://github.com/aws/language-servers/issues/2578)) ([8cce456](https://github.com/aws/language-servers/commit/8cce4567729edea58ea9b20aeeaf7143bc494550))
+* generateCompletion request is missing editorState metadata ([#2574](https://github.com/aws/language-servers/issues/2574)) ([aec6a90](https://github.com/aws/language-servers/commit/aec6a90893e1f4837b15d70972444bf751d460d0))
+* let missing registry servers fail naturally during installation ([#2577](https://github.com/aws/language-servers/issues/2577)) ([ecde90a](https://github.com/aws/language-servers/commit/ecde90a9cbb424d4ab1a30fa1f68f05f4b0a8285))
+
 ## [0.0.99](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.98...lsp-codewhisperer/v0.0.99) (2025-12-19)
 
 
