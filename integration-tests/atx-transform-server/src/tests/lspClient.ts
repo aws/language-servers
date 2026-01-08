@@ -62,39 +62,51 @@ export class LspClient {
 
     private processBuffer(): void {
         console.log(`[ATX-DEBUG] processBuffer called, buffer length: ${this.buffer.length}`)
-        const lines = this.buffer.split('\n')
 
-        for (const line of lines) {
-            if (line.startsWith('Content-Length:') || line.trim() === '') {
+        while (true) {
+            // Find Content-Length header
+            const headerEnd = this.buffer.indexOf('\r\n\r\n')
+            if (headerEnd === -1) break
+
+            const header = this.buffer.substring(0, headerEnd)
+            const match = header.match(/Content-Length: (\d+)/)
+            if (!match) {
+                // Skip malformed header
+                this.buffer = this.buffer.substring(headerEnd + 4)
                 continue
             }
 
-            try {
-                const message: JsonRpcMessage = JSON.parse(line)
-                console.log(`[ATX-DEBUG] Parsed message: ${JSON.stringify(message).substring(0, 500)}`)
+            const contentLength = parseInt(match[1], 10)
+            const messageStart = headerEnd + 4
+            const messageEnd = messageStart + contentLength
 
-                // Handle server requests (like workspace/configuration)
+            if (this.buffer.length < messageEnd) break // Wait for more data
+
+            const content = this.buffer.substring(messageStart, messageEnd)
+            this.buffer = this.buffer.substring(messageEnd)
+
+            try {
+                const message: JsonRpcMessage = JSON.parse(content)
+                console.log(`[ATX-DEBUG] Parsed message id=${message.id} method=${message.method}`)
+
                 if (message.method === 'workspace/configuration' && message.id !== undefined) {
-                    console.log(`[ATX-DEBUG] Responding to workspace/configuration request`)
+                    console.log(`[ATX-DEBUG] Responding to workspace/configuration`)
                     this.sendResponse(message.id, [{}])
                     continue
                 }
 
-                // Handle responses to our requests
                 if (message.id !== undefined && this.pendingRequests.has(message.id)) {
                     console.log(`[ATX-DEBUG] Received response for request ${message.id}`)
                     const { resolve, reject } = this.pendingRequests.get(message.id)!
                     this.pendingRequests.delete(message.id)
                     if (message.error) {
-                        console.log(`[ATX-DEBUG] Response is ERROR: ${message.error.message}`)
                         reject(new Error(message.error.message))
                     } else {
-                        console.log(`[ATX-DEBUG] Response is SUCCESS`)
                         resolve(message.result)
                     }
                 }
             } catch (e) {
-                // Not valid JSON, continue
+                console.error(`[ATX-DEBUG] JSON parse error:`, e)
             }
         }
 
