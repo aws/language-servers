@@ -191,14 +191,14 @@ export class ProfileStatusMonitor {
         }
     }
 
-    static discoverMcpServers(): void {
+    /**
+     * When switching between connections especially builder id
+     * re-discover mcp servers for non-profile connections
+     */
+    static discoverServersWhenNoProfiles(): void {
         if (McpManager.isInitialized()) {
             void McpManager.instance.discoverAllServers()
         }
-    }
-
-    static isMcpManagerInitialized(): boolean {
-        return McpManager.isInitialized()
     }
 
     static emitAuthSuccess(): void {
