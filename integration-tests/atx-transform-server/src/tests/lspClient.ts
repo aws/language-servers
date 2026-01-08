@@ -109,12 +109,6 @@ export class LspClient {
                 console.error(`[ATX-DEBUG] JSON parse error:`, e)
             }
         }
-
-        // Keep only the last incomplete line
-        const lastNewline = this.buffer.lastIndexOf('\n')
-        if (lastNewline !== -1) {
-            this.buffer = this.buffer.substring(lastNewline + 1)
-        }
     }
 
     private send(obj: JsonRpcMessage): void {
