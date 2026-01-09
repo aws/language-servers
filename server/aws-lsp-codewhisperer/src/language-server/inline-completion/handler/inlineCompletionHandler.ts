@@ -49,7 +49,6 @@ import { EMPTY_RESULT } from '../contants/constants'
 import { IdleWorkspaceManager } from '../../workspaceContext/IdleWorkspaceManager'
 import { mergeSuggestionsWithRightContext } from '../utils/mergeRightUtils'
 import { getTextDocument } from '../utils/textDocumentUtils'
-import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export class InlineCompletionHandler {
     private isOnInlineCompletionHandlerInProgress = false
@@ -257,24 +256,6 @@ export class InlineCompletionHandler {
         let requestContext: GenerateSuggestionsRequest = {
             fileContext,
             maxResults,
-        }
-
-        if (this.amazonQServiceManager instanceof AmazonQTokenServiceManager) {
-            ;(requestContext as GenerateTokenSuggestionsRequest).editorState = {
-                document: {
-                    relativeFilePath: textDocument.uri,
-                    programmingLanguage: {
-                        languageName: requestContext.fileContext?.programmingLanguage?.languageName,
-                    },
-                    text: textDocument.getText(),
-                },
-                cursorState: {
-                    position: {
-                        line: params.position.line,
-                        character: params.position.character,
-                    },
-                },
-            }
         }
 
         const codeWhispererService = this.amazonQServiceManager.getCodewhispererService()
