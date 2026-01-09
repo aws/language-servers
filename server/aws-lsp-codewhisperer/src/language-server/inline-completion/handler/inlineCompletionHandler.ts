@@ -126,6 +126,9 @@ export class InlineCompletionHandler {
                             : undefined,
                         nextToken: `${params.partialResultToken}`,
                     })
+                    this.logging.info(
+                        `[inline completion] pulled subsequent pages with pagination token ${params.partialResultToken}; number of suggestion ${suggestionResponse.suggestions.length}`
+                    )
                     return await this.processSuggestionResponse(
                         suggestionResponse,
                         currentSession,
