@@ -44,6 +44,7 @@ describe('ATX .NET Transform Integration Tests', () => {
     let workspaceId: string
     let transformationJobId: string
     let planPath: string | null = null
+    let refreshInterval: NodeJS.Timeout
 
     let testSsoToken = process.env.TEST_SSO_TOKEN || ''
     const runtimeFile = process.env.TEST_RUNTIME_FILE || ''
@@ -55,20 +56,17 @@ describe('ATX .NET Transform Integration Tests', () => {
     const dataProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Data', 'Bookstore.Data.csproj')
     const domainProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Domain', 'Bookstore.Domain.csproj')
 
-    // Refresh token every 180 polls (30 minutes at 10s intervals)
-    const TOKEN_REFRESH_INTERVAL = 180
+    const TOKEN_REFRESH_INTERVAL_MS = 25 * 60 * 1000
 
-    async function refreshTokenIfNeeded(pollCount: number): Promise<void> {
-        if (pollCount > 0 && pollCount % TOKEN_REFRESH_INTERVAL === 0) {
-            console.log(`[Token Refresh] Refreshing SSO token at poll ${pollCount}...`)
-            testSsoToken = refreshTokenFromSecretsManager()
-            await client.sendRequest('aws/credentials/token/update', {
-                data: { token: testSsoToken },
-                credentialkey: 'atx-bearer',
-                metadata: { sso: { startUrl } },
-            })
-            console.log('[Token Refresh] Token updated successfully')
-        }
+    async function refreshToken(): Promise<void> {
+        console.log('[Token Refresh] Refreshing SSO token...')
+        testSsoToken = refreshTokenFromSecretsManager()
+        await client.sendRequest('aws/credentials/token/update', {
+            data: { token: testSsoToken },
+            credentialkey: 'atx-bearer',
+            metadata: { sso: { startUrl } },
+        })
+        console.log('[Token Refresh] Token updated successfully')
     }
 
     function buildStartTransformRequest(jobName: string, sourceFiles: string[]) {
@@ -161,9 +159,11 @@ describe('ATX .NET Transform Integration Tests', () => {
             settings: { profileArn: iadProfile.arn, applicationUrl: iadProfile.applicationUrl },
         })
         await sleep(3000)
+        refreshInterval = setInterval(() => refreshToken(), TOKEN_REFRESH_INTERVAL_MS)
     })
 
     after(() => {
+        if (refreshInterval) clearInterval(refreshInterval)
         if (client) client.close()
     })
 
@@ -198,9 +198,6 @@ describe('ATX .NET Transform Integration Tests', () => {
         let jobStatus = ''
 
         for (let i = 0; i < maxPolls; i++) {
-            // Refresh token every 30 minutes
-            await refreshTokenIfNeeded(i)
-
             const result = await client.sendRequest('workspace/executeCommand', {
                 command: 'aws/atxTransform/getTransformInfo',
                 TransformationJobId: transformationJobId,
@@ -246,9 +243,6 @@ describe('ATX .NET Transform Integration Tests', () => {
         let jobStatus = ''
 
         for (let i = 0; i < maxPolls; i++) {
-            // Refresh token every 30 minutes
-            await refreshTokenIfNeeded(i)
-
             const result = await client.sendRequest('workspace/executeCommand', {
                 command: 'aws/atxTransform/getTransformInfo',
                 TransformationJobId: transformationJobId,
