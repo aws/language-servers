@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.101](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.100...lsp-codewhisperer/v0.0.101) (2026-01-09)
+
+
+### Reverts
+
+* editor state is casuing validation error ([fb76a79](https://github.com/aws/language-servers/commit/fb76a79aa7db149abbdb6e455d8eb5fcf340e81f))
+
 ## [0.0.100](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.99...lsp-codewhisperer/v0.0.100) (2026-01-07)
 
 
