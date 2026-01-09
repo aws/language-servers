@@ -5,7 +5,7 @@ Integration tests for the ATX .NET Transform Language Server.
 ## Prerequisites
 
 - Node.js 18+
-- Built LSP binary (`aws-lsp-codewhisperer-token-binary.js`)
+- Built LSP binary (`token-standalone.js`)
 - Valid SSO token with ATX access
 
 ## Environment Variables
@@ -53,4 +53,4 @@ npm run test-integ
 
 - Tests 2, 3, 4 share a single transform job
 - Test 5 creates a separate job for stop validation
-- Only `Bookstore.Web` project is transformed (not full solution)
+- Uses Bobs Used Bookstore Classic as the test fixture
