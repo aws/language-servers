@@ -356,7 +356,7 @@ export class ArtifactManager {
 
     normalizeSourceFileRelativePath(solutionRootPath: string, fullPath: string): string {
         if (fullPath.startsWith(solutionRootPath)) {
-            return path.join(sourceCodeFolderName, fullPath.replace(`${solutionRootPath}\\`, ''))
+            return path.join(sourceCodeFolderName, fullPath.replace(solutionRootPath, '').replace(/^[\\\/]/, ''))
         } else {
             const relativePath = fullPath.substring(fullPath.indexOf(':\\') + 2)
             return path.join(sourceCodeFolderName, relativePath)

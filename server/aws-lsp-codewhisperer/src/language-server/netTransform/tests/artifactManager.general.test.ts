@@ -172,6 +172,15 @@ describe('ArtifactManager - Complete Coverage', () => {
             expect(result).to.include('packages')
             expect(result).to.include('test.nupkg')
         })
+
+        it('should normalize source file paths for both Windows and Linux separators', () => {
+            const linuxRoot = '/home/user/solution'
+            const linuxFile = '/home/user/solution/src/file.cs'
+            const linuxResult = artifactManager.normalizeSourceFileRelativePath(linuxRoot, linuxFile)
+            expect(linuxResult).to.include('src')
+            expect(linuxResult).to.include('file.cs')
+            expect(linuxResult).to.not.include('/home')
+        })
     })
 
     describe('getSha256Async static method', () => {
