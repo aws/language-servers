@@ -460,7 +460,7 @@ export async function loadAgentConfig(
                     // Convert registry server to MCPServerConfig
                     const converter = new McpServerConfigConverter()
                     try {
-                        cfg = converter.convertRegistryServer(registryServer)
+                        cfg = converter.convertRegistryServer(registryServer, entry.env)
                         cfg.__configPath__ = fsPath
 
                         // Apply timeout from registry server config if provided
