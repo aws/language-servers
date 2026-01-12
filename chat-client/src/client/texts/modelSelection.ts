@@ -35,11 +35,6 @@ export const modelSelection: ChatItemFormItem = {
     autoWidth: true,
 }
 
-export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
-    // Default model selection for all regions
-    default: modelSelection,
-}
-
 export const getModelSelectionChatItem = (modelName: string): ChatItem => ({
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
