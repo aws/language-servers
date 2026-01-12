@@ -1,0 +1,33 @@
+module.exports = {
+    root: true,
+    env: {
+        browser: true,
+        es2021: true,
+        node: true,
+    },
+    parser: '@typescript-eslint/parser',
+    parserOptions: {
+        tsconfigRootDir: __dirname,
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        project: ['./tsconfig.json', './tsconfig.test.json'],
+    },
+    plugins: ['@typescript-eslint', 'unused-imports'],
+    extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
+    ignorePatterns: ['ui-tests/**', 'dist/**', 'coverage/**', 'node_modules/**', '*.js'],
+    rules: {
+        semi: ['error', 'never'],
+        'no-constant-condition': ['error', { checkLoops: false }],
+        'no-case-declarations': 'off',
+        'no-empty': 'off',
+        '@typescript-eslint/ban-ts-comment': 'off',
+        '@typescript-eslint/no-floating-promises': 'off',
+        '@typescript-eslint/no-explicit-any': 0,
+        '@typescript-eslint/explicit-module-boundary-types': 0,
+        '@typescript-eslint/no-non-null-assertion': 0,
+        '@typescript-eslint/no-unused-vars': 0,
+        '@typescript-eslint/no-unused-expressions': 'off',
+        '@typescript-eslint/no-empty-object-type': 'off',
+        'unused-imports/no-unused-imports': 'error',
+    },
+}

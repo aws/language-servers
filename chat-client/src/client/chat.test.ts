@@ -34,12 +34,11 @@ describe('Chat', () => {
 
     before(() => {
         // Mock global observers for test environment
-        // @ts-expect-error: mock implementation for testing
-        global.ResizeObserver = null
-        // @ts-expect-error: mock implementation for testing
-        global.IntersectionObserver = null
-        // @ts-expect-error: mock implementation for testing
-        global.MutationObserver = null
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        ;(global as any).ResizeObserver = null
+        ;(global as any).IntersectionObserver = null
+        ;(global as any).MutationObserver = null
+        /* eslint-enable @typescript-eslint/no-explicit-any */
     })
 
     beforeEach(() => {
@@ -65,10 +64,10 @@ describe('Chat', () => {
     })
 
     after(() => {
-        // @ts-expect-error: mock implementation for testing
-        global.ResizeObserver = undefined
-        // @ts-expect-error: mock implementation for testing
-        global.MutationObserver = undefined
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        ;(global as any).ResizeObserver = undefined
+        ;(global as any).MutationObserver = undefined
+        /* eslint-enable @typescript-eslint/no-explicit-any */
     })
 
     it('publishes ready event when initialized', () => {

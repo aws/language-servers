@@ -124,7 +124,7 @@ const getDefaultTabConfig = (agenticMode?: boolean) => {
     }
 }
 
-type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
+type ChatClientConfig = Partial<Pick<MynahUIDataModel, 'quickActionCommands'>> & {
     disclaimerAcknowledged?: boolean
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean

@@ -405,10 +405,9 @@ describe('MynahUI', () => {
             const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
             getTabDataStub.returns({
                 getStore: () => ({
-                    // @ts-expect-error partial object
                     promptInputOptions: [{ id: 'pair-programmer-mode', value: 'false' }],
                 }),
-            })
+            } as any)
 
             handlePromptInputChange(mynahUi, tabId, { 'pair-programmer-mode': 'true' })
 
@@ -420,10 +419,9 @@ describe('MynahUI', () => {
             const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
             getTabDataStub.returns({
                 getStore: () => ({
-                    // @ts-expect-error partial object
                     promptInputOptions: [{ id: 'pair-programmer-mode', value: 'true' }],
                 }),
-            })
+            } as any)
 
             handlePromptInputChange(mynahUi, tabId, { 'pair-programmer-mode': 'false' })
 

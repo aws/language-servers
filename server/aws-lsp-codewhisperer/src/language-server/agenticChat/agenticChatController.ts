@@ -859,11 +859,12 @@ export class AgenticChatController implements ChatHandlers {
         IdleWorkspaceManager.recordActivityTimestamp()
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-        const { data: session, success } = sessionResult
 
-        if (!success) {
+        if (!sessionResult.success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
+
+        const session = sessionResult.data
 
         // Memory Bank Creation Flow - Delegate to MemoryBankController
         if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
@@ -1510,44 +1511,46 @@ export class AgenticChatController implements ChatHandlers {
             this.#debug(`LLM Response Latency: ${llmLatency}`)
             // This is needed to handle the case where the response stream times out
             // and we want to auto-retry
-            if (!result.success && result.error.startsWith(RESPONSE_TIMEOUT_PARTIAL_MSG)) {
-                const content =
-                    'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                if (this.#isPromptCanceled(token, session, promptId)) {
-                    // Only skip adding message to the history DB, continue executing to avoid unexpected stop for the conversation
-                    this.#debug('Skipping adding messages to history - cancelled by user')
-                } else {
-                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                        body: 'Response timed out - message took too long to generate',
-                        type: 'answer',
-                        shouldDisplayMessage: false,
-                        timestamp: new Date(),
-                    })
-                }
-                currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
-                shouldDisplayMessage = false
-                // set the in progress tool use UI status to Error
-                await chatResultStream.updateOngoingProgressResult('Error')
+            if (!result.success) {
+                if (result.error.startsWith(RESPONSE_TIMEOUT_PARTIAL_MSG)) {
+                    const content =
+                        'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
+                    if (this.#isPromptCanceled(token, session, promptId)) {
+                        // Only skip adding message to the history DB, continue executing to avoid unexpected stop for the conversation
+                        this.#debug('Skipping adding messages to history - cancelled by user')
+                    } else {
+                        this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                            body: 'Response timed out - message took too long to generate',
+                            type: 'answer',
+                            shouldDisplayMessage: false,
+                            timestamp: new Date(),
+                        })
+                    }
+                    currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
+                    shouldDisplayMessage = false
+                    // set the in progress tool use UI status to Error
+                    await chatResultStream.updateOngoingProgressResult('Error')
 
-                // emit invokeLLM event with status Failed for timeout calls
-                this.#telemetryController.emitAgencticLoop_InvokeLLM(
-                    response.$metadata.requestId!,
-                    conversationId,
-                    'AgenticChat',
-                    undefined,
-                    undefined,
-                    'Failed',
-                    this.#features.runtime.serverInfo.version ?? '',
-                    session.modelId,
-                    llmLatency,
-                    this.#toolCallLatencies,
-                    this.#timeToFirstChunk,
-                    this.#timeBetweenChunks,
-                    session.pairProgrammingMode,
-                    this.#abTestingAllocation?.experimentName,
-                    this.#abTestingAllocation?.userVariation
-                )
-                continue
+                    // emit invokeLLM event with status Failed for timeout calls
+                    this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                        response.$metadata.requestId!,
+                        conversationId,
+                        'AgenticChat',
+                        undefined,
+                        undefined,
+                        'Failed',
+                        this.#features.runtime.serverInfo.version ?? '',
+                        session.modelId,
+                        llmLatency,
+                        this.#toolCallLatencies,
+                        this.#timeToFirstChunk,
+                        this.#timeBetweenChunks,
+                        session.pairProgrammingMode,
+                        this.#abTestingAllocation?.experimentName,
+                        this.#abTestingAllocation?.userVariation
+                    )
+                    continue
+                }
             }
 
             // Add the current assistantResponse message to the history DB
@@ -1648,7 +1651,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#abTestingAllocation?.experimentName,
                     this.#abTestingAllocation?.userVariation
                 )
-            } else {
+            } else if (!result.success) {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({
                     toolUseId: toolUse.toolUseId,
@@ -1679,6 +1682,9 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 // set the in progress tool use UI status to Error
                 await chatResultStream.updateOngoingProgressResult('Error')
+            } else {
+                // This branch should never be reached, but TypeScript needs it for exhaustiveness
+                toolResults = []
             }
             if (result.success && this.#toolUseLatencies.length > 0) {
                 // Clear latencies for the next LLM call
@@ -3747,12 +3753,13 @@ export class AgenticChatController implements ChatHandlers {
                 params.partialResultToken
             )
 
-            return result.success
-                ? {
-                      ...result.data.chatResult,
-                      requestId: response.$metadata.requestId,
-                  }
-                : new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
+            if (result.success) {
+                return {
+                    ...result.data.chatResult,
+                    requestId: response.$metadata.requestId,
+                }
+            }
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, result.error)
         } catch (err) {
             this.#log(
                 'Error encountered during inline chat response streaming:',
