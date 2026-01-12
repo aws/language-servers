@@ -25,7 +25,7 @@ const modelOptions = Object.entries(modelRecord).map(([value, { label, descripti
     description,
 }))
 
-const modelSelection: ChatItemFormItem = {
+export const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
     mandatory: true,
@@ -33,6 +33,11 @@ const modelSelection: ChatItemFormItem = {
     options: modelOptions,
     border: false,
     autoWidth: true,
+}
+
+export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
+    // Default model selection for all regions
+    default: modelSelection,
 }
 
 export const getModelSelectionChatItem = (modelName: string): ChatItem => ({

@@ -19,8 +19,8 @@ import {
     getWorkspacePersonaConfigPaths,
     sanitizeName,
     normalizePathFromUri,
-    getWorkspaceMcpConfigPaths,
-    getGlobalMcpConfigPath,
+    getWorkspaceAgentConfigPaths,
+    getGlobalAgentConfigPath,
 } from './mcpUtils'
 import {
     McpPermissionType,
