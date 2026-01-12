@@ -38,6 +38,8 @@ export interface ChatEventHandler
         | 'onPromptInputOptionChange'
         | 'onPromptInputButtonClick'
         | 'onMessageDismiss'
+        | 'onOpenFileDialogClick'
+        | 'onFilesDropped'
         | 'onPromptTopBarItemAdded'
         | 'onPromptTopBarItemRemoved'
         | 'onPromptTopBarButtonClick'

@@ -1,5 +1,5 @@
 import { CredentialsProvider, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
+import { CreateUploadUrlResponse } from '@amzn/codewhisperer-runtime'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
 import * as crypto from 'crypto'
@@ -21,10 +21,19 @@ export const findWorkspaceRootFolder = (
 
     const matchingFolder = sortedFolders.find(folder => {
         const parsedFolderUri = URI.parse(folder.uri)
-        return parsedFileUri.path.startsWith(parsedFolderUri.path)
+        // Paths are normalized to use forward slashes in the .path property regardless of the underlying OS
+        const folderPath = parsedFolderUri.path.endsWith('/') ? parsedFolderUri.path : parsedFolderUri.path + '/'
+        return parsedFileUri.path.startsWith(folderPath)
     })
 
     return matchingFolder
+}
+
+/**
+ * Helper function to normalize relative path e.g : src/java/test.java to file:///src/java/test/java for workspace context
+ */
+export const normalizeFileUri = (fileUri: string): string => {
+    return fileUri.startsWith('file://') ? fileUri : `file://${fileUri.startsWith('/') ? fileUri : '/' + fileUri}`
 }
 
 export const cleanUrl = (s3Url: string): string => {
@@ -47,7 +56,7 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
             'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
         })
     }
-    await axios.put(resp.uploadUrl, content, { headers: headersObj })
+    await axios.put(resp.uploadUrl ?? 'invalid-url', content, { headers: headersObj })
 }
 
 export const isDirectory = (path: string): boolean => {
@@ -79,4 +88,21 @@ export const getRelativePath = (workspaceFolder: WorkspaceFolder, filePath: stri
     const workspaceUri = URI.parse(workspaceFolder.uri)
     const fileUri = URI.parse(filePath)
     return path.relative(workspaceUri.path, fileUri.path)
+}
+
+export const getRelativePathWithUri = (uri: string, workspaceFolder?: WorkspaceFolder | null): string => {
+    const documentUri = URI.parse(uri)
+    const workspaceUri = workspaceFolder?.uri
+    const workspaceRoot = workspaceUri ? URI.parse(workspaceUri).fsPath : process.cwd()
+    const absolutePath = documentUri.fsPath
+    return path.relative(workspaceRoot, absolutePath)
+}
+
+// Include workspace folder name to disambiguate files when there are multiple workspace folders
+export const getRelativePathWithWorkspaceFolder = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
+    const workspaceUri = URI.parse(workspaceFolder.uri)
+    const fileUri = URI.parse(filePath)
+    const relativePath = path.relative(workspaceUri.fsPath, fileUri.fsPath)
+    const workspaceFolderName = path.basename(workspaceUri.fsPath)
+    return path.join(workspaceFolderName, relativePath)
 }

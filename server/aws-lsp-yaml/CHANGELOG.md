@@ -1,5 +1,158 @@
 # Changelog
 
+## [0.1.25](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.24...lsp-yaml/v0.1.25) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.19 to ^0.0.20
+
+## [0.1.24](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.23...lsp-yaml/v0.1.24) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.18 to ^0.0.19
+
+## [0.1.23](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.22...lsp-yaml/v0.1.23) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.17 to ^0.0.18
+
+## [0.1.22](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.21...lsp-yaml/v0.1.22) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.16 to ^0.0.17
+
+## [0.1.21](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.20...lsp-yaml/v0.1.21) (2025-10-14)
+
+
+### Bug Fixes
+
+* set resolveProvider to false in init handler json and yaml language servers ([#2391](https://github.com/aws/language-servers/issues/2391)) ([e11c544](https://github.com/aws/language-servers/commit/e11c544804e4fbe7dbad3e5373223ba919a34758))
+
+## [0.1.20](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.19...lsp-yaml/v0.1.20) (2025-10-01)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.15 to ^0.0.16
+
+## [0.1.19](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.18...lsp-yaml/v0.1.19) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.14 to ^0.0.15
+
+## [0.1.18](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.17...lsp-yaml/v0.1.18) (2025-08-19)
+
+
+### Bug Fixes
+
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.13 to ^0.0.14
+
+## [0.1.17](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.16...lsp-yaml/v0.1.17) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.12 to ^0.0.13
+
+## [0.1.16](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.15...lsp-yaml/v0.1.16) (2025-07-17)
+
+
+### Bug Fixes
+
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.11 to ^0.0.12
+
+## [0.1.15](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.14...lsp-yaml/v0.1.15) (2025-07-02)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.10 to ^0.0.11
+
+## [0.1.14](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.13...lsp-yaml/v0.1.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
+## [0.1.13](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.12...lsp-yaml/v0.1.13) (2025-06-23)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.9 to ^0.0.10
+
 ## [0.1.12](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.11...lsp-yaml/v0.1.12) (2025-06-16)
 
 

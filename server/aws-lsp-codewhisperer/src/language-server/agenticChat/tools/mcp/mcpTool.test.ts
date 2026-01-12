@@ -25,9 +25,20 @@ describe('McpTool', () => {
         },
         telemetry: { record: () => {}, emitMetric: () => {} },
         runtime: { serverInfo: { version: '1.0.0' } },
+        agent: {
+            getBuiltInToolNames: () => [
+                'fsRead',
+                'fsWrite',
+                'executeBash',
+                'listDirectory',
+                'fileSearch',
+                'codeReview',
+                'displayFindings',
+            ],
+        },
     } as unknown as Pick<
         import('@aws/language-server-runtimes/server-interface/server').Features,
-        'logging' | 'workspace' | 'lsp' | 'credentialsProvider' | 'telemetry' | 'runtime'
+        'logging' | 'workspace' | 'lsp' | 'credentialsProvider' | 'telemetry' | 'runtime' | 'agent'
     >
 
     const definition: McpToolDefinition = {
@@ -44,10 +55,22 @@ describe('McpTool', () => {
         } catch {
             // ignore if it wasn't initialized
         }
-        sinon.stub(require('./mcpUtils'), 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
-        sinon
-            .stub(require('./mcpUtils'), 'loadPersonaPermissions')
-            .resolves(new Map([['*', { enabled: true, toolPerms: {}, __configPath__: '' }]]))
+        sinon.stub(require('./mcpUtils'), 'loadAgentConfig').resolves({
+            servers: new Map(),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
     })
 
     afterEach(async () => {
@@ -58,7 +81,7 @@ describe('McpTool', () => {
     })
 
     it('invoke() throws when server is not connected', async () => {
-        await McpManager.init([], [], fakeFeatures)
+        await McpManager.init([], fakeFeatures)
         sinon.stub(McpManager.prototype, 'callTool').rejects(new Error(`MCP: server 'nope' not connected`))
 
         const tool = new McpTool(fakeFeatures, definition)
@@ -73,7 +96,7 @@ describe('McpTool', () => {
     })
 
     it('requiresAcceptance consults manager.requiresApproval flag', async () => {
-        await McpManager.init([], [], fakeFeatures)
+        await McpManager.init([], fakeFeatures)
         const tool = new McpTool(fakeFeatures, definition)
 
         // stub on the prototype → false

@@ -1,4 +1,5 @@
 import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAcceptance } from './toolShared'
+import { EmptyPathError, EmptyDiffsError, FileNotExistsError, TextNotFoundError, MultipleMatchesError } from '../errors'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import * as os from 'os'
@@ -31,15 +32,15 @@ export class FsReplace {
 
     public async validate(params: FsReplaceParams): Promise<void> {
         if (!params.path) {
-            throw new Error('Path must not be empty')
+            throw new EmptyPathError()
         }
         if (!params.diffs || params.diffs.length === 0) {
-            throw new Error('Diffs must not be empty')
+            throw new EmptyDiffsError()
         }
         const sanitizedPath = sanitize(params.path)
         const fileExists = await this.workspace.fs.exists(sanitizedPath)
         if (!fileExists) {
-            throw new Error('The provided path must exist in order to replace contents into it')
+            throw new FileNotExistsError()
         }
     }
 
@@ -93,7 +94,7 @@ export class FsReplace {
                     },
                     diffs: {
                         description:
-                            'List of `oldStr`/`newStr` pairs to replace contents in an existing file. IMPORTANT: Must be provided as an array of objects, NOT as a string. For example, `[{"oldStr": "existingContent", "newStr": "newContent"}]`',
+                            'A list of `oldStr`/`newStr` pairs to replace content in an existing file. Example: `[{"oldStr": "existingContent", "newStr": "newContent"}]`. CRITICAL: Use JSON array syntax [{}], NOT string "[{}]". Common error: wrapping array in quotes.',
                         type: 'array',
                         items: {
                             type: 'object',
@@ -145,13 +146,13 @@ const getReplaceContent = (params: ReplaceParams, fileContent: string) => {
         const startIndex = fileContent.indexOf(normalizedOldStr)
 
         if (startIndex === -1) {
-            throw new Error(`No occurrences of "${diff.oldStr}" were found`)
+            throw new TextNotFoundError(diff.oldStr)
         }
 
         // Check for multiple occurrences
         const secondIndex = fileContent.indexOf(normalizedOldStr, startIndex + 1)
         if (secondIndex !== -1) {
-            throw new Error(`Multiple occurrences of "${diff.oldStr}" were found when only 1 is expected`)
+            throw new MultipleMatchesError(diff.oldStr)
         }
 
         // Perform the replacement using string operations instead of regex

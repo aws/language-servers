@@ -6,13 +6,18 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuidv4 } from 'uuid'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
-import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../../../shared/codeWhispererService'
+import {
+    GenerateSuggestionsRequest,
+    ResponseContext,
+    Suggestion,
+    SuggestionType,
+} from '../../../shared/codeWhispererService'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
-type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
+export type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
 interface CachedSuggestion extends Suggestion {
     insertText?: string
@@ -20,6 +25,7 @@ interface CachedSuggestion extends Suggestion {
 
 export interface SessionData {
     document: TextDocument
+    startPreprocessTimestamp: number
     startPosition: Position
     triggerType: CodewhispererTriggerType
     autoTriggerType?: CodewhispererAutomatedTriggerType
@@ -37,9 +43,22 @@ export class CodeWhispererSession {
     id: string
     document: TextDocument
     startTime: number
+    private _endPreprocessTimestamp: number
+    get endPreprocessTimestamp() {
+        return this._endPreprocessTimestamp
+    }
+    get preprocessLatency() {
+        return this.endPreprocessTimestamp - this.startTime
+    }
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
-    state: SessionState
+    private _state: SessionState
+    get state(): SessionState {
+        return this._state
+    }
+    private set state(newState: SessionState) {
+        this._state = newState
+    }
     codewhispererSessionId?: string
     startPosition: Position = {
         line: 0,
@@ -49,6 +68,13 @@ export class CodeWhispererSession {
     suggestions: CachedSuggestion[] = []
     suggestionsAfterRightContextMerge: InlineCompletionItemWithReferences[] = []
     suggestionsStates = new Map<string, UserDecision>()
+    private _decisionTimestamp = 0
+    get decisionMadeTimestamp() {
+        return this._decisionTimestamp
+    }
+    set decisionMadeTimestamp(time: number) {
+        this._decisionTimestamp = time
+    }
     acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType
@@ -59,7 +85,14 @@ export class CodeWhispererSession {
     language: CodewhispererLanguage
     requestContext: GenerateSuggestionsRequest
     supplementalMetadata?: CodeWhispererSupplementalContext
-    timeToFirstRecommendation: number = 0
+    private _timeToFirstRecommendation: number = 0
+    get timeToFirstRecommendation() {
+        return this._timeToFirstRecommendation
+    }
+    setTimeToFirstRecommendation() {
+        this._timeToFirstRecommendation = Date.now() - this.startTime
+    }
+
     credentialStartUrl?: string
     completionSessionResult?: {
         [itemId: string]: InlineCompletionStates
@@ -73,6 +106,10 @@ export class CodeWhispererSession {
     customizationArn?: string
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
+
+    // Suggestion type specified by the clients, could be either "EDIT" or "COMPLETION"
+    predictionType?: SuggestionType
+    // Track the most recent itemId for paginated Edit suggestions
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -88,8 +125,10 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
-        this.state = 'REQUESTING'
-        this.startTime = new Date().getTime()
+        this._state = 'REQUESTING'
+        this.startTime = data.startPreprocessTimestamp
+        // Current implementation is the session will be created when preprocess is done
+        this._endPreprocessTimestamp = Date.now()
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -124,7 +163,7 @@ export class CodeWhispererSession {
             }
         }
 
-        this.closeTime = new Date().getTime()
+        this.closeTime = Date.now()
 
         this.state = 'CLOSED'
     }
@@ -139,11 +178,12 @@ export class CodeWhispererSession {
             this.suggestionsStates.set(suggestion.itemId, 'Discard')
         }
 
-        this.closeTime = new Date().getTime()
+        this.closeTime = Date.now()
 
         this.state = 'DISCARD'
     }
 
+    // Should use epoch time for firstCompletionDisplayLatency, totalSessionDisplayTime
     setClientResultData(
         completionSessionResult: { [itemId: string]: InlineCompletionStates },
         firstCompletionDisplayLatency?: number,
@@ -151,7 +191,11 @@ export class CodeWhispererSession {
         typeaheadLength?: number
     ) {
         // Skip if session results were already recorded for session of session is closed
-        if (this.state === 'CLOSED' || this.state === 'DISCARD' || this.completionSessionResult) {
+        if (
+            this.state === 'CLOSED' ||
+            this.state === 'DISCARD' ||
+            (this.completionSessionResult && this.predictionType === SuggestionType.COMPLETION)
+        ) {
             return
         }
 
@@ -238,36 +282,58 @@ export class CodeWhispererSession {
         }
         return isEmpty ? 'Empty' : 'Discard'
     }
+
+    /**
+     * Determines trigger decision based on the most recent user action.
+     * Uses the last processed itemId to determine the overall session decision.
+     */
+    getUserTriggerDecision(itemId?: string): UserTriggerDecision | undefined {
+        // Force Discard trigger decision when session was explicitly discarded by server
+        if (this.state === 'DISCARD') {
+            return 'Discard'
+        }
+
+        if (!itemId) return
+
+        const state = this.getSuggestionState(itemId)
+        if (state === 'Accept') return 'Accept'
+        if (state === 'Reject') return 'Reject'
+        return state === 'Empty' ? 'Empty' : 'Discard'
+    }
 }
 
 export class SessionManager {
-    private static _instance?: SessionManager
+    private static _completionInstance?: SessionManager
+    private static _editInstance?: SessionManager
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
+    private _userDecisionLog: { sessionId: string; decision: UserTriggerDecision }[] = []
+    get userDecisionLog() {
+        return [...this._userDecisionLog]
+    }
 
     private constructor() {}
 
     /**
      * Singleton SessionManager class
      */
-    public static getInstance(): SessionManager {
-        if (!SessionManager._instance) {
-            SessionManager._instance = new SessionManager()
+    public static getInstance(type: 'COMPLETIONS' | 'EDITS' = 'COMPLETIONS'): SessionManager {
+        if (type === 'EDITS') {
+            return (SessionManager._editInstance ??= new SessionManager())
         }
 
-        return SessionManager._instance
+        return (SessionManager._completionInstance ??= new SessionManager())
     }
 
     // For unit tests
     public static reset() {
-        SessionManager._instance = undefined
+        SessionManager._completionInstance = undefined
+        SessionManager._editInstance = undefined
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
-        this.closeCurrentSession()
-
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
@@ -288,14 +354,21 @@ export class SessionManager {
         return session
     }
 
-    closeCurrentSession() {
-        if (this.currentSession) {
-            this.closeSession(this.currentSession)
-        }
-    }
-
     closeSession(session: CodeWhispererSession) {
         session.close()
+
+        // Note: it has to be called after session.close() as getAggregatedUserTriggerDecision() will return undefined if getAggregatedUserTriggerDecision() is called before session is closed
+        const decision = session.getAggregatedUserTriggerDecision()
+        // As we only care about AR here, pushing Accept/Reject only
+        if (decision === 'Accept' || decision === 'Reject') {
+            if (this._userDecisionLog.length === 5) {
+                this._userDecisionLog.shift()
+            }
+            this._userDecisionLog.push({
+                sessionId: session.codewhispererSessionId ?? 'undefined',
+                decision: decision,
+            })
+        }
     }
 
     discardSession(session: CodeWhispererSession) {

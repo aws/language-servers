@@ -1,6 +1,6 @@
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 import { GENERIC_UNAUTHORIZED_ERROR, INVALID_TOKEN, MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
-import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
+import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE, INVALID_PROMPT_MESSAGE } from './constants'
 import { v4 as uuid } from 'uuid'
 import {
     AmazonQError,
@@ -78,6 +78,13 @@ export function getDefaultChatResponse(prompt?: string): ChatResult | undefined 
         return {
             messageId: uuid(),
             body: HELP_MESSAGE,
+        }
+    }
+
+    if (!prompt || !prompt.trim()) {
+        return {
+            messageId: uuid(),
+            body: INVALID_PROMPT_MESSAGE,
         }
     }
 

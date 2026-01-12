@@ -2,6 +2,7 @@ export const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bea
 export const INVALID_TOKEN = 'The bearer token included in the request is invalid.'
 export const GENERIC_UNAUTHORIZED_ERROR = 'User is not authorized to make this call'
 export const BUILDER_ID_START_URL = 'https://view.awsapps.com/start'
+export const INTERNAL_USER_START_URL = 'https://amzn.awsapps.com/start'
 export const DEFAULT_AWS_Q_ENDPOINT_URL = 'https://codewhisperer.us-east-1.amazonaws.com/'
 export const DEFAULT_AWS_Q_REGION = 'us-east-1'
 
@@ -11,11 +12,48 @@ export const AWS_Q_ENDPOINTS = new Map([
     ['eu-central-1', 'https://q.eu-central-1.amazonaws.com/'],
 ])
 
+export const DEFAULT_ATX_FES_REGION = 'us-east-1'
+export const DEFAULT_ATX_FES_ENDPOINT_URL = 'https://api.transform.us-east-1.on.aws/'
+
+export const ATX_FES_ENDPOINTS = new Map([
+    [DEFAULT_ATX_FES_REGION, DEFAULT_ATX_FES_ENDPOINT_URL],
+    ['us-west-2', 'https://api.transform.us-west-2.on.aws/'], //PDX
+    ['eu-central-1', 'https://api.transform.eu-central-1.on.aws/'], //FRA
+    ['ap-southeast-2', 'https://api.transform.ap-southeast-2.on.aws/'], //SYD
+    ['ap-northeast-1', 'https://api.transform.ap-northeast-1.on.aws/'], //NRT
+    ['ap-south-1', 'https://api.transform.ap-south-1.on.aws/'], //BOM
+    ['ca-central-1', 'https://api.transform.ca-central-1.on.aws/'], //YUL
+    ['ap-northeast-2', 'https://api.transform.ap-northeast-2.on.aws/'], //ICN
+    ['eu-west-2', 'https://api.transform.eu-west-2.on.aws/'], //LHR
+])
+
+export const ATX_FES_GAMMA_ENDPOINTS = new Map([
+    [DEFAULT_ATX_FES_REGION, 'https://api.transform-gamma.us-east-1.on.aws/'],
+    ['us-west-2', 'https://api.transform-gamma.us-west-2.on.aws/'],
+    ['eu-central-1', 'https://api.transform-gamma.eu-central-1.on.aws/'],
+])
+
+export function getAtxEndPointByRegion(region: string): string {
+    var endpointsByStage = getATXEndpoints()
+    return endpointsByStage.get(region) || DEFAULT_ATX_FES_ENDPOINT_URL
+}
+
+export function getATXEndpoints(): Map<string, string> {
+    return process.env.TRANSFORM_ENV === 'GAMMA' ? ATX_FES_GAMMA_ENDPOINTS : ATX_FES_ENDPOINTS
+}
+
 export const AWS_Q_REGION_ENV_VAR = 'AWS_Q_REGION'
 export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'
 
+export const ATX_FES_REGION_ENV_VAR = 'ATX_FES_REGION'
+export const ATX_FES_ENDPOINT_URL_ENV_VAR = 'ATX_FES_ENDPOINT_URL'
+
+export const IDE = 'IDE'
+
 export const Q_CONFIGURATION_SECTION = 'aws.q'
 export const CODE_WHISPERER_CONFIGURATION_SECTION = 'aws.codeWhisperer'
+
+export const SAGEMAKER_UNIFIED_STUDIO_SERVICE = 'SageMakerUnifiedStudio'
 
 /**
  * Names of directories relevant to the crash reporting functionality.
@@ -26,3 +64,167 @@ export const crashMonitoringDirName = 'crashMonitoring'
 
 /** Matches Windows drive letter ("C:"). */
 export const driveLetterRegex = /^[a-zA-Z]\:/
+
+export const COMMON_GITIGNORE_PATTERNS = [
+    // Package managers and dependencies
+    '**/node_modules/**',
+    '**/bower_components/**',
+    '**/.pnp/**',
+    '**/.pnp.js',
+    '**/vendor/**',
+
+    // Version control
+    '**/.git/**',
+    '**/.svn/**',
+    '**/.hg/**',
+    '**/CVS/**',
+
+    // Build outputs and distributions
+    '**/dist/**',
+    '**/build/**',
+    '**/out/**',
+    '**/target/**',
+    '**/.next/**',
+    '**/.nuxt/**',
+    '**/public/dist/**',
+    '**/coverage/**',
+    '**/.output/**',
+    '**/storybook-static/**',
+
+    // Cache and temporary files
+    '**/.cache/**',
+    '**/.temp/**',
+    '**/tmp/**',
+    '**/.sass-cache/**',
+    '**/.pytest_cache/**',
+    '**/__pycache__/**',
+    '**/.eslintcache',
+    '**/.stylelintcache',
+
+    // IDE and editor files
+    '**/.idea/**',
+    '**/.vscode/**',
+    '**/.history/**',
+    '**/.project',
+    '**/.settings/**',
+    '**/.classpath',
+    '**/.factorypath',
+    '**/.vs/**',
+    '**/*.sublime-workspace',
+    '**/*.sublime-project',
+    '**/nbproject/**',
+    '**/.netbeans/**',
+
+    // OS generated files
+    '**/.DS_Store',
+    '**/.DS_Store?',
+    '**/._*',
+    '**/.Spotlight-V100',
+    '**/.Trashes',
+    '**/ehthumbs.db',
+    '**/Thumbs.db',
+    '**/desktop.ini',
+
+    // Logs and debugging
+    '**/*.log',
+    '**/logs/**',
+    '**/npm-debug.log*',
+    '**/yarn-debug.log*',
+    '**/yarn-error.log*',
+    '**/pnpm-debug.log*',
+    '**/lerna-debug.log*',
+
+    // Package manager files
+    '**/yarn.lock',
+    '**/package-lock.json',
+    '**/pnpm-lock.yaml',
+    '**/.pnpm-store/**',
+    '**/composer.lock',
+    '**/Gemfile.lock',
+
+    // Environment and secrets
+    '**/env',
+    '**/.env',
+    '**/.env.*',
+    '**/.env.local',
+    '**/.env.*.local',
+    '**/.env.development',
+    '**/.env.test',
+    '**/.env.production',
+    '**/*.pem',
+    '**/*.key',
+    '**/*.cert',
+
+    // Testing and coverage
+    '**/coverage/**',
+    '**/.nyc_output/**',
+    '**/cypress/videos/**',
+    '**/cypress/screenshots/**',
+    '**/test-results/**',
+    '**/playwright-report/**',
+    '**/playwright/.cache/**',
+
+    // Documentation
+    '**/docs/_site/**',
+    '**/docs/.jekyll-cache/**',
+    '**/docs/.jekyll-metadata',
+
+    // Mobile development
+    '**/ios/Pods/**',
+    '**/android/.gradle/**',
+    '**/android/build/**',
+    '**/android/app/build/**',
+    '**/ios/build/**',
+
+    // Common compiled files
+    '**/*.pyc',
+    '**/*.pyo',
+    '**/*.pyd',
+    '**/*.so',
+    '**/*.dll',
+    '**/*.dylib',
+    '**/*.class',
+    '**/*.exe',
+
+    // Backup files
+    '**/*~',
+    '**/*.bak',
+    '**/*.swp',
+    '**/*.swo',
+
+    // Local configuration
+    '**/.localrc',
+    '**/config.local.js',
+    '**/local.properties',
+
+    // Container and deployment
+    '**/.docker/**',
+    '**/docker-compose.override.yml',
+    '**/docker-compose.override.yaml',
+
+    // Serverless
+    '**/.serverless/**',
+
+    // Webpack
+    '**/.webpack/**',
+
+    // Parcel
+    '**/.parcel-cache/**',
+
+    // TypeScript
+    '**/tsconfig.tsbuildinfo',
+
+    // Other tools
+    '**/.grunt/**',
+    '**/.npm/**',
+    '**/bower_components/**',
+    '**/.phpunit.result.cache',
+    '**/composer.phar',
+    '**/.vercel/**',
+    '**/node_repl_history',
+    '**/php_errorlog',
+
+    // Python Specific
+    '.venv',
+    'venv',
+]

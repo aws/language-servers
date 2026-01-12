@@ -32,6 +32,8 @@ import {
     CHAT_PROMPT_OPTION_ACKNOWLEDGED,
     STOP_CHAT_RESPONSE,
     OPEN_SETTINGS,
+    OPEN_FILE_DIALOG,
+    FILES_DROPPED,
 } from '@aws/chat-client-ui-types'
 import {
     BUTTON_CLICK_REQUEST_METHOD,
@@ -99,8 +101,15 @@ import {
     TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
+    ListAvailableModelsParams,
+    LIST_AVAILABLE_MODELS_REQUEST_METHOD,
+    ListAvailableModelsResult,
+    OpenFileDialogParams,
+    OPEN_FILE_DIALOG_METHOD,
+    OpenFileDialogResult,
+    EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
+import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
@@ -112,8 +121,6 @@ import { modelSelectionForRegion } from './texts/modelSelection'
 const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
         tabTitle: 'Chat',
-        promptInputInfo:
-            'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
         promptInputPlaceholder: `Ask a question. Use${agenticMode ? ' @ to add context,' : ''} / for quick actions`,
     }
 }
@@ -123,6 +130,8 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
+    stringOverrides?: Partial<ConfigTexts>
+    os?: string
 }
 
 export const createChat = (
@@ -176,6 +185,9 @@ export const createChat = (
         }
 
         switch (message?.command) {
+            case EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD:
+                mynahApi.executeShellCommandShortCut(message.params)
+                break
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
@@ -225,17 +237,32 @@ export const createChat = (
             case MCP_SERVER_CLICK_REQUEST_METHOD:
                 mynahApi.mcpServerClick(message.params as McpServerClickResult)
                 break
+            case OPEN_FILE_DIALOG_METHOD:
+                mynahApi.addSelectedFilesToContext(message.params as OpenFileDialogResult)
+                break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
+            case LIST_AVAILABLE_MODELS_REQUEST_METHOD:
+                mynahApi.listAvailableModels(message.params as ListAvailableModelsResult)
+                break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
-                if (message.params.modelId !== undefined) {
+                if (message.params.modelId !== undefined || message.params.pairProgrammingMode !== undefined) {
                     const tabId = message.params.tabId
                     const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
                     mynahUi.updateStore(tabId, {
-                        promptInputOptions: options?.map(option =>
-                            option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
-                        ),
+                        promptInputOptions: options?.map(option => {
+                            if (option.id === 'model-selection' && message.params.modelId !== undefined) {
+                                return { ...option, value: message.params.modelId }
+                            }
+                            if (
+                                option.id === 'pair-programmer-mode' &&
+                                message.params.pairProgrammingMode !== undefined
+                            ) {
+                                return { ...option, value: message.params.pairProgrammingMode ? 'true' : 'false' }
+                            }
+                            return option
+                        }),
                     })
                 } else if (message.params.region) {
                     // get all tabs and update region
@@ -261,6 +288,15 @@ export const createChat = (
                     tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
                 }
 
+                // Enable reroute FIRST before processing other options
+                if ((params as any)?.reroute) {
+                    tabFactory.enableReroute()
+                }
+
+                if ((params as any)?.codeReviewInChat) {
+                    tabFactory.enableCodeReviewInChat()
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
@@ -282,6 +318,10 @@ export const createChat = (
 
                 if (params?.export) {
                     tabFactory.enableExport()
+                }
+
+                if (params?.showLogs) {
+                    tabFactory.enableShowLogs()
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -477,6 +517,15 @@ export const createChat = (
         onRemovePinnedContext: (params: PinnedContextParams) => {
             sendMessageToClient({ command: PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD, params })
         },
+        onListAvailableModels(params: ListAvailableModelsParams) {
+            sendMessageToClient({ command: LIST_AVAILABLE_MODELS_REQUEST_METHOD, params })
+        },
+        onOpenFileDialogClick: (params: OpenFileDialogParams) => {
+            sendMessageToClient({ command: OPEN_FILE_DIALOG, params: params })
+        },
+        onFilesDropped: (params: { tabId: string; files: FileList; insertPosition: number }) => {
+            sendMessageToClient({ command: FILES_DROPPED, params: params })
+        },
     }
 
     const messager = new Messager(chatApi)
@@ -499,7 +548,9 @@ export const createChat = (
         config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter,
         featureConfig,
-        !!config?.agenticMode
+        !!config?.agenticMode,
+        config?.stringOverrides,
+        config?.os
     )
 
     mynahApi = api

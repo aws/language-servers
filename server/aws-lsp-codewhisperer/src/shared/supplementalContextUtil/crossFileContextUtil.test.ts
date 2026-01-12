@@ -45,7 +45,8 @@ describe('crossFileContextUtil', function () {
                     currentDocument,
                     { line: 0, character: 0 },
                     features.workspace,
-                    fakeCancellationToken
+                    fakeCancellationToken,
+                    'codemap'
                 )
                 assert.ok(actual)
                 assert.ok(actual.supplementalContextItems.length === 3)
@@ -68,7 +69,8 @@ describe('crossFileContextUtil', function () {
                 currentDocument,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                'codemap'
             )
             assert.strictEqual(actual, undefined)
         })
@@ -79,7 +81,8 @@ describe('crossFileContextUtil', function () {
                 currentDocument,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                'codemap'
             )
             assert.strictEqual(actual, undefined)
         })
@@ -186,7 +189,8 @@ describe('crossFileContextUtil', function () {
                         document,
                         { line: 0, character: 0 },
                         features.workspace,
-                        fakeCancellationToken
+                        fakeCancellationToken,
+                        'codemap'
                     )
 
                     assert.ok(actual && actual.supplementalContextItems.length !== 0)
@@ -280,7 +284,7 @@ describe('crossFileContextUtil', function () {
                 { line: 0, character: 0 },
                 features.workspace,
                 fakeCancellationToken,
-                amazonQServiceManager
+                'codemap'
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [],
@@ -309,7 +313,7 @@ describe('crossFileContextUtil', function () {
                 { line: 0, character: 0 },
                 features.workspace,
                 fakeCancellationToken,
-                amazonQServiceManager
+                'codemap'
             )
 
             sinon.assert.notCalled(instanceStub)
@@ -339,7 +343,7 @@ describe('crossFileContextUtil', function () {
                 { line: 0, character: 0 },
                 features.workspace,
                 fakeCancellationToken,
-                amazonQServiceManager
+                'codemap'
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [{ content: 'someOtherContet', filePath: '/path/', score: 29.879 }],
@@ -365,7 +369,7 @@ describe('crossFileContextUtil', function () {
                 { line: 0, character: 0 },
                 features.workspace,
                 fakeCancellationToken,
-                amazonQServiceManager
+                'codemap'
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [

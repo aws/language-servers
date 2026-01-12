@@ -1,11 +1,12 @@
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { Result } from '../types'
+import { Result, Features } from '../types'
 import { ChatSessionService } from './chatSessionService'
 
 export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService
     #sessionByTab: Map<string, ChatSessionService> = new Map<string, any>()
     #serviceManager?: AmazonQBaseServiceManager
+    #lsp?: Features['lsp']
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -21,8 +22,9 @@ export class ChatSessionManagementService {
 
     private constructor() {}
 
-    public withAmazonQServiceManager(serviceManager: AmazonQBaseServiceManager) {
+    public withAmazonQServiceManager(serviceManager: AmazonQBaseServiceManager, lsp?: Features['lsp']) {
         this.#serviceManager = serviceManager
+        this.#lsp = lsp
 
         return this
     }
@@ -39,7 +41,7 @@ export class ChatSessionManagementService {
             }
         }
 
-        const newSession = new ChatSessionService(this.#serviceManager)
+        const newSession = new ChatSessionService(this.#serviceManager, this.#lsp)
 
         this.#sessionByTab.set(tabId, newSession)
 

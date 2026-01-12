@@ -1,31 +1,47 @@
 import {
-    AwsResponseError,
     BearerCredentials,
     CredentialsProvider,
     Position,
+    SsoConnectionType,
 } from '@aws/language-server-runtimes/server-interface'
-import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
-import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
+import {
+    COMMON_GITIGNORE_PATTERNS,
+    crashMonitoringDirName,
+    driveLetterRegex,
+    MISSING_BEARER_TOKEN_ERROR,
+    SAGEMAKER_UNIFIED_STUDIO_SERVICE,
+} from './constants'
 import {
     CodeWhispererStreamingServiceException,
-    ServiceQuotaExceededException,
+    Origin,
     ThrottlingException,
     ThrottlingExceptionReason,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
+// eslint-disable-next-line import/no-nodejs-modules
+import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
+// eslint-disable-next-line import/no-nodejs-modules
+import { promises as fs } from 'fs'
+import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
-export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
+import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
+import escapeHTML = require('escape-html')
 
-export function isAwsError(error: unknown): error is AWSError {
+export function isServiceException(error: unknown): error is ServiceException {
+    return error instanceof ServiceException
+}
+
+export function isAwsError(error: unknown): error is Error & { code: string; time: Date } {
     if (error === undefined) {
         return false
     }
 
-    // TODO: do SDK v3 errors have `.code` ?
-    return error instanceof Error && hasCode(error) && hasTime(error)
+    // AWS SDK v3 errors extend ServiceException
+    return error instanceof ServiceException || (error instanceof Error && '$metadata' in error)
 }
 
 export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
@@ -39,7 +55,11 @@ export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
     //     return true
     // }
 
-    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
+    if (
+        e instanceof ThrottlingException ||
+        (isAwsError(e) && e.code === 'ThrottlingException') ||
+        (isServiceException(e) && e.name === 'ThrottlingException')
+    ) {
         return true
     }
 
@@ -70,38 +90,6 @@ export function isUsageLimitError(e: unknown): e is ThrottlingException {
     }
 
     if (e.reason == ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT) {
-        return true
-    }
-
-    return false
-}
-
-export function isQuotaExceededError(e: unknown): e is AWSError {
-    if (!e) {
-        return false
-    }
-
-    // From client/token/bearer-token-service.json
-    if (isUsageLimitError(e)) {
-        return true
-    }
-
-    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
-    // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
-    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
-        return true
-    }
-
-    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
-    // "API Front-end will throw Throttling if conversation limit is reached.
-    // API Front-end monitors StartCodeGeneration for throttling"
-    if (
-        isAwsThrottlingError(e) &&
-        (e.message.includes('reached for this month') ||
-            e.message.includes('limit for this month') ||
-            e.message.includes('limit reached') ||
-            e.message.includes('limit for number of iterations'))
-    ) {
         return true
     }
 
@@ -302,9 +290,16 @@ export function isBool(value: unknown): value is boolean {
 }
 
 export function getCompletionType(suggestion: Suggestion): CodewhispererCompletionType {
-    const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
+    const nonBlankLines = suggestion.content?.split('\n').filter(line => line.trim() !== '').length
 
-    return nonBlankLines > 1 ? 'Block' : 'Line'
+    return nonBlankLines && nonBlankLines > 1 ? 'Block' : 'Line'
+}
+
+export function enabledModelSelection(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.modelSelection || false
 }
 
 export function parseJson(jsonString: string) {
@@ -353,6 +348,58 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
+export function getBearerTokenFromProviderWithType(credentialsProvider: CredentialsProvider, credentialType: any) {
+    if (!credentialsProvider.hasCredentials(credentialType)) {
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
+    }
+
+    const credentials = credentialsProvider.getCredentials(credentialType) as BearerCredentials
+
+    if (!credentials.token) {
+        throw new Error(MISSING_BEARER_TOKEN_ERROR)
+    }
+
+    return credentials.token
+}
+export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
+    return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
+        ? lspParams?.initializationOptions?.aws?.clientInfo?.name
+        : lspParams?.clientInfo?.name
+}
+
+export function getOriginFromClientInfo(clientName: string | undefined): Origin {
+    if (clientName?.startsWith('AmazonQ-For-SMAI-CE') || clientName?.startsWith('AmazonQ-For-SMAI-IDE')) {
+        return 'SM_AI_STUDIO_IDE'
+    }
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE') || clientName?.startsWith('AmazonQ-For-SMUS-CE')) {
+        return 'MD_IDE'
+    }
+    return 'IDE'
+}
+
+export function isUsingIAMAuth(credentialsProvider?: CredentialsProvider): boolean {
+    if (process.env.USE_IAM_AUTH === 'true') {
+        return true
+    }
+
+    // CRITICAL: Add credential-based detection as fallback
+    if (credentialsProvider) {
+        try {
+            const iamCreds = credentialsProvider.getCredentials('iam')
+            const bearerCreds = credentialsProvider.getCredentials('bearer')
+
+            // If only IAM creds available, use IAM
+            if (iamCreds && !(bearerCreds as any)?.token) {
+                return true
+            }
+        } catch (error) {
+            // If credential access fails, default to bearer
+            return false
+        }
+    }
+    return false
+}
+
 export const flattenMetric = (obj: any, prefix = '') => {
     const flattened: any = {}
 
@@ -374,9 +421,7 @@ export const flattenMetric = (obj: any, prefix = '') => {
 }
 
 export function getSsoConnectionType(credentialsProvider: CredentialsProvider): SsoConnectionType {
-    const connectionMetadata = credentialsProvider.getConnectionMetadata()
-    const startUrl = connectionMetadata?.sso?.startUrl
-    return !startUrl ? 'none' : startUrl.includes(BUILDER_ID_START_URL) ? 'builderId' : 'identityCenter'
+    return credentialsProvider.getConnectionType()
 }
 
 // Port of implementation in AWS Toolkit for VSCode
@@ -390,7 +435,7 @@ export function getUnmodifiedAcceptedTokens(origin: string, after: string) {
     return Math.max(origin.length, after.length) - distance(origin, after)
 }
 
-export function getEndPositionForAcceptedSuggestion(content: string, startPosition: Position): Position {
+export function getEndPositionForAcceptedSuggestion(content: string = '', startPosition: Position): Position {
     const insertedLines = content.split('\n')
     const numberOfInsertedLines = insertedLines.length
 
@@ -429,9 +474,6 @@ export function isStringOrNull(object: any): object is string | null {
 export function getHttpStatusCode(err: unknown): number | undefined {
     // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
 
-    if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
-        return err?.$response?.statusCode
-    }
     if (hasMetadata(err) && err.$metadata?.httpStatusCode !== undefined) {
         return err.$metadata?.httpStatusCode
     }
@@ -440,10 +482,6 @@ export function getHttpStatusCode(err: unknown): number | undefined {
     }
 
     return undefined
-}
-
-function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$response'> {
-    return typeof (error as { $response?: unknown })?.$response === 'object'
 }
 
 function hasMetadata<T>(error: T): error is T & Pick<CodeWhispererStreamingServiceException, '$metadata'> {
@@ -460,4 +498,144 @@ export function hasConnectionExpired(error: any) {
         return authFollowType == 're-auth'
     }
     return false
+}
+
+/**
+  Lists files in a directory respecting gitignore and npmignore rules.
+  @param directory The absolute path of root directory.
+  @returns A promise that resolves to an array of absolute file paths.
+ */
+export async function listFilesWithGitignore(directory: string): Promise<string[]> {
+    let ignorePatterns: string[] = [...COMMON_GITIGNORE_PATTERNS]
+
+    // Process .gitignore
+    const gitignorePath = path.join(directory, '.gitignore')
+    try {
+        const gitignoreContent = await fs.readFile(gitignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            gitignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: gitIgnore file could not be read', err)
+        }
+    }
+
+    // Process .npmignore
+    const npmignorePath = path.join(directory, '.npmignore')
+    try {
+        const npmignoreContent = await fs.readFile(npmignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            npmignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: npmIgnore file could not be read', err)
+        }
+    }
+
+    const absolutePaths: string[] = []
+    let fileCount = 0
+    const MAX_FILES = 500_000
+
+    const stream = fg.stream(['**/*'], {
+        cwd: directory,
+        dot: true,
+        ignore: ignorePatterns,
+        onlyFiles: true,
+        followSymbolicLinks: false,
+        absolute: true,
+    })
+
+    for await (const entry of stream) {
+        if (fileCount >= MAX_FILES) {
+            break
+        }
+        absolutePaths.push(entry.toString())
+        fileCount++
+    }
+
+    return absolutePaths
+}
+
+export function getFileExtensionName(filepath: string): string {
+    // Handle null/undefined
+    if (!filepath) {
+        return ''
+    }
+
+    // Handle no dots or file ending with dot
+    if (!filepath.includes('.') || filepath.endsWith('.')) {
+        return ''
+    }
+
+    // Handle hidden files (optional, depending on your needs)
+    if (filepath.startsWith('.') && filepath.indexOf('.', 1) === -1) {
+        return ''
+    }
+
+    return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
+}
+
+/**
+ * Sanitizes input by removing dangerous Unicode characters that could be used for ASCII smuggling
+ * @param input The input string to sanitize
+ * @returns The sanitized string with dangerous characters removed
+ */
+export function sanitizeInput(input: string, enableEscapingHTML: boolean = false): string {
+    if (!input) {
+        return input
+    }
+    if (enableEscapingHTML) {
+        input = escapeHTML(input)
+    }
+
+    // Remove Unicode tag characters (U+E0000-U+E007F) used in ASCII smuggling
+    // Remove other invisible/control characters that could hide content
+    return input.replace(
+        /[\u{E0000}-\u{E007F}\u{200B}-\u{200F}\u{2028}-\u{202F}\u{205F}-\u{206F}\u{FFF0}-\u{FFFF}]/gu,
+        ''
+    )
+}
+
+/**
+ * Sanitizes input for logging to prevent log injection attacks
+ * @param input The input string to sanitize
+ * @returns The sanitized string with control characters replaced
+ */
+export function sanitizeLogInput(input: string): string {
+    // Remove newlines, carriage returns, and other control characters
+    return input.replace(/[\r\n\t\x00-\x1f\x7f-\x9f]/g, '_')
+}
+
+/**
+ * Recursively sanitizes the entire request input to prevent Unicode ASCII smuggling
+ * @param input The request input to sanitize
+ * @returns The sanitized request input
+ */
+export function sanitizeRequestInput(input: any): any {
+    if (typeof input === 'string') {
+        return sanitizeInput(input)
+    }
+    if (input instanceof Uint8Array) {
+        // Don't sanitize binary data like images - return as-is
+        return input
+    }
+    if (Array.isArray(input)) {
+        return input.map(item => sanitizeRequestInput(item))
+    }
+    if (input && typeof input === 'object') {
+        const sanitized: any = {}
+        for (const [key, value] of Object.entries(input)) {
+            sanitized[key] = sanitizeRequestInput(value)
+        }
+        return sanitized
+    }
+    return input
 }

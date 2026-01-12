@@ -3,15 +3,21 @@ import { FSWatcher, watch } from 'chokidar'
 import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
-import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
+import { getCodeSymbolDescription, getUserPromptsDirectory, promptFileExtension } from './contextUtils'
 import { ContextCommandItem } from 'local-indexing'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
-import { activeFileCmd } from './addtionalContextProvider'
+import { activeFileCmd } from './additionalContextProvider'
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
     private cachedContextCommands?: ContextCommandItem[]
+    private codeSymbolsPending = true
+    private codeSymbolsFailed = false
+    private filesAndFoldersPending = true
+    private filesAndFoldersFailed = false
+    private workspacePending = true
+    private initialStateSent = false
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
@@ -24,11 +30,26 @@ export class ContextCommandsProvider implements Disposable {
         )
     }
 
+    onReady() {
+        if (!this.initialStateSent) {
+            this.initialStateSent = true
+            void this.processContextCommandUpdate([]).catch(e =>
+                this.logging.error(`Failed to send initial context commands: ${e}`)
+            )
+        }
+    }
+
     private async registerContextCommandHandler() {
         try {
             const controller = await LocalProjectContextController.getInstance()
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
+            }
+            controller.onIndexingInProgressChanged = (indexingInProgress: boolean) => {
+                if (this.workspacePending !== indexingInProgress) {
+                    this.workspacePending = indexingInProgress
+                    void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                }
             }
         } catch (e) {
             this.logging.warn(`Error processing context command update: ${e}`)
@@ -91,6 +112,9 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
+        let imageContextEnabled =
+            this.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.imageContextEnabled === true
         const folderCmds: ContextCommand[] = []
         const folderCmdGroup: ContextCommand = {
             command: 'Folders',
@@ -102,9 +126,10 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add all files in a folder to context',
             icon: 'folder',
+            disabledText: this.filesAndFoldersFailed ? 'failed' : this.filesAndFoldersPending ? 'pending' : undefined,
         }
 
-        const fileCmds: ContextCommand[] = []
+        const fileCmds: ContextCommand[] = [activeFileCmd]
         const fileCmdGroup: ContextCommand = {
             command: 'Files',
             children: [
@@ -115,6 +140,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add a file to context',
             icon: 'file',
+            disabledText: this.filesAndFoldersFailed ? 'failed' : this.filesAndFoldersPending ? 'pending' : undefined,
         }
 
         const codeCmds: ContextCommand[] = []
@@ -128,6 +154,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add code to context',
             icon: 'code-block',
+            disabledText: this.codeSymbolsFailed ? 'failed' : this.codeSymbolsPending ? 'pending' : undefined,
         }
 
         const promptCmds: ContextCommand[] = []
@@ -142,12 +169,26 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
-        const workspaceCmd = {
+
+        const imageCmdGroup: ContextCommand = {
+            command: 'Image',
+            description: 'Add image to context',
+            icon: 'image',
+            placeholder: 'Select an image file',
+        }
+
+        const workspaceCmd: ContextCommand = {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
+            disabledText: this.workspacePending ? 'pending' : undefined,
         }
-        const commands = [workspaceCmd, activeFileCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+        const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+
+        if (imageContextEnabled) {
+            commands.push(imageCmdGroup)
+        }
+
         const allCommands: ContextCommandGroup[] = [
             {
                 commands: commands,
@@ -178,7 +219,7 @@ export class ContextCommandsProvider implements Disposable {
                 codeCmds.push({
                     ...baseItem,
                     command: item.symbol.name,
-                    description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line + 1}-${item.symbol.range.end.line + 1}`,
+                    description: getCodeSymbolDescription(item, true),
                     label: 'code',
                     icon: 'code-block',
                 })
@@ -190,12 +231,31 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async maybeUpdateCodeSymbols() {
-        const needUpdate = await (
-            await LocalProjectContextController.getInstance()
-        ).shouldUpdateContextCommandSymbolsOnce()
-        if (needUpdate) {
-            const items = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
-            await this.processContextCommandUpdate(items)
+        try {
+            const needUpdate = await (
+                await LocalProjectContextController.getInstance()
+            ).shouldUpdateContextCommandSymbolsOnce()
+            if (needUpdate) {
+                this.codeSymbolsPending = false
+                const items = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
+                await this.processContextCommandUpdate(items)
+            }
+        } catch (error) {
+            this.codeSymbolsFailed = true
+            this.codeSymbolsPending = false
+            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            throw error
+        }
+    }
+
+    setFilesAndFoldersPending(value: boolean) {
+        this.filesAndFoldersPending = value
+    }
+
+    setFilesAndFoldersFailed(value: boolean) {
+        this.filesAndFoldersFailed = value
+        if (value) {
+            this.filesAndFoldersPending = false
         }
     }
 

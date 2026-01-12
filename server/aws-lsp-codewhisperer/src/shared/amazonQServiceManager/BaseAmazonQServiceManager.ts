@@ -25,6 +25,7 @@ export interface QServiceManagerFeatures {
     credentialsProvider: CredentialsProvider
     sdkInitializator: SDKInitializator
     workspace: Workspace
+    atxCredentialsProvider?: CredentialsProvider
 }
 
 export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase, StreamingClientServiceBase>
@@ -80,11 +81,21 @@ export abstract class BaseAmazonQServiceManager<
     protected cachedCodewhispererService?: C
     protected cachedStreamingClient?: S
 
+    // Separate caches for ATX operations
+    protected cachedAtxCodewhispererService?: C
+    protected cachedAtxStreamingClient?: S
     private handleDidChangeConfigurationListeners = new Set<DidChangeConfigurationListener>()
     private isConfigChangeInProgress = false
 
     abstract getCodewhispererService(): C
+
+    // ATX-specific service getters
+    abstract getAtxCodewhispererService(): C
     abstract getStreamingClient(): S
+
+    get serverInfo() {
+        return this.features.runtime.serverInfo
+    }
 
     public getConfiguration(): Readonly<AmazonQWorkspaceConfig> {
         return this.configurationCache.getConfig()
@@ -128,6 +139,15 @@ export abstract class BaseAmazonQServiceManager<
         }
     }
 
+    public onRegionChange(_listener: (region: string) => void): () => void {
+        // Default implementation - no-op
+        return () => {}
+    }
+
+    public getActiveProfileArn(): string | undefined {
+        return undefined // No-op / default implementation
+    }
+
     protected updateCachedServiceConfig(): void {
         if (this.cachedCodewhispererService) {
             const customizationArn = this.configurationCache.getProperty('customizationArn')
@@ -142,6 +162,39 @@ export abstract class BaseAmazonQServiceManager<
                     shareCodeWhispererContentWithAWS
             )
             this.cachedCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+        }
+
+        if (this.cachedStreamingClient) {
+            const shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                'shareCodeWhispererContentWithAWS'
+            )
+            this.logging.debug(
+                'Update shareCodeWhispererContentWithAWS setting on cachedStreamingClient to ' +
+                    shareCodeWhispererContentWithAWS
+            )
+            // Update ATX service caches (ATX doesn't use customizations, only content sharing)
+            if (this.cachedAtxCodewhispererService) {
+                const shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                    'shareCodeWhispererContentWithAWS'
+                )
+                this.logging.debug(
+                    'Update shareCodeWhispererContentWithAWS setting on cachedAtxCodewhispererService to ' +
+                        shareCodeWhispererContentWithAWS
+                )
+                this.cachedAtxCodewhispererService.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+            }
+
+            if (this.cachedAtxStreamingClient) {
+                const shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                    'shareCodeWhispererContentWithAWS'
+                )
+                this.logging.debug(
+                    'Update shareCodeWhispererContentWithAWS setting on cachedAtxStreamingClient to ' +
+                        shareCodeWhispererContentWithAWS
+                )
+                this.cachedAtxStreamingClient.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
+            }
+            this.cachedStreamingClient.shareCodeWhispererContentWithAWS = shareCodeWhispererContentWithAWS
         }
     }
 

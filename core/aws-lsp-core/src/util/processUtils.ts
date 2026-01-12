@@ -6,6 +6,7 @@ import * as crossSpawn from 'cross-spawn'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { PollingSet } from './pollingSet'
 import { waitUntil } from './timeoutUtils'
+import * as Encoding from 'encoding-japanese'
 
 export interface RunParameterContext {
     /** Reports an error parsed from the stdin/stdout streams. */
@@ -55,6 +56,21 @@ export interface ChildProcessResult {
 }
 
 export const eof = Symbol('EOF')
+
+/**
+ * Decodes a Buffer chunk from a shell process using encoding-japanese
+ * to handle various encodings including UTF-16LE (Windows cmd.exe /u)
+ */
+function decodeShellChunk(buf: Buffer): string {
+    const byteArray = new Uint8Array(buf)
+    const detectedEncoding = Encoding.detect(byteArray) || 'UTF8'
+
+    return Encoding.convert(byteArray, {
+        from: detectedEncoding,
+        to: 'UNICODE',
+        type: 'string',
+    }) as string
+}
 
 export interface ProcessStats {
     memory: number
@@ -328,20 +344,24 @@ export class ChildProcess {
             this.#childProcess.stdout?.on('error', errorHandler)
             this.#childProcess.stderr?.on('error', errorHandler)
 
-            this.#childProcess.stdout?.on('data', (data: { toString(): string }) => {
+            this.#childProcess.stdout?.on('data', (chunk: Buffer) => {
+                const decoded = decodeShellChunk(chunk)
+
                 if (options.collect) {
-                    this.#stdoutChunks.push(data.toString())
+                    this.#stdoutChunks.push(decoded)
                 }
 
-                options.onStdout?.(data.toString(), paramsContext)
+                options.onStdout?.(decoded, paramsContext)
             })
 
-            this.#childProcess.stderr?.on('data', (data: { toString(): string }) => {
+            this.#childProcess.stderr?.on('data', (chunk: Buffer) => {
+                const decoded = decodeShellChunk(chunk)
+
                 if (options.collect) {
-                    this.#stderrChunks.push(data.toString())
+                    this.#stderrChunks.push(decoded)
                 }
 
-                options.onStderr?.(data.toString(), paramsContext)
+                options.onStderr?.(decoded, paramsContext)
             })
 
             // Emitted when streams are closed.

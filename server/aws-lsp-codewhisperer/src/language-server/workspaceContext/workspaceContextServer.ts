@@ -6,8 +6,13 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import * as crypto from 'crypto'
-import { isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
-import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
+import { getRelativePath, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
+import {
+    ArtifactManager,
+    FileMetadata,
+    IGNORE_PATTERNS,
+    SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES,
+} from './artifactManager'
 import { WorkspaceFolderManager } from './workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
@@ -16,11 +21,21 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
+import { DependencyEvent, DependencyEventBundler } from './dependency/dependencyEventBundler'
+import ignore = require('ignore')
+import { BUILDER_ID_START_URL, INTERNAL_USER_START_URL } from '../../shared/constants'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
+const ig = ignore().add(IGNORE_PATTERNS)
+
+function shouldIgnoreFile(workspaceFolder: WorkspaceFolder, fileUri: string): boolean {
+    const relativePath = getRelativePath(workspaceFolder, fileUri).replace(/\\/g, '/') // normalize for cross-platform
+    return ig.ignores(relativePath)
+}
+
 export const WorkspaceContextServer = (): Server => features => {
-    const { credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
+    const { agent, credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
 
     let workspaceIdentifier: string = ''
     let workspaceFolders: WorkspaceFolder[] = []
@@ -28,12 +43,14 @@ export const WorkspaceContextServer = (): Server => features => {
     let dependencyDiscoverer: DependencyDiscoverer
     let workspaceFolderManager: WorkspaceFolderManager
     let fileUploadJobManager: FileUploadJobManager
+    let dependencyEventBundler: DependencyEventBundler
     let workflowInitializationInterval: NodeJS.Timeout
     let isWorkflowInitializing: boolean = false
     let isWorkflowInitialized: boolean = false
     let isOptedIn: boolean = false
     let abTestingEvaluated = false
     let abTestingEnabled = false
+    let semanticSearchAbTestingEnabled = false
     let amazonQServiceManager: AmazonQTokenServiceManager
     let allowedExtension: string[] = ['AmazonQ-For-VSCode', 'Amazon Q For JetBrains']
     let isSupportedExtension = false
@@ -125,19 +142,35 @@ export const WorkspaceContextServer = (): Server => features => {
 
     const updateConfiguration = async () => {
         try {
-            let workspaceContextConfig = (await lsp.workspace.getConfiguration('amazonQ.workspaceContext')) || false
-            const configJetBrains = await lsp.workspace.getConfiguration('aws.codeWhisperer')
-            if (configJetBrains) {
-                workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
-            }
+            const clientInitializParams = safeGet(lsp.getClientInitializeParams())
+            const extensionName = clientInitializParams.initializationOptions?.aws?.clientInfo?.extension.name
+            if (extensionName === 'AmazonQ-For-VSCode') {
+                const amazonQSettings = (await lsp.workspace.getConfiguration('amazonQ'))?.['server-sideContext']
+                isOptedIn = amazonQSettings || false
 
-            // TODO, removing client side opt in temporarily
-            isOptedIn = true
-            // isOptedIn = workspaceContextConfig === true
+                // We want this temporary override for Amazon internal users and BuilderId users who are still using
+                // the old VSCode extension versions. Will remove this later.
+                if (amazonQSettings === undefined) {
+                    const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                    const isInternalOrBuilderIdUser =
+                        startUrl &&
+                        (startUrl.includes(INTERNAL_USER_START_URL) || startUrl.includes(BUILDER_ID_START_URL))
+                    if (isInternalOrBuilderIdUser) {
+                        isOptedIn = true
+                    }
+                }
+            } else {
+                isOptedIn = (await lsp.workspace.getConfiguration('aws.codeWhisperer'))?.['workspaceContext'] || false
+            }
+            logging.log(`Workspace context server opt-in flag is: ${isOptedIn}`)
 
             if (!isOptedIn) {
                 isWorkflowInitialized = false
-                await workspaceFolderManager.clearAllWorkspaceResources()
+                fileUploadJobManager?.dispose()
+                dependencyEventBundler?.dispose()
+                workspaceFolderManager.clearAllWorkspaceResources()
+                // Delete remote workspace when user chooses to opt-out
+                await workspaceFolderManager.deleteRemoteWorkspace()
             }
         } catch (error) {
             logging.error(`Error in getConfiguration: ${error}`)
@@ -151,19 +184,37 @@ export const WorkspaceContextServer = (): Server => features => {
 
         try {
             const clientParams = safeGet(lsp.getClientInitializeParams())
-            const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
+            const userContext = makeUserContextObject(
+                clientParams,
+                runtime.platform,
+                'CodeWhisperer',
+                amazonQServiceManager.serverInfo
+            ) ?? {
                 ideCategory: 'VSCODE',
                 operatingSystem: 'MAC',
                 product: 'CodeWhisperer',
             }
-
             const result = await amazonQServiceManager.getCodewhispererService().listFeatureEvaluations({ userContext })
-            logging.log(`${JSON.stringify(result)}`)
+            result.featureEvaluations?.forEach(feature => {
+                logging.log(`A/B Cohort Assignment feature: ${feature.feature} - variation: ${feature.variation}`)
+            })
             abTestingEnabled =
                 result.featureEvaluations?.some(
-                    feature => feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
+                    feature =>
+                        feature.feature === 'BuilderIdServiceSideProjectContext' && feature.variation === 'TREATMENT'
                 ) ?? false
-            logging.info(`A/B testing enabled: ${abTestingEnabled}`)
+            semanticSearchAbTestingEnabled =
+                result.featureEvaluations?.some(
+                    feature => feature.feature === 'SematicSearchTool' && feature.variation === 'TREATMENT'
+                ) ?? false
+            const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+            if (startUrl && startUrl.includes(INTERNAL_USER_START_URL)) {
+                // Overriding abTestingEnabled to true for all internal users
+                abTestingEnabled = true
+            }
+            logging.info(
+                `A/B testing enabled: ${abTestingEnabled} semantic search enabled ${semanticSearchAbTestingEnabled}`
+            )
             abTestingEvaluated = true
         } catch (error: any) {
             logging.error(`Error while checking A/B status: ${error.code}`)
@@ -178,6 +229,7 @@ export const WorkspaceContextServer = (): Server => features => {
             isLoggedInUsingBearerToken(credentialsProvider) &&
             abTestingEnabled &&
             !workspaceFolderManager.getOptOutStatus() &&
+            !workspaceFolderManager.isFeatureDisabled() &&
             workspaceIdentifier
         )
     }
@@ -192,6 +244,7 @@ export const WorkspaceContextServer = (): Server => features => {
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                agent,
                 amazonQServiceManager,
                 logging,
                 artifactManager,
@@ -201,6 +254,7 @@ export const WorkspaceContextServer = (): Server => features => {
                 workspaceIdentifier
             )
             fileUploadJobManager = new FileUploadJobManager(logging, workspaceFolderManager)
+            dependencyEventBundler = new DependencyEventBundler(logging, dependencyDiscoverer, workspaceFolderManager)
             await updateConfiguration()
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
@@ -257,25 +311,25 @@ export const WorkspaceContextServer = (): Server => features => {
 
                     await evaluateABTesting()
                     isWorkflowInitialized = true
+                    workspaceFolderManager.setSemanticSearchToolStatus(semanticSearchAbTestingEnabled)
 
+                    workspaceFolderManager.resetAdminOptOutAndFeatureDisabledStatus()
                     if (!isUserEligibleForWorkspaceContext()) {
                         return
                     }
 
                     fileUploadJobManager.startFileUploadJobConsumer()
-                    workspaceFolderManager.initializeWorkspaceStatusMonitor().catch(error => {
-                        logging.error(`Error while initializing workspace status monitoring: ${error}`)
-                    })
+                    dependencyEventBundler.startDependencyEventBundler()
+
+                    workspaceFolderManager.initializeWorkspaceStatusMonitor()
                     logging.log(`Workspace context workflow initialized`)
-                    artifactManager.updateWorkspaceFolders(workspaceFolders)
-                    workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
-                        logging.error(`Error while processing new workspace folders: ${error}`)
-                    })
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
                         // In this case, clear the resources and stop the monitoring
-                        await workspaceFolderManager.clearAllWorkspaceResources()
+                        fileUploadJobManager?.dispose()
+                        dependencyEventBundler?.dispose()
+                        workspaceFolderManager.clearAllWorkspaceResources()
                     }
                     isWorkflowInitialized = false
                 }
@@ -310,16 +364,19 @@ export const WorkspaceContextServer = (): Server => features => {
                 return
             }
 
+            logging.log(`Received didSave event for ${event.textDocument.uri}`)
+
             const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
             if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
                 return
             }
 
-            logging.log(`Received didSave event for ${event.textDocument.uri}`)
-
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(event.textDocument.uri, workspaceFolders)
             if (!workspaceFolder) {
-                logging.log(`No workspaceFolder found for ${event.textDocument.uri} discarding the save event`)
+                return
+            }
+
+            if (shouldIgnoreFile(workspaceFolder, event.textDocument.uri)) {
                 return
             }
 
@@ -346,6 +403,10 @@ export const WorkspaceContextServer = (): Server => features => {
                 const isDir = isDirectory(file.uri)
                 const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.uri, workspaceFolders)
                 if (!workspaceFolder) {
+                    continue
+                }
+
+                if (shouldIgnoreFile(workspaceFolder, file.uri)) {
                     continue
                 }
 
@@ -439,6 +500,10 @@ export const WorkspaceContextServer = (): Server => features => {
                     continue
                 }
 
+                if (shouldIgnoreFile(workspaceFolder, file.newUri)) {
+                    continue
+                }
+
                 const filesMetadata = await artifactManager.handleRename(workspaceFolder, file.oldUri, file.newUri)
 
                 for (const fileMetadata of filesMetadata) {
@@ -456,17 +521,22 @@ export const WorkspaceContextServer = (): Server => features => {
 
     lsp.extensions.onDidChangeDependencyPaths(async params => {
         try {
+            const dependencyEvent: DependencyEvent = {
+                language: params.runtimeLanguage,
+                paths: params.paths,
+                workspaceFolderUri: params.moduleName,
+            }
+            DependencyEventBundler.recordDependencyEvent(dependencyEvent)
+
             if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
-            logging.log(`Received onDidChangeDependencyPaths event for ${params.moduleName}`)
 
-            const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
-            await dependencyDiscoverer.handleDependencyUpdateFromLSP(
-                params.runtimeLanguage,
-                params.paths,
-                workspaceFolder
-            )
+            // Only send events separately when dependency discovery has finished ingesting previous recorded events
+            if (dependencyDiscoverer.isDependencyEventsIngested(params.moduleName)) {
+                dependencyEventBundler.sendDependencyEvent(dependencyEvent)
+                logging.log(`Processed onDidChangeDependencyPaths event for ${params.moduleName}`)
+            }
         } catch (error) {
             logging.error(`Error handling didChangeDependencyPaths event: ${error}`)
         }
@@ -479,12 +549,11 @@ export const WorkspaceContextServer = (): Server => features => {
         if (fileUploadJobManager) {
             fileUploadJobManager.dispose()
         }
+        if (dependencyEventBundler) {
+            dependencyEventBundler.dispose()
+        }
         if (workspaceFolderManager) {
-            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-                logging.warn(
-                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-                )
-            })
+            workspaceFolderManager.clearAllWorkspaceResources()
         }
     }
 }

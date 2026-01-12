@@ -2,7 +2,6 @@ import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './Lan
 import * as path from 'path'
 import * as fs from 'fs'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import { FileMetadata } from '../../artifactManager'
 import { DependencyWatcher } from './DependencyWatcher'
 
 interface JSTSDependencyInfo extends BaseDependencyInfo {
@@ -106,7 +105,8 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
 
         // process each dependency
         for (const [name, declaredVersion] of Object.entries(allDependencies)) {
-            const dependencyPath = path.join(nodeModulesPath, name)
+            // Handle scoped packages (@scope/package) by splitting on '/' for cross-platform compatibility
+            const dependencyPath = path.join(nodeModulesPath, ...name.split('/'))
             // Check if dependency exists in node_modules
             if (fs.existsSync(dependencyPath)) {
                 // Read the actual version from the dependency's package.json
@@ -126,6 +126,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                     name,
                     version: actualVersion.toString().replace(/[\^~]/g, ''), // Remove ^ and ~ from version
                     path: dependencyPath,
+                    pathInZipOverride: name, // either package or @scope/package
                     size: this.getDirectorySize(dependencyPath),
                     zipped: false,
                 })
@@ -185,12 +186,14 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 const callBackDependencyUpdate = async (events: string[]) => {
                     this.logging.log(`Change detected in ${packageJsonPath}`)
                     const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
-                    let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                    const changedDependencyList = this.compareAndUpdateDependencyMap(
                         jstsDependencyInfo.workspaceFolder,
-                        updatedDependencyMap,
-                        true
+                        updatedDependencyMap
                     )
-                    this.emitDependencyChange(jstsDependencyInfo.workspaceFolder, zips)
+                    await this.zipAndUploadDependenciesByChunk(
+                        changedDependencyList,
+                        jstsDependencyInfo.workspaceFolder
+                    )
                 }
                 const watcher = new DependencyWatcher(
                     packageJsonPath,
@@ -206,7 +209,9 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
     }
 
     // JS and TS are not using LSP to sync dependencies
-    override async updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Promise<void> {}
+    override updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Dependency[] {
+        return []
+    }
     override transformPathToDependency(
         dependencyName: string,
         dependencyPath: string,

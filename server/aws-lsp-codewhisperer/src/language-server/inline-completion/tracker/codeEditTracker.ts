@@ -3,15 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    TextDocumentItem,
-    InitializeParams,
-    Logging,
-    Disposable,
-    TextDocument,
-} from '@aws/language-server-runtimes/server-interface'
+import { TextDocumentItem, Logging, Disposable, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSupplementalContext, DocumentSnapshot, FileSnapshotContent } from '../../../shared/models/model'
-import { generateDiffContexts } from '../diffUtils'
+import { generateDiffContexts } from '../utils/diffUtils'
 
 /**
  * Configuration for the RecentEditTracker
@@ -536,11 +530,15 @@ export class RecentEditTracker implements Disposable {
     }
 
     public hasRecentEditInLine(
-        documentUri: string,
+        documentUri: string | undefined,
         lineNum: number,
         timeThresholdMs: number = 20000,
         lineRange: number = 5
     ): boolean {
+        if (!documentUri) {
+            return false
+        }
+
         // Check if we have snapshots for this document
         const snapshots = this.snapshots.get(documentUri)
         if (!snapshots || snapshots.length === 0) {

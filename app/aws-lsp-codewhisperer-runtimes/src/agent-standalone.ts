@@ -1,10 +1,14 @@
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import {
+    AmazonQServiceServerIAM,
+    AmazonQServiceServerToken,
     CodeWhispererSecurityScanServerTokenProxy,
-    CodeWhispererServerTokenProxy,
-    QAgenticChatServerTokenProxy,
+    CodeWhispererServer,
+    QAgenticChatServerProxy,
     QConfigurationServerTokenProxy,
-    QLocalProjectContextServerTokenProxy,
+    TransformConfigurationServerTokenProxy,
+    AtxNetTransformServerTokenProxy,
+    QLocalProjectContextServerProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
@@ -12,28 +16,39 @@ import { IdentityServer } from '@aws/lsp-identity'
 import {
     BashToolsServer,
     FsToolsServer,
+    QCodeAnalysisServer,
     McpToolsServer,
 } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
-import { createTokenRuntimeProps } from './standalone-common'
+import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 
-const MAJOR = 0
-const MINOR = 1
-const PATCH = 0
-const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
+const versionJson = require('./version.json')
+const version = versionJson.agenticChat
 
-const props = createTokenRuntimeProps(VERSION, [
-    CodeWhispererServerTokenProxy,
-    CodeWhispererSecurityScanServerTokenProxy,
-    QConfigurationServerTokenProxy,
-    QNetTransformServerTokenProxy,
-    QAgenticChatServerTokenProxy,
-    IdentityServer.create,
-    FsToolsServer,
-    BashToolsServer,
-    QLocalProjectContextServerTokenProxy,
-    WorkspaceContextServerTokenProxy,
-    McpToolsServer,
-    // LspToolsServer,
-])
+const props = {
+    version: version,
+    servers: [
+        CodeWhispererServer,
+        CodeWhispererSecurityScanServerTokenProxy,
+        QConfigurationServerTokenProxy,
+        QNetTransformServerTokenProxy,
+        QAgenticChatServerProxy,
+        IdentityServer.create,
+        FsToolsServer,
+        QCodeAnalysisServer,
+        BashToolsServer,
+        QLocalProjectContextServerProxy,
+        WorkspaceContextServerTokenProxy,
+        McpToolsServer,
+        // LspToolsServer,
+        AmazonQServiceServerIAM,
+        AmazonQServiceServerToken,
+        // ATX Servers
+        TransformConfigurationServerTokenProxy,
+        AtxNetTransformServerTokenProxy,
+    ],
+    name: 'AWS CodeWhisperer',
+} as RuntimeProps
 
-standalone(props)
+;(async () => {
+    await standalone(props)
+})()

@@ -1,8 +1,10 @@
+import { EditorState } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { Features } from '../../types'
+import { URI } from 'vscode-uri'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
@@ -32,9 +34,15 @@ describe('DocumentContext', () => {
                 workspace: mockWorkspace,
                 characterLimits: 19,
             })
+
+            let relativeFilePath = 'workspace/test.ts'
+            if (process.platform === 'win32') {
+                relativeFilePath = 'workspace\\test.ts'
+            }
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'test.ts',
+                relativeFilePath: relativeFilePath,
+                activeFilePath: URI.parse(testFilePath).fsPath,
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -75,9 +83,14 @@ describe('DocumentContext', () => {
                 workspace: mockWorkspace,
                 characterLimits: 19,
             })
+            let relativeFilePath = 'workspace/test.ts'
+            if (process.platform === 'win32') {
+                relativeFilePath = 'workspace\\test.ts'
+            }
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
-                relativeFilePath: 'test.ts',
+                relativeFilePath: relativeFilePath,
+                activeFilePath: URI.parse(testFilePath).fsPath,
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -123,9 +136,15 @@ describe('DocumentContext', () => {
         const testGoFilePath = 'file://mock/workspace/test.go'
         const mockDocument = TextDocument.create(testGoFilePath, 'go', 1, mockGoCodeBLock)
 
+        let relativeFilePath = 'workspace/test.go'
+        if (process.platform === 'win32') {
+            relativeFilePath = 'workspace\\test.go'
+        }
+
         const expectedResult: DocumentContext = {
             programmingLanguage: { languageName: 'go' },
-            relativeFilePath: 'test.go',
+            relativeFilePath: relativeFilePath,
+            activeFilePath: URI.parse(testGoFilePath).fsPath,
             text: 'fmt.Println("test")',
             totalEditorCharacters: mockGoCodeBLock.length,
             hasCodeSnippet: true,

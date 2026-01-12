@@ -1,7 +1,11 @@
 import { JavaDependencyHandler } from './JavaDependencyHandler'
 import { PythonDependencyHandler } from './PythonDependencyHandler'
 import { JSTSDependencyHandler } from './JSTSDependencyHandler'
-import { BaseDependencyInfo, LanguageDependencyHandler } from './LanguageDependencyHandler'
+import {
+    BaseDependencyInfo,
+    DependencyHandlerSharedState,
+    LanguageDependencyHandler,
+} from './LanguageDependencyHandler'
 import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { ArtifactManager } from '../../artifactManager'
 import { CodewhispererLanguage } from '../../../../shared/languageDetection'
@@ -13,7 +17,7 @@ export class DependencyHandlerFactory {
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
         artifactManager: ArtifactManager,
-        dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
+        dependencyHandlerSharedState: DependencyHandlerSharedState
     ): LanguageDependencyHandler<BaseDependencyInfo> | null {
         switch (language.toLowerCase()) {
             case 'python':
@@ -24,7 +28,7 @@ export class DependencyHandlerFactory {
                     workspaceFolders,
                     artifactManager,
                     'site-packages',
-                    dependencyUploadedSizeSum
+                    dependencyHandlerSharedState
                 )
             case 'javascript':
             case 'typescript':
@@ -35,7 +39,7 @@ export class DependencyHandlerFactory {
                     workspaceFolders,
                     artifactManager,
                     'node_modules',
-                    dependencyUploadedSizeSum
+                    dependencyHandlerSharedState
                 )
             case 'java':
                 return new JavaDependencyHandler(
@@ -45,7 +49,7 @@ export class DependencyHandlerFactory {
                     workspaceFolders,
                     artifactManager,
                     'dependencies',
-                    dependencyUploadedSizeSum
+                    dependencyHandlerSharedState
                 )
             default:
                 return null

@@ -57,6 +57,15 @@ export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
 
         return this.cachedCodewhispererService
     }
+    public getAtxCodewhispererService(): CodeWhispererServiceBase {
+        if (!this.cachedAtxCodewhispererService) {
+            throw new Error(
+                'Found undefined cached ATX service, make sure to setup TestAmazonQServiceManager class correctly'
+            )
+        }
+
+        return this.cachedAtxCodewhispererService
+    }
 
     public getStreamingClient(): StreamingClientServiceBase {
         if (!this.cachedStreamingClient) {
@@ -154,7 +163,6 @@ export const generateSingletonInitializationTests = <
 
     it('should throw when initInstance is called more than once', () => {
         SingletonServiceManager.initInstance(testFeatures)
-
         throws(() => SingletonServiceManager.initInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
     })
 
@@ -164,7 +172,6 @@ export const generateSingletonInitializationTests = <
 
     it('should not throw when getInstance is called after initInstance', () => {
         const singletonServiceManagerInstance = SingletonServiceManager.initInstance(testFeatures)
-
         deepStrictEqual(SingletonServiceManager.getInstance(), singletonServiceManagerInstance)
     })
 }

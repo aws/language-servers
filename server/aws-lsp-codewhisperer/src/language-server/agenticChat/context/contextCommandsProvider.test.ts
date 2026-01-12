@@ -3,6 +3,7 @@ import * as sinon from 'sinon'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as chokidar from 'chokidar'
 import { ContextCommandItem } from 'local-indexing'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 
 describe('ContextCommandsProvider', () => {
     let provider: ContextCommandsProvider
@@ -21,6 +22,12 @@ describe('ContextCommandsProvider', () => {
 
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
+
+        sinon.stub(LocalProjectContextController, 'getInstance').resolves({
+            onContextItemsUpdated: sinon.stub(),
+            onIndexingInProgressChanged: sinon.stub(),
+        } as any)
+
         provider = new ContextCommandsProvider(
             testFeatures.logging,
             testFeatures.chat,
@@ -58,6 +65,26 @@ describe('ContextCommandsProvider', () => {
         })
     })
 
+    describe('onReady', () => {
+        it('should call processContextCommandUpdate with empty array on first call', async () => {
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            provider.onReady()
+
+            sinon.assert.calledOnce(processUpdateSpy)
+            sinon.assert.calledWith(processUpdateSpy, [])
+        })
+
+        it('should not call processContextCommandUpdate on subsequent calls', async () => {
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            provider.onReady()
+            provider.onReady()
+
+            sinon.assert.calledOnce(processUpdateSpy)
+        })
+    })
+
     describe('onContextItemsUpdated', () => {
         it('should call processContextCommandUpdate when controller raises event', async () => {
             const mockContextItems: ContextCommandItem[] = [
@@ -76,6 +103,78 @@ describe('ContextCommandsProvider', () => {
 
             sinon.assert.calledOnce(processUpdateSpy)
             sinon.assert.calledWith(processUpdateSpy, mockContextItems)
+        })
+    })
+
+    describe('onIndexingInProgressChanged', () => {
+        it('should update workspacePending and call processContextCommandUpdate when indexing status changes', async () => {
+            let capturedCallback: ((indexingInProgress: boolean) => void) | undefined
+
+            const mockController = {
+                onContextItemsUpdated: sinon.stub(),
+                set onIndexingInProgressChanged(callback: (indexingInProgress: boolean) => void) {
+                    capturedCallback = callback
+                },
+            }
+
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves(mockController as any)
+
+            // Set initial state to false so condition is met
+            ;(provider as any).workspacePending = false
+
+            await (provider as any).registerContextCommandHandler()
+
+            capturedCallback?.(true)
+
+            sinon.assert.calledWith(processUpdateSpy, [])
+        })
+    })
+
+    describe('setFilesAndFoldersFailed', () => {
+        it('should set filesAndFoldersFailed to true and filesAndFoldersPending to false', () => {
+            provider.setFilesAndFoldersFailed(true)
+
+            sinon.assert.match((provider as any).filesAndFoldersFailed, true)
+            sinon.assert.match((provider as any).filesAndFoldersPending, false)
+        })
+
+        it('should show failed disabledText when filesAndFoldersFailed is true', async () => {
+            fsExistsStub.resolves(false)
+            provider.setFilesAndFoldersFailed(true)
+
+            const result = await provider.mapContextCommandItems([])
+            const filesCmd = result[0].commands?.find(cmd => cmd.command === 'Files')
+            const foldersCmd = result[0].commands?.find(cmd => cmd.command === 'Folders')
+
+            sinon.assert.match(filesCmd?.disabledText, 'failed')
+            sinon.assert.match(foldersCmd?.disabledText, 'failed')
+        })
+
+        it('should show pending disabledText when filesAndFoldersPending is true and not failed', async () => {
+            fsExistsStub.resolves(false)
+            ;(provider as any).filesAndFoldersPending = true
+            ;(provider as any).filesAndFoldersFailed = false
+
+            const result = await provider.mapContextCommandItems([])
+            const filesCmd = result[0].commands?.find(cmd => cmd.command === 'Files')
+            const foldersCmd = result[0].commands?.find(cmd => cmd.command === 'Folders')
+
+            sinon.assert.match(filesCmd?.disabledText, 'pending')
+            sinon.assert.match(foldersCmd?.disabledText, 'pending')
+        })
+
+        it('should show no disabledText when not pending and not failed', async () => {
+            fsExistsStub.resolves(false)
+            provider.setFilesAndFoldersPending(false)
+            ;(provider as any).filesAndFoldersFailed = false
+
+            const result = await provider.mapContextCommandItems([])
+            const filesCmd = result[0].commands?.find(cmd => cmd.command === 'Files')
+            const foldersCmd = result[0].commands?.find(cmd => cmd.command === 'Folders')
+
+            sinon.assert.match(filesCmd?.disabledText, undefined)
+            sinon.assert.match(foldersCmd?.disabledText, undefined)
         })
     })
 })
