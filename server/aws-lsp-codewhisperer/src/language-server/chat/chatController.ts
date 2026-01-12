@@ -1,4 +1,4 @@
-import { ChatTriggerType } from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -9,15 +9,10 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatResultParams,
-    NotificationHandler,
-    PromptInputOptionChangeParams,
     ButtonClickParams,
     ButtonClickResult,
-    ListMcpServersParams,
-    ListMcpServersResult,
-    McpServerClickParams,
-    McpServerClickResult,
-    RequestHandler,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -46,7 +41,7 @@ import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse }
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
-import { getErrorMessage, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { getErrorId, getErrorMessage, isNullish, isObject, isServiceException } from '../../shared/utils'
 import { Metric } from '../../shared/telemetry/metric'
 import { QChatTriggerContext, TriggerContext } from './contexts/triggerContext'
 import { HELP_MESSAGE } from './constants'
@@ -58,6 +53,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS } from '../../shared/imageVerification'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -74,8 +70,6 @@ type ChatHandlers = Omit<
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
-    | 'onListMcpServers'
-    | 'onMcpServerClick'
     | 'onRuleClick'
     | 'onListRules'
     | 'sendPinnedContext'
@@ -83,6 +77,9 @@ type ChatHandlers = Omit<
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
+    | 'onListAvailableModels'
+    | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class ChatController implements ChatHandlers {
@@ -93,6 +90,16 @@ export class ChatController implements ChatHandlers {
     #customizationArn?: string
     #telemetryService: TelemetryService
     #serviceManager: AmazonQBaseServiceManager
+
+    #inlineChatRequestStartTime: number = 0
+    #inlineChatResponseLatency: number = 0
+    #inlineChatRequestId?: string
+    #inlineChatLanguage?: string
+    #inlineChatTriggerType: string = 'OnDemand'
+    #inlineChatCredentialStartUrl?: string
+    #inlineChatCustomizationArn?: string
+    #inlineChatResponseLength: number = 0
+    #inlineChatRequestPromptLength: number = 0
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
@@ -164,8 +171,11 @@ export class ChatController implements ChatHandlers {
             response = await session.sendMessage(requestInput)
             this.#log('Response for conversation id:', conversationIdentifier, JSON.stringify(response.$metadata))
         } catch (err) {
-            if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
-                metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
+            if (
+                isServiceException(err) ||
+                (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')
+            ) {
+                metric.setDimension('cwsprChatRepsonseCode', err.$metadata.httpStatusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
             }
 
@@ -261,10 +271,45 @@ export class ChatController implements ChatHandlers {
                 this.#customizationArn
             )
 
+            this.#inlineChatRequestStartTime = Date.now()
+            this.#inlineChatRequestId = undefined
+            this.#inlineChatLanguage = triggerContext.programmingLanguage?.languageName
+            this.#inlineChatTriggerType = ChatTriggerType.MANUAL
+            this.#inlineChatCustomizationArn = this.#customizationArn
+            this.#inlineChatRequestPromptLength = params.prompt?.prompt?.length ?? 0
+
             const client = this.#serviceManager.getStreamingClient()
             response = await client.sendMessage(requestInput)
+
+            this.#inlineChatRequestId = response.$metadata.requestId
+
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
+            this.#log(`Inline Chat Service Invocation Failed: ${err instanceof Error ? err.message : 'unknown'}`)
+
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                result: 'Failed',
+                data: {
+                    codewhispererRequestId: isServiceException(err) ? err.$metadata.requestId : undefined,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Failed',
+                    requestLength: this.#inlineChatRequestPromptLength,
+                    responseLength: 0,
+                    reason: `Inline Chat Invocation Exception: ${err instanceof Error ? err.name : 'UnknownError'}`,
+                },
+                errorData: {
+                    reason: err instanceof Error ? err.name : 'UnknownError',
+                    errorCode: err instanceof Error ? getErrorId(err) : undefined,
+                    httpStatusCode: isServiceException(err) ? err.$metadata.httpStatusCode : undefined,
+                },
+            })
+
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
                 this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
@@ -282,6 +327,22 @@ export class ChatController implements ChatHandlers {
                 metric,
                 params.partialResultToken
             )
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#inlineChatResponseLength = result.data?.chatResult.body?.length ?? 0
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                data: {
+                    codewhispererRequestId: this.#inlineChatRequestId,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Succeeded',
+                    requestLength: this.#inlineChatRequestPromptLength,
+                    responseLength: this.#inlineChatResponseLength,
+                },
+            })
 
             return result.success
                 ? {
@@ -294,6 +355,29 @@ export class ChatController implements ChatHandlers {
                 'Error encountered during inline chat response streaming:',
                 err instanceof Error ? err.message : 'unknown'
             )
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                result: 'Failed',
+                data: {
+                    codewhispererRequestId: this.#inlineChatRequestId,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Failed',
+                    requestLength: this.#inlineChatRequestPromptLength,
+                    responseLength: 0,
+                    reason: `Inline Chat Response Streaming Exception: ${err instanceof Error ? err.name : 'UnknownError'}`,
+                },
+                errorData: {
+                    reason: err instanceof Error ? err.name : 'UnknownError',
+                    errorCode: err instanceof Error ? getErrorId(err) : undefined,
+                    httpStatusCode: isServiceException(err) ? err.$metadata.httpStatusCode : undefined,
+                },
+            })
+
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown error occurred during inline chat response stream'
@@ -596,5 +680,53 @@ export class ChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            try {
+                const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+                const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+
+                const result = await this.#features.lsp.window.showOpenDialog({
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    filters,
+                })
+
+                if (result.uris && result.uris.length > 0) {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: result.uris,
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                } else {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: [],
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                }
+            } catch (error) {
+                this.#log('Error opening file dialog:', error instanceof Error ? error.message : String(error))
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    errorMessage: 'Failed to open file dialog',
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                }
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            errorMessage: 'File type not supported',
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
     }
 }

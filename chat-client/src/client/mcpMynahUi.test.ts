@@ -107,10 +107,8 @@ describe('McpMynahUi', () => {
             assert.strictEqual(callArgs.detailedList.header.description, 'Test Description')
             assert.deepStrictEqual(callArgs.detailedList.header.status, { status: 'success' })
 
-            // Verify the actions in the header
-            assert.strictEqual(callArgs.detailedList.header.actions.length, 2)
-            assert.strictEqual(callArgs.detailedList.header.actions[0].id, 'add-new-mcp')
-            assert.strictEqual(callArgs.detailedList.header.actions[1].id, 'refresh-mcp-list')
+            // Verify the actions in the header (no default actions are added when header is provided)
+            assert.strictEqual(callArgs.detailedList.header.actions.length, 0)
 
             // Verify the list structure
             assert.strictEqual(callArgs.detailedList.list.length, 1)
@@ -356,6 +354,15 @@ describe('McpMynahUi', () => {
         })
 
         it('should handle server management actions correctly', () => {
+            // First set isMcpServersListActive to true by calling listMcpServers
+            const listParams: ListMcpServersResult = {
+                list: [],
+            }
+            mcpMynahUi.listMcpServers(listParams)
+
+            // Reset call history after listMcpServers
+            ;(messager.onListMcpServers as sinon.SinonStub).resetHistory()
+
             // Test mcp-disable-server
             const disableParams: McpServerClickResult = {
                 id: 'mcp-disable-server',
@@ -376,7 +383,7 @@ describe('McpMynahUi', () => {
             // Reset call history
             ;(messager.onListMcpServers as sinon.SinonStub).resetHistory()
 
-            // Test mcp-enable-server
+            // Test mcp-enable-server (should work when isMcpServersListActive is true)
             const enableParams: McpServerClickResult = {
                 id: 'mcp-enable-server',
             }

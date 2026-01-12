@@ -2,7 +2,6 @@ import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './Lan
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as path from 'path'
 import * as fs from 'fs'
-import { FileMetadata } from '../../artifactManager'
 import { resolveSymlink, isDirectory } from '../../util'
 import { DependencyWatcher } from './DependencyWatcher'
 
@@ -79,11 +78,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
             // TODO, check if the try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(pythonDependencyInfo)
-                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap).catch(
-                    error => {
-                        this.logging.warn(`Error processing Python dependencies: ${error}`)
-                    }
-                )
+                this.compareAndUpdateDependencyMap(pythonDependencyInfo.workspaceFolder, generatedDependencyMap)
                 // Log found dependencies
                 this.logging.log(
                     `Total Python dependencies found: ${generatedDependencyMap.size} under ${pythonDependencyInfo.pkgDir}`
@@ -123,12 +118,14 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
                         }
-                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                        const changedDependencyList = this.compareAndUpdateDependencyMap(
                             pythonDependencyInfo.workspaceFolder,
-                            updatedDependencyMap,
-                            true
+                            updatedDependencyMap
                         )
-                        this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
+                        await this.zipAndUploadDependenciesByChunk(
+                            changedDependencyList,
+                            pythonDependencyInfo.workspaceFolder
+                        )
                     } // end of callback function
 
                     const watcher = new DependencyWatcher(

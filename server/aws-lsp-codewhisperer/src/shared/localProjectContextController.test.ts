@@ -68,6 +68,8 @@ describe('LocalProjectContextController', () => {
         })
 
         controller = new LocalProjectContextController('testClient', mockWorkspaceFolders, logging as any)
+        const processWorkspaceFoldersStub = sinon.stub(controller, 'processWorkspaceFolders')
+        processWorkspaceFoldersStub.resolves(['Test.java', 'Main.java'])
     })
 
     afterEach(() => {

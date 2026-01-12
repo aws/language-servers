@@ -1,51 +1,28 @@
-import { CodeWhispererStreaming } from '@aws/codewhisperer-streaming-client'
+import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import {
     Logging,
     Workspace,
     SDKInitializator,
-    SDKClientConstructorV2,
     SDKClientConstructorV3,
     Runtime,
 } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
-import { HttpResponse } from 'aws-sdk'
 import { expect } from 'chai'
 import * as fs from 'fs'
 import got from 'got'
-import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
-import {
-    CancelTransformRequest,
-    CancellationJobStatus,
-    GetTransformPlanRequest,
-    GetTransformRequest,
-    StartTransformRequest,
-} from '../models'
+import { CancelTransformRequest, CancellationJobStatus, GetTransformPlanRequest, GetTransformRequest } from '../models'
 import { TransformHandler } from '../transformHandler'
-import { EXAMPLE_REQUEST } from './mockData'
 import sinon = require('sinon')
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
-import { Service } from 'aws-sdk'
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 import { Readable } from 'stream'
 import { ArtifactManager } from '../artifactManager'
 import path = require('path')
 import { IZipEntry } from 'adm-zip'
 import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
-const mocked$Response = {
-    $response: {
-        hasNextPage: simon.mock(),
-        nextPage: simon.mock(),
-        data: undefined,
-        error: undefined,
-        requestId: '',
-        redirectCount: 0,
-        retryCount: 0,
-        httpResponse: new HttpResponse(),
-    },
-}
 const testUploadId = 'test-upoload-id'
 const testTransformId = 'test-transform-id'
 const payloadFileName = 'C:\\test.zip'
@@ -81,7 +58,6 @@ describe('Test Transform handler ', () => {
                     uploadId: testUploadId,
                     uploadUrl: 'dummy-upload-url',
                     kmsKeyArn: 'ResourceArn',
-                    ...mocked$Response,
                 },
                 'dummy-256'
             )
@@ -103,7 +79,6 @@ describe('Test Transform handler ', () => {
                         uploadId: testUploadId,
                         uploadUrl: 'dummy-upload-url',
                         kmsKeyArn: 'ResourceArn',
-                        ...mocked$Response,
                     },
                     'dummy-256'
                 )
@@ -127,7 +102,7 @@ describe('Test Transform handler ', () => {
                 uploadId: testUploadId,
                 uploadUrl: 'dummy-upload-url',
                 kmsKeyArn: 'ResourceArn',
-                ...mocked$Response,
+                $metadata: {},
             })
         })
 
@@ -201,7 +176,7 @@ describe('Test Transform handler ', () => {
             client.codeModernizerStopCodeTransformation.returns(
                 Promise.resolve({
                     transformationStatus: 'STOPPED',
-                    ...mocked$Response,
+                    $metadata: {},
                 })
             )
         })
@@ -218,7 +193,7 @@ describe('Test Transform handler ', () => {
             client.codeModernizerStopCodeTransformation.returns(
                 Promise.resolve({
                     transformationStatus: 'COMPLETED',
-                    ...mocked$Response,
+                    $metadata: {},
                 })
             )
 
@@ -235,14 +210,7 @@ describe('Test Transform handler ', () => {
 
     const mockSdkInitializator: SDKInitializator = Object.assign(
         // Default callable function for v3 clients
-        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config }),
-        // Property for v2 clients
-        {
-            v2: <T extends Service, P extends ServiceConfigurationOptions>(
-                Ctor: SDKClientConstructorV2<T, P>,
-                current_config: P
-            ): T => new Ctor({ ...current_config }),
-        }
+        <T, P>(Ctor: SDKClientConstructorV3<T, P>, current_config: P): T => new Ctor({ ...current_config })
     )
 
     describe('StreamingClient', () => {
@@ -280,9 +248,8 @@ describe('Test Transform handler ', () => {
                     transformationJob: {
                         jobId: testTransformId,
                         status: 'COMPLETED',
-                        ...mocked$Response,
                     },
-                    ...mocked$Response,
+                    $metadata: {},
                 })
             )
         })
@@ -304,9 +271,8 @@ describe('Test Transform handler ', () => {
                     transformationJob: {
                         jobId: testTransformId,
                         status: 'FAILED',
-                        ...mocked$Response,
                     },
-                    ...mocked$Response,
+                    $metadata: {},
                 })
             )
         })
@@ -356,9 +322,9 @@ describe('Test Transform handler ', () => {
             const request = JSON.parse(requestString) as GetTransformPlanRequest
             const res = await transformHandler.getTransformationPlan(request)
 
-            expect(res.TransformationPlan.transformationSteps[0].status).to.equal('COMPLETED')
-            expect(res.TransformationPlan.transformationSteps[0].name).to.equal('PlanStepName 1')
-            if (res.TransformationPlan.transformationSteps[0].progressUpdates) {
+            expect(res.TransformationPlan.transformationSteps?.[0].status).to.equal('COMPLETED')
+            expect(res.TransformationPlan.transformationSteps?.[0].name).to.equal('PlanStepName 1')
+            if (res.TransformationPlan.transformationSteps?.[0].progressUpdates) {
                 expect(res.TransformationPlan.transformationSteps[0].progressUpdates[0].name).to.equal(
                     'ProgressUpdateName 1 for PlanStep 1'
                 )

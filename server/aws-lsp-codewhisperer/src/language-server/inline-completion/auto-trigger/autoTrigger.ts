@@ -1,5 +1,9 @@
+import * as os from 'os'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
+import { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument'
+import { lastTokenFromString } from '../utils/triggerUtils'
 
 type TypedCoefficients = typeof typedCoefficients
 type Coefficients = TypedCoefficients & {
@@ -29,7 +33,7 @@ export type CodewhispererTriggerType = 'AutoTrigger' | 'OnDemand'
 
 // Two triggers are explicitly handled, SpecialCharacters and Enter. Everything else is expected to be a trigger
 // based on regular typing, and is considered a 'Classifier' trigger.
-export type CodewhispererAutomatedTriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier'
+export type CodewhispererAutomatedTriggerType = 'SpecialCharacters' | 'Enter' | 'Classifier' | 'IntelliSenseAcceptance'
 
 /**
  * Determine the trigger type based on the file context. Currently supports special cases for Special Characters and Enter keys,
@@ -60,6 +64,114 @@ export const triggerType = (fileContext: FileContext): CodewhispererAutomatedTri
     return 'Classifier'
 }
 
+// Enter key should always start with ONE '\n' or '\r\n' and potentially following spaces due to IDE reformat
+function isEnterKey(str: string): boolean {
+    if (str.length === 0) {
+        return false
+    }
+    return (
+        (str.startsWith('\r\n') && str.substring(2).trim() === '') ||
+        (str[0] === '\n' && str.substring(1).trim() === '')
+    )
+}
+
+function isSingleLine(str: string): boolean {
+    let newLineCounts = 0
+    for (const ch of str) {
+        if (ch === '\n') {
+            newLineCounts += 1
+        }
+    }
+
+    // since pressing Enter key possibly will generate string like '\n        ' due to indention
+    if (isEnterKey(str)) {
+        return true
+    }
+    if (newLineCounts >= 1) {
+        return false
+    }
+    return true
+}
+
+function isUserTypingSpecialChar(str: string): boolean {
+    return ['(', '()', '[', '[]', '{', '{}', ':'].includes(str)
+}
+
+function isTabKey(str: string): boolean {
+    const tabSize = 4 // TODO: Use IDE real tab size
+    if (str.length % tabSize === 0 && str.trim() === '') {
+        return true
+    }
+    return false
+}
+
+function isIntelliSenseAcceptance(str: string) {
+    return str === 'IntelliSenseAcceptance'
+}
+
+// Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L222
+// Enter, Special character guarantees a trigger
+// Regular keystroke input will be evaluated by classifier
+export const getAutoTriggerType = (
+    contentChanges: TextDocumentContentChangeEvent[]
+): CodewhispererAutomatedTriggerType | undefined => {
+    if (contentChanges.length < 1 || contentChanges.length > 2) {
+        // Won't trigger cwspr on multi-line changes
+        // event.contentChanges.length will be 2 when user press Enter key multiple times
+        // in certain cases, first contentChange item is valid, 2nd is empty string
+        return undefined
+    }
+    const changedText = contentChanges[0].text
+    if (isSingleLine(changedText)) {
+        if (changedText.length === 0) {
+            return undefined
+        } else if (isEnterKey(changedText)) {
+            return 'Enter'
+        } else if (isTabKey(changedText)) {
+            return undefined
+        } else if (isUserTypingSpecialChar(changedText)) {
+            return 'SpecialCharacters'
+        } else if (isIntelliSenseAcceptance(changedText)) {
+            return 'IntelliSenseAcceptance'
+        } else if (changedText.length === 1) {
+            return 'Classifier'
+        } else if (new RegExp('^[ ]+$').test(changedText)) {
+            // single line && single place reformat should consist of space chars only
+            return undefined
+        }
+    }
+    return undefined
+}
+// reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L579
+export function getNormalizeOsName(): string {
+    const name = os.platform()
+    const version = os.version()
+    const lowercaseName = name.toLowerCase()
+    if (lowercaseName.includes('windows')) {
+        if (!version) {
+            return 'Windows'
+        } else if (version.includes('Windows NT 10') || version.startsWith('10')) {
+            return 'Windows 10'
+        } else if (version.includes('6.1')) {
+            return 'Windows 7'
+        } else if (version.includes('6.3')) {
+            return 'Windows 8.1'
+        } else {
+            return 'Windows'
+        }
+    } else if (
+        lowercaseName.includes('macos') ||
+        lowercaseName.includes('mac os') ||
+        lowercaseName.includes('darwin')
+    ) {
+        return 'Mac OS X'
+    } else if (lowercaseName.includes('linux')) {
+        return 'Linux'
+    } else {
+        return name
+    }
+}
+
 // Normalize values based on minn and maxx values in the coefficients.
 const normalize = (val: number, field: keyof typeof typedCoefficients.minn & keyof typeof typedCoefficients.maxx) =>
     (val - typedCoefficients.minn[field]) / (typedCoefficients.maxx[field] - typedCoefficients.minn[field])
@@ -72,7 +184,7 @@ type AutoTriggerParams = {
     char: string
     triggerType: string // Left as String intentionally to support future and unknown trigger types
     os: string
-    previousDecision: string
+    previousDecision: string | undefined
     ide: string
     lineNum: number
 }
@@ -83,23 +195,36 @@ type AutoTriggerParams = {
  * and previous recommendation decisions from the user to determine whether a new recommendation
  * should be shown. The auto-trigger is not stateful and does not keep track of past invocations.
  */
-export const autoTrigger = ({
-    fileContext,
-    char,
-    triggerType,
-    os,
-    previousDecision,
-    ide,
-    lineNum,
-}: AutoTriggerParams): {
+export const autoTrigger = (
+    { fileContext, char, triggerType, os, previousDecision, ide, lineNum }: AutoTriggerParams,
+    logging: Logging
+): {
     shouldTrigger: boolean
     classifierResult: number
     classifierThreshold: number
 } => {
     const leftContextLines = fileContext.leftFileContent.split(/\r?\n/)
     const leftContextAtCurrentLine = leftContextLines[leftContextLines.length - 1]
-    const tokens = leftContextAtCurrentLine.trim().split(' ')
-    const lastToken = tokens[tokens.length - 1]
+    const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
+    const rightContextAtCurrentLine = rightContextLines[0]
+    // reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L102
+    // we do not want to trigger when there is immediate right context on the same line
+    // with "}" being an exception because of IDE auto-complete
+    // this was from product spec for VSC and JB
+    if (
+        rightContextAtCurrentLine.length &&
+        !rightContextAtCurrentLine.startsWith(' ') &&
+        rightContextAtCurrentLine.trim() !== '}' &&
+        rightContextAtCurrentLine.trim() !== ')' &&
+        ['VSCODE', 'JETBRAINS'].includes(ide)
+    ) {
+        return {
+            shouldTrigger: false,
+            classifierResult: 0,
+            classifierThreshold: TRIGGER_THRESHOLD,
+        }
+    }
+    const lastToken = lastTokenFromString(fileContext.leftFileContent)
 
     const keyword = lastToken?.length > 1 ? lastToken : ''
 
@@ -109,18 +234,27 @@ export const autoTrigger = ({
 
     const triggerTypeCoefficient = coefficients.triggerTypeCoefficient[triggerType] ?? 0
     const osCoefficient = coefficients.osCoefficient[os] ?? 0
+
     const charCoefficient = coefficients.charCoefficient[char] ?? 0
+
     const keyWordCoefficient = coefficients.charCoefficient[keyword] ?? 0
 
     const languageCoefficient = coefficients.languageCoefficient[fileContext.programmingLanguage.languageName] ?? 0
 
     let previousDecisionCoefficient = 0
-    if (previousDecision === 'Accept') {
-        previousDecisionCoefficient = coefficients.prevDecisionAcceptCoefficient
-    } else if (previousDecision === 'Reject') {
-        previousDecisionCoefficient = coefficients.prevDecisionRejectCoefficient
-    } else if (previousDecision === 'Discard' || previousDecision === 'Empty') {
-        previousDecisionCoefficient = coefficients.prevDecisionOtherCoefficient
+    switch (previousDecision) {
+        case 'Accept':
+            previousDecisionCoefficient = coefficients.prevDecisionAcceptCoefficient
+            break
+        case 'Reject':
+            previousDecisionCoefficient = coefficients.prevDecisionRejectCoefficient
+            break
+        case 'Discard':
+        case 'Empty':
+            previousDecisionCoefficient = coefficients.prevDecisionOtherCoefficient
+            break
+        default:
+            break
     }
 
     const ideCoefficient = coefficients.ideCoefficient[ide] ?? 0
@@ -155,11 +289,12 @@ export const autoTrigger = ({
         languageCoefficient +
         leftContextLengthCoefficient
 
-    const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
+    const r = sigmoid(classifierResult)
+    const shouldTrigger = r > TRIGGER_THRESHOLD
 
     return {
         shouldTrigger,
-        classifierResult,
+        classifierResult: r,
         classifierThreshold: TRIGGER_THRESHOLD,
     }
 }

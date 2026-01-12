@@ -1,11 +1,10 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'
-import { StreamingClientServiceBase } from './streamingClientService'
 import { SessionData } from '../language-server/inline-completion/session/sessionManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
+import { SsoConnectionType } from '@aws/language-server-runtimes/server-interface'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -139,6 +138,18 @@ export const EXPECTED_RESULT = {
     partialResultToken: undefined,
 }
 
+export const EXPECTED_RESULT_EDITS = {
+    sessionId: EXPECTED_SESSION_ID,
+    items: [
+        {
+            itemId: EXPECTED_SUGGESTION[0].itemId,
+            insertText: EXPECTED_SUGGESTION[0].content,
+            isInlineEdit: true,
+        },
+    ],
+    partialResultToken: undefined,
+}
+
 export const EXPECTED_NEXT_TOKEN = 'randomNextToken'
 
 export const EXPECTED_REFERENCE = {
@@ -232,6 +243,7 @@ export const EMPTY_RESULT = { items: [], sessionId: '' }
 
 export const SAMPLE_SESSION_DATA: SessionData = {
     document: SOME_FILE,
+    startPreprocessTimestamp: 0,
     startPosition: {
         line: 0,
         character: 0,
@@ -284,6 +296,7 @@ export function shuffleList<T>(list: T[]): T[] {
 export const setCredentialsForAmazonQTokenServiceManagerFactory = (getFeatures: () => TestFeatures) => {
     return (connectionType: SsoConnectionType) => {
         const features = getFeatures()
+        features.credentialsProvider = stubInterface()
         features.credentialsProvider.hasCredentials.returns(true)
         features.credentialsProvider.getConnectionType.returns(connectionType)
         features.credentialsProvider.getCredentials.returns({

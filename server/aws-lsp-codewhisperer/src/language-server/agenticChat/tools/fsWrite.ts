@@ -1,6 +1,9 @@
 import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAcceptance } from './toolShared'
+import { EmptyPathError, MissingContentError, FileExistsWithSameContentError, EmptyAppendContentError } from '../errors'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 interface BaseParams extends ExplanatoryParams {
     path: string
@@ -36,26 +39,26 @@ export class FsWrite {
 
     public async validate(params: FsWriteParams): Promise<void> {
         if (!params.path) {
-            throw new Error('Path must not be empty')
+            throw new EmptyPathError()
         }
         const sanitizedPath = sanitize(params.path)
         switch (params.command) {
             case 'create': {
                 if (params.fileText === undefined) {
-                    throw new Error('fileText must be provided for create command')
+                    throw new MissingContentError()
                 }
                 const fileExists = await this.workspace.fs.exists(sanitizedPath)
                 if (fileExists) {
                     const oldContent = await this.workspace.fs.readFile(sanitizedPath)
                     if (oldContent === params.fileText) {
-                        throw new Error('The file already exists with the same content')
+                        throw new FileExistsWithSameContentError()
                     }
                 }
                 break
             }
             case 'append':
                 if (!params.fileText) {
-                    throw new Error('Content to append must not be empty')
+                    throw new EmptyAppendContentError()
                 }
                 break
         }
@@ -98,6 +101,12 @@ export class FsWrite {
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
         const content = params.fileText
         await this.workspace.fs.writeFile(sanitizedPath, content)
+
+        // Add created file to @Files list
+        void LocalProjectContextController.getInstance().then(controller => {
+            const filePath = URI.file(sanitizedPath).fsPath
+            return controller.updateIndexAndContextCommand([filePath], true)
+        })
     }
 
     private async handleAppend(params: AppendParams, sanitizedPath: string): Promise<void> {

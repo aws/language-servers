@@ -9,7 +9,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from '../../language-server/inline-completion/codeWhispererServer'
-import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../codeWhispererService'
+import { CodeWhispererServiceBase, ResponseContext, Suggestion, SuggestionType } from '../codeWhispererService'
 import { TelemetryService } from './telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 
@@ -50,6 +50,7 @@ class HelloWorld
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -92,7 +93,7 @@ class HelloWorld
             await features.doChangeTextDocument({
                 textDocument: { uri: SOME_FILE.uri, version: updatedDocument.version },
                 contentChanges: [
-                    { range: { start: endPosition, end: endPosition }, text: EXPECTED_SUGGESTION[0].content },
+                    { range: { start: endPosition, end: endPosition }, text: EXPECTED_SUGGESTION[0].content! },
                 ],
             })
 
@@ -105,10 +106,11 @@ class HelloWorld
                         discarded: false,
                     },
                 },
+                isInlineEdit: false,
             })
 
-            const totalInsertCharacters = SOME_TYPING.length + EXPECTED_SUGGESTION[0].content.length
-            const codeWhispererCharacters = EXPECTED_SUGGESTION[0].content.length
+            const totalInsertCharacters = SOME_TYPING.length + EXPECTED_SUGGESTION[0].content!.length
+            const codeWhispererCharacters = EXPECTED_SUGGESTION[0].content!.length
             const codePercentage = Math.round((codeWhispererCharacters / totalInsertCharacters) * 10000) / 100
 
             clock.tick(5000 * 60)

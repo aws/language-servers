@@ -1,5 +1,89 @@
 # Changelog
 
+## [0.0.20](https://github.com/aws/language-servers/compare/lsp-core/v0.0.19...lsp-core/v0.0.20) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+## [0.0.19](https://github.com/aws/language-servers/compare/lsp-core/v0.0.18...lsp-core/v0.0.19) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+
+## [0.0.18](https://github.com/aws/language-servers/compare/lsp-core/v0.0.17...lsp-core/v0.0.18) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+## [0.0.17](https://github.com/aws/language-servers/compare/lsp-core/v0.0.16...lsp-core/v0.0.17) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+## [0.0.16](https://github.com/aws/language-servers/compare/lsp-core/v0.0.15...lsp-core/v0.0.16) (2025-10-01)
+
+
+### Bug Fixes
+
+* **amazonq:** Fix mock fs clean; Node version upgrade ([#2324](https://github.com/aws/language-servers/issues/2324)) ([1d9afd4](https://github.com/aws/language-servers/commit/1d9afd410e19624223e300ca06ea7d08a112cc82))
+* **amazonq:** handle IAM credentials expiration field to be aws sdk versions compatible and add refresh logic to codewhisperer IAM client ([#2349](https://github.com/aws/language-servers/issues/2349)) ([5eb3768](https://github.com/aws/language-servers/commit/5eb3768bf020d61d0ade767d62e13839048146e4))
+
+## [0.0.15](https://github.com/aws/language-servers/compare/lsp-core/v0.0.14...lsp-core/v0.0.15) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+## [0.0.14](https://github.com/aws/language-servers/compare/lsp-core/v0.0.13...lsp-core/v0.0.14) (2025-08-19)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+
+
+### Bug Fixes
+
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+## [0.0.13](https://github.com/aws/language-servers/compare/lsp-core/v0.0.12...lsp-core/v0.0.13) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+## [0.0.12](https://github.com/aws/language-servers/compare/lsp-core/v0.0.11...lsp-core/v0.0.12) (2025-07-17)
+
+
+### Bug Fixes
+
+* add proper encoding support for shell output ([#1903](https://github.com/aws/language-servers/issues/1903)) ([44a6d62](https://github.com/aws/language-servers/commit/44a6d629af7702662a02f384a6a542c0d72ccc39))
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+## [0.0.11](https://github.com/aws/language-servers/compare/lsp-core/v0.0.10...lsp-core/v0.0.11) (2025-07-02)
+
+
+### Bug Fixes
+
+* **amazonq:** add handling for relative paths for isInWorkspace ([#1801](https://github.com/aws/language-servers/issues/1801)) ([3c273a7](https://github.com/aws/language-servers/commit/3c273a7aeac88a7afe40abaf490bc0950e517c01))
+
+## [0.0.10](https://github.com/aws/language-servers/compare/lsp-core/v0.0.9...lsp-core/v0.0.10) (2025-06-23)
+
+
+### Bug Fixes
+
+* **amazonq:** workspace files being tagged as out of workspace issue ([#1726](https://github.com/aws/language-servers/issues/1726)) ([4bd9aea](https://github.com/aws/language-servers/commit/4bd9aeab439d15dc425634b14470fd3c67986c4a))
+
 ## [0.0.9](https://github.com/aws/language-servers/compare/lsp-core/v0.0.8...lsp-core/v0.0.9) (2025-05-22)
 
 

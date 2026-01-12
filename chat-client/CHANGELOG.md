@@ -1,5 +1,282 @@
 # Changelog
 
+## [0.1.46](https://github.com/aws/language-servers/compare/chat-client/v0.1.45...chat-client/v0.1.46) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+## [0.1.45](https://github.com/aws/language-servers/compare/chat-client/v0.1.44...chat-client/v0.1.45) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+* fix for mcp servers refresh ([#2550](https://github.com/aws/language-servers/issues/2550)) ([cd75394](https://github.com/aws/language-servers/commit/cd753948c3b3b9b07b626fc41391bd91b55a0d39))
+
+## [0.1.44](https://github.com/aws/language-servers/compare/chat-client/v0.1.43...chat-client/v0.1.44) (2025-12-08)
+
+
+### Features
+
+* use dynamic token limits from listAvailableModels API ([#2539](https://github.com/aws/language-servers/issues/2539)) ([f87ac9f](https://github.com/aws/language-servers/commit/f87ac9fce32d235649f81957b71d424264aae9c8))
+
+## [0.1.43](https://github.com/aws/language-servers/compare/chat-client/v0.1.42...chat-client/v0.1.43) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+## [0.1.42](https://github.com/aws/language-servers/compare/chat-client/v0.1.41...chat-client/v0.1.42) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+## [0.1.41](https://github.com/aws/language-servers/compare/chat-client/v0.1.40...chat-client/v0.1.41) (2025-11-04)
+
+
+### Bug Fixes
+
+* **amazonq:** mcp tool panel blocks amazon q chat interface when using right-click context menu ([#2442](https://github.com/aws/language-servers/issues/2442)) ([11900ca](https://github.com/aws/language-servers/commit/11900ca371adee2611698427dbec7c9323ef8e01))
+
+## [0.1.40](https://github.com/aws/language-servers/compare/chat-client/v0.1.39...chat-client/v0.1.40) (2025-10-21)
+
+
+### Features
+
+* send pinned context button immediately with pending state  ([#2353](https://github.com/aws/language-servers/issues/2353)) ([bee5cad](https://github.com/aws/language-servers/commit/bee5cadeaf8840a8af08acfe8b58442aac7ad567))
+
+## [0.1.39](https://github.com/aws/language-servers/compare/chat-client/v0.1.38...chat-client/v0.1.39) (2025-10-09)
+
+
+### Features
+
+* add model description to dropdown ([#2374](https://github.com/aws/language-servers/issues/2374)) ([ed8c6dd](https://github.com/aws/language-servers/commit/ed8c6dda1312f728e9ee7472f7ca447196ad9d84))
+
+## [0.1.38](https://github.com/aws/language-servers/compare/chat-client/v0.1.37...chat-client/v0.1.38) (2025-10-01)
+
+
+### Bug Fixes
+
+* **amazonq:** Fix mock fs clean; Node version upgrade ([#2324](https://github.com/aws/language-servers/issues/2324)) ([1d9afd4](https://github.com/aws/language-servers/commit/1d9afd410e19624223e300ca06ea7d08a112cc82))
+* optimize memory bank token usage and add new tab support ([#2366](https://github.com/aws/language-servers/issues/2366)) ([3057d56](https://github.com/aws/language-servers/commit/3057d56e4a3047d1715d6e3560e9f934d1de469c))
+
+## [0.1.37](https://github.com/aws/language-servers/compare/chat-client/v0.1.36...chat-client/v0.1.37) (2025-09-24)
+
+
+### Features
+
+* memory bank support ([#2314](https://github.com/aws/language-servers/issues/2314)) ([0e215fc](https://github.com/aws/language-servers/commit/0e215fc0e475b4c40a8237492371716982d4d532))
+
+## [0.1.36](https://github.com/aws/language-servers/compare/chat-client/v0.1.35...chat-client/v0.1.36) (2025-09-16)
+
+
+### Bug Fixes
+
+* migration from /agents ux ([#2248](https://github.com/aws/language-servers/issues/2248)) ([debeb41](https://github.com/aws/language-servers/commit/debeb414fd0d4d873af2f36cde0ebbeab16d16a4))
+
+## [0.1.35](https://github.com/aws/language-servers/compare/chat-client/v0.1.34...chat-client/v0.1.35) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+* **amazonq:** default to diff-based scans ([#2195](https://github.com/aws/language-servers/issues/2195)) ([da4c3db](https://github.com/aws/language-servers/commit/da4c3db5329bd50cfe249bf8c1d59afa9bcb0157))
+
+## [0.1.34](https://github.com/aws/language-servers/compare/chat-client/v0.1.33...chat-client/v0.1.34) (2025-08-27)
+
+
+### Features
+
+* Auto fetch models from listAvailableModels API ([#2171](https://github.com/aws/language-servers/issues/2171)) ([8600c52](https://github.com/aws/language-servers/commit/8600c524877abb459e9338399352446c0dcff6f0))
+
+
+### Bug Fixes
+
+* **amazonq:** disable typewriter animation ([#2160](https://github.com/aws/language-servers/issues/2160)) ([db45d01](https://github.com/aws/language-servers/commit/db45d01adba10e8a04d868e1062f899df4f5b7e4))
+
+## [0.1.33](https://github.com/aws/language-servers/compare/chat-client/v0.1.32...chat-client/v0.1.33) (2025-08-19)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+* **amazonq:** read tool ui revamp ([#2113](https://github.com/aws/language-servers/issues/2113)) ([#2121](https://github.com/aws/language-servers/issues/2121)) ([93cf229](https://github.com/aws/language-servers/commit/93cf229149ba60491f9f5763793db4a9f570b611))
+
+
+### Bug Fixes
+
+* fix for button text and remove profilearn caching ([#2137](https://github.com/aws/language-servers/issues/2137)) ([2a4171a](https://github.com/aws/language-servers/commit/2a4171a74c15c23c23c481060496162bcc9e6284))
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+## [0.1.32](https://github.com/aws/language-servers/compare/chat-client/v0.1.31...chat-client/v0.1.32) (2025-08-11)
+
+
+### Features
+
+* **amazonq:** read tool ui revamp ([c65428b](https://github.com/aws/language-servers/commit/c65428bab2cf5e47badf1e3a9453babcf881e60c))
+
+## [0.1.31](https://github.com/aws/language-servers/compare/chat-client/v0.1.30...chat-client/v0.1.31) (2025-08-06)
+
+
+### Features
+
+* **amazonq:** add two more tips for the did you know section ([#2063](https://github.com/aws/language-servers/issues/2063)) ([9949c6d](https://github.com/aws/language-servers/commit/9949c6dd81c56b5ea82563310da2eaee4d00a059))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+
+## [0.1.30](https://github.com/aws/language-servers/compare/chat-client/v0.1.29...chat-client/v0.1.30) (2025-08-04)
+
+
+### Features
+
+* support http transport without authorization for MCP ([97e806c](https://github.com/aws/language-servers/commit/97e806ce7ea5e5be1fd60c4a4d9a54cf76c8f8cb))
+
+
+### Bug Fixes
+
+* **amazonq:** fix the issue that invalid image notification always show ([#2007](https://github.com/aws/language-servers/issues/2007)) ([ceed762](https://github.com/aws/language-servers/commit/ceed762ace5f94cb0e0a7978eb6c4894bc11ce42))
+* **amazonq:** improve cross theme support ([#2036](https://github.com/aws/language-servers/issues/2036)) ([002a255](https://github.com/aws/language-servers/commit/002a255c28ea07ca6623dbd074101cbc6082ceb8))
+* **amazonq:** improve welcome screen and enable tips ([#2035](https://github.com/aws/language-servers/issues/2035)) ([ac00b94](https://github.com/aws/language-servers/commit/ac00b94df45c2bba0666423c937757fad4db95cc))
+* **amazonq:** refactor the welcome screen to make it look better ([#2027](https://github.com/aws/language-servers/issues/2027)) ([1f7c608](https://github.com/aws/language-servers/commit/1f7c608ba2f89c8b0675e62451e27d2dc547613c))
+* enable test flag for amazon q ui testing ([#2046](https://github.com/aws/language-servers/issues/2046)) ([f18ea96](https://github.com/aws/language-servers/commit/f18ea96c1e5cd9b93974a047d7f2bb1aba0d9436))
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+## [0.1.29](https://github.com/aws/language-servers/compare/chat-client/v0.1.28...chat-client/v0.1.29) (2025-07-29)
+
+
+### Features
+
+* **amazonq:** redirect /review, rename CodeReview tool, emit metrics, modify prompts ([#1964](https://github.com/aws/language-servers/issues/1964)) ([ad8e2db](https://github.com/aws/language-servers/commit/ad8e2db77e34f369fef9af71cdda2d3522f555c6))
+* **amazonq:** revert auto-approve ([#2002](https://github.com/aws/language-servers/issues/2002)) ([c8181f7](https://github.com/aws/language-servers/commit/c8181f7a1de224dfcc7a77cd0bfc905fa1018372))
+
+## [0.1.28](https://github.com/aws/language-servers/compare/chat-client/v0.1.27...chat-client/v0.1.28) (2025-07-23)
+
+
+### Bug Fixes
+
+* **amazonq:** revert commit f17b631d9e06371a11ef8e9cb1413762fb51a143 ([#1965](https://github.com/aws/language-servers/issues/1965)) ([8c2cab6](https://github.com/aws/language-servers/commit/8c2cab6995922c96030b5bbdf3cbbdef7eadd7c2))
+
+## [0.1.27](https://github.com/aws/language-servers/compare/chat-client/v0.1.26...chat-client/v0.1.27) (2025-07-22)
+
+
+### Features
+
+* **amazonq:** enable show logs feature ([#1947](https://github.com/aws/language-servers/issues/1947)) ([86ea83d](https://github.com/aws/language-servers/commit/86ea83dd53b447f6decccf16559b76f4989ea712))
+
+## [0.1.26](https://github.com/aws/language-servers/compare/chat-client/v0.1.25...chat-client/v0.1.26) (2025-07-22)
+
+
+### Features
+
+* **chat-client:** add auto-approve (trust mode) for built-in tools ([#1949](https://github.com/aws/language-servers/issues/1949)) ([f17b631](https://github.com/aws/language-servers/commit/f17b631d9e06371a11ef8e9cb1413762fb51a143))
+* **chat-client:** add shortcut for stop/reject/run commands ([#1932](https://github.com/aws/language-servers/issues/1932)) ([087f338](https://github.com/aws/language-servers/commit/087f3387ba736e92d014274e195f7ef76e377f1e))
+
+
+### Bug Fixes
+
+* **amazonq:** fix for mcp server unnecessary refresh from file watchers ([#1933](https://github.com/aws/language-servers/issues/1933)) ([208909b](https://github.com/aws/language-servers/commit/208909b55ecda40ff8d412b2b3be890eccee70bc))
+* **amazonq:** update mcp and persona config to agent config ([#1897](https://github.com/aws/language-servers/issues/1897)) ([530977f](https://github.com/aws/language-servers/commit/530977f8c73c7946a0205f02014248d71b4b1fe0))
+* replace cancel with stop ([#1935](https://github.com/aws/language-servers/issues/1935)) ([2f51923](https://github.com/aws/language-servers/commit/2f51923f9d3497469c70162235482b569e2d796e))
+
+## [0.1.25](https://github.com/aws/language-servers/compare/chat-client/v0.1.24...chat-client/v0.1.25) (2025-07-17)
+
+
+### Features
+
+* add conversation compaction ([#1895](https://github.com/aws/language-servers/issues/1895)) ([8bb7144](https://github.com/aws/language-servers/commit/8bb7144e45cfce6cc9337fd49de7edbee61105b8))
+
+
+### Bug Fixes
+
+* **amazonq:** change to use promptStickyCard to show image verification notification ([#1904](https://github.com/aws/language-servers/issues/1904)) ([caaefef](https://github.com/aws/language-servers/commit/caaefef2c9b2af66840ec2f7ccabe9bf937c2983))
+* remove disclaimer message ([#1884](https://github.com/aws/language-servers/issues/1884)) ([0845eed](https://github.com/aws/language-servers/commit/0845eeda8d73ed1df3b8801e79dad1ddd7016781))
+* replace thinking with working and replace stop with cancel ([#1922](https://github.com/aws/language-servers/issues/1922)) ([371e731](https://github.com/aws/language-servers/commit/371e731545f7572d3356d061cd8b94db35e4c333))
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+## [0.1.24](https://github.com/aws/language-servers/compare/chat-client/v0.1.23...chat-client/v0.1.24) (2025-07-15)
+
+
+### Features
+
+* **chat-client:** add built-in tool permission and enable auto-approve ([#1890](https://github.com/aws/language-servers/issues/1890)) ([03b59c8](https://github.com/aws/language-servers/commit/03b59c8fba58db0f6b6c387cf5d53227c3f54673))
+* **chat-client:** handle keyboard shortcut for run/reject/stop shell commands and tooltips ([#1885](https://github.com/aws/language-servers/issues/1885)) ([f8e9461](https://github.com/aws/language-servers/commit/f8e94615b5ce8a3f4bf8837627fa4816a09cbef2))
+
+
+### Bug Fixes
+
+* **chat-client:** revert for add built-in tool permission and enable auto-approve ([#1890](https://github.com/aws/language-servers/issues/1890)) ([#1900](https://github.com/aws/language-servers/issues/1900)) ([34b41b8](https://github.com/aws/language-servers/commit/34b41b8f87c21d2ee6b98643339dbdfa71efcb77))
+* **chat-client:** revert for amazon q keyboard shortcuts feature ([#1901](https://github.com/aws/language-servers/issues/1901)) ([522f8de](https://github.com/aws/language-servers/commit/522f8de6dba8dfa9b4363934cd7fcea905add1ce))
+* validate Create Prompt & Create Rule prompts input onChange ([#1854](https://github.com/aws/language-servers/issues/1854)) ([ee215c4](https://github.com/aws/language-servers/commit/ee215c4bc652a54556d31e64f86ed5179d174b4b))
+
+## [0.1.23](https://github.com/aws/language-servers/compare/chat-client/v0.1.22...chat-client/v0.1.23) (2025-07-08)
+
+
+### Features
+
+* **chat-client:** add stringOverrides to createChat config ([#1847](https://github.com/aws/language-servers/issues/1847)) ([89f85ff](https://github.com/aws/language-servers/commit/89f85ff6c676eb30d2cb6bc3368676b0d0913bac))
+* support listAvailableModels server request ([#1808](https://github.com/aws/language-servers/issues/1808)) ([9f1ddb3](https://github.com/aws/language-servers/commit/9f1ddb327778dba6da49337b79c5fef19023b52d))
+
+
+### Bug Fixes
+
+* **amazonq:** allow taking .jpg file as image context, add image cont… ([#1814](https://github.com/aws/language-servers/issues/1814)) ([4d36fa4](https://github.com/aws/language-servers/commit/4d36fa4a0a04692dba720bc0288c6cee7f45a1fc))
+* **amazonq:** use config to render the overlay ([#1851](https://github.com/aws/language-servers/issues/1851)) ([f5c2038](https://github.com/aws/language-servers/commit/f5c2038c090f9bb66b3cbd7e31f4d26c37943aeb))
+* image context drag and drop fix on windows ([#1837](https://github.com/aws/language-servers/issues/1837)) ([14df236](https://github.com/aws/language-servers/commit/14df23633138d9b84875fba79a3eaf2d18dca8ce))
+* imagecontext image name bug, mutliple images in pinned context ([#1834](https://github.com/aws/language-servers/issues/1834)) ([27d60ab](https://github.com/aws/language-servers/commit/27d60ab5f5249635a9e73be1ee96ecb820133f9a))
+
+## [0.1.22](https://github.com/aws/language-servers/compare/chat-client/v0.1.21...chat-client/v0.1.22) (2025-07-02)
+
+
+### Features
+
+* **amazonq:** migrating / agents to q agentic chat ([#1799](https://github.com/aws/language-servers/issues/1799)) ([559b2ba](https://github.com/aws/language-servers/commit/559b2baec7da7b8fffb697990e3b249ffffcb85c))
+* **amazonq:** read and validate the images as context ([#1716](https://github.com/aws/language-servers/issues/1716)) ([7a5d41f](https://github.com/aws/language-servers/commit/7a5d41f3cff7309d04d952fbb5dc063fb8658a06))
+
+
+### Bug Fixes
+
+* **amazonq:** add slight delay to print chat string after card ([#1800](https://github.com/aws/language-servers/issues/1800)) ([c7d08ab](https://github.com/aws/language-servers/commit/c7d08abd7cac95b5aad83fe93157a815522338ac))
+
+## [0.1.21](https://github.com/aws/language-servers/compare/chat-client/v0.1.20...chat-client/v0.1.21) (2025-06-30)
+
+
+### Bug Fixes
+
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+
+## [0.1.20](https://github.com/aws/language-servers/compare/chat-client/v0.1.19...chat-client/v0.1.20) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+* Implement dynamic model selection based on extension capabilities and improve error handling ([#1737](https://github.com/aws/language-servers/issues/1737)) ([97db5d8](https://github.com/aws/language-servers/commit/97db5d8dd0a2c8214d37429375ec57aa68a462ee))
+
+
+### Bug Fixes
+
+* Add persistent pair programming mode setting with database storage and UI synchronization([#1757](https://github.com/aws/language-servers/issues/1757)) ([ba683cc](https://github.com/aws/language-servers/commit/ba683cc6dc120863350025a4a082ecf3a95b5905))
+* **amazonq:** fix the order of publishing the chat stop ack message ([#1761](https://github.com/aws/language-servers/issues/1761)) ([20c2263](https://github.com/aws/language-servers/commit/20c22638a34d557fc755e33aed798abc1ce3a6d9))
+* **amazonq:** updated stopping message to a better string for new chat ([#1765](https://github.com/aws/language-servers/issues/1765)) ([814bff8](https://github.com/aws/language-servers/commit/814bff848b970ec0192e36b8764c9cb08508f6ce))
+
+## [0.1.19](https://github.com/aws/language-servers/compare/chat-client/v0.1.18...chat-client/v0.1.19) (2025-06-23)
+
+
+### Bug Fixes
+
+* change model unavailable message ([#1711](https://github.com/aws/language-servers/issues/1711)) ([d4e1298](https://github.com/aws/language-servers/commit/d4e1298a5e00b2c3466ba1378aaaa28b89d75fb9))
+* intermediate file card does not have border ([#1734](https://github.com/aws/language-servers/issues/1734)) ([24e0497](https://github.com/aws/language-servers/commit/24e049705ce4ab982700839d012afb35786d8e4f))
+
 ## [0.1.18](https://github.com/aws/language-servers/compare/chat-client/v0.1.17...chat-client/v0.1.18) (2025-06-17)
 
 
@@ -269,8 +546,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.35
-- Update `@aws/language-server-runtimes-types` to 0.1.29
+- Update `@aws/chat-client-ui-types` to 0.1.63
+- Update `@aws/language-server-runtimes-types` to 0.1.57
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -294,8 +571,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.1.35
-- Update `@aws/language-server-runtimes-types` to 0.1.29
+- Update `@aws/chat-client-ui-types` to 0.1.63
+- Update `@aws/language-server-runtimes-types` to 0.1.57
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

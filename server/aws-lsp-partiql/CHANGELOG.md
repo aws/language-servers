@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.0.22](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.21...lsp-partiql/v0.0.22) (2025-12-19)
+
+
+### Bug Fixes
+
+* network connection error caused by server runtime dependency changes on windows machine ([#2568](https://github.com/aws/language-servers/issues/2568)) ([5d38b12](https://github.com/aws/language-servers/commit/5d38b1297a384e5c30d88b05bce075afbaa1a2fa))
+
+## [0.0.21](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.20...lsp-partiql/v0.0.21) (2025-12-17)
+
+
+### Bug Fixes
+
+* cve and bump language server runtime version to 0.3.10 ([#2544](https://github.com/aws/language-servers/issues/2544)) ([d06e09f](https://github.com/aws/language-servers/commit/d06e09f1c7c2ce017d0a5b4394cc8d17454e2862))
+
+## [0.0.20](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.19...lsp-partiql/v0.0.20) (2025-11-26)
+
+
+### Features
+
+* Adding ATX-FES apis support for transformation ([#2521](https://github.com/aws/language-servers/issues/2521)) ([56ee489](https://github.com/aws/language-servers/commit/56ee4891a2e19b259c129fd531f8b06f763c1b57))
+
+## [0.0.19](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.18...lsp-partiql/v0.0.19) (2025-11-21)
+
+
+### Features
+
+* **amazonq:** adding MCP registry for governance for Amazon Q ([#2512](https://github.com/aws/language-servers/issues/2512)) ([e8d4bf5](https://github.com/aws/language-servers/commit/e8d4bf588e9b7bc13102b33ee03bd357f9698811))
+
+## [0.0.18](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.17...lsp-partiql/v0.0.18) (2025-09-09)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
+## [0.0.17](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.16...lsp-partiql/v0.0.17) (2025-08-19)
+
+
+### Bug Fixes
+
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+## [0.0.16](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.15...lsp-partiql/v0.0.16) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+## [0.0.15](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.14...lsp-partiql/v0.0.15) (2025-07-17)
+
+
+### Bug Fixes
+
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+## [0.0.14](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.13...lsp-partiql/v0.0.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
 ## [0.0.13](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.12...lsp-partiql/v0.0.13) (2025-06-16)
 
 

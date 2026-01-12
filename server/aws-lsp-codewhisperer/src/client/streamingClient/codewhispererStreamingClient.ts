@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@aws/codewhisperer-streaming-client'
+import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
 

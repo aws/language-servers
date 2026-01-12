@@ -12,7 +12,12 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
+import {
+    QDeveloperStreaming,
+    SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
+    SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
+} from '@amzn/amazon-q-developer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -27,7 +32,10 @@ import {
     InlineChatResult,
     CancellationTokenSource,
     ContextCommand,
+    ChatUpdateParams,
+    ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
+import { Model } from '@aws/language-server-runtimes/protocol'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
@@ -41,16 +49,18 @@ import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
-import * as constants from './constants'
-import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
+import * as constants from './constants/constants'
+import { GENERIC_ERROR_MS } from './constants/constants'
+import { TokenLimitsCalculator } from './utils/tokenLimitsCalculator'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
@@ -60,6 +70,9 @@ import {
 import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
+import * as sharedUtils from '../../shared/utils'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import { SinonStub } from 'sinon'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -176,12 +189,17 @@ describe('AgenticChatController', () => {
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
-        sinon.stub(constants, 'responseTimeoutMs').value(100)
+        sinon.stub(constants, 'RESPONSE_TIMEOUT_MS').value(100)
 
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
             close: sinon.stub(),
         } as unknown as chokidar.FSWatcher)
+
+        // Mock getUserHomeDir function for McpEventHandler
+        const getUserHomeDirStub = sinon.stub().returns('/mock/home/dir')
+        testFeatures = new TestFeatures()
+        testFeatures.workspace.fs.getUserHomeDir = getUserHomeDirStub
 
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
             return new Promise(resolve =>
@@ -228,13 +246,15 @@ describe('AgenticChatController', () => {
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
             getTools: sinon.stub().returns(
-                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2', 'codeReview'].map(toolName => ({
                     toolSpecification: { name: toolName, description: 'Mock tool for testing' },
                 }))
             ),
             addTool: sinon.stub().resolves(),
             removeTool: sinon.stub().resolves(),
-        }
+            getBuiltInToolNames: sinon.stub().returns(['fsRead']),
+            getBuiltInWriteToolNames: sinon.stub().returns(['fsWrite']),
+        } as any // Using 'as any' to prevent type errors when the Agent interface is updated with new methods
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
         additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
@@ -273,6 +293,15 @@ describe('AgenticChatController', () => {
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
+        // Add getConnectionMetadata to testFeatures.credentialsProvider
+        testFeatures.credentialsProvider.getConnectionMetadata = (
+            sinon.stub() as SinonStub<[], ConnectionMetadata | undefined>
+        ).returns({
+            sso: {
+                startUrl: undefined,
+            },
+        })
+
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
@@ -304,7 +333,9 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
-        chatController.dispose()
+        if (chatController) {
+            chatController.dispose()
+        }
         sinon.restore()
         ChatSessionManagementService.reset()
     })
@@ -349,18 +380,6 @@ describe('AgenticChatController', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
-    })
-
-    it('onTabAdd updates model ID in chat options and session', () => {
-        const modelId = 'test-model-id'
-        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-
-        chatController.onTabAdd({ tabId: mockTabId })
-
-        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
-
-        const session = chatSessionManagementService.getSession(mockTabId).data
-        assert.strictEqual(session!.modelId, modelId)
     })
 
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
@@ -435,7 +454,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -460,6 +479,15 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typeof session.conversationId, 'string')
         })
 
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
+        })
+
         it('includes chat history from the database in the request input', async () => {
             // Mock chat history
             const mockHistory = [
@@ -476,6 +504,7 @@ describe('AgenticChatController', () => {
                 {
                     userInputMessage: {
                         content: 'Previous question',
+                        images: [],
                         origin: 'IDE',
                         userInputMessageContext: { toolResults: [] },
                         userIntent: undefined,
@@ -507,6 +536,60 @@ describe('AgenticChatController', () => {
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+        })
+
+        it('includes chat history from the database in the compaction request input', async () => {
+            // Mock chat history
+            const mockHistory = [
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                { type: 'answer', body: 'Previous answer' },
+            ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        images: [],
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
+
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.returns(mockHistory)
+
+            // Make the request
+            const result = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: '', command: '/compact' } },
+                mockCancellationToken
+            )
+
+            // Verify that history was requested from the db
+            sinon.assert.calledWith(getMessagesStub, mockTabId)
+
+            assert.ok(generateAssistantResponseStub.calledOnce)
+
+            // Verify that the history was passed to the request
+            const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+            assert.deepStrictEqual(
+                requestInput.conversationState?.currentMessage?.userInputMessage?.content,
+                constants.COMPACTION_PROMPT
+            )
         })
 
         it('skips adding user message to history when token is cancelled', async () => {
@@ -1070,7 +1153,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1089,7 +1172,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -1113,8 +1196,9 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.body, errorMsg)
         })
 
-        it('truncate input to 500k character ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+        it('truncate input to dynamic input limit', async function () {
+            const defaultLimits = TokenLimitsCalculator.calculate()
+            const input = 'X'.repeat(defaultLimits.inputLimit + 10)
             generateAssistantResponseStub.restore()
             generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             generateAssistantResponseStub.callsFake(() => {})
@@ -1124,7 +1208,7 @@ describe('AgenticChatController', () => {
                 generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(
                 calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
-                generateAssistantResponseInputLimit
+                defaultLimits.inputLimit
             )
         })
         it('shows generic errorMsg on internal errors', async function () {
@@ -1134,7 +1218,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
         })
 
         const authFollowUpTestCases = [
@@ -1194,7 +1278,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'some error')
         })
 
@@ -1220,7 +1304,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
@@ -1396,26 +1480,126 @@ describe('AgenticChatController', () => {
                     }
                 )
             })
+
+            it('includes both additional context and active file in context transparency list', async () => {
+                const mockAdditionalContext = [
+                    {
+                        name: 'additional.ts',
+                        description: '',
+                        type: 'file',
+                        relativePath: 'src/additional.ts',
+                        path: '/workspace/src/additional.ts',
+                        startLine: -1,
+                        endLine: -1,
+                        innerContext: 'additional content',
+                        pinned: false,
+                    },
+                ]
+
+                // Mock getAdditionalContext to return additional context
+                additionalContextProviderStub.resolves(mockAdditionalContext)
+
+                // Mock the expected return value from getFileListFromContext
+                const expectedFileList = {
+                    filePaths: ['src/additional.ts', 'src/active.ts'],
+                    details: {
+                        'src/additional.ts': { description: '/workspace/src/additional.ts' },
+                        'src/active.ts': { description: '/workspace/src/active.ts' },
+                    },
+                }
+
+                // Mock getFileListFromContext to capture what gets passed to it
+                const getFileListFromContextStub = sinon.stub(
+                    AdditionalContextProvider.prototype,
+                    'getFileListFromContext'
+                )
+                getFileListFromContextStub.returns(expectedFileList)
+
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: 'src/active.ts',
+                    activeFilePath: '/workspace/src/active.ts',
+                    text: 'active file content',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///workspace/src/active.ts' },
+                        cursorState: [mockCursorState],
+                        context: [{ command: 'Additional File', description: 'file.txt' }],
+                        partialResultToken: 1, // Enable progress updates
+                    },
+                    mockCancellationToken
+                )
+
+                // Verify getFileListFromContext was called with combined context (additional + active file)
+                sinon.assert.calledOnce(getFileListFromContextStub)
+                const contextItemsPassedToGetFileList = getFileListFromContextStub.firstCall.args[0]
+
+                // Should include both additional context and active file
+                assert.strictEqual(contextItemsPassedToGetFileList.length, 2)
+
+                // Find the additional context item
+                const additionalContextItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/additional.ts'
+                )
+                assert.ok(additionalContextItem, 'Additional context should be included')
+
+                // Find the active file item
+                const activeFileItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/active.ts'
+                )
+                assert.ok(activeFileItem, 'Active file should be included in context transparency list')
+
+                // Verify that sendProgress was called with a message containing the expected context list
+                sinon.assert.called(testFeatures.lsp.sendProgress)
+
+                // Find the progress call that contains contextList
+                const progressCallWithContext = (testFeatures.lsp.sendProgress as sinon.SinonStub)
+                    .getCalls()
+                    .find(call => {
+                        const progressData = call.args[2] // Third argument is the progress data
+                        return progressData && progressData.contextList
+                    })
+
+                assert.ok(progressCallWithContext, 'Should have sent progress with contextList')
+                const contextList = progressCallWithContext.args[2].contextList
+                assert.deepStrictEqual(
+                    contextList,
+                    expectedFileList,
+                    'Context list in progress update should match expected file list'
+                )
+
+                getFileListFromContextStub.restore()
+            })
         })
     })
     describe('truncateRequest', () => {
+        // Use dynamic input limit from TokenLimitsCalculator for all truncation tests
+        const defaultLimits = TokenLimitsCalculator.calculate()
+        const inputLimit = defaultLimits.inputLimit // 600_000 for default 200K tokens
+
         it('should truncate user input message if exceeds limit', () => {
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(590_000),
+                            content: 'a'.repeat(inputLimit + 100_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(490_000),
+                                            text: 'a'.repeat(inputLimit - 10_000),
                                         },
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(490_000),
+                                        text: 'a'.repeat(inputLimit - 10_000),
                                     },
                                 },
                             },
@@ -1424,7 +1608,7 @@ describe('AgenticChatController', () => {
                     history: [
                         {
                             userInputMessage: {
-                                content: 'a'.repeat(490_000),
+                                content: 'a'.repeat(inputLimit - 10_000),
                             },
                         },
                     ],
@@ -1432,7 +1616,7 @@ describe('AgenticChatController', () => {
                 },
             }
             const result = chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 500_000)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, inputLimit)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
@@ -1464,11 +1648,13 @@ describe('AgenticChatController', () => {
         })
 
         it('should truncate relevant documents if combined length exceeds remaining budget', () => {
+            // Use content that leaves room for some docs but not all
+            const contentLength = 510_000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(contentLength),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
@@ -1487,7 +1673,7 @@ describe('AgenticChatController', () => {
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(490_000),
+                                        text: 'a'.repeat(inputLimit - 10_000),
                                     },
                                 },
                             },
@@ -1496,7 +1682,7 @@ describe('AgenticChatController', () => {
                     history: [
                         {
                             userInputMessage: {
-                                content: 'a'.repeat(490_000),
+                                content: 'a'.repeat(inputLimit - 10_000),
                             },
                         },
                     ],
@@ -1504,7 +1690,10 @@ describe('AgenticChatController', () => {
                 },
             }
             const result = chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                contentLength
+            )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
@@ -1516,14 +1705,15 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 1)
-            assert.strictEqual(result, 99700)
+            // Remaining budget = inputLimit - contentLength - 100 - 200 = 600_000 - 510_000 - 300 = 89_700
+            assert.strictEqual(result, inputLimit - contentLength - 100 - 200)
         })
         it('should truncate current editor if combined length exceeds remaining budget', () => {
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(510_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
@@ -1565,7 +1755,7 @@ describe('AgenticChatController', () => {
                 },
             }
             chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 510_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
@@ -1579,26 +1769,30 @@ describe('AgenticChatController', () => {
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
         })
         it('should return remaining budget for history', () => {
+            const contentLength = 100_000
+            const docLength = 100_000
+            const relevantDoc1Length = 1000
+            const relevantDoc2Length = 1000
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(100_000),
+                            content: 'a'.repeat(contentLength),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(1000),
+                                            text: 'a'.repeat(relevantDoc1Length),
                                         },
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(1000),
+                                            text: 'a'.repeat(relevantDoc2Length),
                                         },
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(100_000),
+                                        text: 'a'.repeat(docLength),
                                     },
                                 },
                             },
@@ -1625,11 +1819,14 @@ describe('AgenticChatController', () => {
                 },
             }
             const result = chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 100_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                contentLength
+            )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
-                100_000
+                docLength
             )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
@@ -1637,7 +1834,249 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
-            assert.strictEqual(result, 298000)
+            // Remaining budget = inputLimit - contentLength - relevantDoc1Length - relevantDoc2Length - docLength
+            // = 600_000 - 100_000 - 1000 - 1000 - 100_000 = 398_000
+            assert.strictEqual(result, inputLimit - contentLength - relevantDoc1Length - relevantDoc2Length - docLength)
+        })
+
+        it('should truncate images when they exceed budget', () => {
+            // Content that leaves small room for images
+            const contentLength = inputLimit - 6_600 // Leave room for small images but not large one
+            const smallImageChars = 3.3 // 1000 bytes * 3.3 / 1000
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(contentLength),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(2000000), //6600 chars - should be removed
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should only keep the first and third images (small ones)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, inputLimit - contentLength - smallImageChars - smallImageChars) // remaining budget after content and images
+        })
+
+        it('should handle images without bytes', () => {
+            const contentLength = 400_000
+            const smallImageChars = 3.3 // 1000 bytes * 3.3 / 1000
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(contentLength),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: null as any,
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should keep both images since the first one has 0 chars
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, inputLimit - contentLength - smallImageChars) // remaining budget after content and second image
+        })
+
+        it('should truncate relevantDocuments and images together with equal priority', () => {
+            // 510_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(510_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'a', text: 'a'.repeat(100) },
+                                        { relativeFilePath: 'b', text: 'a'.repeat(100_000) }, // should be truncated
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000000000) }, // 3300000 chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000) }, // 3.3 chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            // Only the first doc and the image should fit
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
+            assert.strictEqual(result, inputLimit - 510_000 - 100 - 3.3)
+        })
+
+        it('should respect additionalContext order for mixed file and image truncation', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(500_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'file1.ts', text: 'a'.repeat(30_000) },
+                                        { relativeFilePath: 'file2.ts', text: 'b'.repeat(40_000) },
+                                        { relativeFilePath: 'file3.ts', text: 'c'.repeat(50_000) },
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(10_000_000) }, // 33k chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(20_000_000) }, // 66k chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(5_000_000) }, // 16.5k chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+
+            const additionalContext = [
+                {
+                    type: 'image',
+                    name: 'image1.png',
+                    description: 'First image',
+                    relativePath: 'images/image1.png',
+                    path: '/workspace/images/image1.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[0]: 33k chars (should be kept)
+                {
+                    type: 'file',
+                    name: 'file1.ts',
+                    description: 'First file',
+                    relativePath: 'src/file1.ts',
+                    path: '/workspace/src/file1.ts',
+                    startLine: 1,
+                    endLine: 100,
+                }, // maps to docs[0]: 30k chars (should be kept)
+                {
+                    type: 'image',
+                    name: 'image2.png',
+                    description: 'Second image',
+                    relativePath: 'images/image2.png',
+                    path: '/workspace/images/image2.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[1]: 66k chars (should be truncated)
+                {
+                    type: 'file',
+                    name: 'file2.ts',
+                    description: 'Second file',
+                    relativePath: 'src/file2.ts',
+                    path: '/workspace/src/file2.ts',
+                    startLine: 1,
+                    endLine: 200,
+                }, // maps to docs[1]: 40k chars (should be truncated)
+                {
+                    type: 'file',
+                    name: 'file3.ts',
+                    description: 'Third file',
+                    relativePath: 'src/file3.ts',
+                    path: '/workspace/src/file3.ts',
+                    startLine: 1,
+                    endLine: 300,
+                }, // maps to docs[2]: 50k chars (should be truncated)
+                {
+                    type: 'image',
+                    name: 'image3.png',
+                    description: 'Third image',
+                    relativePath: 'images/image3.png',
+                    path: '/workspace/images/image3.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[2]: 16.5k chars (should be kept)
+            ]
+
+            const result = chatController.truncateRequest(request, additionalContext)
+
+            // With 100k budget remaining after user message:
+            // 1. images[0] (33k) fits -> 67k remaining
+            // 2. docs[0] (30k) fits -> 37k remaining
+            // 3. images[1] (66k) doesn't fit -> skipped
+            // 4. docs[1] (40k) doesn't fit -> skipped
+            // 5. docs[2] (50k) doesn't fit -> skipped
+            // 6. images[2] (16.5k) fits in 37k remaining -> 20.5k remaining
+
+            // Should keep first image, first doc, and third image based on additionalContext order
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+
+            const keptImages = request.conversationState?.currentMessage?.userInputMessage?.images
+            const keptDoc =
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.[0]
+
+            assert.strictEqual(keptImages?.[0]?.source?.bytes?.length, 10_000_000) // images[0]
+            assert.strictEqual(keptImages?.[1]?.source?.bytes?.length, 5_000_000) // images[2]
+            assert.strictEqual(keptDoc?.relativeFilePath, 'file1.ts') // docs[0]
+            assert.strictEqual(keptDoc?.text, 'a'.repeat(30_000))
+
+            // Remaining budget = inputLimit - 500000 - 33000 - 30000 - 16500
+            assert.strictEqual(result, inputLimit - 500_000 - 33000 - 30000 - 16500)
         })
     })
 
@@ -2588,6 +3027,543 @@ ${' '.repeat(8)}}
             sinon.assert.called(setModelIdStub)
 
             setModelIdStub.restore()
+        })
+
+        it('should recalculate token limits when model changes', () => {
+            const mockTabId = 'tab-1'
+            const initialModelId = 'model-1'
+            const newModelId = 'model-2'
+            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+
+            // Mock getCachedModels to return models with different token limits
+            const cachedModels: Model[] = [
+                {
+                    id: 'model-1',
+                    name: 'Model 1',
+                    description: 'Test',
+                    tokenLimits: { maxInputTokens: 200000 },
+                },
+                {
+                    id: 'model-2',
+                    name: 'Model 2',
+                    description: 'Test',
+                    tokenLimits: { maxInputTokens: 300000 },
+                },
+            ]
+            const getCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'getCachedModels').returns({
+                models: cachedModels,
+                defaultModelId: 'model-1',
+                timestamp: Date.now(),
+            })
+
+            // Create a session and set initial model
+            chatController.onTabAdd({ tabId: mockTabId })
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            session.setModel(initialModelId, cachedModels)
+
+            // Get initial token limits (default 200K)
+            const initialLimits = session.tokenLimits
+            assert.strictEqual(initialLimits.maxInputTokens, 200000)
+
+            // Switch to a model with different token limits
+            chatController.onPromptInputOptionChange({
+                tabId: mockTabId,
+                optionsValues: { 'model-selection': newModelId },
+            })
+
+            // Verify token limits were recalculated based on new model's maxInputTokens (300K)
+            const newLimits = session.tokenLimits
+            assert.strictEqual(newLimits.maxInputTokens, 300000)
+            assert.strictEqual(newLimits.maxOverallCharacters, Math.floor(300000 * 3.5))
+            assert.strictEqual(newLimits.inputLimit, newLimits.maxOverallCharacters - 100_000)
+            assert.strictEqual(newLimits.compactionThreshold, Math.floor(0.7 * newLimits.maxOverallCharacters))
+
+            setModelIdStub.restore()
+            getCachedModelsStub.restore()
+        })
+    })
+
+    describe('onListAvailableModels', () => {
+        let isCachedModelsValidStub: sinon.SinonStub
+        let getCachedModelsStub: sinon.SinonStub
+        let setCachedModelsStub: sinon.SinonStub
+        let getConnectionTypeStub: sinon.SinonStub
+        let getActiveProfileArnStub: sinon.SinonStub
+        let getCodewhispererServiceStub: sinon.SinonStub
+        let listAvailableModelsStub: sinon.SinonStub
+
+        beforeEach(() => {
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+
+            // Stub ChatDatabase methods
+            isCachedModelsValidStub = sinon.stub(ChatDatabase.prototype, 'isCachedModelsValid')
+            getCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'getCachedModels')
+            setCachedModelsStub = sinon.stub(ChatDatabase.prototype, 'setCachedModels')
+
+            // Stub AmazonQTokenServiceManager methods
+            getConnectionTypeStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getConnectionType')
+            getActiveProfileArnStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getActiveProfileArn')
+            getCodewhispererServiceStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getCodewhispererService')
+
+            // Mock listAvailableModels method
+            listAvailableModelsStub = sinon.stub()
+            getCodewhispererServiceStub.returns({
+                listAvailableModels: listAvailableModelsStub,
+            })
+        })
+
+        afterEach(() => {
+            isCachedModelsValidStub.restore()
+            getCachedModelsStub.restore()
+            setCachedModelsStub.restore()
+            getConnectionTypeStub.restore()
+            getActiveProfileArnStub.restore()
+            getCodewhispererServiceStub.restore()
+        })
+
+        describe('ListAvailableModels Cache scenarios', () => {
+            it('should return cached models when cache is valid', async () => {
+                // Setup valid cache
+                isCachedModelsValidStub.returns(true)
+                const cachedData = {
+                    models: [
+                        { id: 'model1', name: 'Model 1', description: 'Test description 1' },
+                        { id: 'model2', name: 'Model 2', description: 'Test description 2' },
+                    ],
+                    defaultModelId: 'model1',
+                    timestamp: Date.now(),
+                }
+                getCachedModelsStub.returns(cachedData)
+
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.setModel('model1', cachedData.models)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify cached data is used
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.deepStrictEqual(result.models, cachedData.models)
+                assert.strictEqual(result.selectedModelId, 'model1')
+
+                // Verify API was not called
+                sinon.assert.notCalled(listAvailableModelsStub)
+                sinon.assert.notCalled(setCachedModelsStub)
+            })
+
+            it('should return cached models when cache is valid but has empty models array', async () => {
+                // Setup cache with empty models
+                isCachedModelsValidStub.returns(true)
+                const cachedData = {
+                    models: [],
+                    defaultModelId: undefined,
+                    timestamp: Date.now(),
+                }
+                getCachedModelsStub.returns(cachedData)
+
+                // Should fall back to API call since models array is empty
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-arn')
+                listAvailableModelsStub.resolves({
+                    models: {
+                        model1: { modelId: 'model1' },
+                        model2: { modelId: 'model2' },
+                    },
+                    defaultModel: { modelId: 'model1' },
+                })
+
+                await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify API was called due to empty cached models
+                sinon.assert.calledOnce(listAvailableModelsStub)
+                sinon.assert.calledOnce(setCachedModelsStub)
+            })
+
+            it('should return cached models when cache is valid but cachedData is null', async () => {
+                // Setup cache as valid but returns null
+                isCachedModelsValidStub.returns(true)
+                getCachedModelsStub.returns(null)
+
+                // Should fall back to API call
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-arn')
+                listAvailableModelsStub.resolves({
+                    models: {
+                        model1: { modelId: 'model1' },
+                    },
+                    defaultModel: { modelId: 'model1' },
+                })
+
+                await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify API was called
+                sinon.assert.calledOnce(listAvailableModelsStub)
+            })
+        })
+
+        describe('ListAvailableModels API call scenarios', () => {
+            beforeEach(() => {
+                // Setup invalid cache to force API call
+                isCachedModelsValidStub.returns(false)
+            })
+
+            it('should fetch models from API when cache is invalid', async () => {
+                getConnectionTypeStub.returns('builderId')
+                getActiveProfileArnStub.returns('test-profile-arn')
+
+                const mockApiResponse = {
+                    models: {
+                        'claude-3-sonnet': {
+                            modelId: 'claude-3-sonnet',
+                            modelName: 'Claude 3 Sonnet',
+                            description: 'Advanced AI model',
+                            tokenLimits: { maxInputTokens: 200000 },
+                        },
+                        'claude-4-sonnet': {
+                            modelId: 'claude-4-sonnet',
+                            modelName: 'Claude 4 Sonnet',
+                            description: 'Latest AI model',
+                            tokenLimits: { maxInputTokens: 300000 },
+                        },
+                    },
+                    defaultModel: { modelId: 'claude-3-sonnet' },
+                }
+                listAvailableModelsStub.resolves(mockApiResponse)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify API call was made with correct parameters
+                sinon.assert.calledOnceWithExactly(listAvailableModelsStub, {
+                    origin: 'IDE',
+                    profileArn: 'test-profile-arn',
+                })
+
+                // Verify result structure
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.strictEqual(result.models.length, 2)
+                assert.deepStrictEqual(result.models, [
+                    {
+                        id: 'claude-3-sonnet',
+                        name: 'Claude 3 Sonnet',
+                        description: 'Advanced AI model',
+                        tokenLimits: { maxInputTokens: 200000 },
+                    },
+                    {
+                        id: 'claude-4-sonnet',
+                        name: 'Claude 4 Sonnet',
+                        description: 'Latest AI model',
+                        tokenLimits: { maxInputTokens: 300000 },
+                    },
+                ])
+
+                // Verify cache was updated
+                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, 'claude-3-sonnet')
+            })
+
+            it('should fall back to hardcoded models when API call fails', async () => {
+                getConnectionTypeStub.returns('builderId')
+                listAvailableModelsStub.rejects(new Error('API Error'))
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify fallback to FALLBACK_MODEL_OPTIONS
+                assert.strictEqual(result.tabId, mockTabId)
+                assert.strictEqual(result.models.length, 1) // FALLBACK_MODEL_OPTIONS length
+
+                // Verify cache was not updated due to error
+                sinon.assert.notCalled(setCachedModelsStub)
+            })
+
+            it('should handle API response with no defaultModel', async () => {
+                getConnectionTypeStub.returns('builderId')
+
+                const mockApiResponse = {
+                    models: {
+                        model1: { modelId: 'model1' },
+                    },
+                    defaultModel: undefined, // No default model
+                }
+                listAvailableModelsStub.resolves(mockApiResponse)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                // Verify cache was updated with undefined defaultModelId
+                sinon.assert.calledOnceWithExactly(setCachedModelsStub, result.models, undefined)
+            })
+        })
+
+        describe('Session and model selection scenarios', () => {
+            beforeEach(() => {
+                // Setup cache to avoid API calls in these tests
+                isCachedModelsValidStub.returns(true)
+                getCachedModelsStub.returns({
+                    models: [
+                        { id: 'model1', name: 'Model 1' },
+                        { id: 'model2', name: 'Model 2' },
+                    ],
+                    defaultModelId: 'model1',
+                    timestamp: Date.now(),
+                })
+            })
+
+            it('should return default model when session fails to load', async () => {
+                const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+                getSessionStub.returns({
+                    data: undefined,
+                    success: false,
+                    error: 'Session not found',
+                })
+
+                const result = await chatController.onListAvailableModels({ tabId: 'invalid-tab' })
+
+                assert.strictEqual(result.tabId, 'invalid-tab')
+                assert.strictEqual(result.selectedModelId, 'model1')
+
+                getSessionStub.restore()
+            })
+
+            it('should use defaultModelId from cache when session has no modelId', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.setModel(undefined, undefined)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                assert.strictEqual(result.selectedModelId, 'model1') // defaultModelId from cache
+                // Verify session modelId is updated
+                assert.strictEqual(session.modelId, 'model1')
+            })
+
+            it('should fall back to default model when session has no modelId and no defaultModelId in cache', async () => {
+                getCachedModelsStub.returns({
+                    models: [{ id: 'model1', name: 'Model 1', description: 'Test model' }],
+                    defaultModelId: undefined, // No default model
+                    timestamp: Date.now(),
+                })
+
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.setModel(undefined, undefined)
+
+                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
+
+                assert.strictEqual(result.selectedModelId, 'claude-sonnet-4') // FALLBACK_MODEL_RECORD[DEFAULT_MODEL_ID].label
+                // Verify session modelId is updated
+                assert.strictEqual(session.modelId, 'claude-sonnet-4')
+            })
+        })
+    })
+
+    describe('IAM Authentication', () => {
+        let iamServiceManager: AmazonQIAMServiceManager
+        let iamChatController: AgenticChatController
+        let iamChatSessionManagementService: ChatSessionManagementService
+
+        beforeEach(() => {
+            sendMessageStub = sinon.stub(QDeveloperStreaming.prototype, 'sendMessage').callsFake(() => {
+                return new Promise(resolve =>
+                    setTimeout(() => {
+                        resolve({
+                            $metadata: {
+                                requestId: mockMessageId,
+                            },
+                            sendMessageResponse: createIterableResponse(mockChatResponseList),
+                        })
+                    })
+                )
+            })
+            // Reset the singleton instance
+            ChatSessionManagementService.reset()
+
+            // Create IAM service manager
+            AmazonQIAMServiceManager.resetInstance()
+            iamServiceManager = AmazonQIAMServiceManager.initInstance(testFeatures)
+
+            // Create chat session management service with IAM service manager
+            iamChatSessionManagementService = ChatSessionManagementService.getInstance()
+            iamChatSessionManagementService.withAmazonQServiceManager(iamServiceManager)
+            // Create controller with IAM service manager
+            iamChatController = new AgenticChatController(
+                iamChatSessionManagementService,
+                testFeatures,
+                telemetryService,
+                iamServiceManager
+            )
+        })
+
+        afterEach(() => {
+            iamChatController.dispose()
+            ChatSessionManagementService.reset()
+            AmazonQIAMServiceManager.resetInstance()
+        })
+
+        it('creates a session with IAM service manager', () => {
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            const sessionResult = iamChatSessionManagementService.getSession(mockTabId)
+            sinon.assert.match(sessionResult, {
+                success: true,
+                data: sinon.match.instanceOf(ChatSessionService),
+            })
+        })
+
+        it('uses sendMessage instead of generateAssistantResponse with IAM service manager', async () => {
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+            generateAssistantResponseStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            // Verify sendMessage was called and generateAssistantResponse was not
+            sinon.assert.called(sendMessageStub)
+            sinon.assert.notCalled(generateAssistantResponseStub)
+        })
+
+        it('sets source to Origin.IDE when using IAM service manager', async () => {
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'IDE')
+        })
+
+        it('sets source to origin from client info when using IAM service manager', async () => {
+            // Stub getOriginFromClientInfo to return a specific value
+            const getOriginFromClientInfoStub = sinon
+                .stub(sharedUtils, 'getOriginFromClientInfo')
+                .returns('MD_IDE' as any)
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+            // Verify getOriginFromClientInfo was called
+            sinon.assert.calledOnce(getOriginFromClientInfoStub)
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'MD_IDE')
+            // Restore the stub
+            getOriginFromClientInfoStub.restore()
+        })
+
+        it('does not call onManageSubscription with IAM service manager', async () => {
+            // Create a spy on onManageSubscription
+            const onManageSubscriptionSpy = sinon.spy(iamChatController, 'onManageSubscription')
+
+            // Call onManageSubscription directly
+            await iamChatController.onManageSubscription('tabId')
+
+            // Verify the method returns early without doing anything
+            sinon.assert.calledOnce(onManageSubscriptionSpy)
+            const returnValue = await onManageSubscriptionSpy.returnValues[0]
+            assert.strictEqual(returnValue, undefined)
+        })
+    })
+
+    describe('processToolUses', () => {
+        it('filters rule artifacts from additionalContext for CodeReview tool', async () => {
+            const mockAdditionalContext = [
+                {
+                    type: 'file',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/file.js',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule1.json',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule2.json',
+                },
+            ]
+
+            const toolUse = {
+                toolUseId: 'test-id',
+                name: 'codeReview',
+                input: { fileLevelArtifacts: [{ path: '/test/file.js' }] },
+                stop: true,
+            }
+
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.resolves({})
+
+            // Create a mock session with toolUseLookup
+            const mockSession = {
+                toolUseLookup: new Map(),
+                pairProgrammingMode: true,
+            } as any
+
+            // Create a minimal mock of AgenticChatResultStream
+            const mockChatResultStream = {
+                removeResultBlockAndUpdateUI: sinon.stub().resolves(),
+                writeResultBlock: sinon.stub().resolves(1),
+                overwriteResultBlock: sinon.stub().resolves(),
+                removeResultBlock: sinon.stub().resolves(),
+                getMessageBlockId: sinon.stub().returns(undefined),
+                hasMessage: sinon.stub().returns(false),
+                updateOngoingProgressResult: sinon.stub().resolves(),
+                getResult: sinon.stub().returns({ messageId: 'test', body: '' }),
+                setMessageIdToUpdateForTool: sinon.stub(),
+                getMessageIdToUpdateForTool: sinon.stub().returns(undefined),
+                addMessageOperation: sinon.stub(),
+                getMessageOperation: sinon.stub().returns(undefined),
+            }
+
+            // Call processToolUses directly
+            await chatController.processToolUses(
+                [toolUse],
+                mockChatResultStream as any,
+                mockSession,
+                'tabId',
+                mockCancellationToken,
+                mockAdditionalContext
+            )
+
+            // Verify runTool was called with ruleArtifacts
+            sinon.assert.calledOnce(runToolStub)
+            const toolInput = runToolStub.firstCall.args[1]
+            assert.ok(toolInput.ruleArtifacts)
+            assert.strictEqual(toolInput.ruleArtifacts.length, 2)
+            assert.strictEqual(toolInput.ruleArtifacts[0].path, '/test/rule1.json')
+            assert.strictEqual(toolInput.ruleArtifacts[1].path, '/test/rule2.json')
         })
     })
 })

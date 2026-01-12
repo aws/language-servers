@@ -28,6 +28,7 @@ describe('CodeWhispererSession', function () {
 
     const data: SessionData = {
         document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
+        startPreprocessTimestamp: 0,
         startPosition: { line: 0, character: 0 },
         triggerType: 'OnDemand',
         language: 'csharp',
@@ -510,6 +511,7 @@ describe('SessionManager', function () {
     }
     const data: SessionData = {
         document: TextDocument.create('file:///rightContext.cs', 'csharp', 1, HELLO_WORLD_IN_CSHARP),
+        startPreprocessTimestamp: 0,
         startPosition: { line: 0, character: 0 },
         triggerType: 'OnDemand',
         language: 'csharp',
@@ -529,12 +531,12 @@ describe('SessionManager', function () {
             assert.strictEqual(manager.getCurrentSession()?.state, 'REQUESTING')
         })
 
-        it('should deactivate previous session when creating a new session', function () {
+        it('should not deactivate previous session when creating a new session', function () {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             session.activate()
             manager.createSession(data)
-            assert.strictEqual(session.state, 'CLOSED')
+            assert.strictEqual(session.state, 'ACTIVE')
         })
 
         it('should set previous active session trigger decision from discarded REQUESTING session', function () {
@@ -548,7 +550,7 @@ describe('SessionManager', function () {
             assert.strictEqual(session2.previousTriggerDecision, 'Discard')
         })
 
-        it('should set previous active session trigger decision to new session object', function () {
+        it('should not set previous active session trigger decision to new session object if it is not closed', function () {
             const manager = SessionManager.getInstance()
             const session1 = manager.createSession(data)
             assert.strictEqual(session1?.state, 'REQUESTING')
@@ -557,22 +559,8 @@ describe('SessionManager', function () {
 
             const session2 = manager.createSession(data)
 
-            assert.strictEqual(session1?.state, 'CLOSED')
-            assert.strictEqual(session2.previousTriggerDecision, 'Empty')
-        })
-    })
-
-    describe('closeCurrentSession()', function () {
-        it('should add the current session to the sessions log if it is active', function () {
-            const manager = SessionManager.getInstance()
-            const session = manager.createSession(data)
-            assert.strictEqual(session.state, 'REQUESTING')
-            session.activate()
-            assert.strictEqual(session.state, 'ACTIVE')
-            manager.closeCurrentSession()
-            assert.strictEqual(manager.getSessionsLog().length, 1)
-            assert.strictEqual(manager.getSessionsLog()[0], session)
-            assert.strictEqual(session.state, 'CLOSED')
+            assert.strictEqual(session1?.state, 'ACTIVE')
+            assert.strictEqual(session2.previousTriggerDecision, undefined)
         })
     })
 
@@ -599,7 +587,6 @@ describe('SessionManager', function () {
             session2.activate()
             const session3 = manager.createSession(data)
             session3.activate()
-            manager.closeCurrentSession()
             const result = manager.getPreviousSession()
             assert.strictEqual(result, session3)
             assert.strictEqual(manager.getSessionsLog().length, 3)
@@ -612,7 +599,6 @@ describe('SessionManager', function () {
             const session2 = manager.createSession(data)
             const session3 = manager.createSession(data)
             session3.activate()
-            manager.closeCurrentSession()
             const result = manager.getPreviousSession()
             assert.strictEqual(result, session3)
             assert.strictEqual(manager.getSessionsLog().length, 3)
@@ -632,7 +618,6 @@ describe('SessionManager', function () {
             session.activate()
             const session2 = manager.createSession({ ...data, triggerType: 'AutoTrigger' })
             session2.activate()
-            manager.closeCurrentSession()
             assert.strictEqual(manager.getSessionsLog().length, 2)
 
             const sessionId = session.id
@@ -644,7 +629,6 @@ describe('SessionManager', function () {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             session.activate()
-            manager.closeCurrentSession()
             assert.strictEqual(manager.getSessionsLog().length, 1)
 
             const sessionId = session.id + '1'

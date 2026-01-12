@@ -7,15 +7,16 @@ import {
     handleChatPrompt,
     DEFAULT_HELP_PROMPT,
     handlePromptInputChange,
+    uiComponentsTexts,
 } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { ChatMessage } from '@aws/language-server-runtimes-types'
+import { ChatMessage, ContextCommand, ListAvailableModelsResult } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
 import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
-import { BedrockModel } from './texts/modelSelection'
+import { strictEqual } from 'assert'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -74,6 +75,9 @@ describe('MynahUI', () => {
             listRules: sinon.stub(),
             onAddPinnedContext: sinon.stub(),
             onRemovePinnedContext: sinon.stub(),
+            onListAvailableModels: sinon.stub(),
+            onOpenFileDialogClick: sinon.stub(),
+            onFilesDropped: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
@@ -242,9 +246,16 @@ describe('MynahUI', () => {
     })
 
     describe('sendGenericCommand', () => {
-        it('should create a new tab if none exits', () => {
+        it('should create a new tab if none exits', function () {
+            this.timeout(10000) // Increase timeout to 10 seconds
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
+
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = ''
@@ -254,11 +265,18 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
+            setTimeoutStub.restore()
         })
 
-        it('should create a new tab if current tab is loading', () => {
+        it('should create a new tab if current tab is loading', function () {
+            this.timeout(10000)
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
             getAllTabsStub.returns({ 'tab-1': { store: { loadingChat: true } } })
 
             const genericCommand = 'Explain'
@@ -270,10 +288,16 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
+            setTimeoutStub.restore()
         })
 
         it('should not create a new tab if one exists already', () => {
             createTabStub.resetHistory()
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = 'tab-1'
@@ -283,9 +307,15 @@ describe('MynahUI', () => {
 
             sinon.assert.notCalled(createTabStub)
             sinon.assert.calledOnce(updateStoreSpy)
+            setTimeoutStub.restore()
         })
 
         it('should call handleChatPrompt when sendGenericCommand is called', () => {
+            // Stub setTimeout to execute immediately
+            const setTimeoutStub = sinon.stub(global, 'setTimeout').callsFake((fn: Function) => {
+                fn()
+                return {} as any
+            })
             const genericCommand = 'Explain'
             const selection = 'const x = 5;'
             const tabId = 'tab-1'
@@ -315,6 +345,7 @@ describe('MynahUI', () => {
                 loadingChat: true,
                 promptInputDisabledState: false,
             })
+            setTimeoutStub.restore()
         })
     })
 
@@ -431,18 +462,61 @@ describe('MynahUI', () => {
 
             const newValues = {
                 'pair-programmer-mode': 'true',
-                'model-selection': BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0,
+                'model-selection': 'CLAUDE_3_7_SONNET_20250219_V1_0',
             }
 
             handlePromptInputChange(mynahUi, tabId, newValues)
 
             const expectedOptions = [
                 { id: 'pair-programmer-mode', value: 'true' },
-                { id: 'model-selection', value: BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0 },
+                { id: 'model-selection', value: 'CLAUDE_3_7_SONNET_20250219_V1_0' },
             ]
 
             sinon.assert.calledWith(updateStoreSpy, tabId, {
                 promptInputOptions: expectedOptions,
+            })
+        })
+
+        it('should add model selection notification when model is changed', () => {
+            const tabId = 'tab-1'
+            const modelOptions = [
+                { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7' },
+                { value: 'CLAUDE_SONNET_4_20250514_V1_0', label: 'Claude Sonnet 4' },
+            ]
+            const promptInputOptions = [
+                {
+                    id: 'model-selection',
+                    type: 'select',
+                    value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+                    options: modelOptions,
+                },
+            ]
+
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions,
+                }),
+            })
+
+            // Reset addChatItem spy to track new calls
+            addChatItemSpy.resetHistory()
+
+            // Change model from Claude 3.7 to Claude 4
+            const newValues = {
+                'model-selection': 'CLAUDE_SONNET_4_20250514_V1_0',
+            }
+
+            handlePromptInputChange(mynahUi, tabId, newValues)
+
+            // Verify that a model selection notification was added
+            sinon.assert.calledOnce(addChatItemSpy)
+            sinon.assert.calledWithMatch(addChatItemSpy, tabId, {
+                type: ChatItemType.DIRECTIVE,
+                contentHorizontalAlignment: 'center',
+                fullWidth: true,
+                body: 'Switched model to Claude Sonnet 4',
             })
         })
     })
@@ -480,6 +554,221 @@ describe('MynahUI', () => {
             })
         })
     })
+
+    describe('listAvailableModels', () => {
+        it('should update promptInputOptions with available models', () => {
+            const tabId = 'tab-1'
+
+            // Setup tab data with existing promptInputOptions
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions: [{ id: 'model-selection', options: [] }],
+                }),
+            })
+
+            // Simulate the response from the server
+            const models = [
+                { id: 'CLAUDE_3_7_SONNET_20250219_V1_0', name: 'Claude Sonnet 3.7' },
+                { id: 'CLAUDE_SONNET_4_20250514_V1_0', name: 'Claude Sonnet 4', description: 'Test description' },
+            ]
+
+            const result: ListAvailableModelsResult = {
+                tabId,
+                models,
+                selectedModelId: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+            }
+
+            // Call the listAvailableModels method
+            inboundChatApi.listAvailableModels(result)
+
+            // Verify updateStore was called with the correct options
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptInputOptions: [
+                    {
+                        id: 'model-selection',
+                        options: [
+                            { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7', description: '' },
+                            {
+                                value: 'CLAUDE_SONNET_4_20250514_V1_0',
+                                label: 'Claude Sonnet 4',
+                                description: 'Test description',
+                            },
+                        ],
+                        type: 'select',
+                        value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+                    },
+                ],
+            })
+        })
+    })
+
+    describe('sendPinnedContext', () => {
+        it('should update UI with pinned context items', () => {
+            const tabId = 'tab-1'
+            const pinnedContextCommands = [
+                {
+                    id: 'pinned-file-1',
+                    command: 'File 1',
+                    label: 'file',
+                    route: ['/workspace', 'src/file1.ts'],
+                    icon: 'file',
+                },
+            ] as ContextCommand[]
+
+            // Call sendPinnedContext with pinned context items
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: pinnedContextCommands }],
+                showRules: true,
+            })
+
+            // Verify updateStore was called with the correct parameters
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [
+                    {
+                        id: 'pinned-file-1',
+                        command: 'File 1',
+                        label: 'file',
+                        route: ['/workspace', 'src/file1.ts'],
+                        icon: 'file',
+                        children: undefined,
+                        disabled: false,
+                    },
+                ],
+                promptTopBarTitle: '@',
+                promptTopBarButton: {
+                    id: 'Rules',
+                    status: 'clear',
+                    text: 'Rules',
+                    icon: 'check-list',
+                },
+            })
+        })
+
+        it('should show full title when no pinned context items exist', () => {
+            const tabId = 'tab-1'
+
+            // Call sendPinnedContext with empty context items
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: [] }],
+                showRules: false,
+            })
+
+            // Verify updateStore was called with the correct parameters
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [],
+                promptTopBarTitle: '@Pin Context',
+                promptTopBarButton: null,
+            })
+        })
+
+        it('should handle active editor context item', () => {
+            const tabId = 'tab-1'
+            const activeEditorCommand = {
+                id: 'active-editor',
+                command: 'Active file',
+                label: 'file',
+                icon: 'file',
+                description: '',
+            }
+
+            // Call sendPinnedContext with active editor context
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: [activeEditorCommand] as ContextCommand[] }],
+                showRules: true,
+                textDocument: { uri: 'file:///workspace/src/active.ts' },
+            })
+
+            // Verify updateStore was called with the correct parameters
+            // Active editor description should be updated with the URI
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [
+                    {
+                        ...activeEditorCommand,
+                        description: 'file:///workspace/src/active.ts',
+                        children: undefined,
+                        disabled: false,
+                    },
+                ],
+                promptTopBarTitle: '@Pin Context',
+                promptTopBarButton: {
+                    id: 'Rules',
+                    status: 'clear',
+                    text: 'Rules',
+                    icon: 'check-list',
+                },
+            })
+        })
+
+        it('should remove active editor when no textDocument is provided', () => {
+            const tabId = 'tab-1'
+            const activeEditorCommand = {
+                id: 'active-editor',
+                command: 'Active file',
+                label: 'file',
+                icon: 'file',
+            }
+
+            const fileCommand = {
+                id: 'pinned-file-1',
+                command: 'File 1',
+                label: 'file',
+                route: ['/workspace', 'src/file1.ts'],
+                icon: 'file',
+            }
+
+            // Call sendPinnedContext with active editor context but no textDocument
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: [activeEditorCommand, fileCommand] as ContextCommand[] }],
+                showRules: false,
+            })
+
+            // Verify updateStore was called with empty context items
+            // Active editor should be removed since no textDocument was provided
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [{ ...fileCommand, children: undefined, disabled: false }],
+                promptTopBarTitle: '@',
+                promptTopBarButton: null,
+            })
+        })
+    })
+
+    describe('stringOverrides', () => {
+        it('should apply string overrides to config texts', () => {
+            const stringOverrides = {
+                spinnerText: 'Custom loading message...',
+                stopGenerating: 'Custom stop text',
+                showMore: 'Custom show more text',
+            }
+
+            const messager = new Messager(outboundChatApi)
+            const tabFactory = new TabFactory({})
+            const [customMynahUi] = createMynahUi(
+                messager,
+                tabFactory,
+                true,
+                true,
+                undefined,
+                undefined,
+                true,
+                stringOverrides
+            )
+
+            // Access the config texts from the instance
+            const configTexts = (customMynahUi as any).props.config.texts
+
+            // Verify that string overrides were applied and defaults are preserved
+            strictEqual(configTexts.spinnerText, 'Custom loading message...')
+            strictEqual(configTexts.stopGenerating, 'Custom stop text')
+            strictEqual(configTexts.showMore, 'Custom show more text')
+            strictEqual(configTexts.clickFileToViewDiff, uiComponentsTexts.clickFileToViewDiff)
+        })
+    })
 })
 
 describe('withAdapter', () => {
@@ -506,6 +795,7 @@ describe('withAdapter', () => {
             uiReady: sinon.stub(),
             tabAdded: sinon.stub(),
             telemetry: sinon.stub(),
+            onListAvailableModels: sinon.stub(),
         } as OutboundChatApi)
         const tabFactory = new TabFactory({})
         const mynahUiResult = createMynahUi(

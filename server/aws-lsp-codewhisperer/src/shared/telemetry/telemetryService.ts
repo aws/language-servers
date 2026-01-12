@@ -1,11 +1,14 @@
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken, SuggestionType } from '../codeWhispererService'
 import {
     CredentialsProvider,
     CredentialsType,
     Logging,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererSession } from '../../language-server/inline-completion/session/sessionManager'
+import {
+    CodeWhispererSession,
+    UserTriggerDecision,
+} from '../../language-server/inline-completion/session/sessionManager'
 import {
     SuggestionState,
     UserTriggerDecisionEvent,
@@ -19,9 +22,14 @@ import {
     ChatAddMessageEvent,
     UserIntent,
     InlineChatEvent,
+    IdeDiagnostic,
+    UserModificationEvent,
+    CompletionType,
+    InlineChatUserDecision,
     AgenticChatEventStatus,
-} from '../../client/token/codewhispererbearertokenclient'
-import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
+    UserDecisionReason,
+} from '@amzn/codewhisperer-runtime'
+import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
     ChatConversationType,
     ChatHistoryActionEvent,
@@ -61,6 +69,7 @@ export class TelemetryService {
         [ChatInteractionType.Upvote]: 'UPVOTE',
         [ChatInteractionType.Downvote]: 'DOWNVOTE',
         [ChatInteractionType.ClickBodyLink]: 'CLICK_BODY_LINK',
+        [ChatInteractionType.AgenticCodeAccepted]: 'AGENTIC_CODE_ACCEPTED',
     }
 
     constructor(
@@ -100,6 +109,7 @@ export class TelemetryService {
         return this.serviceManager.getCodewhispererService().getCredentialsType()
     }
 
+    // NOTE : CWSPR Service GetManager
     private getService(): CodeWhispererServiceToken {
         const service = this.serviceManager.getCodewhispererService() as CodeWhispererServiceToken
 
@@ -112,9 +122,11 @@ export class TelemetryService {
         return service
     }
 
-    private getSuggestionState(session: CodeWhispererSession): SuggestionState {
+    private getSuggestionState(userTriggerDecision: UserTriggerDecision): SuggestionState {
         let suggestionState: SuggestionState
-        switch (session.getAggregatedUserTriggerDecision()) {
+        // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
+        // Completions show multiple suggestions together, so aggregate all states
+        switch (userTriggerDecision) {
             case 'Accept':
                 suggestionState = 'ACCEPT'
                 break
@@ -142,8 +154,8 @@ export class TelemetryService {
 
     private logSendTelemetryEventFailure(error: any) {
         let requestId: string | undefined
-        if (isAwsError(error)) {
-            requestId = error.requestId
+        if (isServiceException(error)) {
+            requestId = error.$metadata.requestId
         }
 
         this.logging.log(
@@ -171,7 +183,8 @@ export class TelemetryService {
             if (this.modelId !== undefined) {
                 request.modelId = this.modelId
             }
-            await this.getService().sendTelemetryEvent(request)
+            const r = await this.getService().sendTelemetryEvent(request)
+            this.logging.log(`SendTelemetryEvent succeeded, requestId: ${r.$metadata.requestId}`)
         } catch (error) {
             this.logSendTelemetryEventFailure(error)
         }
@@ -181,7 +194,19 @@ export class TelemetryService {
         return this.cwInteractionTypeMap[interactionType] || 'UNKNOWN'
     }
 
-    public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
+    public emitUserTriggerDecision(
+        session: CodeWhispererSession,
+        userTriggerDecision: UserTriggerDecision,
+        timeSinceLastUserModification?: number,
+        addedCharacterCount?: number,
+        deletedCharacterCount?: number,
+        addedIdeDiagnostics?: IdeDiagnostic[],
+        removedIdeDiagnostics?: IdeDiagnostic[],
+        streakLength?: number,
+        userDecisionReason?: UserDecisionReason
+    ) {
+        session.decisionMadeTimestamp = Date.now()
+        // Toolkit telemetry API
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
@@ -224,9 +249,9 @@ export class TelemetryService {
         }
         const acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
         const generatedLines =
-            acceptedSuggestion === undefined || acceptedSuggestion.content.trim() === ''
+            acceptedSuggestion === undefined || acceptedSuggestion.content?.trim() === ''
                 ? 0
-                : acceptedSuggestion.content.split('\n').length
+                : acceptedSuggestion.content?.split('\n').length
         const referenceCount =
             acceptedSuggestion === undefined
                 ? 0
@@ -237,7 +262,9 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
+        const isInlineEdit = session.predictionType === SuggestionType.EDIT
 
+        // RTS STE API
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
             requestId: session.responseContext?.requestId || '',
@@ -246,19 +273,40 @@ export class TelemetryService {
                 languageName: getRuntimeLanguage(session.language),
             },
             completionType:
-                session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
-            suggestionState: this.getSuggestionState(session),
-            recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
-                ? session.firstCompletionDisplayLatency
-                : 0,
+                session.suggestions.length > 0
+                    ? getCompletionType(session.suggestions[0]) === 'Line'
+                        ? CompletionType.Line
+                        : CompletionType.Block
+                    : CompletionType.Line,
+            suggestionState: this.getSuggestionState(userTriggerDecision),
+            recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency ?? 0,
             timestamp: new Date(Date.now()),
             triggerToResponseLatencyMilliseconds: session.timeToFirstRecommendation,
             suggestionReferenceCount: referenceCount,
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
-            acceptedCharacterCount: acceptedCharacterCount,
+            acceptedCharacterCount: isInlineEdit ? addedCharacterCount : acceptedCharacterCount,
+            addedCharacterCount: isInlineEdit ? addedCharacterCount : acceptedCharacterCount,
+            deletedCharacterCount: isInlineEdit ? deletedCharacterCount : 0,
+            addedIdeDiagnostics: addedIdeDiagnostics,
+            removedIdeDiagnostics: removedIdeDiagnostics,
+            streakLength: streakLength ?? 0,
+            suggestionType: session.predictionType,
+            userDecisionReason: userDecisionReason,
         }
+        this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent:
+            "requestId": ${event.requestId}
+            "suggestionState": ${event.suggestionState}
+            "acceptedCharacterCount": ${event.acceptedCharacterCount}
+            "addedCharacterCount": ${event.addedCharacterCount}
+            "deletedCharacterCount": ${event.deletedCharacterCount}
+            "streakLength": ${event.streakLength},
+            "preprocessLatency": ${session.preprocessLatency},
+            "triggerToResponseLatencyMilliseconds: ${event.triggerToResponseLatencyMilliseconds}",
+            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds},
+            "suggestionType": ${event.suggestionType}
+            "userDecisionReason": ${event.userDecisionReason}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })
@@ -367,20 +415,30 @@ export class TelemetryService {
             })
         }
 
-        return this.invokeSendTelemetryEvent({
-            userModificationEvent: {
-                sessionId: params.sessionId,
-                requestId: params.requestId,
-                programmingLanguage: {
-                    languageName: getRuntimeLanguage(params.languageId),
-                },
-                // deprecated % value and should not be used by service side
-                modificationPercentage: params.modificationPercentage,
-                customizationArn: params.customizationArn,
-                timestamp: params.timestamp,
-                acceptedCharacterCount: params.acceptedCharacterCount,
-                unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+        const event: UserModificationEvent = {
+            sessionId: params.sessionId,
+            requestId: params.requestId,
+            programmingLanguage: {
+                languageName: getRuntimeLanguage(params.languageId),
             },
+            // deprecated % value and should not be used by service side
+            modificationPercentage: params.modificationPercentage,
+            customizationArn: params.customizationArn,
+            timestamp: params.timestamp,
+            acceptedCharacterCount: params.acceptedCharacterCount,
+            unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+            addedCharacterCount: params.acceptedCharacterCount,
+            unmodifiedAddedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+        }
+
+        this.logging.info(`Invoking SendTelemetryEvent:UserModificationEvent with:
+            "acceptedCharacterCount": ${event.acceptedCharacterCount}
+            "unmodifiedAcceptedCharacterCount": ${event.unmodifiedAcceptedCharacterCount}
+            "addedCharacterCount": ${event.addedCharacterCount}
+            "unmodifiedAddedCharacterCount": ${event.unmodifiedAddedCharacterCount}`)
+
+        return this.invokeSendTelemetryEvent({
+            userModificationEvent: event,
         })
     }
 
@@ -406,7 +464,8 @@ export class TelemetryService {
                     codewhispererTotalTokens: params.totalCharacterCount,
                     codewhispererLanguage: params.languageId,
                     codewhispererSuggestedTokens: params.acceptedCharacterCount,
-                    codewhispererPercentage: additionalParams.percentage,
+                    // codewhispererPercentage does not allow null and UserWrittenTracker returns null for this field so added an extra 0 for type safety
+                    codewhispererPercentage: additionalParams.percentage ?? 0,
                     successCount: additionalParams.successCount,
                     codewhispererCustomizationArn: params.customizationArn,
                     credentialStartUrl: additionalParams.credentialStartUrl,
@@ -420,10 +479,16 @@ export class TelemetryService {
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
+            addedCharacterCount: params.acceptedCharacterCount,
             userWrittenCodeCharacterCount: params.userWrittenCodeCharacterCount,
             userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }
         if (params.customizationArn) event.customizationArn = params.customizationArn
+
+        this.logging.info(`Invoking SendTelemetryEvent:CodeCoverageEvent with:
+            "acceptedCharacterCount": ${event.acceptedCharacterCount}
+            "totalCharacterCount": ${event.totalCharacterCount}
+            "addedCharacterCount": ${event.addedCharacterCount}`)
 
         return this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,
@@ -511,6 +576,10 @@ export class TelemetryService {
             cwsprChatPinnedPromptContextCount?: number
             languageServerVersion?: string
             requestIds?: string[]
+            experimentName?: string
+            userVariation?: string
+            errorMessage?: string
+            errorCode?: string
         }>
     ) {
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
@@ -562,6 +631,10 @@ export class TelemetryService {
                     enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,
                     requestIds: truncatedRequestIds,
+                    experimentName: additionalParams.experimentName,
+                    userVariation: additionalParams.userVariation,
+                    errorMessage: additionalParams.errorMessage,
+                    errorCode: additionalParams.errorCode,
                 },
             })
         }
@@ -580,7 +653,7 @@ export class TelemetryService {
             responseLength: params.responseLength,
             numberOfCodeBlocks: params.numberOfCodeBlocks,
             hasProjectLevelContext: false,
-            result: params.result?.toUpperCase() ?? 'SUCCEEDED',
+            result: (params.result?.toUpperCase() ?? AgenticChatEventStatus.Succeeded) as AgenticChatEventStatus,
         }
         if (params.customizationArn) {
             event.customizationArn = params.customizationArn
@@ -606,7 +679,7 @@ export class TelemetryService {
             numSuggestionDelChars: params.suggestionDeletedChars,
             numSuggestionDelLines: params.suggestionDeletedLines,
             codeIntent: params.codeIntent,
-            userDecision: params.userDecision,
+            userDecision: params.userDecision as InlineChatUserDecision,
             responseStartLatency: params.responseStartLatency,
             responseEndLatency: params.responseEndLatency,
         }

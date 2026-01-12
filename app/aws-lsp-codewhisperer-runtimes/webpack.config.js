@@ -80,6 +80,7 @@ const webworkerConfig = {
             http: 'stream-http',
             crypto: 'crypto-browserify',
             stream: 'stream-browserify',
+            url: require.resolve('url/'),
             fs: path.resolve(__dirname, 'src/mock-fs.js'),
             child_process: false,
             vm: false,
@@ -88,6 +89,7 @@ const webworkerConfig = {
             net: false,
             tls: false,
             http2: false,
+            buffer: require.resolve('buffer/'),
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
@@ -108,6 +110,9 @@ const webworkerConfig = {
     plugins: [
         new webpack.ProvidePlugin({
             process: 'process/browser',
+        }),
+        new webpack.ProvidePlugin({
+            Buffer: ['buffer', 'Buffer'],
         }),
     ],
 }
