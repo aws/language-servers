@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.47](https://github.com/aws/language-servers/compare/chat-client/v0.1.46...chat-client/v0.1.47) (2026-01-13)
+
+
+### Bug Fixes
+
+* make code block scrollable when sending to prompt ([#2587](https://github.com/aws/language-servers/issues/2587)) ([a837cc9](https://github.com/aws/language-servers/commit/a837cc90aa5d37e388a89090e940cc0e7a4a2674))
+
 ## [0.1.46](https://github.com/aws/language-servers/compare/chat-client/v0.1.45...chat-client/v0.1.46) (2025-12-19)
 
 
