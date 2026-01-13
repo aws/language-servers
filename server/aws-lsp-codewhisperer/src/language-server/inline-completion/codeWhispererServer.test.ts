@@ -916,6 +916,16 @@ describe('CodeWhisperer Server', () => {
                         { content: 'class Foo', filePath: 'Foo.java' },
                         { content: 'class Bar', filePath: 'Bar.java' },
                     ],
+                    editorState: {
+                        document: {
+                            relativeFilePath: 'file:///TargetFile.java',
+                            programmingLanguage: { languageName: 'java' },
+                            text: '',
+                        },
+                        cursorState: {
+                            position: { line: 0, character: 0 },
+                        },
+                    },
                     // workspaceId: undefined,
                 }
                 sinon.assert.calledOnceWithExactly(test_service.generateSuggestions, expectedGenerateSuggestionsRequest)
