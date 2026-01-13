@@ -45,10 +45,10 @@ import {
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from '../telemetry/telemetry'
-import { EDITOR_STATE_MAX_LENGTH, EMPTY_RESULT } from '../contants/constants'
+import { EMPTY_RESULT } from '../contants/constants'
 import { IdleWorkspaceManager } from '../../workspaceContext/IdleWorkspaceManager'
 import { mergeSuggestionsWithRightContext } from '../utils/mergeRightUtils'
-import { getTextDocument } from '../utils/textDocumentUtils'
+import { getEditorState, getTextDocument } from '../utils/textDocumentUtils'
 
 export class InlineCompletionHandler {
     private isOnInlineCompletionHandlerInProgress = false
@@ -332,35 +332,14 @@ export class InlineCompletionHandler {
         if (codeWhispererService instanceof CodeWhispererServiceToken) {
             const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
 
-            // Build editorState with truncation for token-based requests
-            const documentText = textDocument.getText()
-            const cursorOffset = textDocument.offsetAt(params.position)
-            let fileText = documentText
-            if (documentText.length > EDITOR_STATE_MAX_LENGTH) {
-                const halfLength = Math.floor(EDITOR_STATE_MAX_LENGTH / 2)
-                const leftPart = documentText.substring(Math.max(0, cursorOffset - halfLength), cursorOffset)
-                const rightPart = documentText.substring(cursorOffset, cursorOffset + halfLength)
-                fileText = leftPart + rightPart
-            }
-
             generateCompletionReq = {
                 ...tokenRequest,
                 ...(workspaceId ? { workspaceId } : {}),
-                editorState: {
-                    document: {
-                        relativeFilePath: textDocument.uri,
-                        programmingLanguage: {
-                            languageName: fileContext.programmingLanguage.languageName,
-                        },
-                        text: fileText,
-                    },
-                    cursorState: {
-                        position: {
-                            line: params.position.line,
-                            character: params.position.character,
-                        },
-                    },
-                },
+                editorState: getEditorState(
+                    textDocument,
+                    params.position,
+                    fileContext.programmingLanguage.languageName
+                ),
             }
         } else {
             const iamRequest = requestContext as GenerateIAMSuggestionsRequest
