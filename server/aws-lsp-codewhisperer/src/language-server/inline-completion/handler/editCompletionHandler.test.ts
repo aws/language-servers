@@ -4,7 +4,7 @@ import { InlineCompletionTriggerKind, TextDocument, CancellationToken } from '@a
 import { EMPTY_RESULT } from '../contants/constants'
 import * as sinon from 'sinon'
 import { CodeWhispererSession, SessionData, SessionManager } from '../session/sessionManager'
-import { HELLO_WORLD_IN_CSHARP } from '../../../shared/testUtils'
+import { HELLO_WORLD_IN_CSHARP, SAMPLE_FILE_OF_60_LINES_IN_JAVA } from '../../../shared/testUtils'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import * as EditAutotrigger from '../auto-trigger/editPredictionAutoTrigger'
 
@@ -107,7 +107,7 @@ describe('EditCompletionHandler', () => {
         it('should return empty result when in progress', async () => {
             handler['isInProgress'] = true
             const params = {
-                textDocument: { uri: 'test.ts' },
+                textDocument: TextDocument.create('file:///sample.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA),
                 position: { line: 0, character: 0 },
                 context: { triggerKind: InlineCompletionTriggerKind.Automatic },
             }
@@ -133,12 +133,12 @@ describe('EditCompletionHandler', () => {
         })
 
         it('should return empty result when service is not token service', async () => {
-            const textDocument = { languageId: 'typescript' }
+            const textDocument = TextDocument.create('file:///sample.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA)
             workspace.getTextDocument.resolves(textDocument)
             amazonQServiceManager.getCodewhispererService.returns({})
 
             const params = {
-                textDocument: { uri: 'test.ts' },
+                textDocument: textDocument,
                 position: { line: 0, character: 0 },
                 context: { triggerKind: InlineCompletionTriggerKind.Automatic },
             }
@@ -149,11 +149,11 @@ describe('EditCompletionHandler', () => {
         })
 
         it('should return empty result when language not supported', async () => {
-            const textDocument = { languageId: 'unsupported', uri: 'test.xyz' }
+            const textDocument = TextDocument.create('file:///sample.foo', 'foo', 1, 'foo bar baz')
             workspace.getTextDocument.resolves(textDocument)
 
             const params = {
-                textDocument: { uri: 'test.xyz' },
+                textDocument: { uri: 'file:///sample.foo' },
                 position: { line: 0, character: 0 },
                 context: { triggerKind: InlineCompletionTriggerKind.Automatic },
             }
@@ -165,7 +165,7 @@ describe('EditCompletionHandler', () => {
         })
 
         it('should handle partial result token with existing session', async () => {
-            const textDocument = { languageId: 'typescript', uri: 'test.ts' }
+            const textDocument = TextDocument.create('file:///sample.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA)
             workspace.getTextDocument.resolves(textDocument)
             sessionManager.createSession(data)
             const currentSession = sessionManager.getCurrentSession()
@@ -179,7 +179,7 @@ describe('EditCompletionHandler', () => {
             })
 
             const params = {
-                textDocument: { uri: 'test.ts' },
+                textDocument: textDocument,
                 position: { line: 0, character: 0 },
                 context: { triggerKind: InlineCompletionTriggerKind.Automatic },
                 partialResultToken: 'token123',
@@ -192,7 +192,7 @@ describe('EditCompletionHandler', () => {
         })
 
         it('should handle error in partial result token request', async () => {
-            const textDocument = { languageId: 'typescript', uri: 'test.ts' }
+            const textDocument = TextDocument.create('file:///sample.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA)
             workspace.getTextDocument.resolves(textDocument)
 
             sessionManager.createSession(data)
@@ -200,7 +200,7 @@ describe('EditCompletionHandler', () => {
             codeWhispererService.generateSuggestions.rejects(new Error('API Error'))
 
             const params = {
-                textDocument: { uri: 'test.ts' },
+                textDocument: textDocument,
                 position: { line: 0, character: 0 },
                 context: { triggerKind: InlineCompletionTriggerKind.Automatic },
                 partialResultToken: 'token123',
@@ -215,14 +215,14 @@ describe('EditCompletionHandler', () => {
             workspace.getTextDocument.resolves(null)
 
             const params = {
-                textDocument: { uri: 'test.ts' },
+                textDocument: TextDocument.create('file:///sample.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA),
                 position: { line: 5, character: 10 },
                 context: { triggerKind: InlineCompletionTriggerKind.Automatic },
             }
 
             await handler.onEditCompletion(params as any, CancellationToken.None)
 
-            sinon.assert.calledWith(cursorTracker.trackPosition, 'test.ts', { line: 5, character: 10 })
+            sinon.assert.calledWith(cursorTracker.trackPosition, 'file:///sample.java', { line: 5, character: 10 })
         })
     })
 
@@ -327,12 +327,7 @@ describe('EditCompletionHandler', () => {
     })
 
     describe('_invoke', () => {
-        const textDocument = {
-            languageId: 'typescript',
-            uri: 'test.ts',
-            getText: () => 'content',
-            positionAt: sinon.stub(),
-        }
+        const textDocument = TextDocument.create('file:///sample.java', 'java', 1, SAMPLE_FILE_OF_60_LINES_IN_JAVA)
         const params = {
             textDocument: textDocument,
             position: { line: 0, character: 0 },
