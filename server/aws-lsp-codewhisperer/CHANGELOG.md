@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.102](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.101...lsp-codewhisperer/v0.0.102) (2026-01-13)
+
+
+### Bug Fixes
+
+* **amazonq:** add variables for registry server refresh and re-init ([#2585](https://github.com/aws/language-servers/issues/2585)) ([9c260f1](https://github.com/aws/language-servers/commit/9c260f10041a6b6fee5b40fb80b2885142dbe64b))
+* **amazonq:** adding truncation logic to fileText for inline suggestions ([#2589](https://github.com/aws/language-servers/issues/2589)) ([2c236ce](https://github.com/aws/language-servers/commit/2c236ce085f7b347d077de58c4fa497a0fa18722))
+
 ## [0.0.101](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.100...lsp-codewhisperer/v0.0.101) (2026-01-09)
 
 
