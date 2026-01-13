@@ -37,7 +37,6 @@ import { parse } from '@aws-sdk/util-arn-parser'
 import { ChatDatabase } from '../../language-server/agenticChat/tools/chatDb/chatDb'
 import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
 import { UserContext } from '@amzn/codewhisperer-runtime'
-
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
  * instance of CodeWhispererServiceToken SDK client to any consuming code.
@@ -160,6 +159,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         // Reset MCP state cache when auth changes
         ProfileStatusMonitor.resetMcpState()
+        ProfileStatusMonitor.resetMcpManager()
     }
 
     public handleOnCredentialsUpdated(type: CredentialsType): void {
@@ -265,8 +265,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.state = 'INITIALIZED'
             this.logging.log(`Initialized Amazon Q service with ${newConnectionType} connection`)
 
-            // Emit auth success event
-            ProfileStatusMonitor.emitAuthSuccess()
+            ProfileStatusMonitor.discoverServersWhenNoProfiles()
 
             return
         }
@@ -289,9 +288,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.createCodewhispererServiceInstances('identityCenter', undefined, endpointOverride)
             this.state = 'INITIALIZED'
             this.logging.log('Initialized Amazon Q service with identityCenter connection')
-
-            // Emit auth success event
-            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -414,9 +410,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
 
-            // Emit auth success event
-            ProfileStatusMonitor.emitAuthSuccess()
-
             return
         }
 
@@ -439,9 +432,6 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             if (this.cachedStreamingClient) {
                 this.cachedStreamingClient.profileArn = newProfile.arn
             }
-
-            // Emit auth success event
-            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
