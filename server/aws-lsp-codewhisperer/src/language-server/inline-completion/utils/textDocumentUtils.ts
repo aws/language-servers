@@ -1,6 +1,8 @@
 import { TextDocument } from '@aws/language-server-runtimes/server-interface'
-import { ABAP_EXTENSIONS } from '../contants/constants'
+import { ABAP_EXTENSIONS, EDITOR_STATE_MAX_LENGTH } from '../contants/constants'
 import { URI } from 'vscode-uri'
+import { Position } from 'vscode-languageserver-textdocument'
+import { EditorState } from '@amzn/codewhisperer-runtime'
 
 export const getLanguageIdFromUri = (uri: string, logging?: any): string => {
     try {
@@ -28,4 +30,33 @@ export const getTextDocument = async (uri: string, workspace: any, logging: any)
         }
     }
     return textDocument
+}
+
+export const getEditorState = (textDocument: TextDocument, position: Position, languageName: string): EditorState => {
+    // Build editorState with truncation for token-based requests
+    const documentText = textDocument.getText()
+    const cursorOffset = textDocument.offsetAt(position)
+    let fileText = documentText
+    if (documentText.length > EDITOR_STATE_MAX_LENGTH) {
+        const halfLength = Math.floor(EDITOR_STATE_MAX_LENGTH / 2)
+        const leftPart = documentText.substring(Math.max(0, cursorOffset - halfLength), cursorOffset)
+        const rightPart = documentText.substring(cursorOffset, cursorOffset + halfLength)
+        fileText = leftPart + rightPart
+    }
+
+    return {
+        document: {
+            relativeFilePath: textDocument.uri,
+            programmingLanguage: {
+                languageName: languageName,
+            },
+            text: fileText,
+        },
+        cursorState: {
+            position: {
+                line: position.line,
+                character: position.character,
+            },
+        },
+    }
 }
