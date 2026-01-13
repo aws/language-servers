@@ -425,17 +425,34 @@ export const McpToolsServer: Server = ({
                     removeAllMcpTools()
                 },
                 async () => {
-                    logging.info('MCP enabled by profile status monitor')
-                    // Don't clear registry errors when re-enabling MCP
-                    const existingErrors = McpManager.instance.getConfigLoadErrors()
-                    await McpManager.instance.discoverAllServers()
-                    // Restore registry errors if they existed
-                    if (existingErrors && existingErrors.includes('MCP Registry:')) {
-                        McpManager.instance.configLoadErrors.set('registry', existingErrors)
+                    try {
+                        logging.info('MCP enabled by profile status monitor')
+                        // Don't clear registry errors when re-enabling MCP
+                        const existingErrors = McpManager.instance.getConfigLoadErrors()
+                        await McpManager.instance.discoverAllServers()
+                        // Restore registry errors if they existed
+                        if (existingErrors && existingErrors.includes('MCP Registry:')) {
+                            McpManager.instance.configLoadErrors.set('registry', existingErrors)
+                        }
+                        logging.info(
+                            `MCP: discovered ${McpManager.instance.getAllTools().length} tools after re-enable`
+                        )
+                        registerAllMcpTools()
+                        sendMcpUpdate()
+                    } catch (error) {
+                        const errorMsg = error instanceof Error ? error.message : String(error)
+                        logging.error(`MCP initialization failed: ${errorMsg}`)
+                        // Store registry errors in McpManager for display in server list
+                        if (errorMsg.includes('MCP Registry:')) {
+                            try {
+                                McpManager.instance.configLoadErrors.set('registry', errorMsg)
+                            } catch (e) {
+                                logging.debug('Failed to store registry error in McpManager')
+                            }
+                        }
+                        sendMcpUpdate()
+                        throw error
                     }
-                    logging.info(`MCP: discovered ${McpManager.instance.getAllTools().length} tools after re-enable`)
-                    registerAllMcpTools()
-                    sendMcpUpdate()
                 },
                 async (registryUrl: string | null, isPeriodicSync: boolean = false) => {
                     try {
@@ -514,7 +531,7 @@ export const McpToolsServer: Server = ({
 
                     if (authState === 'INITIALIZED') {
                         logging.info('Auth is initialized, checking MCP state and discovering servers')
-                        await checkAndInitialize()
+                        profileStatusMonitor!.start()
                     } else {
                         logging.info(`Auth not ready (state: ${authState}), waiting before discovering MCP servers`)
                         // Poll for auth to be ready with 10s timeout
@@ -523,7 +540,7 @@ export const McpToolsServer: Server = ({
                             const currentState = serviceManager.getState()
                             if (currentState === 'INITIALIZED') {
                                 logging.info('Auth initialized, proceeding with MCP discovery')
-                                await checkAndInitialize()
+                                profileStatusMonitor!.start()
                             } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
                                 setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                             } else {
