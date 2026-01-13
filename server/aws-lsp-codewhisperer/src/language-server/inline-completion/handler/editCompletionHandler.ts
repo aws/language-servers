@@ -38,9 +38,9 @@ import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../../sha
 import { DocumentChangedListener } from '../documentChangedListener'
 import { EMPTY_RESULT } from '../contants/constants'
 import { StreakTracker } from '../tracker/streakTracker'
-import { UserDecisionReason } from '@amzn/codewhisperer-runtime'
 import { processEditSuggestion } from '../utils/diffUtils'
 import { EditClassifier } from '../auto-trigger/editPredictionAutoTrigger'
+import { getEditorState } from '../utils/textDocumentUtils'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -250,21 +250,11 @@ export class EditCompletionHandler {
             workspaceId: workspaceId,
         }
 
-        generateCompletionReq.editorState = {
-            document: {
-                relativeFilePath: textDocument.uri,
-                programmingLanguage: {
-                    languageName: generateCompletionReq.fileContext?.programmingLanguage?.languageName,
-                },
-                text: textDocument.getText(),
-            },
-            cursorState: {
-                position: {
-                    line: params.position.line,
-                    character: params.position.character,
-                },
-            },
-        }
+        generateCompletionReq.editorState = getEditorState(
+            textDocument,
+            params.position,
+            fileContextClss.programmingLanguage.languageName
+        )
 
         const supplementalContext = await this.codeWhispererService.constructSupplementalContext(
             textDocument,
