@@ -429,11 +429,7 @@ export async function loadAgentConfig(
 
                     const registryServer = findServerInRegistry(registry, name)
                     if (!registryServer) {
-                        const errorMsg = `MCP Registry: Server '${name}' not found in registry`
-                        logging.error(errorMsg)
-                        configErrors.set(`${name}`, errorMsg)
-
-                        // Create placeholder config for missing registry server
+                        // Create empty config for missing registry server - will fail during installation naturally
                         cfg = {
                             command: undefined,
                             url: undefined,
@@ -441,7 +437,7 @@ export async function loadAgentConfig(
                             env: {},
                             disabled: false,
                             __configPath__: fsPath,
-                            __registryError__: errorMsg,
+                            __registryError__: `Server '${name}' not found in registry`,
                         } as MCPServerConfig
 
                         const sanitizedName = sanitizeName(name)
@@ -455,14 +451,16 @@ export async function loadAgentConfig(
                         if (entry.env && Object.keys(entry.env).length) agentEntry.env = entry.env
                         agentConfig.mcpServers[name] = agentEntry
 
-                        logging.info(`Loaded placeholder for missing registry server '${name}'`)
+                        logging.info(
+                            `Created empty config for missing registry server '${name}' - will fail during installation`
+                        )
                         continue
                     }
 
                     // Convert registry server to MCPServerConfig
                     const converter = new McpServerConfigConverter()
                     try {
-                        cfg = converter.convertRegistryServer(registryServer)
+                        cfg = converter.convertRegistryServer(registryServer, entry.env)
                         cfg.__configPath__ = fsPath
 
                         // Apply timeout from registry server config if provided

@@ -48,7 +48,7 @@ import {
 import { EMPTY_RESULT } from '../contants/constants'
 import { IdleWorkspaceManager } from '../../workspaceContext/IdleWorkspaceManager'
 import { mergeSuggestionsWithRightContext } from '../utils/mergeRightUtils'
-import { getTextDocument } from '../utils/textDocumentUtils'
+import { getEditorState, getTextDocument } from '../utils/textDocumentUtils'
 
 export class InlineCompletionHandler {
     private isOnInlineCompletionHandlerInProgress = false
@@ -331,9 +331,15 @@ export class InlineCompletionHandler {
 
         if (codeWhispererService instanceof CodeWhispererServiceToken) {
             const tokenRequest = requestContext as GenerateTokenSuggestionsRequest
+
             generateCompletionReq = {
                 ...tokenRequest,
                 ...(workspaceId ? { workspaceId } : {}),
+                editorState: getEditorState(
+                    textDocument,
+                    params.position,
+                    fileContext.programmingLanguage.languageName
+                ),
             }
         } else {
             const iamRequest = requestContext as GenerateIAMSuggestionsRequest
@@ -344,7 +350,9 @@ export class InlineCompletionHandler {
 
         try {
             const authType = codeWhispererService instanceof CodeWhispererServiceToken ? 'token' : 'iam'
-            this.logging.debug(`[INLINE_COMPLETION] API call - generateSuggestions (new session, ${authType})`)
+            this.logging.debug(
+                `[INLINE_COMPLETION] API call - generateSuggestions (new session, ${authType}), generateCompletion request = ${JSON.stringify(generateCompletionReq)}`
+            )
             const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
             return await this.processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
         } catch (error) {
