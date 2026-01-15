@@ -1,0 +1,16 @@
+{
+    "name": "@aws/atx-transform-server-integration-tests",
+    "version": "0.0.1",
+    "description": "Integration tests for ATX .NET Transform Language Server",
+    "scripts": {
+        "compile": "tsc --build",
+        "test-integ": "npm run compile && mocha --timeout 7200000 \"./out/**/*.test.js\""
+    },
+    "devDependencies": {
+        "@types/chai": "^4.3.5",
+        "@types/mocha": "^10.0.9",
+        "chai": "^4.3.7",
+        "mocha": "^11.0.1",
+        "typescript": "^5.0.0"
+    }
+}
