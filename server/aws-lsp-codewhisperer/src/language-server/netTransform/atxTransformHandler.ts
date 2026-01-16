@@ -879,6 +879,7 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
+                this.logging.error(`ATX: Job failed - Reason: ${job?.statusDetails?.failureReason ?? 'Unknown'}`)
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
