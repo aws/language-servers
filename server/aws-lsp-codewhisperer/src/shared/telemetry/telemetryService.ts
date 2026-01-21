@@ -28,6 +28,8 @@ import {
     InlineChatUserDecision,
     AgenticChatEventStatus,
     UserDecisionReason,
+    KiroEnterpriseTelemetryEvent,
+    Origin,
 } from '@amzn/codewhisperer-runtime'
 import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
@@ -531,7 +533,7 @@ export class TelemetryService {
         }
     }
 
-    public emitChatAddMessage(
+    public async emitChatAddMessage(
         params: {
             conversationId?: string
             messageId?: string
@@ -663,9 +665,25 @@ export class TelemetryService {
                 languageName: getRuntimeLanguage(params.programmingLanguage),
             }
         }
-        return this.invokeSendTelemetryEvent({
-            chatAddMessageEvent: event,
-        })
+
+        // Calculate total context files count (sum of all context types)
+        const totalContextFiles =
+            (additionalParams.cwsprChatFileContextCount ?? 0) +
+            (additionalParams.cwsprChatFolderContextCount ?? 0) +
+            (additionalParams.cwsprChatRuleContextCount ?? 0) +
+            (additionalParams.cwsprChatPromptContextCount ?? 0) +
+            (additionalParams.cwsprChatCodeContextCount ?? 0)
+
+        // Emit both telemetry events in parallel
+        await Promise.all([
+            this.invokeSendTelemetryEvent({ chatAddMessageEvent: event }),
+            this.emitKiroEnterpriseTelemetryEvent({
+                conversationId: params.conversationId ?? 'DummyConversationId',
+                messageId: params.messageId ?? 'DummyMessageId',
+                chatMessageDuration: params.fullResponselatency,
+                contextFiles: totalContextFiles,
+            }),
+        ])
     }
 
     public emitInlineChatResultLog(params: InlineChatResultParams) {
@@ -690,6 +708,48 @@ export class TelemetryService {
         }
         return this.invokeSendTelemetryEvent({
             inlineChatEvent: event,
+        })
+    }
+
+    /**
+     * Emits a KiroEnterpriseTelemetryEvent for tracking Kiro Enterprise user activity metrics.
+     * This event is emitted for every user's chat message.
+     */
+    public emitKiroEnterpriseTelemetryEvent(params: {
+        conversationId: string
+        messageId: string
+        chatMessageDuration?: number
+        contextFiles?: number
+    }) {
+        const event: KiroEnterpriseTelemetryEvent = {
+            conversationId: params.conversationId,
+            messageId: params.messageId,
+            origin: Origin.IDE,
+            userId: this.userContext?.clientId ?? 'DummyUserId',
+            date: new Date().toISOString().split('T')[0],
+            profileId: this.profileArn,
+            chatMessagesVibe: 1,
+            chatMessages: 1,
+            chatMessageDuration: params.chatMessageDuration,
+            contextFiles: params.contextFiles,
+            modelId: this.modelId,
+        }
+
+        this.logging.info(`Invoking SendTelemetryEvent:KiroEnterpriseTelemetryEvent:
+            "conversationId": ${event.conversationId}
+            "messageId": ${event.messageId}
+            "origin": ${event.origin}
+            "userId": ${event.userId}
+            "date": ${event.date}
+            "profileId": ${event.profileId}
+            "chatMessagesVibe": ${event.chatMessagesVibe}
+            "chatMessages": ${event.chatMessages}
+            "chatMessageDuration": ${event.chatMessageDuration}
+            "contextFiles": ${event.contextFiles}
+            "modelId": ${event.modelId}`)
+
+        return this.invokeSendTelemetryEvent({
+            kiroEnterpriseTelemetryEvent: event,
         })
     }
 }
