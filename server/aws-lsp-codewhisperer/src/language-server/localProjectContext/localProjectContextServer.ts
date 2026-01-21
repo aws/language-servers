@@ -164,6 +164,11 @@ export const LocalProjectContextServer =
         const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.log('Updating configuration of local context server')
             try {
+                if (updatedConfig.isDefaultConfig === true) {
+                    logging.log('Skipping init for default config')
+                    return
+                }
+
                 localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
                 if (process.env.DISABLE_INDEXING_LIBRARY === 'true') {
                     logging.log('Skipping local project context initialization')
