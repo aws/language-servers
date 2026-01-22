@@ -119,10 +119,12 @@ export class AgenticChatTriggerContext {
         profileArn?: string,
         tools: BedrockTools = [],
         modelId?: string,
-        origin?: Origin
+        origin?: Origin,
+        conversationId?: string
     ): ChatCommandInput {
         const data: ChatCommandInput = {
             conversationState: {
+                conversationId,
                 chatTriggerType: ChatTriggerType.MANUAL,
                 currentMessage: {
                     userInputMessage: {
@@ -170,7 +172,8 @@ export class AgenticChatTriggerContext {
         additionalContent?: AdditionalContentEntryAddition[],
         modelId?: string,
         origin?: Origin,
-        imageContext?: ImageBlock[]
+        imageContext?: ImageBlock[],
+        conversationId?: string
     ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -258,6 +261,7 @@ export class AgenticChatTriggerContext {
 
         const data: ChatCommandInput = {
             conversationState: {
+                conversationId,
                 workspaceId: workspaceId,
                 chatTriggerType: chatTriggerType,
                 currentMessage: {
