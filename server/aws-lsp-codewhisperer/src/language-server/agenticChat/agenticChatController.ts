@@ -1186,7 +1186,8 @@ export class AgenticChatController implements ChatHandlers {
             additionalContext,
             session.modelId,
             this.#origin,
-            images
+            images,
+            session.conversationId
         )
         return requestInput
     }
@@ -1202,7 +1203,8 @@ export class AgenticChatController implements ChatHandlers {
             profileArn,
             this.#getTools(session),
             session.modelId,
-            this.#origin
+            this.#origin,
+            session.conversationId
         )
         return requestInput
     }
