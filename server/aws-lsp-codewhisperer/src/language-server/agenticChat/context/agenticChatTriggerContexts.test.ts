@@ -159,6 +159,27 @@ describe('AgenticChatTriggerContext', () => {
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
     })
 
+    it('includes conversationId in chat params when provided', async () => {
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
+        const conversationId = 'test-conversation-id'
+
+        const chatParams = await triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL,
+            undefined,
+            undefined,
+            undefined,
+            [],
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            conversationId
+        )
+        assert.strictEqual(chatParams.conversationState?.conversationId, conversationId)
+    })
+
     it('includes remote workspaceId if it exists and is connected', async () => {
         mockWorkspaceFolderManager = {
             getWorkspaceState: sinon.stub(),

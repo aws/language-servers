@@ -479,6 +479,17 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typeof session.conversationId, 'string')
         })
 
+        it('includes conversationId in the request input', async () => {
+            chatController.onTabAdd({ tabId: mockTabId })
+            const session = chatSessionManagementService.getSession(mockTabId).data
+            assert.ok(session)
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
+            assert.strictEqual(requestInput.conversationState?.conversationId, session.conversationId)
+        })
+
         it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
             const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
 
