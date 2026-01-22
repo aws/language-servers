@@ -666,25 +666,29 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             simulationResponse = e as Error
             throw e
         } finally {
-            if (this.isDevMode) {
-                const simulationOutputEntry = {
-                    response: simulationResponse,
-                    request: simulationRequest,
-                }
-
-                try {
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-                    const filename = path.join(
-                        '/Users/xshaohua/workplace/ide/apex-sample-projects',
-                        `simulation-lsp.json`
-                    )
-
-                    fs.appendFileSync(filename, JSON.stringify(simulationOutputEntry) + '\n')
-                } catch (e) {
-                    this.logging.error(`simulation error : ${(e as Error).message}`)
-                }
-            }
+            this.writeSimulationOuputIfNeeded(simulationRequest, simulationResponse)
             this.logging.info(logstr)
+        }
+    }
+
+    private writeSimulationOuputIfNeeded(
+        request: GenerateCompletionsCommandInput,
+        response: GenerateCompletionsCommandOutput | Error
+    ) {
+        if (this.isDevMode) {
+            const simulationOutputEntry = {
+                response: response,
+                request: request,
+            }
+
+            try {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+                const filename = path.join('/Users/xshaohua/workplace/ide/apex-sample-projects', `simulation-lsp.json`)
+
+                fs.appendFileSync(filename, JSON.stringify(simulationOutputEntry) + '\n')
+            } catch (e) {
+                this.logging.error(`simulation error : ${(e as Error).message}`)
+            }
         }
     }
 
