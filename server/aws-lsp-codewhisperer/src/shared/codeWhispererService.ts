@@ -418,6 +418,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     #abTestingFetchingTimeout: NodeJS.Timeout | undefined
     #features: FeatureEvaluation[] | undefined
 
+    // TODO: should read from IDE
     private isDevMode: boolean = true
 
     constructor(
@@ -667,8 +668,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         } finally {
             if (this.isDevMode) {
                 const simulationOutputEntry = {
-                    request: simulationRequest,
                     response: simulationResponse,
+                    request: simulationRequest,
                 }
 
                 try {
