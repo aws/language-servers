@@ -668,12 +668,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             if (this.isDevMode) {
                 const simulationOutputEntry = {
                     request: simulationRequest,
-                    Response: simulationResponse,
+                    response: simulationResponse,
                 }
 
                 try {
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-                    const filename = path.join(`simulation-${timestamp}.json`)
+                    const filename = path.join(
+                        '/Users/xshaohua/workplace/ide/apex-sample-projects',
+                        `simulation-lsp.json`
+                    )
 
                     fs.appendFileSync(filename, JSON.stringify(simulationOutputEntry) + '\n')
                 } catch (e) {
