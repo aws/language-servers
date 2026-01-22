@@ -32,6 +32,7 @@ import { RecentEditTracker } from '../language-server/inline-completion/tracker/
 import { CodeWhispererSupplementalContext } from './models/model'
 import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
 import * as path from 'path'
+import * as fs from 'fs'
 import {
     CONTEXT_CHARACTERS_LIMIT,
     FILE_URI_CHARS_LIMIT,
@@ -50,6 +51,8 @@ import {
     DeleteWorkspaceRequest,
     FeatureEvaluation,
     GenerateCompletionsCommand,
+    GenerateCompletionsCommandInput,
+    GenerateCompletionsCommandOutput,
     GenerateCompletionsRequest,
     GenerateCompletionsResponse,
     GetCodeAnalysisCommand,
@@ -415,6 +418,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     #abTestingFetchingTimeout: NodeJS.Timeout | undefined
     #features: FeatureEvaluation[] | undefined
 
+    private isDevMode: boolean = true
+
     constructor(
         private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -590,8 +595,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         let logstr = `GenerateCompletion activity:\n`
+        let simulationRequest: GenerateCompletionsCommandInput = {} as any
+        let simulationResponse: GenerateCompletionsCommandOutput | Error = {} as any
         try {
             const tokenRequest = request as GenerateTokenSuggestionsRequest
+            simulationRequest = this.withProfileArn(tokenRequest)
 
             // Add customizationArn if available
             if (this.customizationArn) {
@@ -628,6 +636,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             // "recentEdits": ${recentEditsLogStr}\n`
 
             const response = await this.client.send(new GenerateCompletionsCommand(this.withProfileArn(tokenRequest)))
+            simulationResponse = response
 
             const responseContext: ResponseContext = {
                 requestId: response?.$metadata?.requestId ?? 'unknown',
@@ -653,8 +662,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return r
         } catch (e) {
             logstr += `error: ${(e as Error).message}`
+            simulationResponse = e as Error
             throw e
         } finally {
+            if (this.isDevMode) {
+                const simulationOutputEntry = {
+                    request: simulationRequest,
+                    Response: simulationResponse,
+                }
+
+                try {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+                    const filename = path.join(`simulation-${timestamp}.json`)
+
+                    fs.appendFileSync(filename, JSON.stringify(simulationOutputEntry) + '\n')
+                } catch (e) {
+                    this.logging.error(`simulation error : ${(e as Error).message}`)
+                }
+            }
             this.logging.info(logstr)
         }
     }

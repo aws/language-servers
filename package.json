@@ -39,6 +39,7 @@
         "@aws/language-server-runtimes": "^0.3.12",
         "@smithy/types": "4.2.0",
         "clean": "^4.0.2",
+        "fuzzball": "^2.2.3",
         "typescript": "^5.8.2"
     },
     "devDependencies": {
