@@ -226,7 +226,7 @@ export const emitTransformationPlanReceivedTelemetry = (
     const data: TransformationPlanReceivedEvent = {
         category: CODETRANSFORM_CATEGORY,
         transformationJobId: jobId,
-        transformationSteps: response.TransformationPlan.transformationSteps,
+        transformationSteps: undefined,
     }
 
     telemetry.emitMetric({
