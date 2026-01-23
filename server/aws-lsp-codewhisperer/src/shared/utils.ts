@@ -362,9 +362,7 @@ export function getBearerTokenFromProviderWithType(credentialsProvider: Credenti
     return credentials.token
 }
 export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
-    return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
-        ? lspParams?.initializationOptions?.aws?.clientInfo?.name
-        : lspParams?.clientInfo?.name
+    return lspParams?.initializationOptions?.aws?.clientInfo?.name || lspParams?.clientInfo?.name
 }
 
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
