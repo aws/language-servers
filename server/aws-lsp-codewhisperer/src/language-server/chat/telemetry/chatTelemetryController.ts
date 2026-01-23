@@ -180,7 +180,7 @@ export class ChatTelemetryController {
         })
     }
 
-    public emitAgencticLoop_InvokeLLM(
+    public async emitAgencticLoop_InvokeLLM(
         requestId: string,
         conversationId: string,
         conversationType: string,
@@ -217,6 +217,13 @@ export class ChatTelemetryController {
                 experimentName: experimentName,
                 userVariation: userVariation,
             },
+        })
+
+        await this.#telemetryService.emitKiroChatMessageEvent({
+            conversationId,
+            messageId: requestId,
+            chatMessageDuration: latency,
+            modelId,
         })
     }
 

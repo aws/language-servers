@@ -28,8 +28,10 @@ import {
     InlineChatUserDecision,
     AgenticChatEventStatus,
     UserDecisionReason,
-    KiroEnterpriseTelemetryEvent,
+    KiroChatMessageEvent,
     Origin,
+    ChatAgentMode,
+    ChatAutonomyMode,
 } from '@amzn/codewhisperer-runtime'
 import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
@@ -533,7 +535,7 @@ export class TelemetryService {
         }
     }
 
-    public async emitChatAddMessage(
+    public emitChatAddMessage(
         params: {
             conversationId?: string
             messageId?: string
@@ -665,25 +667,9 @@ export class TelemetryService {
                 languageName: getRuntimeLanguage(params.programmingLanguage),
             }
         }
-
-        // Calculate total context files count (sum of all context types)
-        const totalContextFiles =
-            (additionalParams.cwsprChatFileContextCount ?? 0) +
-            (additionalParams.cwsprChatFolderContextCount ?? 0) +
-            (additionalParams.cwsprChatRuleContextCount ?? 0) +
-            (additionalParams.cwsprChatPromptContextCount ?? 0) +
-            (additionalParams.cwsprChatCodeContextCount ?? 0)
-
-        // Emit both telemetry events in parallel
-        await Promise.all([
-            this.invokeSendTelemetryEvent({ chatAddMessageEvent: event }),
-            this.emitKiroEnterpriseTelemetryEvent({
-                conversationId: params.conversationId ?? 'DummyConversationId',
-                messageId: params.messageId ?? 'DummyMessageId',
-                chatMessageDuration: params.fullResponselatency,
-                contextFiles: totalContextFiles,
-            }),
-        ])
+        return this.invokeSendTelemetryEvent({
+            chatAddMessageEvent: event,
+        })
     }
 
     public emitInlineChatResultLog(params: InlineChatResultParams) {
@@ -712,44 +698,42 @@ export class TelemetryService {
     }
 
     /**
-     * Emits a KiroEnterpriseTelemetryEvent for tracking Kiro Enterprise user activity metrics.
-     * This event is emitted for every user's chat message.
+     * Emits a KiroChatMessageEvent for tracking chat message metrics.
+     * This event is emitted for every generateAssistantResponse call.
      */
-    public emitKiroEnterpriseTelemetryEvent(params: {
+    public emitKiroChatMessageEvent(params: {
         conversationId: string
         messageId: string
         chatMessageDuration?: number
-        contextFiles?: number
+        modelId?: string
     }) {
-        const event: KiroEnterpriseTelemetryEvent = {
+        const event: KiroChatMessageEvent = {
             conversationId: params.conversationId,
             messageId: params.messageId,
             origin: Origin.IDE,
             userId: this.userContext?.clientId ?? 'DummyUserId',
             date: new Date().toISOString().split('T')[0],
             profileId: this.profileArn,
-            chatMessagesVibe: 1,
-            chatMessages: 1,
+            chatAgentMode: ChatAgentMode.VIBE,
+            chatAutonomyMode: ChatAutonomyMode.SUPERVISED,
             chatMessageDuration: params.chatMessageDuration,
-            contextFiles: params.contextFiles,
-            modelId: this.modelId,
+            modelId: params.modelId,
         }
 
-        this.logging.info(`Invoking SendTelemetryEvent:KiroEnterpriseTelemetryEvent:
+        this.logging.info(`Invoking SendTelemetryEvent:KiroChatMessageEvent:
             "conversationId": ${event.conversationId}
             "messageId": ${event.messageId}
             "origin": ${event.origin}
             "userId": ${event.userId}
             "date": ${event.date}
             "profileId": ${event.profileId}
-            "chatMessagesVibe": ${event.chatMessagesVibe}
-            "chatMessages": ${event.chatMessages}
+            "chatAgentMode": ${event.chatAgentMode}
+            "chatAutonomyMode": ${event.chatAutonomyMode}
             "chatMessageDuration": ${event.chatMessageDuration}
-            "contextFiles": ${event.contextFiles}
             "modelId": ${event.modelId}`)
 
         return this.invokeSendTelemetryEvent({
-            kiroEnterpriseTelemetryEvent: event,
+            kiroChatMessageEvent: event,
         })
     }
 }

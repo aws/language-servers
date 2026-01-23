@@ -1053,7 +1053,7 @@ describe('TelemetryService', () => {
         })
     })
 
-    describe('KiroEnterpriseTelemetryEvent', () => {
+    describe('KiroChatMessageEvent', () => {
         it('should send event for Identity Center users', () => {
             codeWhisperServiceStub.getCredentialsType.returns('bearer')
             mockCredentialsProvider.setConnectionType('identityCenter')
@@ -1070,25 +1070,25 @@ describe('TelemetryService', () => {
                 product: 'CodeWhisperer',
             })
 
-            telemetryService.emitKiroEnterpriseTelemetryEvent({
+            telemetryService.emitKiroChatMessageEvent({
                 conversationId: 'test-conversation-id',
                 messageId: 'test-message-id',
                 chatMessageDuration: 500,
-                contextFiles: 3,
+                modelId: 'test-model-id',
             })
 
             sinon.assert.calledOnce(codeWhisperServiceStub.sendTelemetryEvent)
             const callArg = codeWhisperServiceStub.sendTelemetryEvent.firstCall.args[0]
-            const event = callArg.telemetryEvent!.kiroEnterpriseTelemetryEvent!
+            const event = callArg.telemetryEvent!.kiroChatMessageEvent!
 
             sinon.assert.match(event.conversationId, 'test-conversation-id')
             sinon.assert.match(event.messageId, 'test-message-id')
             sinon.assert.match(event.origin, 'IDE')
             sinon.assert.match(event.userId, 'test-user-id')
-            sinon.assert.match(event.chatMessagesVibe, 1)
-            sinon.assert.match(event.chatMessages, 1)
+            sinon.assert.match(event.chatAgentMode, 'VIBE')
+            sinon.assert.match(event.chatAutonomyMode, 'SUPERVISED')
             sinon.assert.match(event.chatMessageDuration, 500)
-            sinon.assert.match(event.contextFiles, 3)
+            sinon.assert.match(event.modelId, 'test-model-id')
         })
     })
 })
