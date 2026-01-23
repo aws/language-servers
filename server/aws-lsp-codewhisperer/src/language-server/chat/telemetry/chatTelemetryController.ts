@@ -224,6 +224,7 @@ export class ChatTelemetryController {
             messageId: requestId,
             chatMessageDuration: latency,
             modelId,
+            agenticCodingMode,
         })
     }
 

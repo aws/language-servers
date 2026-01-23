@@ -1075,6 +1075,7 @@ describe('TelemetryService', () => {
                 messageId: 'test-message-id',
                 chatMessageDuration: 500,
                 modelId: 'test-model-id',
+                agenticCodingMode: false,
             })
 
             sinon.assert.calledOnce(codeWhisperServiceStub.sendTelemetryEvent)
@@ -1089,6 +1090,28 @@ describe('TelemetryService', () => {
             sinon.assert.match(event.chatAutonomyMode, 'SUPERVISED')
             sinon.assert.match(event.chatMessageDuration, 500)
             sinon.assert.match(event.modelId, 'test-model-id')
+        })
+
+        it('should set chatAutonomyMode to AUTOPILOT when agenticCodingMode is true', async () => {
+            codeWhisperServiceStub.getCredentialsType.returns('bearer')
+            mockCredentialsProvider.setConnectionType('identityCenter')
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: 'https://my-sso-portal.awsapps.com/start',
+                },
+            })
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
+
+            await telemetryService.emitKiroChatMessageEvent({
+                conversationId: 'test-conversation-id',
+                messageId: 'test-message-id',
+                agenticCodingMode: true,
+            })
+
+            const callArg = codeWhisperServiceStub.sendTelemetryEvent.firstCall.args[0]
+            const event = callArg.telemetryEvent!.kiroChatMessageEvent!
+
+            sinon.assert.match(event.chatAutonomyMode, 'AUTOPILOT')
         })
     })
 })

@@ -706,16 +706,17 @@ export class TelemetryService {
         messageId: string
         chatMessageDuration?: number
         modelId?: string
+        agenticCodingMode?: boolean
     }) {
         const event: KiroChatMessageEvent = {
-            conversationId: params.conversationId,
-            messageId: params.messageId,
+            conversationId: params.conversationId ?? 'UnknownConversationId',
+            messageId: params.messageId ?? 'UnknownMessageId',
             origin: Origin.IDE,
-            userId: this.userContext?.clientId ?? 'DummyUserId',
+            userId: this.userContext?.clientId ?? 'UnknownUserId',
             date: new Date().toISOString().split('T')[0],
             profileId: this.profileArn,
-            chatAgentMode: ChatAgentMode.VIBE,
-            chatAutonomyMode: ChatAutonomyMode.SUPERVISED,
+            chatAgentMode: ChatAgentMode.VIBE, // always send VIBE, as plugins does not have SPEC mode
+            chatAutonomyMode: params.agenticCodingMode ? ChatAutonomyMode.AUTOPILOT : ChatAutonomyMode.SUPERVISED, // while not exact mapping to kiro ide's autopilot mode, product agreed this mapping works
             chatMessageDuration: params.chatMessageDuration,
             modelId: params.modelId,
         }
