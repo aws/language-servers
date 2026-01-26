@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.103](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.102...lsp-codewhisperer/v0.0.103) (2026-01-26)
+
+
+### Bug Fixes
+
+* include conversationId in generateAssistantResponse API request ([#2595](https://github.com/aws/language-servers/issues/2595)) ([a8ac33e](https://github.com/aws/language-servers/commit/a8ac33ea4e26f2ca898e5d4ed2625e11f53922aa))
+* patch [#2589](https://github.com/aws/language-servers/issues/2589) and fix NEP invalidation error ([#2590](https://github.com/aws/language-servers/issues/2590)) ([07960d0](https://github.com/aws/language-servers/commit/07960d0fcd169bae0d632d05d953475fec98c05c))
+
 ## [0.0.102](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.101...lsp-codewhisperer/v0.0.102) (2026-01-13)
 
 
