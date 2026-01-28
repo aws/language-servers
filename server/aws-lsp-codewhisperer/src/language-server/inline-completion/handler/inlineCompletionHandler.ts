@@ -485,13 +485,24 @@ export class InlineCompletionHandler {
                 session,
                 this.getTimeSinceLastUserModification()
             )
-            return EMPTY_RESULT
+            return {
+                items: [],
+                sessionId: session.id,
+                metadata: {
+                    request: session.requestContext,
+                    response: suggestionResponse,
+                },
+            }
         }
 
         return {
             items: suggestionsWithRightContext,
             sessionId: session.id,
             partialResultToken: suggestionResponse.responseContext.nextToken,
+            metadata: {
+                request: session.requestContext,
+                response: suggestionResponse,
+            },
         }
     }
 
