@@ -141,6 +141,12 @@ export class ATXTransformHandler {
                 }
                 args.request.headers['Authorization'] = `Bearer ${bearerToken}`
 
+                // Add test classification header if running in test mode
+                const testId = process.env.ATX_TEST_ID
+                if (testId) {
+                    args.request.headers['x-amzn-qt-test-id'] = testId
+                }
+
                 if (applicationUrl) {
                     const cleanOrigin = applicationUrl.endsWith('/') ? applicationUrl.slice(0, -1) : applicationUrl
                     args.request.headers['Origin'] = cleanOrigin
@@ -879,7 +885,6 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
-                this.logging.error(`ATX: Job failed - Reason: ${job?.statusDetails?.failureReason ?? 'Unknown'}`)
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
