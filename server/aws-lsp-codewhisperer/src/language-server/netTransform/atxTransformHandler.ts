@@ -145,6 +145,9 @@ export class ATXTransformHandler {
                 const testId = process.env.ATX_TEST_ID
                 if (testId) {
                     args.request.headers['x-amzn-qt-test-id'] = testId
+                    this.logging.log(`ATX Transform: Added test header x-amzn-qt-test-id=${testId}`)
+                } else {
+                    this.logging.log('ATX Transform: No ATX_TEST_ID set, running in production mode')
                 }
 
                 if (applicationUrl) {
