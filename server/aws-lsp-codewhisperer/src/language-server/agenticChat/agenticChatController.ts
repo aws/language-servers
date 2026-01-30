@@ -1344,7 +1344,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const llmLatency = Date.now() - this.#llmRequestStartTime
         this.#debug(`LLM Response Latency for compaction: ${llmLatency}`)
-        this.#telemetryController.emitAgencticLoop_InvokeLLM(
+        await this.#telemetryController.emitAgencticLoop_InvokeLLM(
             response.$metadata.requestId!,
             conversationIdentifier ?? '',
             'AgenticChatWithCompaction',
@@ -1532,7 +1532,7 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.updateOngoingProgressResult('Error')
 
                 // emit invokeLLM event with status Failed for timeout calls
-                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                await this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
                     'AgenticChat',
@@ -1588,7 +1588,7 @@ export class AgenticChatController implements ChatHandlers {
             if (pendingToolUses.length === 0) {
                 this.recordChunk('agent_loop_done')
                 // No more tool uses, we're done
-                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                await this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
                     'AgenticChat',
@@ -1633,7 +1633,7 @@ export class AgenticChatController implements ChatHandlers {
                 metric.setDimension('requestIds', metric.metric.requestIds)
                 const toolNames = this.#toolUseLatencies.map(item => item.toolName)
                 const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
-                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                await this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
                     'AgenticChatWithToolUse',
@@ -1657,7 +1657,7 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
-                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                await this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
                     'AgenticChatWithToolUse',

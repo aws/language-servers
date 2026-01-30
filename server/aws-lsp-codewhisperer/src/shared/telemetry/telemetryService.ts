@@ -28,6 +28,10 @@ import {
     InlineChatUserDecision,
     AgenticChatEventStatus,
     UserDecisionReason,
+    KiroChatMessageEvent,
+    Origin,
+    ChatAgentMode,
+    ChatAutonomyMode,
 } from '@amzn/codewhisperer-runtime'
 import { getCompletionType, getSsoConnectionType, isServiceException } from '../utils'
 import {
@@ -690,6 +694,47 @@ export class TelemetryService {
         }
         return this.invokeSendTelemetryEvent({
             inlineChatEvent: event,
+        })
+    }
+
+    /**
+     * Emits a KiroChatMessageEvent for tracking chat message metrics.
+     * This event is emitted for every generateAssistantResponse call.
+     */
+    public emitKiroChatMessageEvent(params: {
+        conversationId: string
+        messageId: string
+        chatMessageDuration?: number
+        modelId?: string
+        agenticCodingMode?: boolean
+    }) {
+        const event: KiroChatMessageEvent = {
+            conversationId: params.conversationId ?? 'UnknownConversationId',
+            messageId: params.messageId ?? 'UnknownMessageId',
+            origin: Origin.IDE,
+            userId: this.userContext?.clientId ?? 'UnknownUserId',
+            date: new Date().toISOString().split('T')[0],
+            profileId: this.profileArn,
+            chatAgentMode: ChatAgentMode.VIBE, // always send VIBE, as plugins does not have SPEC mode
+            chatAutonomyMode: params.agenticCodingMode ? ChatAutonomyMode.AUTOPILOT : ChatAutonomyMode.SUPERVISED, // while not exact mapping to kiro ide's autopilot mode, product agreed this mapping works
+            chatMessageDuration: params.chatMessageDuration,
+            modelId: params.modelId,
+        }
+
+        this.logging.info(`Invoking SendTelemetryEvent:KiroChatMessageEvent:
+            "conversationId": ${event.conversationId}
+            "messageId": ${event.messageId}
+            "origin": ${event.origin}
+            "userId": ${event.userId}
+            "date": ${event.date}
+            "profileId": ${event.profileId}
+            "chatAgentMode": ${event.chatAgentMode}
+            "chatAutonomyMode": ${event.chatAutonomyMode}
+            "chatMessageDuration": ${event.chatMessageDuration}
+            "modelId": ${event.modelId}`)
+
+        return this.invokeSendTelemetryEvent({
+            kiroChatMessageEvent: event,
         })
     }
 }

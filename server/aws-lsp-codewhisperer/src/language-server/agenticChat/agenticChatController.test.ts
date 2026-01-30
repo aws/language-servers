@@ -161,6 +161,9 @@ describe('AgenticChatController', () => {
         log: (message: string) => {
             console.log(message)
         },
+        info: (message: string) => {
+            console.log(message)
+        },
     } as Logging
 
     let sendMessageStub: sinon.SinonStub
