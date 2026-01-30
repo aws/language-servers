@@ -142,6 +142,7 @@ export class ATXTransformHandler {
                 args.request.headers['Authorization'] = `Bearer ${bearerToken}`
 
                 // Add test classification header if running in test mode
+                this.logging.log(`ATX Transform: DEBUG - ATX_TEST_ID value: ${process.env.ATX_TEST_ID}`)
                 const testId = process.env.ATX_TEST_ID
                 if (testId) {
                     args.request.headers['x-amzn-qt-test-id'] = testId
@@ -157,6 +158,9 @@ export class ATXTransformHandler {
 
                 args.request.headers['Content-Type'] = 'application/json; charset=UTF-8'
                 args.request.headers['Content-Encoding'] = 'amz-1.0'
+
+                // Log all headers for debugging
+                this.logging.log(`ATX Transform: Request headers: ${JSON.stringify(args.request.headers, null, 2)}`)
 
                 return next(args)
             },
