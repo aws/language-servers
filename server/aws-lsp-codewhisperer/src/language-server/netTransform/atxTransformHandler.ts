@@ -142,13 +142,13 @@ export class ATXTransformHandler {
                 args.request.headers['Authorization'] = `Bearer ${bearerToken}`
 
                 // Add test classification header if running in test mode
-                this.logging.log(`ATX Transform: DEBUG - ATX_TEST_ID value: ${process.env.ATX_TEST_ID}`)
+                console.log(`[ATX] DEBUG - ATX_TEST_ID value: ${process.env.ATX_TEST_ID}`)
                 const testId = process.env.ATX_TEST_ID
                 if (testId) {
                     args.request.headers['x-amzn-qt-test-id'] = testId
-                    this.logging.log(`ATX Transform: Added test header x-amzn-qt-test-id=${testId}`)
+                    console.log(`[ATX] Added test header x-amzn-qt-test-id=${testId}`)
                 } else {
-                    this.logging.log('ATX Transform: No ATX_TEST_ID set, running in production mode')
+                    console.log('[ATX] No ATX_TEST_ID set, running in production mode')
                 }
 
                 if (applicationUrl) {
@@ -160,7 +160,7 @@ export class ATXTransformHandler {
                 args.request.headers['Content-Encoding'] = 'amz-1.0'
 
                 // Log all headers for debugging
-                this.logging.log(`ATX Transform: Request headers: ${JSON.stringify(args.request.headers, null, 2)}`)
+                console.log(`[ATX] Request headers: ${JSON.stringify(args.request.headers, null, 2)}`)
 
                 return next(args)
             },
