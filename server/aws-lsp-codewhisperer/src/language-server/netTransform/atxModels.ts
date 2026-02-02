@@ -20,6 +20,7 @@ export enum AtxJobStatus {
 export interface AtxWorkspaceInfo {
     Id: string
     Name: string
+    Description?: string
     CreatedDate?: string
 }
 

@@ -230,6 +230,7 @@ export class ATXTransformHandler {
             const workspaces = (response.items || []).map(workspace => ({
                 Id: workspace.id,
                 Name: workspace.name,
+                Description: workspace.description,
                 CreatedDate: new Date().toISOString(), // Use current date since createdDate not available
             }))
 
