@@ -291,6 +291,7 @@ export class ATXTransformHandler {
     ): Promise<AtxListOrCreateWorkspaceResponse | null> {
         try {
             this.logging.log('ATX: Starting ListOrCreateWorkspace operation')
+            this.logging.log(`ATX: Request received: ${JSON.stringify(request)}`)
 
             // Call verifySession ONCE at the beginning
             if (!(await this.verifySession())) {
@@ -307,6 +308,7 @@ export class ATXTransformHandler {
             }
 
             // Optionally create new workspace
+            this.logging.log(`ATX: CreateWorkspaceName = ${request.CreateWorkspaceName}`)
             if (request.CreateWorkspaceName !== undefined) {
                 const newWorkspace = await this.createWorkspace(
                     request.CreateWorkspaceName,
