@@ -290,7 +290,7 @@ export class ATXTransformHandler {
      */
     async listJobs(workspaceId: string): Promise<AtxListJobsResponse | null> {
         try {
-            this.logging.log(`ATX: Starting ListJobs for workspace: ${workspaceId}`)
+            this.logging.log(`ATX: ========== ListJobs called for workspace: ${workspaceId} ==========`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 throw new Error('ATX FES client not initialized')
@@ -301,6 +301,7 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
 
             const response = await this.atxClient!.send(command)
+            this.logging.log(`ATX: ListJobs raw response: ${JSON.stringify(response.jobList)}`)
             this.logging.log(`ATX: ListJobs completed - found ${response.jobList?.length || 0} jobs`)
 
             const jobs = (response.jobList || []).map(entry => ({
