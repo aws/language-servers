@@ -64,6 +64,7 @@ export interface AtxJobInfo {
     CreationTime?: string
     StartExecutionTime?: string
     EndExecutionTime?: string
+    ClientSource?: string
 }
 
 // ATX Start Transform request/response (orchestration)

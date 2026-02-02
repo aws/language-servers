@@ -311,6 +311,7 @@ export class ATXTransformHandler {
                 CreationTime: entry.jobInfo?.creationTime?.toISOString(),
                 StartExecutionTime: entry.jobInfo?.startExecutionTime?.toISOString(),
                 EndExecutionTime: entry.jobInfo?.endExecutionTime?.toISOString(),
+                ClientSource: entry.jobInfo?.clientSource,
             }))
 
             return { Jobs: jobs }
