@@ -48,6 +48,24 @@ export interface AtxListOrCreateWorkspaceResponse {
     CreatedWorkspace?: AtxCreatedWorkspaceInfo
 }
 
+// ATX List Jobs Request/Response
+export interface AtxListJobsRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+}
+
+export interface AtxListJobsResponse {
+    Jobs: AtxJobInfo[]
+}
+
+export interface AtxJobInfo {
+    JobId: string
+    JobName?: string
+    Status: string
+    CreationTime?: string
+    StartExecutionTime?: string
+    EndExecutionTime?: string
+}
+
 // ATX Start Transform request/response (orchestration)
 export interface AtxStartTransformRequest extends ExecuteCommandParams {
     WorkspaceId: string

@@ -31,6 +31,7 @@ import { DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR, getAtxEndPointByRegion 
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListOrCreateWorkspaceResponse,
+    AtxListJobsResponse,
     AtxGetTransformInfoRequest,
     AtxGetTransformInfoResponse,
     AtxTransformationJob,
@@ -280,6 +281,40 @@ export class ATXTransformHandler {
             return null
         } catch (error) {
             this.logging.error(`ATX: CreateWorkspace error: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
+     * List jobs in a workspace
+     */
+    async listJobs(workspaceId: string): Promise<AtxListJobsResponse | null> {
+        try {
+            this.logging.log(`ATX: Starting ListJobs for workspace: ${workspaceId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const { ListJobsCommand } = await import('@amazon/elastic-gumby-frontend-client')
+            const command = new ListJobsCommand({ workspaceId })
+            await this.addAuthToCommand(command)
+
+            const response = await this.atxClient!.send(command)
+            this.logging.log(`ATX: ListJobs completed - found ${response.jobList?.length || 0} jobs`)
+
+            const jobs = (response.jobList || []).map(entry => ({
+                JobId: entry.jobInfo?.jobId || '',
+                JobName: entry.jobInfo?.jobName,
+                Status: entry.jobInfo?.statusDetails?.status || 'UNKNOWN',
+                CreationTime: entry.jobInfo?.creationTime?.toISOString(),
+                StartExecutionTime: entry.jobInfo?.startExecutionTime?.toISOString(),
+                EndExecutionTime: entry.jobInfo?.endExecutionTime?.toISOString(),
+            }))
+
+            return { Jobs: jobs }
+        } catch (error) {
+            this.logging.error(`ATX: ListJobs error: ${String(error)}`)
             return null
         }
     }

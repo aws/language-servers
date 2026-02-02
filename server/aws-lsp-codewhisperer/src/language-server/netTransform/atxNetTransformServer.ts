@@ -8,6 +8,7 @@ import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTo
 import { ATXTransformHandler } from './atxTransformHandler'
 import {
     AtxListOrCreateWorkspaceRequest,
+    AtxListJobsRequest,
     AtxStartTransformRequest,
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
@@ -16,6 +17,7 @@ import {
 
 // ATX FES Commands - Consolidated APIs
 const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
+const AtxListJobsCommand = 'aws/atxTransform/listJobs'
 const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
@@ -33,6 +35,14 @@ export const AtxNetTransformServerToken =
                     case AtxListOrCreateWorkspaceCommand: {
                         const request = params as AtxListOrCreateWorkspaceRequest
                         const result = await atxTransformHandler.listOrCreateWorkspace(request)
+                        return result
+                    }
+                    case AtxListJobsCommand: {
+                        const { WorkspaceId } = params as AtxListJobsRequest
+                        if (!WorkspaceId) {
+                            throw new Error('WorkspaceId is required for listJobs')
+                        }
+                        const result = await atxTransformHandler.listJobs(WorkspaceId)
                         return result
                     }
                     case AtxStartTransformCommand: {
