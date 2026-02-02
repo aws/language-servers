@@ -112,6 +112,7 @@ export const AtxNetTransformServerToken =
                     executeCommandProvider: {
                         commands: [
                             AtxListOrCreateWorkspaceCommand,
+                            AtxListJobsCommand,
                             AtxStartTransformCommand,
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
