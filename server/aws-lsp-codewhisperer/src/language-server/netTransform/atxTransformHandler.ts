@@ -326,6 +326,7 @@ export class ATXTransformHandler {
                     response.AvailableWorkspaces.push({
                         Id: newWorkspace.workspaceId,
                         Name: newWorkspace.workspaceName,
+                        Description: request.CreateWorkspaceDescription,
                         CreatedDate: new Date().toISOString(),
                     })
                 }
