@@ -244,7 +244,8 @@ export class ATXTransformHandler {
      * Create a new workspace
      */
     async createWorkspace(
-        workspaceName: string | null
+        workspaceName: string | null,
+        workspaceDescription?: string
     ): Promise<{ workspaceId: string; workspaceName: string } | null> {
         try {
             this.logging.log(`ATX: Starting CreateWorkspace with name: ${workspaceName || 'auto-generated'}`)
@@ -256,7 +257,9 @@ export class ATXTransformHandler {
             const { CreateWorkspaceCommand } = await import('@amazon/elastic-gumby-frontend-client')
             const command = new CreateWorkspaceCommand({
                 name: workspaceName || undefined,
-                description: workspaceName ? `Workspace: ${workspaceName}` : 'Auto-generated workspace',
+                description:
+                    workspaceDescription ||
+                    (workspaceName ? `Workspace: ${workspaceName}` : 'Auto-generated workspace'),
             })
             await this.addAuthToCommand(command)
 
@@ -305,7 +308,10 @@ export class ATXTransformHandler {
 
             // Optionally create new workspace
             if (request.CreateWorkspaceName !== undefined) {
-                const newWorkspace = await this.createWorkspace(request.CreateWorkspaceName)
+                const newWorkspace = await this.createWorkspace(
+                    request.CreateWorkspaceName,
+                    request.CreateWorkspaceDescription
+                )
 
                 if (newWorkspace) {
                     response.CreatedWorkspace = {

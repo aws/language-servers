@@ -39,6 +39,7 @@ export interface AtxTransformationJob {
 // ATX Consolidated API Request/Response Models
 export interface AtxListOrCreateWorkspaceRequest extends ExecuteCommandParams {
     CreateWorkspaceName?: string // Optional - if provided, creates new workspace
+    CreateWorkspaceDescription?: string // Optional - description for new workspace
 }
 
 export interface AtxListOrCreateWorkspaceResponse {
