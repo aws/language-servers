@@ -12,6 +12,7 @@ import {
     IconType,
     Model,
     ReferenceTrackerInformation,
+    FileDetails,
 } from '@aws/language-server-runtimes/server-interface'
 import {
     ChatMessage as StreamingMessage,
@@ -60,6 +61,10 @@ export type Tab = {
     title: string
     conversations: Conversation[]
     tabContext?: TabContext
+    /** Per-tab model selection. If undefined, uses global default. */
+    modelId?: string
+    /** Per-tab agentic coding mode preference. If undefined, uses global default. */
+    pairProgrammingMode?: boolean
 }
 
 export const DEFAULT_PINNED_CONTEXT: ContextCommand[] = [activeFileCmd]
@@ -180,9 +185,10 @@ export function messageToChatMessage(msg: Message): ChatMessage[] {
         },
     ]
 
-    // Check if there are any toolUses with explanations that should be displayed as directive messages
+    // Check if there are any toolUses that should be displayed
     if (msg.toolUses && msg.toolUses.length > 0) {
         for (const toolUse of msg.toolUses) {
+            // Add explanation as directive message if present
             if (toolUse.input && typeof toolUse.input === 'object') {
                 const input = toolUse.input as any
                 if (input.explanation) {
@@ -191,6 +197,12 @@ export function messageToChatMessage(msg: Message): ChatMessage[] {
                         type: 'directive',
                     })
                 }
+            }
+
+            // Convert toolUse to rich tool UI ChatMessage for history restoration
+            const toolChatMessage = toolUseToToolChatMessage(toolUse)
+            if (toolChatMessage) {
+                chatMessages.push(toolChatMessage)
             }
         }
     }
@@ -490,4 +502,208 @@ export function estimateCharacterCountFromImageBlock(image: ImageBlock): number 
     const imageTokens = (imagesBytesLen / 1000000) * 1100
     // Each token is 3 characters
     return imageTokens * 3
+}
+
+// Tool name constants for restoration
+const FS_READ = 'fsRead'
+const FS_WRITE = 'fsWrite'
+const FS_REPLACE = 'fsReplace'
+const LIST_DIRECTORY = 'listDirectory'
+const GREP_SEARCH = 'grepSearch'
+const FILE_SEARCH = 'fileSearch'
+const EXECUTE_BASH = 'executeBash'
+
+/**
+ * Converts stored ToolUse objects to rich ChatMessage format for history restoration.
+ * This function recreates the UI representation of tool results that were displayed
+ * during the original conversation.
+ *
+ * @param toolUse The stored ToolUse object from chat history
+ * @returns A ChatMessage with type 'tool' that renders the appropriate UI
+ */
+export function toolUseToToolChatMessage(toolUse: ToolUse): ChatMessage | undefined {
+    if (!toolUse.toolUseId || !toolUse.name) {
+        return undefined
+    }
+
+    const input = toolUse.input as any
+
+    switch (toolUse.name) {
+        case FS_WRITE:
+        case FS_REPLACE: {
+            const filePath = input?.path
+            if (!filePath) return undefined
+
+            const fileName = path.basename(filePath)
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                header: {
+                    fileList: {
+                        filePaths: [fileName],
+                        details: {
+                            [fileName]: {
+                                description: filePath,
+                            } as FileDetails,
+                        },
+                    },
+                    status: {
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Applied',
+                    },
+                    // No undo button for historical changes - they cannot be undone
+                    buttons: [],
+                },
+            }
+        }
+
+        case EXECUTE_BASH: {
+            const command = input?.command
+            if (!command) return undefined
+
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                body: '```shell\n' + command + '\n```',
+                header: {
+                    body: 'shell',
+                    status: {
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Completed',
+                    },
+                    buttons: [],
+                },
+            }
+        }
+
+        case FS_READ: {
+            const paths = input?.paths
+            if (!paths || !Array.isArray(paths) || paths.length === 0) return undefined
+
+            const itemCount = paths.length
+            const title = `${itemCount} file${itemCount > 1 ? 's' : ''} read`
+            const details: Record<string, FileDetails> = {}
+            for (const filePath of paths) {
+                details[filePath] = {
+                    description: filePath,
+                    visibleName: path.basename(filePath),
+                    clickable: false, // Not clickable in history view
+                }
+            }
+
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                header: {
+                    body: title,
+                    icon: 'eye',
+                    fileList: {
+                        filePaths: paths,
+                        details,
+                    },
+                },
+            }
+        }
+
+        case LIST_DIRECTORY: {
+            const dirPath = input?.path
+            if (!dirPath) return undefined
+
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                header: {
+                    body: '1 directory listed',
+                    icon: 'check-list',
+                    fileList: {
+                        filePaths: [dirPath],
+                        details: {
+                            [dirPath]: {
+                                description: dirPath,
+                                visibleName: path.basename(dirPath),
+                                clickable: false,
+                            },
+                        },
+                    },
+                },
+            }
+        }
+
+        case GREP_SEARCH: {
+            const query = input?.query || 'search term'
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                header: {
+                    body: `Searched for "${query}"`,
+                    icon: 'search',
+                    status: {
+                        text: 'Completed',
+                    },
+                },
+            }
+        }
+
+        case FILE_SEARCH: {
+            const queryName = input?.queryName || 'search term'
+            const searchPath = input?.path || ''
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                header: {
+                    body: `Searched for "${queryName}" in `,
+                    icon: 'search',
+                    status: {
+                        text: 'Completed',
+                    },
+                    fileList: searchPath
+                        ? {
+                              filePaths: [searchPath],
+                              details: {
+                                  [searchPath]: {
+                                      description: searchPath,
+                                      visibleName: path.basename(searchPath),
+                                      clickable: false,
+                                  },
+                              },
+                          }
+                        : undefined,
+                },
+            }
+        }
+
+        default: {
+            // Handle MCP tools and other unknown tools with a generic format
+            const toolName = toolUse.name
+            const toolInput = JSON.stringify(toolUse.input, null, 2)
+
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                summary: {
+                    content: {
+                        header: {
+                            icon: 'tools',
+                            body: toolName,
+                            status: {
+                                status: 'success',
+                                icon: 'ok',
+                                text: 'Completed',
+                            },
+                        },
+                    },
+                    collapsedContent: [
+                        {
+                            header: {
+                                body: 'Parameters',
+                            },
+                            body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                        },
+                    ],
+                },
+            }
+        }
+    }
 }
