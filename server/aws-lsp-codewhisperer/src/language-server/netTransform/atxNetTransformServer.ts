@@ -36,7 +36,8 @@ export const AtxNetTransformServerToken =
                         return result
                     }
                     case AtxStartTransformCommand: {
-                        const { WorkspaceId, JobName, StartTransformRequest } = params as AtxStartTransformRequest
+                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest } =
+                            params as AtxStartTransformRequest
 
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
@@ -45,6 +46,7 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
+                            interactiveMode: InteractiveMode,
                             startTransformRequest: StartTransformRequest,
                         })
 

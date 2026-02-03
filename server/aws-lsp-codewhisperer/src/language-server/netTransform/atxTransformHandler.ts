@@ -339,6 +339,7 @@ export class ATXTransformHandler {
         workspaceId: string
         jobName?: string
         targetFramework?: string
+        interactiveMode?: boolean
     }): Promise<{ jobId: string; status: string } | null> {
         try {
             this.logging.log(`ATX: Starting CreateJob for workspace: ${request.workspaceId}`)
@@ -348,9 +349,15 @@ export class ATXTransformHandler {
                 throw new Error('ATX FES client not initialized')
             }
 
+            // Build objective object with target_framework and optionally interactive_mode
+            const objective: any = {
+                target_framework: request.targetFramework || 'net10.0',
+                interactive_mode: request.interactiveMode || false,
+            }
+
             const command = new CreateJobCommand({
                 workspaceId: request.workspaceId,
-                objective: JSON.stringify({ target_framework: request.targetFramework || 'net10.0' }),
+                objective: JSON.stringify(objective),
                 jobType: 'DOTNET_IDE' as any,
                 jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
@@ -522,6 +529,7 @@ export class ATXTransformHandler {
     async startTransform(request: {
         workspaceId: string
         jobName?: string
+        interactiveMode?: boolean
         startTransformRequest: object
     }): Promise<{ TransformationJobId: string; ArtifactPath: string; UploadId: string } | null> {
         try {
@@ -532,6 +540,7 @@ export class ATXTransformHandler {
                 workspaceId: request.workspaceId,
                 jobName: request.jobName || 'Transform Job',
                 targetFramework: (request.startTransformRequest as any).TargetFramework,
+                interactiveMode: request.interactiveMode,
             })
 
             if (!createJobResponse?.jobId) {

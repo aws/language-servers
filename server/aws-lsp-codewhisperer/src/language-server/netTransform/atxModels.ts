@@ -50,6 +50,7 @@ export interface AtxListOrCreateWorkspaceResponse {
 export interface AtxStartTransformRequest extends ExecuteCommandParams {
     WorkspaceId: string
     JobName?: string
+    InteractiveMode?: boolean
     StartTransformRequest: object // Original RTS-style request for ZIP creation
 }
 
