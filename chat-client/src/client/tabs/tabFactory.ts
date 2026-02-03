@@ -11,7 +11,7 @@ import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
 import { modelSelection } from '../texts/modelSelection'
-import { toDetailsWithoutIcon, toMynahButtons, toMynahFileList, toMynahHeader } from '../utils'
+import { chatMessageToChatItem } from '../utils'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -86,135 +86,9 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
                       },
                   ]
                 : chatMessages
-                  ? chatMessages.map(msg => this.chatMessageToChatItem(msg))
+                  ? chatMessages.map(msg => chatMessageToChatItem(msg, this.agenticMode))
                   : []),
         ]
-    }
-
-    /**
-     * Converts a ChatMessage (from history restoration) to a ChatItem for MynahUI rendering.
-     * This applies the same transformations as prepareChatItemFromMessage in mynahUi.ts
-     * to ensure tool cards, file lists, MCP summaries, etc. render correctly.
-     */
-    private chatMessageToChatItem(message: ChatMessage): ChatItem {
-        // Convert message type to ChatItemType
-        const typeMap: Record<string, ChatItemType> = {
-            prompt: ChatItemType.PROMPT,
-            answer: ChatItemType.ANSWER,
-            'answer-stream': ChatItemType.ANSWER_STREAM,
-            directive: ChatItemType.DIRECTIVE,
-            tool: ChatItemType.ANSWER,
-            'system-prompt': ChatItemType.SYSTEM_PROMPT,
-        }
-        const msgType = message.type ?? 'answer'
-        const chatItemType = typeMap[msgType] ?? ChatItemType.ANSWER
-
-        // Handle MCP tool summary with accordion view
-        if (message.type === 'tool' && message.summary) {
-            return {
-                type: ChatItemType.ANSWER,
-                messageId: message.messageId,
-                summary: {
-                    content: message.summary.content
-                        ? {
-                              padding: false,
-                              wrapCodes: true,
-                              header: message.summary.content.header
-                                  ? {
-                                        icon: message.summary.content.header.icon as any,
-                                        body: message.summary.content.header.body,
-                                        buttons: message.summary.content.header.buttons as any,
-                                        status: undefined, // No spinner for restored items
-                                        fileList: undefined,
-                                    }
-                                  : undefined,
-                          }
-                        : undefined,
-                    collapsedContent:
-                        message.summary.collapsedContent?.map(item => ({
-                            body: item.body,
-                            header: item.header
-                                ? {
-                                      body: item.header.body,
-                                  }
-                                : undefined,
-                            fullWidth: true,
-                            padding: false,
-                            muted: false,
-                            wrapCodes: item.header?.body === 'Parameters' ? true : false,
-                            codeBlockActions: { copy: null, 'insert-to-cursor': null },
-                        })) || [],
-                },
-            }
-        }
-
-        // Process header for tool messages
-        const processedHeader = toMynahHeader(message.header)
-        const fileList = toMynahFileList(message.fileList)
-        const buttons = toMynahButtons(message.buttons)
-
-        if (message.type === 'tool' && processedHeader) {
-            if (processedHeader.buttons) {
-                processedHeader.buttons = processedHeader.buttons.map(button => ({
-                    ...button,
-                    status: button.status ?? 'clear',
-                }))
-            }
-            if (processedHeader.fileList) {
-                processedHeader.fileList = {
-                    ...processedHeader.fileList,
-                    fileTreeTitle: '',
-                    hideFileCount: true,
-                    details: toDetailsWithoutIcon(processedHeader.fileList.details),
-                    renderAsPills:
-                        !processedHeader.fileList.details ||
-                        (Object.values(processedHeader.fileList.details).every(detail => !detail.changes) &&
-                            (!processedHeader.buttons ||
-                                !processedHeader.buttons.some(button => button.id === 'undo-changes')) &&
-                            !processedHeader.status?.icon),
-                }
-            }
-            // Clear status for completed historical items
-            if (processedHeader && !message.header?.status) {
-                processedHeader.status = undefined
-            }
-        }
-
-        // Check if header should be included
-        const includeHeader =
-            processedHeader &&
-            ((processedHeader.buttons !== undefined &&
-                processedHeader.buttons !== null &&
-                processedHeader.buttons.length > 0) ||
-                processedHeader.status !== undefined ||
-                processedHeader.icon !== undefined ||
-                processedHeader.fileList !== undefined)
-
-        const padding =
-            message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
-
-        // Check if message should be muted (stopped, rejected, etc.)
-        const shouldMute =
-            message.header?.status?.text !== undefined &&
-            ['Stopped', 'Rejected', 'Ignored', 'Failed', 'Error'].includes(message.header.status.text)
-
-        return {
-            type: chatItemType,
-            messageId: message.messageId,
-            body: message.body,
-            header: includeHeader ? processedHeader : undefined,
-            buttons: buttons,
-            fileList,
-            relatedContent: message.relatedContent,
-            codeReference: message.codeReference,
-            canBeVoted: message.canBeVoted,
-            followUp: message.followUp as any,
-            fullWidth: message.type === 'tool' && includeHeader ? true : undefined,
-            padding,
-            wrapCodes: message.type === 'tool',
-            codeBlockActions: message.type === 'tool' ? { 'insert-to-cursor': null, copy: null } : undefined,
-            ...(shouldMute ? { muted: true } : {}),
-        }
     }
 
     public updateQuickActionCommands(quickActionCommands: QuickActionCommandGroup[]) {
