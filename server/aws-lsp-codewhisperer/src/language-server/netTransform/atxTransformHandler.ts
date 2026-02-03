@@ -304,23 +304,15 @@ export class ATXTransformHandler {
             this.logging.log(`ATX: ListJobs raw response: ${JSON.stringify(response.jobList)}`)
             this.logging.log(`ATX: ListJobs completed - found ${response.jobList?.length || 0} jobs`)
 
-            const jobs = (response.jobList || []).map(entry => {
-                const status = entry.jobInfo?.statusDetails?.status || 'UNKNOWN'
-                const failureReason = entry.jobInfo?.statusDetails?.failureReason
-                this.logging.log(`ATX: Job ${entry.jobInfo?.jobName} - status: ${status}, failureReason: ${failureReason ? 'YES' : 'NO'}`)
-                // If status is CREATED but has failureReason, treat as FAILED
-                const effectiveStatus = (status === 'CREATED' && failureReason) ? 'FAILED' : status
-                this.logging.log(`ATX: Job ${entry.jobInfo?.jobName} - effectiveStatus: ${effectiveStatus}`)
-                return {
-                    JobId: entry.jobInfo?.jobId || '',
-                    JobName: entry.jobInfo?.jobName,
-                    Status: effectiveStatus,
-                    CreationTime: entry.jobInfo?.creationTime?.toISOString(),
-                    StartExecutionTime: entry.jobInfo?.startExecutionTime?.toISOString(),
-                    EndExecutionTime: entry.jobInfo?.endExecutionTime?.toISOString(),
-                    ClientSource: entry.jobInfo?.clientSource,
-                }
-            })
+            const jobs = (response.jobList || []).map(entry => ({
+                JobId: entry.jobInfo?.jobId || '',
+                JobName: entry.jobInfo?.jobName,
+                Status: entry.jobInfo?.statusDetails?.status || 'UNKNOWN',
+                CreationTime: entry.jobInfo?.creationTime?.toISOString(),
+                StartExecutionTime: entry.jobInfo?.startExecutionTime?.toISOString(),
+                EndExecutionTime: entry.jobInfo?.endExecutionTime?.toISOString(),
+                ClientSource: entry.jobInfo?.clientSource,
+            }))
 
             return { Jobs: jobs }
         } catch (error) {
