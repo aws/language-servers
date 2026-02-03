@@ -1,6 +1,7 @@
 import { FeatureContext } from '@aws/chat-client-ui-types'
 import { Button, ChatMessage, ChatResult } from '@aws/language-server-runtimes-types'
 import { ChatItem, ChatItemButton, ChatItemContent, ChatItemType, MynahIcons, TreeNodeDetails } from '@aws/mynah-ui'
+import { BUTTON_UNDO_ALL_CHANGES, BUTTON_UNDO_CHANGES, SUFFIX_PERMISSION } from './constants'
 
 export function toMynahIcon(icon: string | undefined): MynahIcons | undefined {
     return icon && Object.values<string>(MynahIcons).includes(icon) ? (icon as MynahIcons) : undefined
@@ -195,7 +196,7 @@ export function prepareChatItemFromMessage(
                 renderAsPills:
                     !header.fileList.details ||
                     (Object.values(header.fileList.details).every(detail => !detail.changes) &&
-                        (!header.buttons || !header.buttons.some(button => button.id === 'undo-changes')) &&
+                        (!header.buttons || !header.buttons.some(button => button.id === BUTTON_UNDO_CHANGES)) &&
                         !header.status?.icon),
             }
         }
@@ -216,10 +217,11 @@ export function prepareChatItemFromMessage(
             processedHeader.icon !== undefined ||
             processedHeader.fileList !== undefined)
 
-    const padding = message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
+    const padding =
+        message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith(SUFFIX_PERMISSION)) : undefined
 
     const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
-        button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
+        button.id === BUTTON_UNDO_ALL_CHANGES ? { ...button, position: 'outside' } : button
     )
     // Adding this conditional check to show the stop message in the center.
     const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined

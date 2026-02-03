@@ -29,6 +29,15 @@ import { activeFileCmd } from '../../context/additionalContextProvider'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import * as crypto from 'crypto'
+import {
+    FS_READ,
+    FS_WRITE,
+    FS_REPLACE,
+    LIST_DIRECTORY,
+    GREP_SEARCH,
+    FILE_SEARCH,
+    EXECUTE_BASH,
+} from '../../constants/toolConstants'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -503,15 +512,6 @@ export function estimateCharacterCountFromImageBlock(image: ImageBlock): number 
     // Each token is 3 characters
     return imageTokens * 3
 }
-
-// Tool name constants for restoration
-const FS_READ = 'fsRead'
-const FS_WRITE = 'fsWrite'
-const FS_REPLACE = 'fsReplace'
-const LIST_DIRECTORY = 'listDirectory'
-const GREP_SEARCH = 'grepSearch'
-const FILE_SEARCH = 'fileSearch'
-const EXECUTE_BASH = 'executeBash'
 
 /**
  * Converts stored ToolUse objects to rich ChatMessage format for history restoration.
