@@ -297,14 +297,23 @@ export class ATXTransformHandler {
             }
 
             const { ListJobsCommand } = await import('@amazon/elastic-gumby-frontend-client')
-            const command = new ListJobsCommand({ workspaceId })
-            await this.addAuthToCommand(command)
+            const allJobs: any[] = []
+            let nextToken: string | undefined
 
-            const response = await this.atxClient!.send(command)
-            this.logging.log(`ATX: ListJobs raw response: ${JSON.stringify(response.jobList)}`)
-            this.logging.log(`ATX: ListJobs completed - found ${response.jobList?.length || 0} jobs`)
+            // Paginate through all jobs
+            do {
+                const command = new ListJobsCommand({ workspaceId, nextToken })
+                await this.addAuthToCommand(command)
+                const response = await this.atxClient!.send(command)
+                if (response.jobList) {
+                    allJobs.push(...response.jobList)
+                }
+                nextToken = response.nextToken
+            } while (nextToken)
 
-            const jobs = (response.jobList || []).map(entry => ({
+            this.logging.log(`ATX: ListJobs completed - found ${allJobs.length} jobs`)
+
+            const jobs = allJobs.map(entry => ({
                 JobId: entry.jobInfo?.jobId || '',
                 JobName: entry.jobInfo?.jobName,
                 Status: entry.jobInfo?.statusDetails?.status || 'UNKNOWN',
