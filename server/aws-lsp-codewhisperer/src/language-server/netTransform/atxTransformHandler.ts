@@ -307,8 +307,10 @@ export class ATXTransformHandler {
             const jobs = (response.jobList || []).map(entry => {
                 const status = entry.jobInfo?.statusDetails?.status || 'UNKNOWN'
                 const failureReason = entry.jobInfo?.statusDetails?.failureReason
+                this.logging.log(`ATX: Job ${entry.jobInfo?.jobName} - status: ${status}, failureReason: ${failureReason ? 'YES' : 'NO'}`)
                 // If status is CREATED but has failureReason, treat as FAILED
                 const effectiveStatus = (status === 'CREATED' && failureReason) ? 'FAILED' : status
+                this.logging.log(`ATX: Job ${entry.jobInfo?.jobName} - effectiveStatus: ${effectiveStatus}`)
                 return {
                     JobId: entry.jobInfo?.jobId || '',
                     JobName: entry.jobInfo?.jobName,
