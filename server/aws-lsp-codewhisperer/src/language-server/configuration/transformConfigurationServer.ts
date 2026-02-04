@@ -175,8 +175,13 @@ export class TransformConfigurationServer {
         this.logging.log(`TransformConfigurationServer: Querying region: ${region}, endpoint: ${endpoint}`)
 
         try {
-            // Create region-specific client (similar to RTS approach)
-            const regionClient = new ElasticGumbyFrontendClient({
+            // Log proxy/SSL configuration for debugging
+            const hasProxy = !!(process.env.HTTPS_PROXY || process.env.https_proxy)
+            const hasCABundle = !!process.env.AWS_CA_BUNDLE
+            this.logging.log(`TransformConfigurationServer: Proxy configured: ${hasProxy}, Custom CA: ${hasCABundle}`)
+
+            // Create region-specific client using sdkInitializator for proxy/SSL support
+            const regionClient = this.features.sdkInitializator(ElasticGumbyFrontendClient, {
                 region: region,
                 endpoint: endpoint,
             })
@@ -228,6 +233,7 @@ export const TransformConfigurationServerToken = (serviceManager: () => AmazonQB
             const features = {
                 ...(manager as any).features,
                 runtime: runtime, // Use the runtime from server parameters instead of service manager
+                sdkInitializator: sdkInitializator, // Add sdkInitializator for proxy/SSL support
             } as QServiceManagerFeatures
             transformConfigurationServer = new TransformConfigurationServer(logging, features)
             return transformConfigurationServer.initialize(params)
