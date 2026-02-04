@@ -347,6 +347,9 @@ export class TelemetryService {
             acceptedLineCount: options.acceptedLineCount,
             acceptedSnippetHasReference: false,
             hasProjectLevelContext: false,
+            programmingLanguage: metric.cwsprChatProgrammingLanguage
+                ? { languageName: metric.cwsprChatProgrammingLanguage }
+                : undefined,
         }
         if (metric.codewhispererCustomizationArn) {
             event.customizationArn = metric.codewhispererCustomizationArn
