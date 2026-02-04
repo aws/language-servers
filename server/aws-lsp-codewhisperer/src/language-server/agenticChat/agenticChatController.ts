@@ -126,6 +126,7 @@ import {
     sanitizeInput,
     sanitizeRequestInput,
 } from '../../shared/utils'
+import { getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -2262,14 +2263,17 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         // Emit acceptedLineCount when write tool is used and code changes are accepted
                         const acceptedLineCount = calculateModifiedLines(toolUse, doc?.getText())
+                        const programmingLanguage = getCodeWhispererLanguageIdFromPath(input.path)
                         await this.#telemetryController.emitInteractWithMessageMetric(
                             tabId,
                             {
                                 cwsprChatMessageId: chatResult.messageId ?? toolUse.toolUseId,
                                 cwsprChatInteractionType: ChatInteractionType.AgenticCodeAccepted,
                                 codewhispererCustomizationArn: this.#customizationArn,
+                                cwsprChatProgrammingLanguage: programmingLanguage,
                             },
-                            acceptedLineCount
+                            acceptedLineCount,
+                            session.conversationId
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
