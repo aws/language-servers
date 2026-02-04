@@ -430,10 +430,11 @@ export class ChatTelemetryController {
     public emitInteractWithMessageMetric(
         tabId: string,
         metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>,
-        acceptedLineCount?: number
+        acceptedLineCount?: number,
+        conversationId?: string
     ) {
         return this.#telemetryService.emitChatInteractWithMessage(metric, {
-            conversationId: this.getConversationId(tabId),
+            conversationId: conversationId ?? this.getConversationId(tabId),
             acceptedLineCount,
         })
     }
