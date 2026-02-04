@@ -459,6 +459,7 @@ export type InteractWithMessageEvent = {
     cwsprChatCodeBlockIndex?: number
     cwsprChatTotalCodeBlocks?: number
     codewhispererCustomizationArn?: string
+    cwsprChatProgrammingLanguage?: string
 }
 
 export type StartConversationEvent = {
