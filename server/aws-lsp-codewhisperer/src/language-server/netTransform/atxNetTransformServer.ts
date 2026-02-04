@@ -12,6 +12,7 @@ import {
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
     AtxUploadPlanRequest,
+    AtxSetBreakpointsRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -20,6 +21,7 @@ const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
+const AtxSetBreakpointsCommand = 'aws/atxTransform/setBreakpoints'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -81,6 +83,23 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
                         return { Status: result }
                     }
+                    case AtxSetBreakpointsCommand: {
+                        const { WorkspaceId, TransformationJobId, SolutionRootPath, Breakpoints } =
+                            params as AtxSetBreakpointsRequest
+
+                        if (!WorkspaceId || !TransformationJobId || !SolutionRootPath) {
+                            throw new Error(
+                                'WorkspaceId, TransformationJobId, and SolutionRootPath are required for setBreakpoints'
+                            )
+                        }
+
+                        return await atxTransformHandler.setBreakpoints(
+                            WorkspaceId,
+                            TransformationJobId,
+                            SolutionRootPath,
+                            Breakpoints || {}
+                        )
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -108,6 +127,7 @@ export const AtxNetTransformServerToken =
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
+                            AtxSetBreakpointsCommand,
                         ],
                     },
                 },
