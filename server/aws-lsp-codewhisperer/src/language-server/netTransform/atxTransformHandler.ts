@@ -37,7 +37,7 @@ import {
     AtxTransformationJob,
     AtxUploadPlanRequest,
     AtxUploadPlanResponse,
-    AtxSetBreakpointsResponse,
+    AtxSetCheckpointsResponse,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -1493,40 +1493,40 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Set breakpoints for interactive mode transformation.
-     * Lists HITLs with "breakpoint-settings" tag, uploads breakpoints as JSON artifact,
+     * Set checkpoints for interactive mode transformation.
+     * Lists HITLs with "checkpoint-settings" tag, uploads checkpoints as JSON artifact,
      * and updates the HITL task with the new artifact ID.
      */
-    async setBreakpoints(
+    async setCheckpoints(
         workspaceId: string,
         jobId: string,
         solutionRootPath: string,
-        breakpoints: Record<string, boolean>
-    ): Promise<AtxSetBreakpointsResponse> {
+        checkpoints: Record<string, boolean>
+    ): Promise<AtxSetCheckpointsResponse> {
         try {
-            this.logging.log(`ATX: Starting setBreakpoints for job: ${jobId}`)
+            this.logging.log(`ATX: Starting setCheckpoints for job: ${jobId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 return { Success: false, Error: 'ATX FES client not initialized' }
             }
 
-            // Step 1: List HITLs with "breakpoint-settings" tag
-            const hitlTask = await this.findBreakpointSettingsHitl(workspaceId, jobId)
+            // Step 1: List HITLs with "checkpoint-settings" tag
+            const hitlTask = await this.findCheckpointSettingsHitl(workspaceId, jobId)
 
             if (!hitlTask) {
-                return { Success: false, Error: 'No HITL task found with breakpoint-settings tag' }
+                return { Success: false, Error: 'No HITL task found with checkpoint-settings tag' }
             }
 
-            this.logging.log(`ATX: Found breakpoint-settings HITL task: ${hitlTask.taskId}`)
+            this.logging.log(`ATX: Found checkpoint-settings HITL task: ${hitlTask.taskId}`)
 
-            // Step 2: Create JSON file with breakpoints mapping in artifact workspace
+            // Step 2: Create JSON file with checkpoints mapping in artifact workspace
             const artifactDir = path.join(solutionRootPath, workspaceFolderName, jobId)
             if (!fs.existsSync(artifactDir)) {
                 fs.mkdirSync(artifactDir, { recursive: true })
             }
 
-            const jsonFilePath = path.join(artifactDir, 'breakpoint-settings.json')
-            fs.writeFileSync(jsonFilePath, JSON.stringify(breakpoints, null, 2))
+            const jsonFilePath = path.join(artifactDir, 'checkpoint-settings.json')
+            fs.writeFileSync(jsonFilePath, JSON.stringify(checkpoints, null, 2))
 
             // Step 3: Upload the JSON artifact
             const uploadInfo = await this.createArtifactUploadUrl(
@@ -1549,7 +1549,7 @@ export class ATXTransformHandler {
             )
 
             if (!uploadSuccess) {
-                return { Success: false, Error: 'Failed to upload breakpoints artifact to S3' }
+                return { Success: false, Error: 'Failed to upload checkpoints artifact to S3' }
             }
 
             // Step 4: Complete artifact upload
@@ -1563,26 +1563,26 @@ export class ATXTransformHandler {
             const updateResult = await this.updateHitl(workspaceId, jobId, hitlTask.taskId, uploadInfo.uploadId)
 
             if (!updateResult) {
-                return { Success: false, Error: 'Failed to update HITL task with breakpoints artifact' }
+                return { Success: false, Error: 'Failed to update HITL task with checkpoints artifact' }
             }
 
-            this.logging.log(`ATX: setBreakpoints completed successfully`)
+            this.logging.log(`ATX: setCheckpoints completed successfully`)
             return { Success: true }
         } catch (error) {
-            this.logging.error(`ATX: setBreakpoints error: ${String(error)}`)
+            this.logging.error(`ATX: setCheckpoints error: ${String(error)}`)
             return { Success: false, Error: String(error) }
         }
     }
 
     /**
-     * Find HITL task with "breakpoint-settings" tag
+     * Find HITL task with "checkpoint-settings" tag
      */
-    private async findBreakpointSettingsHitl(workspaceId: string, jobId: string): Promise<any | null> {
+    private async findCheckpointSettingsHitl(workspaceId: string, jobId: string): Promise<any | null> {
         try {
-            this.logging.log(`ATX: Looking for HITL task with breakpoint-settings tag`)
+            this.logging.log(`ATX: Looking for HITL task with checkpoint-settings tag`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('ATX: Failed to initialize client for findBreakpointSettingsHitl')
+                this.logging.error('ATX: Failed to initialize client for findCheckpointSettingsHitl')
                 return null
             }
 
@@ -1600,14 +1600,14 @@ export class ATXTransformHandler {
             const result = await this.atxClient!.send(command)
 
             if (result.hitlTasks && result.hitlTasks.length > 0) {
-                this.logging.log(`ATX: Found ${result.hitlTasks.length} HITL task(s) with breakpoint-settings tag`)
+                this.logging.log(`ATX: Found ${result.hitlTasks.length} HITL task(s) with checkpoint-settings tag`)
                 return result.hitlTasks[0]
             }
 
-            this.logging.log('ATX: No HITL task found with breakpoint-settings tag')
+            this.logging.log('ATX: No HITL task found with checkpoint-settings tag')
             return null
         } catch (error) {
-            this.logging.error(`ATX: findBreakpointSettingsHitl error: ${String(error)}`)
+            this.logging.error(`ATX: findCheckpointSettingsHitl error: ${String(error)}`)
             return null
         }
     }

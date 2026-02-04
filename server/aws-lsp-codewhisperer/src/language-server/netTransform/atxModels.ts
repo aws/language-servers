@@ -95,15 +95,15 @@ export interface AtxUploadPlanResponse {
     ReportPath?: string
 }
 
-// ATX Set Breakpoints request/response (interactive mode)
-export interface AtxSetBreakpointsRequest extends ExecuteCommandParams {
+// ATX Set Checkpoints request/response (interactive mode)
+export interface AtxSetCheckpointsRequest extends ExecuteCommandParams {
     TransformationJobId: string
     WorkspaceId: string
     SolutionRootPath: string
-    Breakpoints: Record<string, boolean>
+    Checkpoints: Record<string, boolean>
 }
 
-export interface AtxSetBreakpointsResponse {
+export interface AtxSetCheckpointsResponse {
     Success: boolean
     Error?: string
 }

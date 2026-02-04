@@ -12,7 +12,7 @@ import {
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
     AtxUploadPlanRequest,
-    AtxSetBreakpointsRequest,
+    AtxSetCheckpointsRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -21,7 +21,7 @@ const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
-const AtxSetBreakpointsCommand = 'aws/atxTransform/setBreakpoints'
+const AtxSetCheckpointsCommand = 'aws/atxTransform/setCheckpoints'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -83,21 +83,21 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
                         return { Status: result }
                     }
-                    case AtxSetBreakpointsCommand: {
-                        const { WorkspaceId, TransformationJobId, SolutionRootPath, Breakpoints } =
-                            params as AtxSetBreakpointsRequest
+                    case AtxSetCheckpointsCommand: {
+                        const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints } =
+                            params as AtxSetCheckpointsRequest
 
                         if (!WorkspaceId || !TransformationJobId || !SolutionRootPath) {
                             throw new Error(
-                                'WorkspaceId, TransformationJobId, and SolutionRootPath are required for setBreakpoints'
+                                'WorkspaceId, TransformationJobId, and SolutionRootPath are required for setCheckpoints'
                             )
                         }
 
-                        return await atxTransformHandler.setBreakpoints(
+                        return await atxTransformHandler.setCheckpoints(
                             WorkspaceId,
                             TransformationJobId,
                             SolutionRootPath,
-                            Breakpoints || {}
+                            Checkpoints || {}
                         )
                     }
                     default: {
@@ -127,7 +127,7 @@ export const AtxNetTransformServerToken =
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
-                            AtxSetBreakpointsCommand,
+                            AtxSetCheckpointsCommand,
                         ],
                     },
                 },
