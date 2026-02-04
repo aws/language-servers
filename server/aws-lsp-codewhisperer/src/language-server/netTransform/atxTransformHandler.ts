@@ -1592,7 +1592,7 @@ export class ATXTransformHandler {
                 taskType: 'NORMAL',
                 taskFilter: {
                     taskStatuses: ['AWAITING_HUMAN_INPUT'],
-                    tag: 'breakpoint-settings',
+                    tag: `${jobId}-checkpoint`,
                 },
             })
 
