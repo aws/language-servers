@@ -59,14 +59,18 @@ describe('ATX .NET Transform Integration Tests', () => {
     const TOKEN_REFRESH_INTERVAL_MS = 25 * 60 * 1000
 
     async function refreshToken(): Promise<void> {
-        console.log('[Token Refresh] Refreshing SSO token...')
-        testSsoToken = refreshTokenFromSecretsManager()
-        await client.sendRequest('aws/credentials/token/update', {
-            data: { token: testSsoToken },
-            credentialkey: 'atx-bearer',
-            metadata: { sso: { startUrl } },
-        })
-        console.log('[Token Refresh] Token updated successfully')
+        try {
+            console.log('[Token Refresh] Refreshing SSO token...')
+            testSsoToken = refreshTokenFromSecretsManager()
+            await client.sendRequest('aws/credentials/token/update', {
+                data: { token: testSsoToken },
+                credentialkey: 'atx-bearer',
+                metadata: { sso: { startUrl } },
+            })
+            console.log('[Token Refresh] Token updated successfully')
+        } catch (error) {
+            console.error('[Token Refresh] Failed:', error)
+        }
     }
 
     function buildStartTransformRequest(jobName: string, sourceFiles: string[]) {
@@ -211,7 +215,9 @@ describe('ATX .NET Transform Integration Tests', () => {
             console.log(`Poll ${i + 1}: Status = ${jobStatus}`)
 
             if (jobStatus === 'FAILED') {
-                console.log('FAILED - Reason:', job.FailureReason || result?.ErrorString || 'unknown')
+                const reason = job.FailureReason || result?.ErrorString || 'unknown'
+                console.log('FAILED - Reason:', reason)
+                throw new Error(`Job failed: ${reason}`)
             }
 
             if (jobStatus === 'AWAITING_HUMAN_INPUT' && planPath) break
