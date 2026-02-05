@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.104](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.103...lsp-codewhisperer/v0.0.104) (2026-02-05)
+
+
+### Bug Fixes
+
+* add OAuth client support to MCP manager ([#2607](https://github.com/aws/language-servers/issues/2607)) ([81c1e08](https://github.com/aws/language-servers/commit/81c1e089750e90efb4ea302279a915b08eddc0ad))
+* Add optional `x-amzn-qt-test-id` header to ATX Transform API requests for test traffic classification.   ([#2602](https://github.com/aws/language-servers/issues/2602)) ([2321687](https://github.com/aws/language-servers/commit/2321687b1b6ae7e5c4fdc9fcd15792cd54f138c9))
+* add programming language to chatInteractWithMessageEvent ([#2605](https://github.com/aws/language-servers/issues/2605)) ([af86c21](https://github.com/aws/language-servers/commit/af86c218af8f904a806ca43c8695fcb6053e347c))
+* **amazonq:** disable WCS feature by default ([#2604](https://github.com/aws/language-servers/issues/2604)) ([990f727](https://github.com/aws/language-servers/commit/990f7273d39925beba46035597a7d84983eff19f))
+* **amazonq:** fix for tool permissions in allowed paths per tool ([#2601](https://github.com/aws/language-servers/issues/2601)) ([01ea0d7](https://github.com/aws/language-servers/commit/01ea0d74404baae14462e5557f488b22085bb8d3))
+
 ## [0.0.103](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.102...lsp-codewhisperer/v0.0.103) (2026-01-26)
 
 
