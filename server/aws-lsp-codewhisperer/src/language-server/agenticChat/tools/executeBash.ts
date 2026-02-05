@@ -37,6 +37,7 @@ export const commandCategories = new Map<string, CommandCategory>([
     // Mutable commands
     ['chmod', CommandCategory.Mutate],
     ['curl', CommandCategory.Mutate],
+    ['wget', CommandCategory.Mutate],
     ['mount', CommandCategory.Mutate],
     ['umount', CommandCategory.Mutate],
     ['systemctl', CommandCategory.Mutate],
@@ -176,7 +177,7 @@ export class ExecuteBash {
 
     public async requiresAcceptance(
         params: ExecuteBashParams,
-        approvedPaths?: Set<string>
+        approvedPaths?: Map<string, Set<string>>
     ): Promise<CommandValidation> {
         try {
             const args = split(params.command)
@@ -233,7 +234,7 @@ export class ExecuteBash {
                         }
 
                         // Check if the path is already approved
-                        if (approvedPaths && isPathApproved(fullPath, approvedPaths)) {
+                        if (approvedPaths && isPathApproved(fullPath, 'executeBash', approvedPaths)) {
                             continue
                         }
 
@@ -282,6 +283,15 @@ export class ExecuteBash {
                 const command = cmdArgs[0]
                 const category = commandCategories.get(command)
 
+                // Special case: curl/wget with pipes should be treated as destructive (curl | bash pattern)
+                if ((command === 'curl' || command === 'wget') && params.command.includes('|')) {
+                    return {
+                        requiresAcceptance: true,
+                        warning: 'WARNING: Downloading and piping to shell execution is dangerous:\n\n',
+                        commandCategory: CommandCategory.Destructive,
+                    }
+                }
+
                 // Update the highest command category if current command has higher risk
                 if (category === CommandCategory.Destructive) {
                     highestCommandCategory = CommandCategory.Destructive
@@ -317,7 +327,7 @@ export class ExecuteBash {
             // Finally, check if the cwd is outside the workspace
             if (params.cwd) {
                 // Check if the cwd is already approved
-                if (!(approvedPaths && isPathApproved(params.cwd, approvedPaths))) {
+                if (!(approvedPaths && isPathApproved(params.cwd, 'executeBash', approvedPaths))) {
                     const workspaceFolders = getWorkspaceFolderPaths(this.workspace)
 
                     // If there are no workspace folders, we can't validate the path
