@@ -58,7 +58,7 @@ export class WorkspaceFolderManager {
     private optOutMonitorInterval: NodeJS.Timeout | undefined
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
-    private featureDisabled: boolean = false // Serve as a server-side control. If true, stop WCS features
+    private featureDisabled: boolean = true // Serve as a server-side control. If true, stop WCS features
     private semanticSearchToolEnabled: boolean = false
     private isCheckingRemoteWorkspaceStatus: boolean = false
     private isArtifactUploadedToRemoteWorkspace: boolean = false
