@@ -211,7 +211,7 @@ export class ATXTransformHandler {
     /**
      * List available workspaces
      */
-    async listWorkspaces(): Promise<any[]> {
+    async listWorkspaces(): Promise<any> {
         try {
             this.logging.log('ATX: Starting ListWorkspaces operation')
 
@@ -235,10 +235,16 @@ export class ATXTransformHandler {
                 CreatedDate: new Date().toISOString(), // Use current date since createdDate not available
             }))
 
-            return workspaces
+            const applicationUrl = this.serviceManager.getActiveApplicationUrl()
+            this.logging.log(`ATX: ApplicationUrl: ${applicationUrl}`)
+
+            return {
+                workspaces,
+                applicationUrl
+            }
         } catch (error) {
             this.logging.error(`ATX: ListWorkspaces error: ${String(error)}`)
-            return []
+            return { workspaces: [], applicationUrl: null }
         }
     }
 
