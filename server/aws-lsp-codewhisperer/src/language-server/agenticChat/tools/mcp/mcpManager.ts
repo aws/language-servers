@@ -518,7 +518,21 @@ export class McpManager {
                         try {
                             const headResp = await fetch(base, { method: 'HEAD', headers })
                             const www = headResp.headers.get('www-authenticate') || ''
-                            needsOAuth = headResp.status === 401 || headResp.status === 403 || /bearer/i.test(www)
+                            this.features.logging.info(`MCP: HEAD response status: ${headResp.status}`)
+
+                            if (headResp.status === 401 || headResp.status === 403 || /bearer/i.test(www)) {
+                                needsOAuth = true
+                                this.features.logging.info(`MCP: OAuth detected via HEAD (${headResp.status})`)
+                            } else if (headResp.status === 405 || headResp.status === 404) {
+                                // HEAD not supported (405) or endpoint not found for HEAD (404), try POST-based OAuth detection
+                                this.features.logging.info(
+                                    `MCP: HEAD returned ${headResp.status}, trying POST-based OAuth detection`
+                                )
+                                needsOAuth = await this.detectOAuthFromPostError(base, headers)
+                                if (needsOAuth) {
+                                    this.features.logging.info(`MCP: OAuth detected via POST error`)
+                                }
+                            }
                         } catch {
                             this.features.logging.info(`MCP: HEAD not available`)
                         }
@@ -1487,6 +1501,30 @@ export class McpManager {
             serverNames.add(tool.serverName)
         }
         return Array.from(serverNames)
+    }
+
+    /**
+     * Detect OAuth requirement from POST error response
+     * Used when HEAD method returns 405 (Method Not Allowed)
+     */
+    private async detectOAuthFromPostError(url: URL, headers: Record<string, string>): Promise<boolean> {
+        try {
+            const testPayload = { jsonrpc: '2.0', method: 'initialize', id: 1 }
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify(testPayload),
+            })
+
+            if (response.status === 401) {
+                const errorText = await response.text()
+                // Check for OAuth-related error messages
+                return /bearer|token|auth|missing.*auth/i.test(errorText)
+            }
+        } catch (e) {
+            // Ignore errors, assume no OAuth required
+        }
+        return false
     }
 
     /**
