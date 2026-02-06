@@ -1878,6 +1878,10 @@ export class McpManager {
         }
     }
 
+    public resetRegistryService(): void {
+        this.registryService = undefined
+    }
+
     /**
      * Update registry URL and refetch registry
      * @throws Error if registry fetch or validation fails
@@ -1887,8 +1891,6 @@ export class McpManager {
             this.registryService = new McpRegistryService(this.features.logging)
         }
 
-        const wasActive = this.registryUrlProvided
-
         try {
             const registry = await this.registryService.fetchRegistry(registryUrl)
             if (registry) {
@@ -1896,19 +1898,13 @@ export class McpManager {
                 // Clear any previous registry errors on success
                 this.configLoadErrors.delete('registry')
 
-                if (!wasActive) {
+                this.features.logging.info(`MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`)
+                // Only discover servers when registry is newly activated and not during periodic sync
+                if (!isPeriodicSync) {
+                    await this.discoverAllServers()
                     this.features.logging.info(
-                        `MCP Registry: Registry mode ACTIVATED - ${registry.servers.length} servers`
+                        `MCP: discovered ${this.getAllTools().length} tools after registry activation`
                     )
-                    // Only discover servers when registry is newly activated and not during periodic sync
-                    if (!isPeriodicSync) {
-                        await this.discoverAllServers()
-                        this.features.logging.info(
-                            `MCP: discovered ${this.getAllTools().length} tools after registry activation`
-                        )
-                    }
-                } else {
-                    this.features.logging.info(`MCP Registry: Updated registry with ${registry.servers.length} servers`)
                 }
 
                 // Only sync during periodic updates, not at startup
