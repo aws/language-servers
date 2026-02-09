@@ -361,9 +361,20 @@ export function getBearerTokenFromProviderWithType(credentialsProvider: Credenti
 
     return credentials.token
 }
+function isSagemakerEnv(): boolean {
+    return (
+        process.env.SAGEMAKER_APP_TYPE !== undefined ||
+        process.env.SAGEMAKER_INTERNAL_IMAGE_URI !== undefined ||
+        process.env.STUDIO_LOGGING_DIR?.includes('/var/log/studio') === true ||
+        process.env.SM_APP_TYPE !== undefined ||
+        process.env.SM_INTERNAL_IMAGE_URI !== undefined ||
+        process.env.SERVICE_NAME === 'SageMakerUnifiedStudio'
+    )
+}
+
 export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
-    return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
-        ? lspParams?.initializationOptions?.aws?.clientInfo?.name
+    return isSagemakerEnv()
+        ? lspParams?.initializationOptions?.aws?.clientInfo?.name || lspParams?.clientInfo?.name
         : lspParams?.clientInfo?.name
 }
 
