@@ -1,19 +1,42 @@
 import { ExecuteCommandParams } from 'vscode-languageserver'
-import { TransformationPlan } from '@amzn/codewhisperer-runtime'
+import { PlanStepStatus } from '@amazon/elastic-gumby-frontend-client'
 
-// ATX Job Status enum (matches client-side C# definition)
-export enum AtxJobStatus {
-    CREATED = 'CREATED',
-    STARTING = 'STARTING',
-    ASSESSING = 'ASSESSING',
-    PLANNING = 'PLANNING',
-    PLANNED = 'PLANNED',
-    EXECUTING = 'EXECUTING',
-    AWAITING_HUMAN_INPUT = 'AWAITING_HUMAN_INPUT',
-    COMPLETED = 'COMPLETED',
-    FAILED = 'FAILED',
-    STOPPING = 'STOPPING',
-    STOPPED = 'STOPPED',
+// Re-export for convenience
+export { PlanStepStatus }
+
+/**
+ * Represents a step in an ATX transformation plan tree structure.
+ * Matches C# AtxPlanStep class.
+ */
+export interface AtxPlanStep {
+    StepId: string
+    ParentStepId: string | null
+    StepName: string
+    Description: string
+    Status: PlanStepStatus
+    Children: AtxPlanStep[]
+}
+
+/**
+ * Tree structure for transformation plan.
+ * Matches C# AtxTransformationPlan class.
+ */
+export interface AtxTransformationPlan {
+    Root: AtxPlanStep
+}
+
+/**
+ * Creates an empty root node for the transformation plan tree.
+ */
+export function createEmptyRootNode(): AtxPlanStep {
+    return {
+        StepId: 'root',
+        ParentStepId: null,
+        StepName: 'Root',
+        Description: '',
+        Status: 'NOT_STARTED',
+        Children: [],
+    }
 }
 
 // ATX Workspace Models
@@ -28,11 +51,11 @@ export interface AtxCreatedWorkspaceInfo {
     WorkspaceName: string
 }
 
-// ATX Transformation Job (matches client-side C# definition)
+// ATX Transformation Job
 export interface AtxTransformationJob {
     WorkspaceId: string
     JobId: string
-    Status: AtxJobStatus
+    Status: string
     FailureReason?: string
 }
 
@@ -72,7 +95,7 @@ export interface AtxGetTransformInfoResponse {
     PlanPath?: string | null
     ReportPath?: string | null
     WorklogPath?: string | null
-    TransformationPlan?: TransformationPlan | null
+    TransformationPlan?: AtxTransformationPlan | null
     ArtifactPath?: string | null
     ErrorString?: string | null
 }

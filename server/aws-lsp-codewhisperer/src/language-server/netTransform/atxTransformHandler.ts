@@ -38,10 +38,13 @@ import {
     AtxUploadPlanRequest,
     AtxUploadPlanResponse,
     AtxSetCheckpointsResponse,
+    AtxTransformationPlan,
+    AtxPlanStep,
+    PlanStepStatus,
+    createEmptyRootNode,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
-import { TransformationPlan } from '@amzn/codewhisperer-runtime'
 
 import { Utils, workspaceFolderName } from './utils'
 
@@ -1150,266 +1153,165 @@ export class ATXTransformHandler {
         workspaceId: string,
         jobId: string,
         solutionRootPath: string
-    ): Promise<TransformationPlan> {
+    ): Promise<AtxTransformationPlan> {
         try {
-            // Get real plan steps from ATX FES (only if job status >= PLANNED)
-            const planSteps = await this.getATXFESJobPlanSteps(workspaceId, jobId)
+            const plan = await this.fetchPlanTree(workspaceId, jobId)
 
-            if (planSteps) {
-                this.logging.log(`ATX FES: Found ${planSteps.length} transformation steps`)
-
-                // Sort steps by score (primary) and startTime (tiebreaker) to match RTS ordering
-                planSteps.sort((a: any, b: any) => {
-                    const scoreDiff = (a.score || 0) - (b.score || 0)
-                    if (scoreDiff !== 0) return scoreDiff
-
-                    // Tiebreaker for identical scores: sort by startTime
-                    const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
-                    const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
-                    return timeA - timeB
-                })
-
-                // Return in exact same format as RTS with all required fields
-                const transformationPlan = {
-                    transformationSteps: planSteps.map((step: any, index: number) => {
-                        try {
-                            // Map substeps to ProgressUpdates for IDE display
-                            const progressUpdates = (step.substeps || []).map((substep: any) => {
-                                // Map ATX substep status to IDE TransformationProgressUpdateStatus enum values
-                                let substepStatus = 'IN_PROGRESS' // Default - no NOT_STARTED in this enum
-                                switch (substep.status) {
-                                    case 'SUCCEEDED':
-                                    case 'COMPLETED':
-                                        substepStatus = 'COMPLETED'
-                                        break
-                                    case 'IN_PROGRESS':
-                                    case 'RUNNING':
-                                        substepStatus = 'IN_PROGRESS'
-                                        break
-                                    case 'FAILED':
-                                        substepStatus = 'FAILED'
-                                        break
-                                    case 'SKIPPED':
-                                        substepStatus = 'SKIPPED'
-                                        break
-                                    case 'NOT_STARTED':
-                                    case 'CREATED':
-                                    default:
-                                        substepStatus = 'IN_PROGRESS' // No NOT_STARTED option in ProgressUpdate enum
-                                        break
-                                }
-
-                                // Map nested progress updates (3rd level)
-                                const nestedProgressUpdates = (substep.substeps || []).map((nestedUpdate: any) => {
-                                    let nestedStatus = 'IN_PROGRESS'
-                                    switch (nestedUpdate.status) {
-                                        case 'SUCCEEDED':
-                                        case 'COMPLETED':
-                                            nestedStatus = 'COMPLETED'
-                                            break
-                                        case 'IN_PROGRESS':
-                                        case 'RUNNING':
-                                            nestedStatus = 'IN_PROGRESS'
-                                            break
-                                        case 'FAILED':
-                                            nestedStatus = 'FAILED'
-                                            break
-                                        case 'SKIPPED':
-                                            nestedStatus = 'SKIPPED'
-                                            break
-                                        default:
-                                            nestedStatus = 'IN_PROGRESS'
-                                            break
-                                    }
-                                    return {
-                                        name: nestedUpdate.stepName || 'Unknown Nested Update',
-                                        description: nestedUpdate.description || '',
-                                        status: nestedStatus,
-                                        stepId: nestedUpdate.stepId ?? undefined,
-                                    }
-                                })
-
-                                return {
-                                    name: substep.stepName || 'Unknown Substep',
-                                    description: substep.description || '',
-                                    status: substepStatus,
-                                    startTime: substep.startTime ? new Date(substep.startTime) : undefined,
-                                    endTime: substep.endTime ? new Date(substep.endTime) : undefined,
-                                    stepId: substep.stepId ?? undefined,
-                                    progressUpdates: nestedProgressUpdates,
-                                }
-                            })
-
-                            // Use ATX status directly - IDE supports most values, minimal mapping needed
-                            let mappedStatus = step.status || 'NOT_STARTED'
-                            // Only map the few values IDE doesn't have
-                            if (mappedStatus === 'SUCCEEDED') {
-                                mappedStatus = 'COMPLETED'
-                            } else if (mappedStatus === 'RUNNING') {
-                                mappedStatus = 'IN_PROGRESS'
-                            } else if (mappedStatus === 'CREATED') {
-                                mappedStatus = 'NOT_STARTED'
-                            }
-
-                            // Use ATX step data directly without hardcoded ordering
-                            const stepNumber = index + 1
-                            const stepName = `Step ${stepNumber} - ${step.stepName || 'Unknown Step'}`
-
-                            return {
-                                id: step.stepId || `step-${stepNumber}`,
-                                name: stepName,
-                                description: step.description || '',
-                                status: mappedStatus,
-                                progressUpdates: progressUpdates,
-                                startTime: step.startTime ? new Date(step.startTime) : undefined,
-                                endTime: step.endTime ? new Date(step.endTime) : undefined,
-                            }
-                        } catch (error) {
-                            this.logging.error(`ATX FES: Error mapping step ${index}: ${String(error)}`)
-                            // Return a safe fallback step
-                            const stepNumber = index + 1
-                            return {
-                                id: step.stepId || `fallback-${stepNumber}`,
-                                name: `Step ${stepNumber} - ${step.stepName || `Step ${stepNumber}`}`,
-                                description: step.description || '',
-                                status: 'NOT_STARTED',
-                                progressUpdates: [],
-                                startTime: undefined,
-                                endTime: undefined,
-                            }
-                        }
-                    }),
-                } as TransformationPlan
-                try {
-                    await this.listWorklogs(workspaceId, jobId, solutionRootPath)
-                } catch (e) {
-                    this.logging.log(`ATX FES: Could not get worklog for workspaces: ${workspaceId}, job id: ${jobId}`)
-                }
-
-                this.logging.log(
-                    `ATX FES: Successfully mapped ${transformationPlan.transformationSteps?.length || 0} steps`
-                )
-
-                return transformationPlan
-            } else {
-                this.logging.log('ATX FES: No plan steps available yet - returning empty plan')
-                return {
-                    transformationSteps: [] as any,
-                } as TransformationPlan
-            }
-        } catch (error) {
-            this.logging.error(`ATX FES getTransformationPlan error: ${String(error)}`)
-            // Return empty plan on error
-            return {
-                transformationSteps: [] as any,
-            } as TransformationPlan
-        }
-    }
-
-    private async getATXFESJobPlanSteps(workspaceId: string, jobId: string): Promise<any[] | null> {
-        try {
-            this.logging.log(`ATX FES: getting plan steps with substeps...`)
-            const result = await this.listJobPlanSteps(workspaceId, jobId)
-            if (result) {
-                const steps = result || []
-                this.logging.log(`ListJobPlanSteps: SUCCESS - Found ${steps.length} plan steps with substeps`)
-                return steps
-            }
-            return null
-        } catch (error) {
-            this.logging.error(`ListJobPlanSteps error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-            return null
-        }
-    }
-
-    /**
-     * Lists job plan steps using FES client with recursive substep fetching
-     */
-    private async listJobPlanSteps(workspaceId: string, jobId: string): Promise<any[] | null> {
-        try {
-            this.logging.log(`ATX: Starting ListJobPlanSteps for job: ${jobId}`)
-
-            if (!this.atxClient && !(await this.initializeAtxClient())) {
-                this.logging.error('ATX: Failed to initialize client for ListJobPlanSteps')
-                return null
-            }
-
-            // Get root steps first
-            const rootSteps = await this.getStepsRecursive(workspaceId, jobId, 'root')
-
-            if (rootSteps && rootSteps.length > 0) {
-                // For each root step, get its substeps
-                for (const step of rootSteps) {
-                    const substeps = await this.getStepsRecursive(workspaceId, jobId, step.stepId)
-                    step.substeps = substeps || []
-
-                    // Sort substeps by score (primary) and startTime (tiebreaker) to match RTS ordering
-                    if (step.substeps.length > 0) {
-                        step.substeps.sort((a: any, b: any) => {
-                            const scoreDiff = (a.score || 0) - (b.score || 0)
-                            if (scoreDiff !== 0) return scoreDiff
-
-                            // Tiebreaker for identical scores: sort by startTime
-                            const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
-                            const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
-                            return timeA - timeB
-                        })
-                        for (const substep of step.substeps) {
-                            const superSubsteps = await this.getStepsRecursive(workspaceId, jobId, substep.stepId)
-                            substep.substeps = superSubsteps || []
-
-                            // Sort substeps by score (primary) and startTime (tiebreaker) to match RTS ordering
-                            if (substep.substeps.length > 0) {
-                                substep.substeps.sort((a: any, b: any) => {
-                                    const scoreDiff = (a.score || 0) - (b.score || 0)
-                                    if (scoreDiff !== 0) return scoreDiff
-
-                                    // Tiebreaker for identical scores: sort by startTime
-                                    const timeA = a.startTime ? new Date(a.startTime).getTime() : 0
-                                    const timeB = b.startTime ? new Date(b.startTime).getTime() : 0
-                                    return timeA - timeB
-                                })
-                            }
-                        }
-                    }
-                }
-
-                this.logging.log(`ATX: ListJobPlanSteps completed - Found ${rootSteps.length} steps with substeps`)
-                return rootSteps
-            }
-
-            this.logging.log('ATX: ListJobPlanSteps - No root steps found')
-            return null
-        } catch (error) {
-            this.logging.error(`ATX: ListJobPlanSteps error: ${String(error)}`)
-            return null
-        }
-    }
-
-    /**
-     * Recursively gets steps for a given parent step ID
-     */
-    private async getStepsRecursive(workspaceId: string, jobId: string, parentStepId: string): Promise<any[] | null> {
-        try {
-            const command = new ListJobPlanStepsCommand({
-                workspaceId: workspaceId,
-                jobId: jobId,
-                parentStepId: parentStepId,
-                maxResults: 100,
+            // Fetch worklogs in parallel (fire and forget, don't block plan return)
+            this.fetchWorklogs(workspaceId, jobId, solutionRootPath).catch(e => {
+                this.logging.log(`ATX: Could not get worklogs for workspace: ${workspaceId}, job: ${jobId}`)
             })
 
-            await this.addAuthToCommand(command)
-            const result = await this.atxClient!.send(command)
-
-            if (result && result.steps && result.steps.length > 0) {
-                return result.steps
-            }
-
-            return null
+            this.logging.log(`ATX: Successfully built plan tree with ${plan.Root.Children.length} root steps`)
+            return plan
         } catch (error) {
-            this.logging.error(`Error getting steps for parent ${parentStepId}: ${String(error)}`)
-            return null
+            this.logging.error(`ATX: getTransformationPlan error: ${String(error)}`)
+            return { Root: createEmptyRootNode() }
         }
+    }
+
+    /**
+     * Fetches all plan steps in a single API call and builds the tree locally.
+     */
+    private async fetchPlanTree(workspaceId: string, jobId: string): Promise<AtxTransformationPlan> {
+        const root = createEmptyRootNode()
+
+        if (!this.atxClient && !(await this.initializeAtxClient())) {
+            this.logging.error('ATX: Failed to initialize client for fetchPlanTree')
+            return { Root: root }
+        }
+
+        // Fetch ALL steps in a single call (no parentStepId = returns all steps)
+        const allSteps = await this.fetchAllSteps(workspaceId, jobId)
+        if (!allSteps || allSteps.length === 0) {
+            this.logging.log('ATX: No plan steps available yet')
+            return { Root: root }
+        }
+
+        // Build tree from flat list
+        root.Children = this.buildTreeFromFlatList(allSteps)
+
+        this.logging.log(
+            `ATX: fetchPlanTree completed - Built tree with ${root.Children.length} root steps from ${allSteps.length} total steps`
+        )
+        return { Root: root }
+    }
+
+    /**
+     * Fetches all steps in a single API call (no parentStepId filter).
+     */
+    private async fetchAllSteps(workspaceId: string, jobId: string): Promise<any[]> {
+        const allSteps: any[] = []
+        let nextToken: string | undefined
+
+        try {
+            do {
+                const command = new ListJobPlanStepsCommand({
+                    workspaceId: workspaceId,
+                    jobId: jobId,
+                    maxResults: 100,
+                    ...(nextToken && { nextToken }),
+                })
+
+                await this.addAuthToCommand(command)
+                const result = await this.atxClient!.send(command)
+
+                if (result?.steps) {
+                    allSteps.push(...result.steps)
+                }
+                nextToken = result?.nextToken
+            } while (nextToken)
+
+            this.logging.log(`ATX: Fetched ${allSteps.length} total steps`)
+            return allSteps
+        } catch (error) {
+            this.logging.error(`ATX: Error fetching all steps: ${String(error)}`)
+            return []
+        }
+    }
+
+    /**
+     * Builds a tree structure from a flat list of steps using ParentStepId relationships.
+     */
+    private buildTreeFromFlatList(flatSteps: any[]): AtxPlanStep[] {
+        // Create a map of StepId -> AtxPlanStep for quick lookup
+        const stepMap = new Map<string, AtxPlanStep>()
+
+        // First pass: convert all API steps to AtxPlanStep objects
+        for (const apiStep of flatSteps) {
+            const step = this.mapApiStepToNode(apiStep)
+            if (step.StepId) {
+                stepMap.set(step.StepId, step)
+            }
+        }
+
+        // Second pass: build parent-child relationships
+        const rootChildren: AtxPlanStep[] = []
+
+        for (const step of stepMap.values()) {
+            if (step.ParentStepId === 'root' || !step.ParentStepId) {
+                rootChildren.push(step)
+            } else {
+                const parent = stepMap.get(step.ParentStepId)
+                if (parent) {
+                    parent.Children.push(step)
+                } else {
+                    // Orphan step - treat as root level
+                    rootChildren.push(step)
+                }
+            }
+        }
+
+        // Sort all children arrays by score
+        this.sortStepsByScore(rootChildren)
+        for (const step of stepMap.values()) {
+            if (step.Children.length > 0) {
+                this.sortStepsByScore(step.Children)
+            }
+        }
+
+        return rootChildren
+    }
+
+    /**
+     * Maps an API step response to AtxPlanStep.
+     * Converts from FES camelCase to C#-compatible PascalCase.
+     */
+    private mapApiStepToNode(apiStep: any): AtxPlanStep & { score?: number } {
+        return {
+            StepId: apiStep.stepId || '',
+            ParentStepId: apiStep.parentStepId === 'root' ? null : apiStep.parentStepId || null,
+            StepName: apiStep.stepName || '',
+            Description: apiStep.description || '',
+            Status: this.mapApiStatus(apiStep.status),
+            Children: [],
+            // Keep score for sorting (not sent to C#)
+            score: apiStep.score || 0,
+        }
+    }
+
+    /**
+     * Maps API status string to PlanStepStatus.
+     * Returns the status directly if valid, otherwise defaults to NOT_STARTED.
+     */
+    private mapApiStatus(status: string | undefined): PlanStepStatus {
+        if (!status) return 'NOT_STARTED'
+        // The API returns valid PlanStepStatus values directly
+        return status as PlanStepStatus
+    }
+
+    /**
+     * Sorts steps by score (primary).
+     */
+    private sortStepsByScore(steps: (AtxPlanStep & { score?: number })[]): void {
+        steps.sort((a, b) => (a.score || 0) - (b.score || 0))
+    }
+
+    /**
+     * Fetches worklogs for a job and saves them to disk.
+     */
+    private async fetchWorklogs(workspaceId: string, jobId: string, solutionRootPath: string): Promise<void> {
+        await this.listWorklogs(workspaceId, jobId, solutionRootPath)
     }
 
     /**
@@ -1448,7 +1350,7 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Lists artifacts using FES client with CUSTOMER_OUTPUT filtering
+     * Lists worklogs for a job and saves them to disk grouped by step ID.
      */
     private async listWorklogs(
         workspaceId: string,
