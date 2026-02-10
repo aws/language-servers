@@ -3019,7 +3019,7 @@ ${' '.repeat(8)}}
         it('should set model ID from prompt input options', () => {
             const mockTabId = 'tab-1'
             const modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
-            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+            const setTabModelIdStub = sinon.stub(ChatDatabase.prototype, 'setTabModelId')
 
             // Create a session
             chatController.onTabAdd({ tabId: mockTabId })
@@ -3035,16 +3035,16 @@ ${' '.repeat(8)}}
             assert.strictEqual(session!.modelId, modelId)
 
             // Verify the model ID was saved to the database
-            sinon.assert.called(setModelIdStub)
+            sinon.assert.called(setTabModelIdStub)
 
-            setModelIdStub.restore()
+            setTabModelIdStub.restore()
         })
 
         it('should recalculate token limits when model changes', () => {
             const mockTabId = 'tab-1'
             const initialModelId = 'model-1'
             const newModelId = 'model-2'
-            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+            const setTabModelIdStub = sinon.stub(ChatDatabase.prototype, 'setTabModelId')
 
             // Mock getCachedModels to return models with different token limits
             const cachedModels: Model[] = [
@@ -3089,7 +3089,7 @@ ${' '.repeat(8)}}
             assert.strictEqual(newLimits.inputLimit, newLimits.maxOverallCharacters - 100_000)
             assert.strictEqual(newLimits.compactionThreshold, Math.floor(0.7 * newLimits.maxOverallCharacters))
 
-            setModelIdStub.restore()
+            setTabModelIdStub.restore()
             getCachedModelsStub.restore()
         })
     })
