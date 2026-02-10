@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.105](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.104...lsp-codewhisperer/v0.0.105) (2026-02-10)
+
+
+### Bug Fixes
+
+* amazon q chat history restoration to display rich ui elements and persisting model/agentic toggle preferences. ([#2610](https://github.com/aws/language-servers/issues/2610)) ([75135dd](https://github.com/aws/language-servers/commit/75135ddf2342a355a1fcba463dd6a42d040b75fa))
+* extend SageMaker env detection to support both SMUS and SMAI ([#2598](https://github.com/aws/language-servers/issues/2598)) ([12fbc4c](https://github.com/aws/language-servers/commit/12fbc4c4f355ab0a8500de697a5fd7bd7950f661))
+
 ## [0.0.104](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.103...lsp-codewhisperer/v0.0.104) (2026-02-05)
 
 
