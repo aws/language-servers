@@ -240,7 +240,7 @@ export class ATXTransformHandler {
 
             return {
                 workspaces,
-                applicationUrl
+                applicationUrl,
             }
         } catch (error) {
             this.logging.error(`ATX: ListWorkspaces error: ${String(error)}`)
@@ -353,10 +353,10 @@ export class ATXTransformHandler {
             }
 
             // Always get list of existing workspaces
-            const workspaces = await this.listWorkspaces()
+            const listResult = await this.listWorkspaces()
 
             const response: AtxListOrCreateWorkspaceResponse = {
-                AvailableWorkspaces: workspaces,
+                AvailableWorkspaces: listResult.workspaces || [],
                 CreatedWorkspace: undefined,
             }
 
