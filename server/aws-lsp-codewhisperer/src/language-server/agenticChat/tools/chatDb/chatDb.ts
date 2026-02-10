@@ -1029,4 +1029,151 @@ export class ChatDatabase {
         const settings = this.getSettings() || { modelId: undefined }
         this.updateSettings({ ...settings, pairProgrammingMode })
     }
+
+    // ==================== Per-Tab Preferences ====================
+
+    /**
+     * Gets the model ID for a specific tab.
+     * @param tabId The tab ID to get the model for
+     * @returns The tab's model ID, or undefined if not set
+     */
+    getTabModelId(tabId: string): string | undefined {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.#historyIdMapping.get(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.modelId
+            }
+        }
+        return undefined
+    }
+
+    /**
+     * Sets the model ID for a specific tab.
+     * @param tabId The tab ID to set the model for
+     * @param modelId The model ID to set
+     */
+    setTabModelId(tabId: string, modelId: string | undefined): void {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            const tab = collection.findOne({ historyId })
+
+            this.#features.logging.log(`Setting tab model: tabId=${tabId}, modelId=${modelId}`)
+
+            if (!tab) {
+                this.addTabWithContext(collection, historyId, {})
+                const newTab = collection.findOne({ historyId })
+                if (newTab) {
+                    newTab.modelId = modelId
+                    collection.update(newTab)
+                }
+            } else {
+                tab.modelId = modelId
+                collection.update(tab)
+            }
+
+            // Also update global settings with the latest selection for new tab defaults
+            this.setModelId(modelId)
+        }
+    }
+
+    /**
+     * Gets the pair programming mode for a specific tab.
+     * @param tabId The tab ID to get the mode for
+     * @returns The tab's pair programming mode, or undefined if not set
+     */
+    getTabPairProgrammingMode(tabId: string): boolean | undefined {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.#historyIdMapping.get(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.pairProgrammingMode
+            }
+        }
+        return undefined
+    }
+
+    /**
+     * Sets the pair programming mode for a specific tab.
+     * @param tabId The tab ID to set the mode for
+     * @param pairProgrammingMode The pair programming mode to set
+     */
+    setTabPairProgrammingMode(tabId: string, pairProgrammingMode: boolean | undefined): void {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            const tab = collection.findOne({ historyId })
+
+            this.#features.logging.log(`Setting tab pair programming mode: tabId=${tabId}, mode=${pairProgrammingMode}`)
+
+            if (!tab) {
+                this.addTabWithContext(collection, historyId, {})
+                const newTab = collection.findOne({ historyId })
+                if (newTab) {
+                    newTab.pairProgrammingMode = pairProgrammingMode
+                    collection.update(newTab)
+                }
+            } else {
+                tab.pairProgrammingMode = pairProgrammingMode
+                collection.update(tab)
+            }
+
+            // Also update global settings with the latest selection for new tab defaults
+            this.setPairProgrammingMode(pairProgrammingMode)
+        }
+    }
+
+    /**
+     * Gets the effective model ID for a tab, falling back to global default if not set.
+     * @param tabId The tab ID to get the model for
+     * @returns The effective model ID for the tab
+     */
+    getEffectiveTabModelId(tabId: string): string | undefined {
+        const tabModelId = this.getTabModelId(tabId)
+        if (tabModelId !== undefined) {
+            return tabModelId
+        }
+        return this.getModelId()
+    }
+
+    /**
+     * Gets the effective pair programming mode for a tab, falling back to global default if not set.
+     * For new tabs without any preference, defaults to true (agentic mode enabled).
+     * @param tabId The tab ID to get the mode for
+     * @returns The effective pair programming mode for the tab
+     */
+    getEffectiveTabPairProgrammingMode(tabId: string): boolean {
+        const tabMode = this.getTabPairProgrammingMode(tabId)
+        if (tabMode !== undefined) {
+            return tabMode
+        }
+        const globalMode = this.getPairProgrammingMode()
+        if (globalMode !== undefined) {
+            return globalMode
+        }
+        // Default to true for first-time users
+        return true
+    }
+
+    /**
+     * Gets the tab preferences (model and pair programming mode) for restoration.
+     * @param historyId The history ID of the tab
+     * @returns Object containing modelId and pairProgrammingMode, or undefined values if not set
+     */
+    getTabPreferences(historyId: string): { modelId?: string; pairProgrammingMode?: boolean } {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const tab = collection.findOne({ historyId })
+            if (tab) {
+                return {
+                    modelId: tab.modelId,
+                    pairProgrammingMode: tab.pairProgrammingMode,
+                }
+            }
+        }
+        return {}
+    }
 }

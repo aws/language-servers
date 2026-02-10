@@ -14,7 +14,6 @@ import {
 } from '@aws/chat-client-ui-types'
 import {
     ButtonClickParams,
-    ChatMessage,
     ChatResult,
     ChatUpdateParams,
     ContextCommand,
@@ -48,7 +47,6 @@ import {
     NotificationType,
     MynahUIProps,
     QuickActionCommand,
-    ChatItemButton,
     MynahIcons,
     CustomQuickActionCommand,
     ConfigTexts,
@@ -61,7 +59,8 @@ import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaime
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
 import {
-    toDetailsWithoutIcon,
+    contextListToHeader,
+    prepareChatItemFromMessage,
     toMynahButtons,
     toMynahContextCommand,
     toMynahFileList,
@@ -874,43 +873,6 @@ export const createMynahUi = (
         return tabId ?? createTabId()
     }
 
-    const contextListToHeader = (contextList?: ChatResult['contextList']): ChatItem['header'] => {
-        if (contextList === undefined) {
-            return undefined
-        }
-
-        return {
-            fileList: {
-                fileTreeTitle: '',
-                filePaths: contextList.filePaths?.map(file => file),
-                rootFolderTitle: contextList.rootFolderTitle ?? 'Context',
-                flatList: true,
-                collapsed: true,
-                hideFileCount: true,
-                details: Object.fromEntries(
-                    Object.entries(contextList.details || {}).map(([filePath, fileDetails]) => [
-                        filePath,
-                        {
-                            label:
-                                fileDetails.lineRanges
-                                    ?.map(range =>
-                                        range.first === -1 || range.second === -1
-                                            ? ''
-                                            : `line ${range.first} - ${range.second}`
-                                    )
-                                    .join(', ') || '',
-                            description: fileDetails.description,
-                            clickable: true,
-                            data: {
-                                fullPath: fileDetails.fullPath || '',
-                            },
-                        },
-                    ])
-                ),
-            },
-        }
-    }
-
     const getImageContextCount = (tabId: string) => {
         const imageContextInPrompt =
             mynahUi
@@ -1282,135 +1244,6 @@ export const createMynahUi = (
                 }
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
-        }
-    }
-
-    /**
-     * Creates a properly formatted chat item for MCP tool summary with accordion view
-     */
-    const createMcpToolSummaryItem = (message: ChatMessage, isPartialResult?: boolean): Partial<ChatItem> => {
-        return {
-            type: ChatItemType.ANSWER,
-            messageId: message.messageId,
-            summary: {
-                content: message.summary?.content
-                    ? {
-                          padding: false,
-                          wrapCodes: true,
-                          header: message.summary.content.header
-                              ? {
-                                    icon: message.summary.content.header.icon as any,
-                                    body: message.summary.content.header.body,
-                                    buttons: message.summary.content?.header?.buttons as any,
-                                    status: isPartialResult
-                                        ? (message.summary.content?.header?.status as any)
-                                        : undefined,
-                                    fileList: undefined,
-                                }
-                              : undefined,
-                      }
-                    : undefined,
-                collapsedContent:
-                    message.summary?.collapsedContent?.map(item => ({
-                        body: item.body,
-                        header: item.header
-                            ? {
-                                  body: item.header.body,
-                              }
-                            : undefined,
-                        fullWidth: true,
-                        padding: false,
-                        muted: false,
-                        wrapCodes: item.header?.body === 'Parameters' ? true : false,
-                        codeBlockActions: { copy: null, 'insert-to-cursor': null },
-                    })) || [],
-            },
-        }
-    }
-
-    const prepareChatItemFromMessage = (
-        message: ChatMessage,
-        isPairProgrammingMode: boolean,
-        isPartialResult?: boolean
-    ): Partial<ChatItem> => {
-        const contextHeader = contextListToHeader(message.contextList)
-        const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
-        const fileList = toMynahFileList(message.fileList)
-
-        let processedHeader = header
-        if (message.type === 'tool') {
-            // Handle MCP tool summary with accordion view
-            if (message.summary) {
-                return createMcpToolSummaryItem(message, isPartialResult)
-            }
-            processedHeader = { ...header }
-            if (header?.buttons) {
-                processedHeader.buttons = header.buttons.map(button => ({
-                    ...button,
-                    status: button.status ?? 'clear',
-                }))
-            }
-            if (header?.fileList) {
-                processedHeader.fileList = {
-                    ...header.fileList,
-                    fileTreeTitle: '',
-                    hideFileCount: true,
-                    details: toDetailsWithoutIcon(header.fileList.details),
-                    renderAsPills:
-                        !header.fileList.details ||
-                        (Object.values(header.fileList.details).every(detail => !detail.changes) &&
-                            (!header.buttons || !header.buttons.some(button => button.id === 'undo-changes')) &&
-                            !header.status?.icon),
-                }
-            }
-            if (!isPartialResult) {
-                if (processedHeader && !message.header?.status) {
-                    processedHeader.status = undefined
-                }
-            }
-        }
-
-        // Check if header should be included
-        const includeHeader =
-            processedHeader &&
-            ((processedHeader.buttons !== undefined &&
-                processedHeader.buttons !== null &&
-                processedHeader.buttons.length > 0) ||
-                processedHeader.status !== undefined ||
-                processedHeader.icon !== undefined ||
-                processedHeader.fileList !== undefined)
-
-        const padding =
-            message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
-
-        const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
-            button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
-        )
-        // Adding this conditional check to show the stop message in the center.
-        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
-
-        // If message.header?.status?.text is Stopped or Rejected or Ignored etc.. card should be in disabled state.
-        const shouldMute =
-            message.header?.status?.text !== undefined &&
-            ['Stopped', 'Rejected', 'Ignored', 'Failed', 'Error'].includes(message.header.status.text)
-
-        return {
-            body: message.body,
-            header: includeHeader ? processedHeader : undefined,
-            buttons: processedButtons,
-            fileList,
-            // file diffs in the header need space
-            fullWidth: message.type === 'tool' && includeHeader ? true : undefined,
-            padding,
-            contentHorizontalAlignment,
-            wrapCodes: message.type === 'tool',
-            codeBlockActions:
-                message.type === 'tool'
-                    ? { 'insert-to-cursor': null, copy: null }
-                    : isPairProgrammingMode
-                      ? { 'insert-to-cursor': null }
-                      : undefined,
-            ...(shouldMute ? { muted: true } : {}),
         }
     }
 
