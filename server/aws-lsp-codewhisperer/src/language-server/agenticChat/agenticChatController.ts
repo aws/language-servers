@@ -4698,8 +4698,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#log(`Model set for model switch: ${newModelId}, tokenLimits: ${JSON.stringify(session.tokenLimits)}`)
         }
 
-        this.#chatHistoryDb.setModelId(session.modelId)
-        this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
+        this.#chatHistoryDb.setTabModelId(params.tabId, session.modelId)
+        this.#chatHistoryDb.setTabPairProgrammingMode(params.tabId, session.pairProgrammingMode)
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
