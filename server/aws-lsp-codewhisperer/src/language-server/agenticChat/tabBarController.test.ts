@@ -37,6 +37,7 @@ describe('TabBarController', () => {
             updateTabOpenState: sinon.stub(),
             getDatabaseFileSize: sinon.stub(),
             getLoadTime: sinon.stub(),
+            getTabPreferences: sinon.stub().returns({}),
         } as unknown as ChatDatabase
 
         telemetryService = {

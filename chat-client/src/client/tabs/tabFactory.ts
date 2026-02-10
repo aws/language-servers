@@ -11,6 +11,7 @@ import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
 import { modelSelection } from '../texts/modelSelection'
+import { chatMessageToChatItem } from '../utils'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -85,7 +86,7 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
                       },
                   ]
                 : chatMessages
-                  ? (chatMessages as ChatItem[])
+                  ? chatMessages.map(msg => chatMessageToChatItem(msg, this.agenticMode))
                   : []),
         ]
     }
