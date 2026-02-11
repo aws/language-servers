@@ -98,6 +98,15 @@ export interface AtxGetTransformInfoResponse {
     TransformationPlan?: AtxTransformationPlan | null
     ArtifactPath?: string | null
     ErrorString?: string | null
+    StepHitlInfo?: AtxStepHitlInfo | null
+}
+
+/**
+ * Information about a step-level HITL during execution phase.
+ */
+export interface AtxStepHitlInfo {
+    StepId: string
+    DiffArtifactPath: string
 }
 
 // ATX Stop Job request

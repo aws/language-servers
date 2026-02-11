@@ -42,6 +42,7 @@ import {
     AtxPlanStep,
     PlanStepStatus,
     createEmptyRootNode,
+    AtxStepHitlInfo,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -770,7 +771,7 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
-            this.logging.log(`ATX: UpdateHitl completed successfully`)
+            this.logging.log(`ATX: UpdateHitl completed successfully with status ${result.status}`)
             return result
         } catch (error) {
             this.logging.error(`ATX: UpdateHitl error: ${String(error)}`)
@@ -885,7 +886,7 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Get transform info - dummy implementation
+     * Get transform info
      */
     async getTransformInfo(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse | null> {
         try {
@@ -957,21 +958,7 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'AWAITING_HUMAN_INPUT') {
-                const response = await this.getHitlAgentArtifact(
-                    request.WorkspaceId,
-                    request.TransformationJobId,
-                    request.SolutionRootPath
-                )
-
-                return {
-                    TransformationJob: {
-                        WorkspaceId: request.WorkspaceId,
-                        JobId: request.TransformationJobId,
-                        Status: jobStatus,
-                    } as AtxTransformationJob,
-                    PlanPath: response?.PlanPath,
-                    ReportPath: response?.ReportPath,
-                } as AtxGetTransformInfoResponse
+                return await this.handleAwaitingHumanInput(request)
             } else {
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
 
@@ -986,6 +973,282 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: GetTransformInfo error: ${String(error)}`)
             return null
+        }
+    }
+
+    /**
+     * Handles AWAITING_HUMAN_INPUT status.
+     * Two scenarios:
+     * 1. Planning phase: No plan exists yet, need to get HITL artifacts (plan.md, report.md)
+     * 2. Execution phase: Plan exists, HITL raised for a specific step
+     */
+    private async handleAwaitingHumanInput(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse> {
+        // Try to get the transformation plan first
+        const plan = await this.getTransformationPlan(
+            request.WorkspaceId,
+            request.TransformationJobId,
+            request.SolutionRootPath
+        )
+
+        const hasPlan = plan.Root.Children.length > 0
+
+        if (hasPlan) {
+            // Execution phase: Plan exists, HITL raised during transformation
+            return await this.handleExecutionPhaseHitl(request, plan)
+        } else {
+            // Planning phase: No plan yet, get HITL artifacts for plan review
+            return await this.handlePlanningPhaseHitl(request)
+        }
+    }
+
+    /**
+     * Handles HITL during planning phase - downloads plan.md and report.md for user review.
+     */
+    private async handlePlanningPhaseHitl(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse> {
+        const response = await this.getHitlAgentArtifact(
+            request.WorkspaceId,
+            request.TransformationJobId,
+            request.SolutionRootPath
+        )
+
+        return {
+            TransformationJob: {
+                WorkspaceId: request.WorkspaceId,
+                JobId: request.TransformationJobId,
+                Status: 'AWAITING_HUMAN_INPUT',
+            } as AtxTransformationJob,
+            PlanPath: response?.PlanPath,
+            ReportPath: response?.ReportPath,
+        } as AtxGetTransformInfoResponse
+    }
+
+    /**
+     * Handles HITL during execution phase - plan exists, step-level HITL raised.
+     */
+    private async handleExecutionPhaseHitl(
+        request: AtxGetTransformInfoRequest,
+        plan: AtxTransformationPlan
+    ): Promise<AtxGetTransformInfoResponse> {
+        this.logging.log(`ATX: Execution phase HITL - plan has ${plan.Root.Children.length} steps`)
+
+        try {
+            // Find the step with PENDING_HUMAN_INPUT status in the plan
+            const pendingStep = this.findPendingHumanInputStep(plan.Root)
+
+            if (!pendingStep) {
+                this.logging.log('ATX: No step with PENDING_HUMAN_INPUT status found in plan')
+                return {
+                    TransformationJob: {
+                        WorkspaceId: request.WorkspaceId,
+                        JobId: request.TransformationJobId,
+                        Status: 'AWAITING_HUMAN_INPUT',
+                    } as AtxTransformationJob,
+                    TransformationPlan: plan,
+                } as AtxGetTransformInfoResponse
+            }
+
+            this.logging.log(`ATX: Found pending step: ${pendingStep.StepId}`)
+
+            // Find the step-level HITL using tag: {stepId}-review
+            const stepHitl = await this.findStepLevelHitl(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                pendingStep.StepId
+            )
+
+            if (!stepHitl) {
+                this.logging.log('ATX: No step-level HITL found, returning plan only')
+                return {
+                    TransformationJob: {
+                        WorkspaceId: request.WorkspaceId,
+                        JobId: request.TransformationJobId,
+                        Status: 'AWAITING_HUMAN_INPUT',
+                    } as AtxTransformationJob,
+                    TransformationPlan: plan,
+                } as AtxGetTransformInfoResponse
+            }
+
+            // Download and parse the agent artifact JSON
+            const stepHitlInfo = await this.downloadAndParseStepHitlArtifact(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                stepHitl,
+                pendingStep.StepId,
+                request.SolutionRootPath
+            )
+
+            return {
+                TransformationJob: {
+                    WorkspaceId: request.WorkspaceId,
+                    JobId: request.TransformationJobId,
+                    Status: 'AWAITING_HUMAN_INPUT',
+                } as AtxTransformationJob,
+                TransformationPlan: plan,
+                StepHitlInfo: stepHitlInfo,
+            } as AtxGetTransformInfoResponse
+        } catch (error) {
+            this.logging.error(`ATX: handleExecutionPhaseHitl error: ${String(error)}`)
+            return {
+                TransformationJob: {
+                    WorkspaceId: request.WorkspaceId,
+                    JobId: request.TransformationJobId,
+                    Status: 'AWAITING_HUMAN_INPUT',
+                } as AtxTransformationJob,
+                TransformationPlan: plan,
+            } as AtxGetTransformInfoResponse
+        }
+    }
+
+    /**
+     * Recursively finds a step with PENDING_HUMAN_INPUT status in the plan tree.
+     */
+    private findPendingHumanInputStep(step: AtxPlanStep): AtxPlanStep | null {
+        if (step.Status === 'PENDING_HUMAN_INPUT') {
+            return step
+        }
+
+        for (const child of step.Children) {
+            const found = this.findPendingHumanInputStep(child)
+            if (found) {
+                return found
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Finds the step-level HITL task by filtering for the "{stepId}-review" tag.
+     */
+    private async findStepLevelHitl(workspaceId: string, jobId: string, stepId: string): Promise<any | null> {
+        try {
+            this.logging.log(`ATX: Finding step-level HITL for job: ${jobId}, step: ${stepId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                this.logging.error('ATX: Failed to initialize client for findStepLevelHitl')
+                return null
+            }
+
+            // List HITLs with "{stepId}-review" tag
+            const command = new ListHitlTasksCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                taskType: 'NORMAL',
+                taskFilter: {
+                    taskStatuses: ['AWAITING_HUMAN_INPUT'],
+                    tag: `${stepId}-review`,
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            if (!result.hitlTasks || result.hitlTasks.length === 0) {
+                this.logging.log(`ATX: No step-level HITL found with tag ${stepId}-review`)
+                return null
+            }
+
+            const stepHitl = result.hitlTasks[0]
+            this.logging.log(`ATX: Found step-level HITL: ${stepHitl.taskId}`)
+
+            return stepHitl
+        } catch (error) {
+            this.logging.error(`ATX: findStepLevelHitl error: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
+     * Downloads and parses the step HITL agent artifact JSON, and extracts the diff artifact.
+     */
+    private async downloadAndParseStepHitlArtifact(
+        workspaceId: string,
+        jobId: string,
+        hitlTask: any,
+        stepId: string,
+        solutionRootPath: string
+    ): Promise<AtxStepHitlInfo | null> {
+        try {
+            const taskId = hitlTask.taskId
+            const agentArtifactId = hitlTask.agentArtifact?.artifactId
+
+            if (!agentArtifactId) {
+                this.logging.error('ATX: Step HITL has no agent artifact')
+                return null
+            }
+
+            this.logging.log(`ATX: Downloading step HITL artifact: ${agentArtifactId}`)
+
+            // Download the agent artifact JSON
+            const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, agentArtifactId)
+            if (!downloadInfo) {
+                throw new Error('Failed to get download URL for step HITL artifact')
+            }
+
+            // Download the JSON content
+            const response = await got.get(downloadInfo.s3PresignedUrl, {
+                headers: downloadInfo.requestHeaders || {},
+                responseType: 'text',
+            })
+
+            const artifactJson = JSON.parse(response.body)
+            this.logging.log(`ATX: Parsed step HITL artifact JSON`)
+
+            // Extract diff artifact if present
+            let diffArtifactPath = ''
+            if (artifactJson.diffArtifactId) {
+                diffArtifactPath = await this.downloadDiffArtifact(
+                    workspaceId,
+                    jobId,
+                    artifactJson.diffArtifactId,
+                    solutionRootPath,
+                    taskId
+                )
+            }
+
+            return {
+                StepId: stepId,
+                DiffArtifactPath: diffArtifactPath,
+            }
+        } catch (error) {
+            this.logging.error(`ATX: downloadAndParseStepHitlArtifact error: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
+     * Downloads and extracts the diff artifact ZIP.
+     */
+    private async downloadDiffArtifact(
+        workspaceId: string,
+        jobId: string,
+        diffArtifactId: string,
+        solutionRootPath: string,
+        taskId: string
+    ): Promise<string> {
+        try {
+            this.logging.log(`ATX: Downloading diff artifact: ${diffArtifactId}`)
+
+            const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, diffArtifactId)
+            if (!downloadInfo) {
+                throw new Error('Failed to get download URL for diff artifact')
+            }
+
+            const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId, 'hitl', taskId)
+
+            await Utils.downloadAndExtractArchive(
+                downloadInfo.s3PresignedUrl,
+                downloadInfo.requestHeaders,
+                pathToDownload,
+                'diff-artifact.zip',
+                this.logging
+            )
+
+            this.logging.log(`ATX: Diff artifact extracted to: ${pathToDownload}`)
+            return pathToDownload
+        } catch (error) {
+            this.logging.error(`ATX: downloadDiffArtifact error: ${String(error)}`)
+            return ''
         }
     }
 
@@ -1493,7 +1756,7 @@ export class ATXTransformHandler {
                 jobId: jobId,
                 taskType: 'NORMAL',
                 taskFilter: {
-                    taskStatuses: ['AWAITING_HUMAN_INPUT'],
+                    taskStatuses: ['AWAITING_HUMAN_INPUT', 'IN_PROGRESS'],
                     tag: `${jobId}-checkpoint`,
                 },
             })
