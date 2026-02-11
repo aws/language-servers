@@ -800,7 +800,13 @@ export class ATXTransformHandler {
         workspaceId: string,
         jobId: string,
         solutionRootPath: string
-    ): Promise<{ PlanPath: string; ReportPath: string } | null> {
+    ): Promise<{
+        PlanPath: string
+        ReportPath: string
+        UxComponentId?: string
+        MissingPackageJsonPath?: string
+        HitlTag?: string
+    } | null> {
         try {
             this.logging.log(`ATX: Getting Hitl Agent Artifact for job: ${jobId}`)
 
@@ -820,6 +826,7 @@ export class ATXTransformHandler {
 
             const hitl = hitls[0]
             this.cachedHitl = hitl.taskId
+            const uxComponentId = hitl.uxComponentId
 
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
 
@@ -839,8 +846,18 @@ export class ATXTransformHandler {
 
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
             const reportPath = path.join(pathToDownload, 'assessment-report.md')
+            const missingPackageJsonPath = path.join(pathToDownload, 'missing-packages.json') // ADD
+
+            // Check if missing-packages.json exists
+            const missingPkgExists = fs.existsSync(missingPackageJsonPath) // ADD
             this.logging.log(`ATX: GetHitlAgentArtifact completed successfully`)
-            return { PlanPath: planPath, ReportPath: reportPath }
+            return {
+                PlanPath: planPath,
+                ReportPath: reportPath,
+                MissingPackageJsonPath: fs.existsSync(missingPackageJsonPath) ? missingPackageJsonPath : undefined,
+                UxComponentId: uxComponentId,
+                HitlTag: hitl.tag,
+            }
         } catch (error) {
             this.logging.error(`ATX: GetHitlAgentArtifact error: ${String(error)}`)
             return null
@@ -934,6 +951,9 @@ export class ATXTransformHandler {
                     } as AtxTransformationJob,
                     PlanPath: response?.PlanPath,
                     ReportPath: response?.ReportPath,
+                    UxComponentId: response?.UxComponentId,
+                    MissingPackageJsonPath: response?.MissingPackageJsonPath,
+                    HitlTag: response?.HitlTag,
                 } as AtxGetTransformInfoResponse
             } else {
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
