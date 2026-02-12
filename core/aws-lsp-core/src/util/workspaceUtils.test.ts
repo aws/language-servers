@@ -58,6 +58,226 @@ describe('workspaceUtils', function () {
 
             assert.ok(isInWorkspace(workspaceFolders, '/foo'), 'workspace is inside itself')
         })
+
+        it('rejects absolute paths with traversal sequences that escape workspace', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // Path that starts in workspace but traverses out
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/../../etc'),
+                'traversal escaping workspace should be rejected'
+            )
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/../../../etc/passwd'),
+                'deep traversal should be rejected'
+            )
+        })
+
+        it('rejects relative paths with traversal sequences that escape workspace', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // Double traversal pattern from the bug report
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '.amazonq/../.amazonq/../../../etc'),
+                'double traversal pattern should be rejected'
+            )
+            assert.ok(!isInWorkspace(workspaceFolders, '../../../etc'), 'simple relative traversal should be rejected')
+        })
+
+        it('allows paths with traversal that stay within workspace', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // Traversal that stays within workspace
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/project/src/../lib/file.ts'),
+                'traversal within workspace should be allowed'
+            )
+        })
+
+        it('rejects double traversal pattern (bug bounty attack vector)', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // The exact pattern: folder/../folder/../../../ to confuse string matching
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/.amazonq/../.amazonq/../../../etc'),
+                'double traversal via existing subfolder should be rejected'
+            )
+        })
+
+        it('rejects traversal with redundant current-dir dots', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/./../../etc'),
+                'mixed . and .. should be rejected when escaping'
+            )
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/project/./src/./file.ts'),
+                'redundant . within workspace should be allowed'
+            )
+        })
+
+        it('rejects deeply nested traversal that escapes workspace', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/a/b/c/d/../../../../../../../../etc/shadow'),
+                'deep nesting then deep traversal should be rejected'
+            )
+        })
+
+        it('rejects traversal to root', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/../../../'),
+                'traversal to root should be rejected'
+            )
+        })
+
+        it('rejects traversal targeting home directory', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/../../other-user/.ssh/id_rsa'),
+                'traversal to another users home should be rejected'
+            )
+        })
+
+        it('handles workspace at filesystem root', function () {
+            const workspaceFolders = ['/workspace']
+
+            assert.ok(isInWorkspace(workspaceFolders, '/workspace/file.txt'), 'file in root workspace')
+            assert.ok(!isInWorkspace(workspaceFolders, '/workspace/../etc'), 'traversal from root workspace')
+        })
+
+        it('handles workspace with trailing slash', function () {
+            const workspaceFolders = ['/home/user/project/']
+
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/project/src/file.ts'),
+                'should work with trailing slash workspace'
+            )
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/../../../etc'),
+                'traversal should still be rejected with trailing slash workspace'
+            )
+        })
+
+        it('rejects traversal in multi-root workspace targeting other roots', function () {
+            const workspaceFolders = ['/home/user/project-a', '/home/user/project-b']
+
+            // Trying to escape project-a to reach project-b's parent
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project-a/../../root-secret'),
+                'traversal escaping any workspace root should be rejected'
+            )
+        })
+
+        it('handles paths with multiple consecutive slashes', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/project///src///file.ts'),
+                'multiple slashes within workspace should be normalized and allowed'
+            )
+        })
+
+        it('rejects traversal disguised with trailing slashes on each segment', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/src//../../../etc/'),
+                'trailing slashes on traversal segments should still be rejected'
+            )
+        })
+
+        it('rejects single parent traversal that escapes workspace', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // Just one ".." is enough to escape if workspace is shallow
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/../other-project/secret.txt'),
+                'single parent traversal escaping workspace should be rejected'
+            )
+        })
+
+        it('rejects path that is exactly the parent of workspace', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/..'),
+                'path resolving to workspace parent should be rejected'
+            )
+        })
+
+        it('handles empty workspace folders array', function () {
+            assert.ok(!isInWorkspace([], '/any/path'), 'empty workspace should reject all paths')
+        })
+
+        it('rejects path with alternating traversal and real dirs', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // Pattern: go into dir, come back, go into another, come back, then escape
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project/src/../node_modules/../test/../../..'),
+                'alternating in/out traversal that escapes should be rejected'
+            )
+        })
+
+        it('allows path that traverses within workspace boundaries', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // Go into src, back to project, into lib — stays within workspace
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/project/src/../lib/../test/file.ts'),
+                'traversal that stays within workspace should be allowed'
+            )
+        })
+
+        it('rejects path with many redundant traversals that net escape', function () {
+            const workspaceFolders = ['/home/user/project']
+
+            // 10 levels deep, then 13 levels back — net escape of 3 levels
+            const deepPath = '/home/user/project' + '/a'.repeat(10) + '/..'.repeat(13) + '/etc/passwd'
+            assert.ok(
+                !isInWorkspace(workspaceFolders, deepPath),
+                'many redundant traversals netting an escape should be rejected'
+            )
+        })
+
+        it('handles workspace path that itself contains dots in directory names', function () {
+            const workspaceFolders = ['/home/user/my.project.v2']
+
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/my.project.v2/src/file.ts'),
+                'workspace with dots in name should work normally'
+            )
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/my.project.v2/../../etc'),
+                'traversal from dotted workspace should still be rejected'
+            )
+        })
+
+        it('rejects path targeting another workspace root via traversal in multi-root', function () {
+            const workspaceFolders = ['/home/user/project-a', '/home/user/project-b']
+
+            // From project-a, traverse to project-b's sibling that isn't a workspace
+            assert.ok(
+                !isInWorkspace(workspaceFolders, '/home/user/project-a/../project-c/secrets'),
+                'traversal to non-workspace sibling should be rejected'
+            )
+        })
+
+        it('allows traversal from one workspace root to another in multi-root', function () {
+            const workspaceFolders = ['/home/user/project-a', '/home/user/project-b']
+
+            // From project-a, traverse to project-b — this IS in workspace
+            assert.ok(
+                isInWorkspace(workspaceFolders, '/home/user/project-a/../project-b/file.ts'),
+                'traversal to another workspace root should be allowed'
+            )
+        })
     })
 
     describe('readDirectoryRecursively', function () {
