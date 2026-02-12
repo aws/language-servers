@@ -157,6 +157,329 @@ describe('ExecuteBash Tool', () => {
         assert.equal(result.commandCategory, 1, 'Should be classified as Mutate')
     })
 
+    it('requires acceptance for path traversal in ls command (bug bounty P347698138)', async () => {
+        const execBash = new ExecuteBash(features)
+        // The exact attack pattern from the bug report: double traversal to confuse validation
+        const result = await execBash.requiresAcceptance({
+            command: 'ls -l .amazonq/../.amazonq/../../../../../../../Users/blackpearl/private',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Double traversal pattern should require acceptance')
+    })
+
+    it('requires acceptance for ls with wildcard traversal pattern', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls -l .amazonq/../.amazonq/../../../../../../../home/user/pri*',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal with wildcard should require acceptance')
+    })
+
+    it('detects path traversal in arguments that do not start with ./ or ../', async () => {
+        const execBash = new ExecuteBash(features)
+        // Path starts with a directory name but contains ".." traversal
+        const result = await execBash.requiresAcceptance({
+            command: 'cat src/../../../etc/passwd',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(
+            result.requiresAcceptance,
+            true,
+            'Path containing .. traversal should be detected even without ./ prefix'
+        )
+    })
+
+    it('requires acceptance for traversal hidden in middle of path', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls node_modules/../../../etc',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal in middle of path should be detected')
+    })
+
+    it('requires acceptance for traversal with redundant current-dir dots', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls ./src/./../../etc/passwd',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Mixed . and .. traversal should be detected')
+    })
+
+    it('requires acceptance for deeply nested then deeply escaped path', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat a/b/c/d/e/../../../../../../../../../tmp/secrets',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Deep nesting then deep escape should be detected')
+    })
+
+    it('requires acceptance for traversal targeting home directory ssh keys', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat .git/../../../.ssh/id_rsa',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to .ssh should be detected')
+    })
+
+    it('requires acceptance for traversal targeting aws credentials', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat src/../../../.aws/credentials',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to .aws should be detected')
+    })
+
+    it('requires acceptance for traversal with wildcard glob', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls .amazonq/../.amazonq/../../../../home/*/.*',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal with wildcard should be detected')
+    })
+
+    it('requires acceptance for traversal to /proc for environment leaking', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat src/../../../../proc/self/environ',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to /proc should be detected')
+    })
+
+    it('requires acceptance for traversal to /dev', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat src/../../../../dev/stdin',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to /dev should be detected')
+    })
+
+    it('requires acceptance for multiple traversal arguments in one command', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls src/../../../etc src/../../../tmp',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Multiple traversal args should be detected')
+    })
+
+    it('does NOT require acceptance for safe traversal within workspace', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat ./src/../package.json',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, false, 'Traversal staying within workspace should be allowed')
+    })
+
+    it('requires acceptance for absolute path with traversal escaping workspace', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls /workspace/folder/../../etc',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Absolute path with traversal should be detected')
+    })
+
+    it('requires acceptance for head command with traversal', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'head -n 10 .git/../../../etc/passwd',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'head with traversal should be detected')
+    })
+
+    it('requires acceptance for tail command with traversal', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'tail -f src/../../../var/log/syslog',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'tail with traversal should be detected')
+    })
+
+    it('requires acceptance for single parent traversal escaping workspace', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls ../other-project',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Single .. escaping workspace should be detected')
+    })
+
+    it('requires acceptance for traversal with spaces in directory names', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: "ls 'my folder/../../../etc'",
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal with spaces should be detected')
+    })
+
+    it('requires acceptance for cat of /etc/shadow via traversal', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat node_modules/../../../etc/shadow',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to /etc/shadow should be detected')
+    })
+
+    it('requires acceptance for traversal in pwd-relative path without ./ prefix', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat package.json/../../../etc/hosts',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal after filename should be detected')
+    })
+
+    it('requires acceptance for alternating in/out traversal that escapes', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls src/../node_modules/../test/../../../tmp',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Alternating traversal escaping should be detected')
+    })
+
+    it('requires acceptance for traversal with many redundant segments', async () => {
+        const execBash = new ExecuteBash(features)
+        // 5 levels deep, then 8 back — net escape
+        const result = await execBash.requiresAcceptance({
+            command: 'cat a/b/c/d/e/../../../../../../../../etc/passwd',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Many redundant traversals should be detected')
+    })
+
+    it('requires acceptance for traversal targeting .env files', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat src/../../../other-project/.env',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to .env should be detected')
+    })
+
+    it('requires acceptance for traversal targeting .env.local files', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat src/../../../other-project/.env.local',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal to .env.local should be detected')
+    })
+
+    it('requires acceptance for ls with only dots and slashes', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls ../../../../../../../..',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Path of only dots/slashes should be detected')
+    })
+
+    it('requires acceptance for traversal resolving to workspace parent', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls ..',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Single .. should be detected as escaping workspace')
+    })
+
+    it('does NOT require acceptance for current directory dot', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls .',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, false, 'Single . (current dir) should not require acceptance')
+    })
+
+    it('does NOT require acceptance for traversal that stays within workspace via absolute path', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'cat /workspace/folder/src/../package.json',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, false, 'Absolute traversal within workspace should be allowed')
+    })
+
+    it('requires acceptance for dir command with traversal on Windows-style path', async function () {
+        // On Unix, backslashes are escape characters in shell, not path separators.
+        // This test is only meaningful on Windows where backslashes are path separators.
+        if (process.platform !== 'win32') {
+            this.skip()
+            return
+        }
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls src\\..\\..\\..\\etc',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Backslash traversal should be detected via .. check')
+    })
+
+    it('requires acceptance for traversal in cwd parameter', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls',
+            cwd: '/workspace/folder/../../../etc',
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal in cwd should be detected')
+    })
+
+    it('requires acceptance for piped command with traversal in second command', async () => {
+        const execBash = new ExecuteBash(features)
+        const result = await execBash.requiresAcceptance({
+            command: 'ls | cat ../../../etc/passwd',
+            cwd: workspaceFolder,
+        })
+
+        assert.equal(result.requiresAcceptance, true, 'Traversal in piped command should be detected')
+    })
+
     describe('isLikelyCredentialFile', () => {
         let execBash: ExecuteBash
 
