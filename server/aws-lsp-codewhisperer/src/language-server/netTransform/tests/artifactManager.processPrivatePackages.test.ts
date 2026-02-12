@@ -193,4 +193,121 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleRelativePath).to.be.undefined
         expect(sampleArtifactReference.netCompatibleVersion).to.be.undefined
     })
+
+    it('should copy source nupkg file and log full path when successful', async () => {
+        let copyFileCalled = false
+        let copiedSource = ''
+        let copiedDestination = ''
+        let loggedMessage = ''
+
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            copyFileCalled = true
+            copiedSource = source
+            copiedDestination = destination
+            return Promise.resolve()
+        }
+
+        mockedLogging.log = (message: string) => {
+            loggedMessage = message
+        }
+
+        artifactManager.normalizePackageFileRelativePath = (filePath: string) => {
+            return 'normalized/path/package.nupkg'
+        }
+
+        const privatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: true,
+            SourceNupkgFilePath: 'C:/full/path/to/my-package.nupkg',
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [privatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+
+        expect(copyFileCalled).to.be.true
+        expect(copiedSource).to.equal('C:/full/path/to/my-package.nupkg')
+        expect(copiedDestination).to.equal('mock/workspace/path/normalized/path/package.nupkg')
+        expect(loggedMessage).to.include('Successfully copy the private package file to artifacts')
+        expect(loggedMessage).to.include('C:/full/path/to/my-package.nupkg')
+    })
+
+    it('should not copy source nupkg when package is not private', async () => {
+        let copyFileCalled = false
+
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            copyFileCalled = true
+            return Promise.resolve()
+        }
+
+        const nonPrivatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: false,
+            SourceNupkgFilePath: 'C:/path/to/package.nupkg',
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [nonPrivatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+
+        expect(copyFileCalled).to.be.false
+    })
+
+    it('should not copy source nupkg when SourceNupkgFilePath is undefined', async () => {
+        let copyFileCalled = false
+
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            copyFileCalled = true
+            return Promise.resolve()
+        }
+
+        const privatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: true,
+            SourceNupkgFilePath: undefined,
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [privatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+
+        expect(copyFileCalled).to.be.false
+    })
+
+    it('should log full file path when copying source nupkg file fails', async () => {
+        let loggedMessage = ''
+
+        mockedLogging.log = (message: string) => {
+            loggedMessage = message
+        }
+
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            throw new Error('Copy failed')
+        }
+
+        artifactManager.normalizePackageFileRelativePath = (filePath: string) => {
+            return 'normalized/path/package.nupkg'
+        }
+
+        const privatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: true,
+            SourceNupkgFilePath: 'C:/full/path/to/my-package.nupkg',
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [privatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+
+        expect(loggedMessage).to.include('Failed to process private package file')
+        expect(loggedMessage).to.include('C:/full/path/to/my-package.nupkg')
+    })
 })

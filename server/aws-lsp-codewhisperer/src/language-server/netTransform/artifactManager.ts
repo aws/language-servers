@@ -229,6 +229,7 @@ export class ArtifactManager {
                 if (pkg.IsPrivatePackage && pkg.SourceNupkgFilePath) {
                     try {
                         const packageRelativePath = this.normalizePackageFileRelativePath(pkg.SourceNupkgFilePath)
+                        packages.push(packageRelativePath)
                         await this.copyFile(
                             pkg.SourceNupkgFilePath,
                             this.getWorkspaceReferencePathFromRelativePath(packageRelativePath)
