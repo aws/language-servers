@@ -198,17 +198,12 @@ describe('ArtifactManager - processPrivatePackages', () => {
         let copyFileCalled = false
         let copiedSource = ''
         let copiedDestination = ''
-        let loggedMessage = ''
 
         artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             copyFileCalled = true
             copiedSource = source
             copiedDestination = destination
             return Promise.resolve()
-        }
-
-        mockedLogging.log = (message: string) => {
-            loggedMessage = message
         }
 
         artifactManager.normalizePackageFileRelativePath = (filePath: string) => {
@@ -230,8 +225,9 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(copyFileCalled).to.be.true
         expect(copiedSource).to.equal('C:/full/path/to/my-package.nupkg')
         expect(copiedDestination).to.equal('mock/workspace/path/normalized/path/package.nupkg')
-        expect(loggedMessage).to.include('Successfully copy the private package file to artifacts')
-        expect(loggedMessage).to.include('C:/full/path/to/my-package.nupkg')
+        expect(mockedLogging.log.calledWith(simon.match('Successfully copy the private package file to artifacts'))).to
+            .be.true
+        expect(mockedLogging.log.calledWith(simon.match('C:/full/path/to/my-package.nupkg'))).to.be.true
     })
 
     it('should not copy source nupkg when package is not private', async () => {
@@ -281,12 +277,6 @@ describe('ArtifactManager - processPrivatePackages', () => {
     })
 
     it('should log full file path when copying source nupkg file fails', async () => {
-        let loggedMessage = ''
-
-        mockedLogging.log = (message: string) => {
-            loggedMessage = message
-        }
-
         artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
             throw new Error('Copy failed')
         }
@@ -307,7 +297,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
 
         await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
 
-        expect(loggedMessage).to.include('Failed to process private package file')
-        expect(loggedMessage).to.include('C:/full/path/to/my-package.nupkg')
+        expect(mockedLogging.log.calledWith(simon.match('Failed to process private package file'))).to.be.true
+        expect(mockedLogging.log.calledWith(simon.match('C:/full/path/to/my-package.nupkg'))).to.be.true
     })
 })
