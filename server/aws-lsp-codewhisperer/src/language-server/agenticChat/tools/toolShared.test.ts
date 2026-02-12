@@ -255,8 +255,11 @@ describe('toolShared', () => {
             )
 
             assert.strictEqual(result.requiresAcceptance, false)
+            // requiresPathAcceptance canonicalizes the path with path.resolve() before
+            // passing to isInWorkspace, so verify with the resolved path
+            const expectedPath = path.resolve(filePath)
             assert.strictEqual(
-                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], filePath),
+                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], expectedPath),
                 true
             )
         })
@@ -278,8 +281,9 @@ describe('toolShared', () => {
             )
 
             assert.strictEqual(result.requiresAcceptance, true)
+            const expectedPath = path.resolve(filePath)
             assert.strictEqual(
-                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], filePath),
+                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], expectedPath),
                 true
             )
         })
