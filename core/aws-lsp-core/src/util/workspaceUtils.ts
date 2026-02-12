@@ -127,13 +127,21 @@ export function isParentFolder(parentPath: string, childPath: string): boolean {
 
 export function isInWorkspace(workspaceFolderPaths: string[], filepath: string) {
     if (path.isAbsolute(filepath)) {
-        return workspaceFolderPaths.some(wsFolder => isParentFolder(wsFolder, filepath) || wsFolder === filepath)
+        // Resolve any ".." traversal sequences before checking containment
+        const resolvedPath = path.resolve(filepath)
+        return workspaceFolderPaths.some(wsFolder => {
+            const resolvedWsFolder = path.resolve(wsFolder)
+            return isParentFolder(resolvedWsFolder, resolvedPath) || resolvedWsFolder === resolvedPath
+        })
     } else {
-        // For relative paths, try each workspace folder
+        // For relative paths, resolve against each workspace folder and verify containment
         for (const wsFolder of workspaceFolderPaths) {
-            const absolutePath = path.join(wsFolder, filepath)
-            if (fs.existsSync(absolutePath)) {
-                // If we found the file in this workspace folder, it's in the workspace automatically
+            const resolvedWsFolder = path.resolve(wsFolder)
+            const absolutePath = path.resolve(wsFolder, filepath)
+            if (
+                fs.existsSync(absolutePath) &&
+                (isParentFolder(resolvedWsFolder, absolutePath) || resolvedWsFolder === absolutePath)
+            ) {
                 return true
             }
         }

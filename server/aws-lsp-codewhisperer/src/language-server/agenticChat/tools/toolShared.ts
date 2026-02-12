@@ -129,15 +129,19 @@ export function isPathApproved(filePath: string, toolName: string, approvedPaths
  * @returns CommandValidation object with requiresAcceptance flag
  */
 export async function requiresPathAcceptance(
-    path: string,
+    inputPath: string,
     toolName: string,
     workspace: Features['workspace'],
     logging: Features['logging'],
     approvedPaths?: Map<string, Set<string>>
 ): Promise<CommandValidation> {
     try {
-        // Check for sensitive paths first - this overrides any approval
-        if (isSensitivePath(path)) {
+        // Canonicalize the path first to resolve any ".." traversal sequences.
+        // This prevents bypasses like "/workspace/../../etc" appearing to be in-workspace.
+        const canonicalPath = path.resolve(inputPath)
+
+        // Check for sensitive paths on BOTH the raw input and the resolved path
+        if (isSensitivePath(inputPath) || isSensitivePath(canonicalPath)) {
             return {
                 requiresAcceptance: true,
                 warning: 'Access to sensitive system files requires explicit approval',
@@ -145,7 +149,7 @@ export async function requiresPathAcceptance(
         }
 
         // Then check if the path is already approved for this specific tool
-        if (isPathApproved(path, toolName, approvedPaths)) {
+        if (isPathApproved(canonicalPath, toolName, approvedPaths)) {
             return { requiresAcceptance: false }
         }
 
@@ -157,7 +161,7 @@ export async function requiresPathAcceptance(
             return { requiresAcceptance: true }
         }
 
-        const isInWorkspace = workspaceUtils.isInWorkspace(workspaceFolders, path)
+        const isInWorkspace = workspaceUtils.isInWorkspace(workspaceFolders, canonicalPath)
         return { requiresAcceptance: !isInWorkspace }
     } catch (error) {
         if (logging) {

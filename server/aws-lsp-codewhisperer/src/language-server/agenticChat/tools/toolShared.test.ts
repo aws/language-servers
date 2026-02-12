@@ -255,8 +255,11 @@ describe('toolShared', () => {
             )
 
             assert.strictEqual(result.requiresAcceptance, false)
+            // requiresPathAcceptance canonicalizes the path with path.resolve() before
+            // passing to isInWorkspace, so verify with the resolved path
+            const expectedPath = path.resolve(filePath)
             assert.strictEqual(
-                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], filePath),
+                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], expectedPath),
                 true
             )
         })
@@ -278,8 +281,9 @@ describe('toolShared', () => {
             )
 
             assert.strictEqual(result.requiresAcceptance, true)
+            const expectedPath = path.resolve(filePath)
             assert.strictEqual(
-                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], filePath),
+                isInWorkspaceStub.calledWith(['/workspace/folder1', '/workspace/folder2'], expectedPath),
                 true
             )
         })
@@ -349,6 +353,345 @@ describe('toolShared', () => {
 
             assert.strictEqual(result.requiresAcceptance, true)
             assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should require acceptance for paths with traversal that resolve to sensitive locations', async () => {
+            // Path that looks workspace-relative but resolves to /etc via traversal
+            const filePath = '/workspace/folder1/../../etc/passwd'
+
+            // isInWorkspace should be called with the resolved path
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            // Should detect /etc/ in the resolved path as sensitive
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should require acceptance for double traversal pattern from bug report', async () => {
+            // The exact pattern from the bug bounty report
+            const filePath = '.amazonq/../.amazonq/../../../../../../../Users/blackpearl/private'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'listDirectory',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should detect sensitive path even when hidden behind traversal', async () => {
+            // /workspace/../../home/user/.ssh resolves to a sensitive path
+            const filePath = '/workspace/folder1/../../home/user/.ssh/id_rsa'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect .aws credentials behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../home/user/.aws/credentials'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect /etc/ behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../etc/passwd'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect /proc/ behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../proc/self/environ'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect .env file behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../other-project/.env'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should require acceptance for traversal with redundant current-dir dots', async () => {
+            const filePath = '/workspace/folder1/./../../etc/shadow'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should require acceptance for deeply nested then deeply escaped path', async () => {
+            const filePath = '/workspace/folder1/a/b/c/d/../../../../../../../../../tmp/evil'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should require acceptance for traversal to root', async () => {
+            const filePath = '/workspace/folder1/../../../'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should detect .env.local behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../other-project/.env.local'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect password file behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../var/password_store'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect private key behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../home/user/private_key.pem'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect /dev/ behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../dev/random'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect /sys/ behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../sys/kernel/config'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect credential keyword behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../opt/app/credential.json'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should detect secret keyword behind traversal', async () => {
+            const filePath = '/workspace/folder1/../../../opt/app/secret_config.yaml'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
+        })
+
+        it('should require acceptance for single parent traversal escaping workspace', async () => {
+            const filePath = '/workspace/folder1/../folder-outside/data.txt'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should require acceptance for path resolving to workspace parent', async () => {
+            const filePath = '/workspace/folder1/..'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should require acceptance for alternating traversal pattern', async () => {
+            // Go in, come back, go in, come back, then escape
+            const filePath = '/workspace/folder1/src/../node_modules/../test/../../../tmp'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should handle path with only dots and slashes', async () => {
+            const filePath = '../../../../../../../../..'
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
+        })
+
+        it('should handle empty path gracefully', async () => {
+            const filePath = ''
+
+            isInWorkspaceStub.returns(false)
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            // Empty path resolves to cwd, which may or may not be in workspace
+            // The important thing is it doesn't crash
+            assert.ok(typeof result.requiresAcceptance === 'boolean')
+        })
+
+        it('should handle path with spaces and traversal', async () => {
+            const filePath = '/workspace/folder1/my folder/../../../etc/passwd'
+
+            const result = await requiresPathAcceptance(
+                filePath,
+                'testTool',
+                mockWorkspace,
+                mockLogging as unknown as Features['logging']
+            )
+
+            assert.strictEqual(result.requiresAcceptance, true)
         })
     })
 })
