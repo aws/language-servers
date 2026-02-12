@@ -7,7 +7,7 @@ import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
 import { CancellationToken } from 'vscode-languageserver'
 import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
 // eslint-disable-next-line import/no-nodejs-modules
-import { isAbsolute, join, extname } from 'path' // Safe to import on web since this is part of path-browserify
+import { isAbsolute, resolve, extname } from 'path' // Safe to import on web since this is part of path-browserify
 import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 // eslint-disable-next-line import/no-nodejs-modules
@@ -180,6 +180,18 @@ export class ExecuteBash {
         approvedPaths?: Map<string, Set<string>>
     ): Promise<CommandValidation> {
         try {
+            // On Windows, pre-check the raw command for backslash-based traversal patterns
+            // before shlex parsing. shlex.split() treats backslashes as escape characters
+            // (Unix shell semantics), which mangles Windows paths like "src\..\..\..\etc"
+            // into "src......etc", hiding ".." traversal sequences from downstream checks.
+            if (IS_WINDOWS_PLATFORM && /\\\.\./.test(params.command)) {
+                return {
+                    requiresAcceptance: true,
+                    warning: outOfWorkspaceWarningmessage,
+                    commandCategory: CommandCategory.ReadOnly,
+                }
+            }
+
             const args = split(params.command)
             if (!args || args.length === 0) {
                 return { requiresAcceptance: true }
@@ -227,10 +239,11 @@ export class ExecuteBash {
                                 commandCategory: CommandCategory.Destructive,
                             }
                         } else if (!isAbsolute(arg) && params.cwd) {
-                            // If not absolute, resolve using workingDirectory if available
-                            fullPath = join(params.cwd, arg)
+                            // If not absolute, resolve to canonical path (eliminates ".." traversal)
+                            fullPath = resolve(params.cwd, arg)
                         } else {
-                            fullPath = arg
+                            // Resolve absolute paths too to canonicalize any ".." sequences
+                            fullPath = resolve(arg)
                         }
 
                         // Check if the path is already approved
@@ -339,13 +352,15 @@ export class ExecuteBash {
                         }
                     }
 
-                    // Normalize paths for consistent comparison
-                    const normalizedCwd = params.cwd.replace(/\\/g, '/')
-                    const normalizedWorkspaceFolders = workspaceFolders.map(folder => folder.replace(/\\/g, '/'))
+                    // Resolve the cwd to canonicalize any ".." traversal sequences
+                    const resolvedCwd = resolve(params.cwd).replace(/\\/g, '/')
+                    const normalizedWorkspaceFolders = workspaceFolders.map(folder =>
+                        resolve(folder).replace(/\\/g, '/')
+                    )
 
-                    // Check if the normalized cwd is in any of the normalized workspace folders
+                    // Check if the resolved cwd is in any of the resolved workspace folders
                     const isInWorkspace = normalizedWorkspaceFolders.some(
-                        folder => normalizedCwd === folder || normalizedCwd.startsWith(folder + '/')
+                        folder => resolvedCwd === folder || resolvedCwd.startsWith(folder + '/')
                     )
 
                     if (!isInWorkspace) {
@@ -367,9 +382,13 @@ export class ExecuteBash {
     }
 
     private looksLikePath(arg: string): boolean {
+        // Detect path traversal sequences anywhere in the argument (e.g. "folder/../../../etc")
+        const containsTraversal = arg.includes('..') || arg.includes('%2e%2e') || arg.includes('%2E%2E')
+
         if (IS_WINDOWS_PLATFORM) {
             // Windows path patterns
             return (
+                containsTraversal ||
                 arg.startsWith('/') ||
                 arg.startsWith('./') ||
                 arg.startsWith('../') ||
@@ -381,7 +400,13 @@ export class ExecuteBash {
             ) // Drive letter paths like C:\ or C:/
         } else {
             // Unix path patterns
-            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../') || arg.startsWith('~')
+            return (
+                containsTraversal ||
+                arg.startsWith('/') ||
+                arg.startsWith('./') ||
+                arg.startsWith('../') ||
+                arg.startsWith('~')
+            )
         }
     }
 
