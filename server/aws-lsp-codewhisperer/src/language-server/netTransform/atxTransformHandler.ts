@@ -846,10 +846,10 @@ export class ATXTransformHandler {
 
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
             const reportPath = path.join(pathToDownload, 'assessment-report.md')
-            const missingPackageJsonPath = path.join(pathToDownload, 'missing-packages.json') // ADD
+            const missingPackageJsonPath = path.join(pathToDownload, 'missing-packages.json')
 
             // Check if missing-packages.json exists
-            const missingPkgExists = fs.existsSync(missingPackageJsonPath) // ADD
+            const missingPkgExists = fs.existsSync(missingPackageJsonPath)
             this.logging.log(`ATX: GetHitlAgentArtifact completed successfully`)
             return {
                 PlanPath: planPath,
