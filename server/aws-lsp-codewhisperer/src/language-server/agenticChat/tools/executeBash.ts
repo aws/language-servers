@@ -180,6 +180,18 @@ export class ExecuteBash {
         approvedPaths?: Map<string, Set<string>>
     ): Promise<CommandValidation> {
         try {
+            // On Windows, pre-check the raw command for backslash-based traversal patterns
+            // before shlex parsing. shlex.split() treats backslashes as escape characters
+            // (Unix shell semantics), which mangles Windows paths like "src\..\..\..\etc"
+            // into "src......etc", hiding ".." traversal sequences from downstream checks.
+            if (IS_WINDOWS_PLATFORM && /\\\.\./.test(params.command)) {
+                return {
+                    requiresAcceptance: true,
+                    warning: outOfWorkspaceWarningmessage,
+                    commandCategory: CommandCategory.ReadOnly,
+                }
+            }
+
             const args = split(params.command)
             if (!args || args.length === 0) {
                 return { requiresAcceptance: true }
