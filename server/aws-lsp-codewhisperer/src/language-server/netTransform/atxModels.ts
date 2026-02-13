@@ -75,8 +75,7 @@ export interface AtxGetTransformInfoResponse {
     ArtifactPath?: string | null
     ErrorString?: string | null
     HitlTag?: string | null
-    UxComponentId?: string | null
-    MissingPackageJsonPath: string | null
+    MissingPackageJsonPath?: string | null
 }
 
 // ATX Stop Job request

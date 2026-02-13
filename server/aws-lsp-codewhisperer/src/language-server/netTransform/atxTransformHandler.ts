@@ -801,9 +801,8 @@ export class ATXTransformHandler {
         jobId: string,
         solutionRootPath: string
     ): Promise<{
-        PlanPath: string
-        ReportPath: string
-        UxComponentId?: string
+        PlanPath?: string
+        ReportPath?: string
         MissingPackageJsonPath?: string
         HitlTag?: string
     } | null> {
@@ -826,8 +825,7 @@ export class ATXTransformHandler {
 
             const hitl = hitls[0]
             this.cachedHitl = hitl.taskId
-            const uxComponentId = hitl.uxComponentId
-
+            const hitlTag = hitl.tag || null
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
 
             if (!downloadInfo) {
@@ -844,19 +842,20 @@ export class ATXTransformHandler {
                 this.logging
             )
 
+            const fs = require('fs')
+            const extractedFiles = fs.readdirSync(pathToDownload)
+            this.logging.log(`ATX: Extracted files in ${pathToDownload}: ${JSON.stringify(extractedFiles)}`)
+
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
             const reportPath = path.join(pathToDownload, 'assessment-report.md')
-            const missingPackageJsonPath = path.join(pathToDownload, 'missing-packages.json')
+            const missingPackageJsonPath = path.join(pathToDownload, 'missing_packages.json')
 
-            // Check if missing-packages.json exists
-            const missingPkgExists = fs.existsSync(missingPackageJsonPath)
             this.logging.log(`ATX: GetHitlAgentArtifact completed successfully`)
             return {
-                PlanPath: planPath,
-                ReportPath: reportPath,
+                PlanPath: fs.existsSync(planPath) ? planPath : undefined,
+                ReportPath: fs.existsSync(reportPath) ? reportPath : undefined,
                 MissingPackageJsonPath: fs.existsSync(missingPackageJsonPath) ? missingPackageJsonPath : undefined,
-                UxComponentId: uxComponentId,
-                HitlTag: hitl.tag,
+                HitlTag: hitlTag,
             }
         } catch (error) {
             this.logging.error(`ATX: GetHitlAgentArtifact error: ${String(error)}`)
@@ -951,7 +950,6 @@ export class ATXTransformHandler {
                     } as AtxTransformationJob,
                     PlanPath: response?.PlanPath,
                     ReportPath: response?.ReportPath,
-                    UxComponentId: response?.UxComponentId,
                     MissingPackageJsonPath: response?.MissingPackageJsonPath,
                     HitlTag: response?.HitlTag,
                 } as AtxGetTransformInfoResponse
