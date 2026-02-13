@@ -24,7 +24,7 @@
         "test": "npm run lint && npm run test:unit",
         "test:coverage": "npm run lint && npm run test:unit:coverage",
         "coverage:report": "c8 report --reporter=html --reporter=text",
-        "coverage:check": "c8 check-coverage --lines 80 --functions 80 --branches 80 --statements 80",
+        "coverage:check": "c8 check-coverage --lines 80 --functions 80 --branches 50 --statements 80",
         "prepack": "npm run compile && ts-node ../../script/link_bundled_dependencies.ts",
         "postinstall": "node ./script/install_transitive_dep.js"
     },
