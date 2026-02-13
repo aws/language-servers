@@ -98,13 +98,13 @@ export interface AtxGetTransformInfoResponse {
     TransformationPlan?: AtxTransformationPlan | null
     ArtifactPath?: string | null
     ErrorString?: string | null
-    StepHitlInfo?: AtxStepHitlInfo | null
+    StepInformation?: AtxStepInformation | null
 }
 
 /**
- * Information about a step-level HITL during execution phase.
+ * Information about a step during execution phase HITL.
  */
-export interface AtxStepHitlInfo {
+export interface AtxStepInformation {
     StepId: string
     DiffArtifactPath: string
 }

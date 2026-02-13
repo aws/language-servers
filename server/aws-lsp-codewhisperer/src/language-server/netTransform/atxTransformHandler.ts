@@ -42,7 +42,7 @@ import {
     AtxPlanStep,
     PlanStepStatus,
     createEmptyRootNode,
-    AtxStepHitlInfo,
+    AtxStepInformation,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -990,7 +990,7 @@ export class ATXTransformHandler {
             request.SolutionRootPath
         )
 
-        const hasPlan = plan.Root.Children.length > 0
+        const hasPlan = plan.Root.Children[0].Children.length > 0
 
         if (hasPlan) {
             // Execution phase: Plan exists, HITL raised during transformation
@@ -1069,7 +1069,7 @@ export class ATXTransformHandler {
             }
 
             // Download and parse the agent artifact JSON
-            const stepHitlInfo = await this.downloadAndParseStepHitlArtifact(
+            const stepInformation = await this.downloadAndParseStepHitlArtifact(
                 request.WorkspaceId,
                 request.TransformationJobId,
                 stepHitl,
@@ -1084,7 +1084,7 @@ export class ATXTransformHandler {
                     Status: 'AWAITING_HUMAN_INPUT',
                 } as AtxTransformationJob,
                 TransformationPlan: plan,
-                StepHitlInfo: stepHitlInfo,
+                StepInformation: stepInformation,
             } as AtxGetTransformInfoResponse
         } catch (error) {
             this.logging.error(`ATX: handleExecutionPhaseHitl error: ${String(error)}`)
@@ -1167,7 +1167,7 @@ export class ATXTransformHandler {
         hitlTask: any,
         stepId: string,
         solutionRootPath: string
-    ): Promise<AtxStepHitlInfo | null> {
+    ): Promise<AtxStepInformation | null> {
         try {
             const taskId = hitlTask.taskId
             const agentArtifactId = hitlTask.agentArtifact?.artifactId
