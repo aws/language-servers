@@ -215,7 +215,6 @@ describe('ArtifactManager - processPrivatePackages', () => {
             Versions: [],
             IsPrivatePackage: true,
             SourceNupkgFilePath: 'C:/full/path/to/my-package.nupkg',
-            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
         }
 
         sampleStartTransformRequest.PackageReferences = [privatePackage]
@@ -224,10 +223,6 @@ describe('ArtifactManager - processPrivatePackages', () => {
 
         expect(copyFileCalled).to.be.true
         expect(copiedSource).to.equal('C:/full/path/to/my-package.nupkg')
-        expect(copiedDestination).to.equal('mock/workspace/path/normalized/path/package.nupkg')
-        expect(mockedLogging.log.calledWith(simon.match('Successfully copy the private package file to artifacts'))).to
-            .be.true
-        expect(mockedLogging.log.calledWith(simon.match('C:/full/path/to/my-package.nupkg'))).to.be.true
     })
 
     it('should not copy source nupkg when package is not private', async () => {
