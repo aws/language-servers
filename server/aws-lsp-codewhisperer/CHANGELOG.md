@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.0.106](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.105...lsp-codewhisperer/v0.0.106) (2026-02-13)
+
+
+### Features
+
+* copy private package's nupkg file to artifacts folder ([#2613](https://github.com/aws/language-servers/issues/2613)) ([99cb9a8](https://github.com/aws/language-servers/commit/99cb9a8f87d750a496c13b0678cae82de101b99d))
+
+
+### Bug Fixes
+
+* **amazonq:** prevent path traversal bypass in agentic chat workspace ([#2612](https://github.com/aws/language-servers/issues/2612)) ([13159f8](https://github.com/aws/language-servers/commit/13159f842e4c50aae03ace586c42085446a50986))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.20 to ^0.0.21
+
 ## [0.0.105](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.104...lsp-codewhisperer/v0.0.105) (2026-02-10)
 
 
