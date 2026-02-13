@@ -193,4 +193,72 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleRelativePath).to.be.undefined
         expect(sampleArtifactReference.netCompatibleVersion).to.be.undefined
     })
+
+    it('should not copy source nupkg when package is not private', async () => {
+        let copyFileCalled = false
+
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            copyFileCalled = true
+            return Promise.resolve()
+        }
+
+        const nonPrivatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: false,
+            SourceNupkgFilePath: 'C:/path/to/package.nupkg',
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [nonPrivatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+
+        expect(copyFileCalled).to.be.false
+    })
+
+    it('should not copy source nupkg when SourceNupkgFilePath is undefined', async () => {
+        let copyFileCalled = false
+
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            copyFileCalled = true
+            return Promise.resolve()
+        }
+
+        const privatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: true,
+            SourceNupkgFilePath: undefined,
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [privatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+
+        expect(copyFileCalled).to.be.false
+    })
+
+    it('should log full file path when copying source nupkg file fails', async () => {
+        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
+            throw new Error('Copy failed')
+        }
+
+        artifactManager.normalizePackageFileRelativePath = (filePath: string) => {
+            return 'normalized/path/package.nupkg'
+        }
+
+        const privatePackage: PackageReferenceMetadata = {
+            Id: 'test-package',
+            Versions: [],
+            IsPrivatePackage: true,
+            SourceNupkgFilePath: 'C:/full/path/to/my-package.nupkg',
+            NetCompatiblePackageFilePath: 'C:/path/to/package.dll',
+        }
+
+        sampleStartTransformRequest.PackageReferences = [privatePackage]
+
+        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
+    })
 })
