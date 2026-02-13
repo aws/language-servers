@@ -194,8 +194,6 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.be.undefined
     })
 
-
-
     it('should not copy source nupkg when package is not private', async () => {
         let copyFileCalled = false
 
