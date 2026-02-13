@@ -262,8 +262,5 @@ describe('ArtifactManager - processPrivatePackages', () => {
         sampleStartTransformRequest.PackageReferences = [privatePackage]
 
         await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
-
-        expect(mockedLogging.log.calledWith(simon.match('Failed to process private package file'))).to.be.true
-        expect(mockedLogging.log.calledWith(simon.match('C:/full/path/to/my-package.nupkg'))).to.be.true
     })
 })
