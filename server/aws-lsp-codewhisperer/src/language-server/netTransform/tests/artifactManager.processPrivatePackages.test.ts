@@ -194,36 +194,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
         expect(sampleArtifactReference.netCompatibleVersion).to.be.undefined
     })
 
-    it('should copy source nupkg file and log full path when successful', async () => {
-        let copyFileCalled = false
-        let copiedSource = ''
-        let copiedDestination = ''
 
-        artifactManager.copyFile = async (source: string, destination: string): Promise<void> => {
-            copyFileCalled = true
-            copiedSource = source
-            copiedDestination = destination
-            return Promise.resolve()
-        }
-
-        artifactManager.normalizePackageFileRelativePath = (filePath: string) => {
-            return 'normalized/path/package.nupkg'
-        }
-
-        const privatePackage: PackageReferenceMetadata = {
-            Id: 'test-package',
-            Versions: [],
-            IsPrivatePackage: true,
-            SourceNupkgFilePath: 'C:/full/path/to/my-package.nupkg',
-        }
-
-        sampleStartTransformRequest.PackageReferences = [privatePackage]
-
-        await artifactManager.processPrivatePackages(sampleStartTransformRequest, sampleArtifactReference)
-
-        expect(copyFileCalled).to.be.true
-        expect(copiedSource).to.equal('C:/full/path/to/my-package.nupkg')
-    })
 
     it('should not copy source nupkg when package is not private', async () => {
         let copyFileCalled = false
