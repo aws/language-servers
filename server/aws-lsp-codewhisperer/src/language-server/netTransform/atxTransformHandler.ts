@@ -1202,7 +1202,7 @@ export class ATXTransformHandler {
                     jobId,
                     artifactJson.diffArtifactId,
                     solutionRootPath,
-                    taskId
+                    stepId
                 )
             }
 
@@ -1224,7 +1224,7 @@ export class ATXTransformHandler {
         jobId: string,
         diffArtifactId: string,
         solutionRootPath: string,
-        taskId: string
+        stepId: string
     ): Promise<string> {
         try {
             this.logging.log(`ATX: Downloading diff artifact: ${diffArtifactId}`)
@@ -1234,13 +1234,13 @@ export class ATXTransformHandler {
                 throw new Error('Failed to get download URL for diff artifact')
             }
 
-            const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId, 'hitl', taskId)
+            const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints', stepId)
 
             await Utils.downloadAndExtractArchive(
                 downloadInfo.s3PresignedUrl,
                 downloadInfo.requestHeaders,
                 pathToDownload,
-                'diff-artifact.zip',
+                `${stepId}.zip`,
                 this.logging
             )
 
