@@ -13,6 +13,7 @@ import {
     AtxStopJobRequest,
     AtxUploadPlanRequest,
     AtxSetCheckpointsRequest,
+    AtxCheckpointActionRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -22,6 +23,7 @@ const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
 const AtxSetCheckpointsCommand = 'aws/atxTransform/setCheckpoints'
+const AtxCheckpointActionCommand = 'aws/atxTransform/checkpointAction'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -87,17 +89,24 @@ export const AtxNetTransformServerToken =
                         const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints } =
                             params as AtxSetCheckpointsRequest
 
-                        if (!WorkspaceId || !TransformationJobId || !SolutionRootPath) {
-                            throw new Error(
-                                'WorkspaceId, TransformationJobId, and SolutionRootPath are required for setCheckpoints'
-                            )
-                        }
-
                         return await atxTransformHandler.setCheckpoints(
                             WorkspaceId,
                             TransformationJobId,
                             SolutionRootPath,
                             Checkpoints || {}
+                        )
+                    }
+                    case AtxCheckpointActionCommand: {
+                        const { WorkspaceId, TransformationJobId, StepId, Action, NewInstruction, SolutionRootPath } =
+                            params as AtxCheckpointActionRequest
+
+                        return await atxTransformHandler.checkpointAction(
+                            WorkspaceId,
+                            TransformationJobId,
+                            StepId,
+                            Action,
+                            SolutionRootPath,
+                            NewInstruction
                         )
                     }
                     default: {
@@ -128,6 +137,7 @@ export const AtxNetTransformServerToken =
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
                             AtxSetCheckpointsCommand,
+                            AtxCheckpointActionCommand,
                         ],
                     },
                 },

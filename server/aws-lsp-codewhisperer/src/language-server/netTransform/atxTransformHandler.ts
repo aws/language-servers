@@ -15,6 +15,7 @@ import {
     GetHitlTaskCommand,
     ListHitlTasksCommand,
     SubmitCriticalHitlTaskCommand,
+    SubmitStandardHitlTaskCommand,
     UpdateHitlTaskCommand,
     GetJobCommand,
     ListJobPlanStepsCommand,
@@ -43,6 +44,7 @@ import {
     PlanStepStatus,
     createEmptyRootNode,
     AtxStepInformation,
+    AtxCheckpointActionResponse,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -60,6 +62,7 @@ export class ATXTransformHandler {
     private runtime: Runtime
     private atxClient: ElasticGumbyFrontendClient | null = null
     private cachedHitl: string | null = null
+    private cachedStepHitl: string | null = null
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -1151,6 +1154,9 @@ export class ATXTransformHandler {
             const stepHitl = result.hitlTasks[0]
             this.logging.log(`ATX: Found step-level HITL: ${stepHitl.taskId}`)
 
+            // Cache the step HITL task ID for later use in checkpointAction
+            this.cachedStepHitl = stepHitl.taskId || null
+
             return stepHitl
         } catch (error) {
             this.logging.error(`ATX: findStepLevelHitl error: ${String(error)}`)
@@ -1209,6 +1215,10 @@ export class ATXTransformHandler {
             return {
                 StepId: stepId,
                 DiffArtifactPath: diffArtifactPath,
+                ...(artifactJson.retryInstruction && { RetryInstruction: artifactJson.retryInstruction }),
+                ...(artifactJson.isInvalid !== undefined && { IsInvalid: artifactJson.isInvalid }),
+                ...(artifactJson.invalidInstruction && { InvalidInstruction: artifactJson.invalidInstruction }),
+                ...(artifactJson.invalidReason && { InvalidReason: artifactJson.invalidReason }),
             }
         } catch (error) {
             this.logging.error(`ATX: downloadAndParseStepHitlArtifact error: ${String(error)}`)
@@ -1684,8 +1694,8 @@ export class ATXTransformHandler {
 
             this.logging.log(`ATX: Found checkpoint-settings HITL task: ${hitlTask.taskId}`)
 
-            // Step 2: Create JSON file with checkpoints mapping in artifact workspace
-            const artifactDir = path.join(solutionRootPath, workspaceFolderName, jobId)
+            // Step 2: Create JSON file with checkpoints mapping in checkpoints folder
+            const artifactDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
             if (!fs.existsSync(artifactDir)) {
                 fs.mkdirSync(artifactDir, { recursive: true })
             }
@@ -1773,6 +1783,142 @@ export class ATXTransformHandler {
             return null
         } catch (error) {
             this.logging.error(`ATX: findCheckpointSettingsHitl error: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
+     * Handle checkpoint action (APPLY or RETRY) for a step-level HITL.
+     */
+    async checkpointAction(
+        workspaceId: string,
+        jobId: string,
+        stepId: string,
+        action: string,
+        solutionRootPath: string,
+        newInstruction?: string
+    ): Promise<AtxCheckpointActionResponse> {
+        try {
+            this.logging.log(`ATX: Starting checkpointAction for job: ${jobId}, step: ${stepId}, action: ${action}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                return { Success: false, Error: 'ATX FES client not initialized' }
+            }
+
+            // Get the cached step HITL task ID, or query for it if not cached
+            let taskId: string | null = this.cachedStepHitl
+            if (!taskId) {
+                this.logging.log('ATX: No cached step HITL, querying for active step HITL')
+                const stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+                if (!stepHitl || !stepHitl.taskId) {
+                    return { Success: false, Error: 'No active step HITL found' }
+                }
+                taskId = stepHitl.taskId
+            }
+
+            // At this point taskId is guaranteed to be a string
+            const validTaskId = taskId as string
+
+            // Create the human artifact JSON
+            const artifactContent: any = {
+                action: action,
+            }
+            if (action === 'RETRY' && newInstruction) {
+                artifactContent.newInstruction = newInstruction
+            }
+
+            // Create the JSON file at {solutionRootPath}/{workspaceFolderName}/{jobId}/checkpoints/checkpoint-action.json
+            const artifactDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            if (!fs.existsSync(artifactDir)) {
+                fs.mkdirSync(artifactDir, { recursive: true })
+            }
+
+            const jsonFilePath = path.join(artifactDir, 'checkpoint-action.json')
+            fs.writeFileSync(jsonFilePath, JSON.stringify(artifactContent, null, 2))
+
+            // Upload the JSON artifact
+            const uploadInfo = await this.createArtifactUploadUrl(
+                workspaceId,
+                jobId,
+                jsonFilePath,
+                CategoryType.HITL_FROM_USER,
+                FileType.JSON
+            )
+
+            if (!uploadInfo) {
+                return { Success: false, Error: 'Failed to create artifact upload URL' }
+            }
+
+            const uploadSuccess = await Utils.uploadArtifact(
+                uploadInfo.uploadUrl,
+                jsonFilePath,
+                uploadInfo.requestHeaders,
+                this.logging
+            )
+
+            if (!uploadSuccess) {
+                return { Success: false, Error: 'Failed to upload checkpoint action artifact to S3' }
+            }
+
+            // Complete artifact upload
+            const completeResponse = await this.completeArtifactUpload(workspaceId, jobId, uploadInfo.uploadId)
+
+            if (!completeResponse?.success) {
+                return { Success: false, Error: 'Failed to complete artifact upload' }
+            }
+
+            // Submit the standard HITL task with the human artifact
+            const submitResult = await this.submitStandardHitl(workspaceId, jobId, validTaskId, uploadInfo.uploadId)
+
+            if (!submitResult) {
+                return { Success: false, Error: 'Failed to submit checkpoint action' }
+            }
+
+            // Clear the cached step HITL after successful submission
+            this.cachedStepHitl = null
+
+            this.logging.log(`ATX: checkpointAction completed successfully`)
+            return { Success: true }
+        } catch (error) {
+            this.logging.error(`ATX: checkpointAction error: ${String(error)}`)
+            return { Success: false, Error: String(error) }
+        }
+    }
+
+    /**
+     * Submit a standard HITL task with a human artifact.
+     */
+    private async submitStandardHitl(
+        workspaceId: string,
+        jobId: string,
+        taskId: string,
+        humanArtifactId: string
+    ): Promise<any | null> {
+        try {
+            this.logging.log(`ATX: Starting SubmitStandardHitl for task: ${taskId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                this.logging.error('ATX: Failed to initialize client for SubmitStandardHitl')
+                return null
+            }
+
+            const command = new SubmitStandardHitlTaskCommand({
+                workspaceId: workspaceId,
+                jobId: jobId,
+                taskId: taskId,
+                action: 'APPROVE',
+                humanArtifact: {
+                    artifactId: humanArtifactId,
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            this.logging.log(`ATX: SubmitStandardHitl completed - task status: ${result.status || 'UNKNOWN'}`)
+            return result
+        } catch (error) {
+            this.logging.error(`ATX: SubmitStandardHitl error: ${String(error)}`)
             return null
         }
     }

@@ -107,6 +107,10 @@ export interface AtxGetTransformInfoResponse {
 export interface AtxStepInformation {
     StepId: string
     DiffArtifactPath: string
+    RetryInstruction?: string
+    IsInvalid?: boolean
+    InvalidInstruction?: string
+    InvalidReason?: string
 }
 
 // ATX Stop Job request
@@ -138,4 +142,19 @@ export interface AtxSetCheckpointsRequest extends ExecuteCommandParams {
 export interface AtxSetCheckpointsResponse {
     Success: boolean
     Error?: string
+}
+
+// ATX Checkpoint Action request/response
+export interface AtxCheckpointActionRequest extends ExecuteCommandParams {
+    Action: string // "APPLY" or "RETRY"
+    NewInstruction?: string // Only used when Action is "RETRY"
+    StepId: string
+    TransformationJobId: string
+    WorkspaceId: string
+    SolutionRootPath: string
+}
+
+export interface AtxCheckpointActionResponse {
+    Success: boolean
+    Error?: string | null
 }
