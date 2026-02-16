@@ -2157,7 +2157,7 @@ export class AgenticChatController implements ChatHandlers {
                 // After approval, add the path to the approved paths in the session
                 const inputPath = (toolUse.input as any)?.path || (toolUse.input as any)?.cwd
                 if (inputPath) {
-                    session.addApprovedPath(inputPath, toolUse.name)
+                    session.addApprovedPath(inputPath)
                 }
 
                 const ws = this.#getWritableStream(chatResultStream, toolUse)
