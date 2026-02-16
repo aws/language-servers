@@ -1874,10 +1874,18 @@ export class ATXTransformHandler {
                 return { Success: false, Error: 'Failed to submit checkpoint action' }
             }
 
+            // Poll the HITL task until it's closed
+            this.logging.log('ATX: Polling step HITL task for completion')
+            const pollResult = await this.pollHitlTask(workspaceId, jobId, validTaskId)
+
+            if (!pollResult) {
+                return { Success: false, Error: 'Timeout waiting for checkpoint action to complete' }
+            }
+
             // Clear the cached step HITL after successful submission
             this.cachedStepHitl = null
 
-            this.logging.log(`ATX: checkpointAction completed successfully`)
+            this.logging.log(`ATX: checkpointAction completed successfully - ${pollResult}`)
             return { Success: true }
         } catch (error) {
             this.logging.error(`ATX: checkpointAction error: ${String(error)}`)
