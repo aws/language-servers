@@ -434,6 +434,41 @@ describe('LocalProjectContextController', () => {
             assert.deepStrictEqual(queryResult, [])
         })
     })
+
+    describe('isInitialized', () => {
+        it('should return false when instance is not initialized', () => {
+            // Reset singleton to ensure clean test state
+            ;(LocalProjectContextController as any).instance = undefined
+
+            const result = LocalProjectContextController.isInitialized()
+            assert.strictEqual(result, false)
+        })
+
+        it('should return true after successful init', async () => {
+            // Reset singleton first
+            ;(LocalProjectContextController as any).instance = undefined
+
+            await controller.init({ vectorLib: vectorLibMock })
+
+            const result = LocalProjectContextController.isInitialized()
+            assert.strictEqual(result, true)
+        })
+
+        it('should return false when init fails due to missing indexing library', async () => {
+            // Reset singleton first
+            ;(LocalProjectContextController as any).instance = undefined
+
+            // Mock a failure where the vector lib import fails (missing indexing library)
+            const failingVectorLib = {
+                start: stub().rejects(new Error('ERR_MODULE_NOT_FOUND')),
+            }
+
+            await controller.init({ vectorLib: failingVectorLib })
+
+            const result = LocalProjectContextController.isInitialized()
+            assert.strictEqual(result, false)
+        })
+    })
 })
 
 function createMockDirent(name: string, isDirectory: boolean): Dirent {
