@@ -175,11 +175,6 @@ export class TransformConfigurationServer {
         this.logging.log(`TransformConfigurationServer: Querying region: ${region}, endpoint: ${endpoint}`)
 
         try {
-            // Log proxy/SSL configuration for debugging
-            const hasProxy = !!(process.env.HTTPS_PROXY || process.env.https_proxy)
-            const hasCABundle = !!process.env.AWS_CA_BUNDLE
-            this.logging.log(`TransformConfigurationServer: Proxy configured: ${hasProxy}, Custom CA: ${hasCABundle}`)
-
             // Create region-specific client using sdkInitializator for proxy/SSL support
             const regionClient = this.features.sdkInitializator(ElasticGumbyFrontendClient, {
                 region: region,
