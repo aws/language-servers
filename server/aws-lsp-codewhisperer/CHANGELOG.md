@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.106](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.105...lsp-codewhisperer/v0.0.106) (2026-02-17)
+
+
+### Features
+
+* copy private package's nupkg file to artifacts folder ([#2613](https://github.com/aws/language-servers/issues/2613)) ([99cb9a8](https://github.com/aws/language-servers/commit/99cb9a8f87d750a496c13b0678cae82de101b99d))
+
+
+### Bug Fixes
+
+* **amazonq:** bumping up the language server runtime version ([#2621](https://github.com/aws/language-servers/issues/2621)) ([33c9eba](https://github.com/aws/language-servers/commit/33c9eba1fcc5ab7da5c520842c239e22b2237e4c))
+* **amazonq:** emit modelid per tab ([#2620](https://github.com/aws/language-servers/issues/2620)) ([640179f](https://github.com/aws/language-servers/commit/640179f021d68a8bef5ece710d1b928e2c17fed1))
+* **amazonq:** fix improperly formed requests ([#2616](https://github.com/aws/language-servers/issues/2616)) ([2739718](https://github.com/aws/language-servers/commit/273971834e2a307fe79402bef329b53b8bb51a4e))
+* **amazonq:** prevent path traversal bypass in agentic chat workspace ([#2612](https://github.com/aws/language-servers/issues/2612)) ([13159f8](https://github.com/aws/language-servers/commit/13159f842e4c50aae03ace586c42085446a50986))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.20 to ^0.0.21
+
 ## [0.0.105](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.104...lsp-codewhisperer/v0.0.105) (2026-02-10)
 
 
