@@ -63,6 +63,7 @@ export class ATXTransformHandler {
     private atxClient: ElasticGumbyFrontendClient | null = null
     private cachedHitl: string | null = null
     private cachedStepHitl: string | null = null
+    private cachedInteractiveMode: boolean | null = null
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -193,6 +194,16 @@ export class ATXTransformHandler {
      */
     onProfileUpdate(): void {
         this.atxClient = null
+    }
+
+    /**
+     * Clear cached job state (for terminal job statuses)
+     */
+    private clearJobCache(): void {
+        this.cachedHitl = null
+        this.cachedStepHitl = null
+        this.cachedInteractiveMode = null
+        this.logging.log('ATX: Cleared job cache')
     }
 
     /**
@@ -544,6 +555,9 @@ export class ATXTransformHandler {
         try {
             this.logging.log(`ATX: Starting transform workflow for workspace: ${request.workspaceId}`)
 
+            // Cache the interactive mode setting
+            this.cachedInteractiveMode = request.interactiveMode || false
+
             // Step 1: Create transformation job
             const createJobResponse = await this.createJob({
                 workspaceId: request.workspaceId,
@@ -619,7 +633,7 @@ export class ATXTransformHandler {
         }
     }
 
-    async getJob(workspaceId: string, jobId: string): Promise<JobInfo | null> {
+    async getJob(workspaceId: string, jobId: string, includeObjective: boolean = false): Promise<JobInfo | null> {
         try {
             this.logging.log(`ATX: Getting job: ${jobId} in workspace: ${workspaceId}`)
 
@@ -631,7 +645,7 @@ export class ATXTransformHandler {
             const command = new GetJobCommand({
                 workspaceId: workspaceId,
                 jobId: jobId,
-                includeObjective: false,
+                includeObjective: includeObjective,
             })
 
             await this.addAuthToCommand(command)
@@ -895,16 +909,35 @@ export class ATXTransformHandler {
         try {
             this.logging.log(`ATX: Getting transform info for job: ${request.TransformationJobId}`)
 
-            const job = await this.getJob(request.WorkspaceId, request.TransformationJobId)
+            // Check if we need to determine interactive mode from the job objective
+            const needObjective = this.cachedInteractiveMode === null
+            const job = await this.getJob(request.WorkspaceId, request.TransformationJobId, needObjective)
 
             if (!job) {
                 this.logging.error(`ATX: Job not found: ${request.TransformationJobId}`)
                 return null
             }
 
+            // If interactive mode is not cached, try to get it from the job objective
+            if (this.cachedInteractiveMode === null && job.objective) {
+                try {
+                    const objective = JSON.parse(job.objective)
+                    this.cachedInteractiveMode = objective.interactive_mode === true
+                    this.logging.log(
+                        `ATX: Determined interactive mode from job objective: ${this.cachedInteractiveMode}`
+                    )
+                } catch (e) {
+                    this.logging.log('ATX: Could not parse job objective for interactive mode')
+                    this.cachedInteractiveMode = false
+                }
+            }
+
             const jobStatus = job.statusDetails?.status
 
             if (jobStatus === 'COMPLETED') {
+                // Clear cached state for terminal job status
+                this.clearJobCache()
+
                 const pathToArtifact = await this.downloadFinalArtifact(
                     request.WorkspaceId,
                     request.TransformationJobId,
@@ -926,6 +959,9 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
+                // Clear cached state for terminal job status
+                this.clearJobCache()
+
                 this.logging.error(`ATX: Job failed - Reason: ${job?.statusDetails?.failureReason ?? 'Unknown'}`)
                 return {
                     TransformationJob: {
@@ -937,6 +973,9 @@ export class ATXTransformHandler {
                     ErrorString: 'Transformation job failed',
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'STOPPING' || jobStatus === 'STOPPED') {
+                // Clear cached state for terminal job status
+                this.clearJobCache()
+
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -1215,10 +1254,12 @@ export class ATXTransformHandler {
             return {
                 StepId: stepId,
                 DiffArtifactPath: diffArtifactPath,
-                ...(artifactJson.retryInstruction && { RetryInstruction: artifactJson.retryInstruction }),
+                // Use retryInstruction if available, otherwise fall back to originalInstruction
+                RetryInstruction: artifactJson.retryInstruction || artifactJson.originalInstruction,
                 ...(artifactJson.isInvalid !== undefined && { IsInvalid: artifactJson.isInvalid }),
                 ...(artifactJson.invalidInstruction && { InvalidInstruction: artifactJson.invalidInstruction }),
                 ...(artifactJson.invalidReason && { InvalidReason: artifactJson.invalidReason }),
+                ...(artifactJson.expiryTimestampUTC && { ExpiryTimestampUTC: artifactJson.expiryTimestampUTC }),
             }
         } catch (error) {
             this.logging.error(`ATX: downloadAndParseStepHitlArtifact error: ${String(error)}`)
@@ -1377,6 +1418,9 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const response = await this.atxClient!.send(command)
 
+            // Clear cached state when user initiates stop
+            this.clearJobCache()
+
             this.logging.log(`ATX: StopJob SUCCESS - Status: ${response.status}`)
             this.logging.log(`ATX: StopJob RequestId: ${response.$metadata?.requestId}`)
             return response.status || 'STOPPED'
@@ -1435,11 +1479,132 @@ export class ATXTransformHandler {
                 this.logging.log(`ATX: Could not get worklogs for workspace: ${workspaceId}, job: ${jobId}`)
             })
 
+            // For interactive mode, download completed step artifacts if not already present
+            if (this.cachedInteractiveMode) {
+                await this.downloadCompletedStepArtifacts(workspaceId, jobId, solutionRootPath, plan)
+            }
+
             this.logging.log(`ATX: Successfully built plan tree with ${plan.Root.Children.length} root steps`)
             return plan
         } catch (error) {
             this.logging.error(`ATX: getTransformationPlan error: ${String(error)}`)
             return { Root: createEmptyRootNode() }
+        }
+    }
+
+    /**
+     * Downloads artifacts for completed steps in interactive mode if they don't already exist.
+     */
+    private async downloadCompletedStepArtifacts(
+        workspaceId: string,
+        jobId: string,
+        solutionRootPath: string,
+        plan: AtxTransformationPlan
+    ): Promise<void> {
+        try {
+            const completedSteps = this.findCompletedSteps(plan.Root)
+            this.logging.log(`ATX: Found ${completedSteps.length} completed steps to check for artifacts`)
+
+            for (const step of completedSteps) {
+                const stepCheckpointPath = path.join(
+                    solutionRootPath,
+                    workspaceFolderName,
+                    jobId,
+                    'checkpoints',
+                    step.StepId
+                )
+
+                // Check if the checkpoint folder already exists
+                if (fs.existsSync(stepCheckpointPath)) {
+                    this.logging.log(`ATX: Checkpoint folder already exists for step: ${step.StepId}`)
+                    continue
+                }
+
+                // Download the artifact for this completed step
+                await this.downloadCompletedStepArtifact(workspaceId, jobId, step.StepId, solutionRootPath)
+            }
+        } catch (error) {
+            this.logging.error(`ATX: downloadCompletedStepArtifacts error: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Recursively finds all steps with COMPLETED status in the plan tree.
+     */
+    private findCompletedSteps(step: AtxPlanStep): AtxPlanStep[] {
+        const completedSteps: AtxPlanStep[] = []
+
+        if (step.Status === ('COMPLETED' as PlanStepStatus)) {
+            completedSteps.push(step)
+        }
+
+        for (const child of step.Children) {
+            completedSteps.push(...this.findCompletedSteps(child))
+        }
+
+        return completedSteps
+    }
+
+    /**
+     * Downloads and extracts the artifact for a completed step.
+     */
+    private async downloadCompletedStepArtifact(
+        workspaceId: string,
+        jobId: string,
+        stepId: string,
+        solutionRootPath: string
+    ): Promise<void> {
+        try {
+            this.logging.log(`ATX: Downloading artifact for completed step: ${stepId}`)
+
+            // List artifacts filtered by stepId and CUSTOMER_OUTPUT category
+            const artifacts = await this.listArtifactsForStep(workspaceId, jobId, stepId)
+
+            if (!artifacts || artifacts.length === 0) {
+                this.logging.log(`ATX: No CUSTOMER_OUTPUT artifact found for step: ${stepId}`)
+                return
+            }
+
+            // There should be only one artifact that matches
+            const artifact = artifacts[0]
+            this.logging.log(`ATX: Found artifact ${artifact.artifactId} for step: ${stepId}`)
+
+            // Download and extract the artifact
+            await this.downloadDiffArtifact(workspaceId, jobId, artifact.artifactId, solutionRootPath, stepId)
+        } catch (error) {
+            this.logging.error(`ATX: downloadCompletedStepArtifact error for step ${stepId}: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Lists artifacts filtered by stepId and CUSTOMER_OUTPUT category.
+     */
+    private async listArtifactsForStep(workspaceId: string, jobId: string, stepId: string): Promise<any[] | null> {
+        try {
+            this.logging.log(`ATX: Listing artifacts for step: ${stepId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                this.logging.error('ATX: Failed to initialize client for listArtifactsForStep')
+                return null
+            }
+
+            const command = new ListArtifactsCommand({
+                workspaceId: workspaceId,
+                jobFilter: {
+                    jobId: jobId,
+                    categoryType: 'CUSTOMER_OUTPUT',
+                    planStepId: stepId,
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            this.logging.log(`ATX: Found ${result.artifacts?.length || 0} artifacts for step: ${stepId}`)
+            return result.artifacts || []
+        } catch (error) {
+            this.logging.error(`ATX: listArtifactsForStep error: ${String(error)}`)
+            return null
         }
     }
 

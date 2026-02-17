@@ -111,6 +111,7 @@ export interface AtxStepInformation {
     IsInvalid?: boolean
     InvalidInstruction?: string
     InvalidReason?: string
+    ExpiryTimestampUTC?: string
 }
 
 // ATX Stop Job request
