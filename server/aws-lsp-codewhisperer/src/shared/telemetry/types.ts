@@ -486,6 +486,7 @@ export type MessageResponseErrorEvent = {
     cwsprChatConversationType: ChatConversationType
     enabled?: boolean
     languageServerVersion?: string
+    modelId?: string
 }
 
 export type RunCommandEvent = {
