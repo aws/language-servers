@@ -1529,12 +1529,13 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Recursively finds all steps with COMPLETED status in the plan tree.
+     * Recursively finds all steps with SUCCEEDED status in the plan tree.
      */
     private findCompletedSteps(step: AtxPlanStep): AtxPlanStep[] {
         const completedSteps: AtxPlanStep[] = []
 
-        if (step.Status === ('COMPLETED' as PlanStepStatus)) {
+        // PlanStepStatus uses 'SUCCEEDED' for completed steps (not 'COMPLETED')
+        if (step.Status === 'SUCCEEDED') {
             completedSteps.push(step)
         }
 
