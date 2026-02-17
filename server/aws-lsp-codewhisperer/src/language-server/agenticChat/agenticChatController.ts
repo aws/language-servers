@@ -966,6 +966,11 @@ export class AgenticChatController implements ChatHandlers {
         session.rejectAllDeferredToolExecutions(new ToolApprovalException('Command ignored: new prompt', false))
         await this.#invalidateAllShellCommands(params.tabId, session)
 
+        // Capture the modelId at request time so telemetry always reports the model
+        // that was actually selected in this tab when the request was initiated,
+        // even if the user switches models before the response/error is processed.
+        const requestModelId = session.modelId
+
         const metric = new Metric<CombinedConversationEvent>({
             cwsprChatConversationType: 'AgenticChat',
             experimentName: this.#abTestingAllocation?.experimentName,
@@ -1023,7 +1028,7 @@ export class AgenticChatController implements ChatHandlers {
                     'Cancelled',
                     undefined,
                     undefined,
-                    session.modelId
+                    requestModelId
                 )
             })
             session.setConversationType('AgenticChat')
@@ -1129,7 +1134,8 @@ export class AgenticChatController implements ChatHandlers {
                 metric,
                 triggerContext,
                 isNewConversation,
-                chatResultStream
+                chatResultStream,
+                requestModelId
             )
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
@@ -1164,7 +1170,8 @@ export class AgenticChatController implements ChatHandlers {
                 errorMessageId,
                 params.tabId,
                 metric,
-                session.pairProgrammingMode
+                session.pairProgrammingMode,
+                requestModelId
             )
         }
     }
@@ -3481,7 +3488,8 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         triggerContext: TriggerContext,
         isNewConversation: boolean,
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        requestModelId?: string
     ): Promise<ChatResult> {
         if (!result.success) {
             throw new AgenticChatError(result.error, 'FailedResult')
@@ -3541,7 +3549,7 @@ export class AgenticChatController implements ChatHandlers {
             'Succeeded',
             undefined,
             undefined,
-            session.modelId
+            requestModelId ?? session.modelId
         )
 
         this.#telemetryController.updateTriggerInfo(tabId, {
@@ -3571,7 +3579,8 @@ export class AgenticChatController implements ChatHandlers {
         errorMessageId: string,
         tabId: string,
         metric: Metric<CombinedConversationEvent>,
-        agenticCodingMode: boolean
+        agenticCodingMode: boolean,
+        requestModelId?: string
     ): Promise<ChatResult | ResponseError<ChatResult>> {
         const errorMessage = (getErrorMsg(err) ?? GENERIC_ERROR_MS).replace(/[\r\n]+/g, ' ') // replace new lines with empty space
         const requestID = getRequestID(err) ?? ''
@@ -3584,11 +3593,18 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
         const errorCode = err.code ?? ''
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage, errorCode)
+        await this.#telemetryController.emitAddMessageMetric(
+            tabId,
+            metric.metric,
+            'Failed',
+            errorMessage,
+            errorCode,
+            requestModelId
+        )
 
         // Reset memory bank flag on request error
         const sessionResult = this.#chatSessionManagementService.getSession(tabId)
-        const modelId = sessionResult.success ? sessionResult.data.modelId : undefined
+        const modelId = requestModelId ?? (sessionResult.success ? sessionResult.data.modelId : undefined)
         if (sessionResult.success) {
             sessionResult.data.isMemoryBankGeneration = false
         }
