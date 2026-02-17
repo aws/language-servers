@@ -95,3 +95,14 @@ export interface AtxUploadPlanResponse {
     PlanPath?: string
     ReportPath?: string
 }
+
+export interface AtxUploadPackagesRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    WorkspaceId: string
+    PackagesZipPath?: string | null
+}
+
+export interface AtxUploadPackagesResponse {
+    Success: boolean
+    Message?: string
+}
