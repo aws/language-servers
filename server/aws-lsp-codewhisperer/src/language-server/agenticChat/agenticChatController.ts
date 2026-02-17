@@ -1017,7 +1017,14 @@ export class AgenticChatController implements ChatHandlers {
                 metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
                 metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
                 metric.setDimension('enabled', session.pairProgrammingMode)
-                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
+                await this.#telemetryController.emitAddMessageMetric(
+                    params.tabId,
+                    metric.metric,
+                    'Cancelled',
+                    undefined,
+                    undefined,
+                    session.modelId
+                )
             })
             session.setConversationType('AgenticChat')
 
@@ -3528,7 +3535,14 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatPinnedPromptContextCount: triggerContext.contextInfo.pinnedContextCount.promptContextCount,
             })
         }
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Succeeded')
+        await this.#telemetryController.emitAddMessageMetric(
+            tabId,
+            metric.metric,
+            'Succeeded',
+            undefined,
+            undefined,
+            session.modelId
+        )
 
         this.#telemetryController.updateTriggerInfo(tabId, {
             lastMessageTrigger: {
@@ -3574,6 +3588,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Reset memory bank flag on request error
         const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+        const modelId = sessionResult.success ? sessionResult.data.modelId : undefined
         if (sessionResult.success) {
             sessionResult.data.isMemoryBankGeneration = false
         }
@@ -3596,7 +3611,8 @@ export class AgenticChatController implements ChatHandlers {
                 metric.metric,
                 requestID,
                 err.message,
-                agenticCodingMode
+                agenticCodingMode,
+                modelId
             )
             new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
@@ -3614,7 +3630,8 @@ export class AgenticChatController implements ChatHandlers {
                 metric.metric,
                 requestID,
                 customErrMessage,
-                agenticCodingMode
+                agenticCodingMode,
+                modelId
             )
         } else {
             this.#telemetryController.emitMessageResponseError(
@@ -3622,7 +3639,8 @@ export class AgenticChatController implements ChatHandlers {
                 metric.metric,
                 requestID,
                 errorMessage,
-                agenticCodingMode
+                agenticCodingMode,
+                modelId
             )
         }
 
