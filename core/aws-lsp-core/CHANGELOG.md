@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.21](https://github.com/aws/language-servers/compare/lsp-core/v0.0.20...lsp-core/v0.0.21) (2026-02-17)
+
+
+### Bug Fixes
+
+* **amazonq:** bumping up the language server runtime version ([#2621](https://github.com/aws/language-servers/issues/2621)) ([33c9eba](https://github.com/aws/language-servers/commit/33c9eba1fcc5ab7da5c520842c239e22b2237e4c))
+* **amazonq:** prevent path traversal bypass in agentic chat workspace ([#2612](https://github.com/aws/language-servers/issues/2612)) ([13159f8](https://github.com/aws/language-servers/commit/13159f842e4c50aae03ace586c42085446a50986))
+
 ## [0.0.20](https://github.com/aws/language-servers/compare/lsp-core/v0.0.19...lsp-core/v0.0.20) (2025-12-19)
 
 
