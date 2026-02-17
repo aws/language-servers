@@ -552,6 +552,7 @@ export class TelemetryService {
             hasProjectLevelContext?: number
             agenticCodingMode?: boolean
             result?: string
+            modelId?: string
         },
         additionalParams: Partial<{
             chatTriggerInteraction: string
@@ -638,6 +639,7 @@ export class TelemetryService {
                     userVariation: additionalParams.userVariation,
                     errorMessage: additionalParams.errorMessage,
                     errorCode: additionalParams.errorCode,
+                    modelId: params.modelId,
                 },
             })
         }
