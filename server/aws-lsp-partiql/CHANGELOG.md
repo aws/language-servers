@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.23](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.22...lsp-partiql/v0.0.23) (2026-02-17)
+
+
+### Bug Fixes
+
+* **amazonq:** bumping up the language server runtime version ([#2621](https://github.com/aws/language-servers/issues/2621)) ([33c9eba](https://github.com/aws/language-servers/commit/33c9eba1fcc5ab7da5c520842c239e22b2237e4c))
+
 ## [0.0.22](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.21...lsp-partiql/v0.0.22) (2025-12-19)
 
 
