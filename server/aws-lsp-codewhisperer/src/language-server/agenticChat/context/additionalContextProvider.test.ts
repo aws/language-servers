@@ -20,14 +20,24 @@ describe('AdditionalContextProvider', () => {
     let getContextCommandPromptStub: sinon.SinonStub
     let getContextCommandItemsStub: sinon.SinonStub
     let fsReadDirStub: sinon.SinonStub
+    let fsReadFileStub: sinon.SinonStub
+    let loggingStub: { warn: sinon.SinonStub; debug: sinon.SinonStub }
     let localProjectContextControllerInstanceStub: sinon.SinonStub
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
         fsExistsStub = sinon.stub()
         fsReadDirStub = sinon.stub()
+        fsReadFileStub = sinon.stub()
+        loggingStub = {
+            warn: sinon.stub() as any,
+            debug: sinon.stub() as any,
+        }
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
+        testFeatures.workspace.fs.readFile = fsReadFileStub
+        testFeatures.logging.warn = loggingStub.warn as any
+        testFeatures.logging.debug = loggingStub.debug as any
         testFeatures.chat.sendPinnedContext = sinon.stub()
         getContextCommandPromptStub = sinon.stub().returns([])
         getContextCommandItemsStub = sinon.stub().returns([])
@@ -788,6 +798,330 @@ describe('AdditionalContextProvider', () => {
                 assert.strictEqual(content.includes('Follow this rule'), true)
                 assert.strictEqual(content.includes('File content'), true)
             })
+        })
+    })
+
+    describe('readContextItemsDirectlyFromFilesystem', () => {
+        it('should read rule files directly from filesystem when indexing library is unavailable', async () => {
+            const mockItems: ContextCommandItem[] = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: '.amazonq/rules/rule1.md',
+                    id: '/workspace/.amazonq/rules/rule1.md',
+                },
+            ]
+
+            fsReadFileStub.resolves('Rule content')
+
+            const result = await provider.readContextItemsDirectlyFromFilesystem(mockItems, '/workspace')
+
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].filePath, '/workspace/.amazonq/rules/rule1.md')
+            assert.strictEqual(result[0].relativePath, '.amazonq/rules/rule1.md')
+            assert.strictEqual(result[0].content, 'Rule content')
+            assert.strictEqual(result[0].name, 'rule1')
+            assert.strictEqual(result[0].description, '')
+        })
+
+        it('should skip code and folder context items that require indexing library', async () => {
+            const mockItems: ContextCommandItem[] = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: '.amazonq/rules/rule1.md',
+                    id: '/workspace/.amazonq/rules/rule1.md',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'code',
+                    relativePath: 'src/Main.java',
+                    id: '/workspace/src/Main.java',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'folder',
+                    relativePath: 'src',
+                    id: '/workspace/src',
+                },
+            ]
+
+            fsReadFileStub.resolves('Rule content')
+
+            const result = await provider.readContextItemsDirectlyFromFilesystem(mockItems, '/workspace')
+
+            // Should only read the file item, not code or folder
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].relativePath, '.amazonq/rules/rule1.md')
+        })
+
+        it('should handle file read errors gracefully', async () => {
+            const mockItems: ContextCommandItem[] = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: '.amazonq/rules/rule1.md',
+                    id: '/workspace/.amazonq/rules/rule1.md',
+                },
+            ]
+
+            fsReadFileStub.rejects(new Error('File not found'))
+
+            const result = await provider.readContextItemsDirectlyFromFilesystem(mockItems, '/workspace')
+
+            // Should return empty array when file read fails
+            assert.strictEqual(result.length, 0)
+            sinon.assert.calledOnce(loggingStub.warn)
+        })
+
+        it('should read multiple rule files successfully', async () => {
+            const mockItems: ContextCommandItem[] = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: '.amazonq/rules/rule1.md',
+                    id: '/workspace/.amazonq/rules/rule1.md',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: '.amazonq/rules/rule2.md',
+                    id: '/workspace/.amazonq/rules/rule2.md',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: 'README.md',
+                    id: '/workspace/README.md',
+                },
+            ]
+
+            fsReadFileStub.onCall(0).resolves('Rule 1 content')
+            fsReadFileStub.onCall(1).resolves('Rule 2 content')
+            fsReadFileStub.onCall(2).resolves('README content')
+
+            const result = await provider.readContextItemsDirectlyFromFilesystem(mockItems, '/workspace')
+
+            assert.strictEqual(result.length, 3)
+            assert.strictEqual(result[0].content, 'Rule 1 content')
+            assert.strictEqual(result[1].content, 'Rule 2 content')
+            assert.strictEqual(result[2].content, 'README content')
+        })
+    })
+
+    describe('indexing library caching', () => {
+        it('should cache indexing library as unavailable after first timeout and skip getInstance on subsequent calls', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            // Mock workspace rules
+            fsExistsStub.callsFake((pathStr: string) => pathStr.includes(path.join('.amazonq', 'rules')))
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
+
+            // Mock file read for fallback
+            fsReadFileStub.resolves('Rule content from filesystem')
+
+            // First call: getInstance throws error (simulating timeout)
+            localProjectContextControllerInstanceStub.rejects(new Error('Timeout waiting for indexing library'))
+
+            // First message - should wait and then fallback
+            await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            // Verify getInstance was called on first message
+            sinon.assert.calledOnce(localProjectContextControllerInstanceStub)
+            // Verify fallback to filesystem was used
+            sinon.assert.called(fsReadFileStub)
+            // Verify warning was logged about fallback
+            sinon.assert.calledWith(
+                loggingStub.warn,
+                sinon.match(/Indexing library unavailable after timeout, caching as unavailable/)
+            )
+
+            // Reset call counts
+            localProjectContextControllerInstanceStub.resetHistory()
+            fsReadFileStub.resetHistory()
+            loggingStub.warn.resetHistory()
+
+            // Second message - should skip getInstance and go directly to filesystem
+            await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            // Verify getInstance was NOT called on second message (cached as unavailable)
+            sinon.assert.notCalled(localProjectContextControllerInstanceStub)
+            // Verify filesystem read was used directly
+            sinon.assert.called(fsReadFileStub)
+            // Verify debug log about skipping getInstance
+            sinon.assert.calledWith(
+                loggingStub.debug,
+                'Indexing library previously unavailable, skipping getInstance() and reading from filesystem'
+            )
+        })
+
+        it('should cache indexing library as available after first success and use it on subsequent calls', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            // Mock workspace rules
+            fsExistsStub.callsFake((pathStr: string) => pathStr.includes(path.join('.amazonq', 'rules')))
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
+
+            // Mock successful getInstance
+            getContextCommandPromptStub.resolves([
+                {
+                    name: 'Test Rule',
+                    content: 'Rule content from indexing library',
+                    filePath: '/workspace/.amazonq/rules/rule1.md',
+                    relativePath: '.amazonq/rules/rule1.md',
+                    startLine: -1,
+                    endLine: -1,
+                },
+            ])
+
+            // First message - should call getInstance and cache success
+            await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            // Verify getInstance was called on first message
+            sinon.assert.calledOnce(localProjectContextControllerInstanceStub)
+            // Verify getContextCommandPrompt was called
+            sinon.assert.called(getContextCommandPromptStub)
+            // Verify filesystem fallback was NOT used
+            sinon.assert.notCalled(fsReadFileStub)
+
+            // Reset call counts
+            localProjectContextControllerInstanceStub.resetHistory()
+            getContextCommandPromptStub.resetHistory()
+
+            // Second message - should use getInstance directly (cached as available)
+            await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            // Verify getInstance was called again on second message
+            sinon.assert.calledOnce(localProjectContextControllerInstanceStub)
+            // Verify getContextCommandPrompt was called
+            sinon.assert.called(getContextCommandPromptStub)
+            // Verify filesystem fallback was NOT used
+            sinon.assert.notCalled(fsReadFileStub)
+        })
+
+        it('should handle mixed context types when using filesystem fallback', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            // Mock workspace rules
+            fsExistsStub.callsFake((pathStr: string) => pathStr.includes(path.join('.amazonq', 'rules')))
+            fsReadDirStub.resolves([
+                { name: 'rule1.md', isFile: () => true, isDirectory: () => false },
+                { name: 'rule2.md', isFile: () => true, isDirectory: () => false },
+            ])
+
+            // Mock pinned context with mixed types (file, code, folder)
+            const pinnedContext = [
+                {
+                    id: 'file1',
+                    command: 'File 1',
+                    label: 'file',
+                    route: ['/workspace', 'src/file1.ts'],
+                },
+                {
+                    id: 'code1',
+                    command: 'Code Symbol',
+                    label: 'code',
+                    route: ['/workspace', 'src/Main.java'],
+                },
+                {
+                    id: 'folder1',
+                    command: 'Folder',
+                    label: 'folder',
+                    route: ['/workspace', 'src'],
+                },
+            ]
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
+
+            // Mock file reads for rules and file context
+            fsReadFileStub.onCall(0).resolves('Rule 1 content')
+            fsReadFileStub.onCall(1).resolves('Rule 2 content')
+            fsReadFileStub.onCall(2).resolves('File 1 content')
+
+            // Mock getInstance failure
+            localProjectContextControllerInstanceStub.rejects(new Error('Timeout waiting for indexing library'))
+
+            const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            // Verify filesystem fallback was used
+            sinon.assert.called(fsReadFileStub)
+
+            // Should have rules and file context (but not code or folder since they require indexing library)
+            assert.ok(result.length >= 2) // At least 2 rules
+
+            // Verify debug logs about skipping code/folder context
+            sinon.assert.calledWith(
+                loggingStub.debug,
+                sinon.match(/Skipping code context item \(requires indexing library\)/)
+            )
+            sinon.assert.calledWith(
+                loggingStub.debug,
+                sinon.match(/Skipping folder context item \(requires indexing library\)/)
+            )
+        })
+
+        it('should log success message when indexing library is cached as available on first use', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            // Mock workspace rules
+            fsExistsStub.callsFake((pathStr: string) => pathStr.includes(path.join('.amazonq', 'rules')))
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
+
+            // Mock successful getInstance
+            getContextCommandPromptStub.resolves([
+                {
+                    name: 'Test Rule',
+                    content: 'Rule content',
+                    filePath: '/workspace/.amazonq/rules/rule1.md',
+                    relativePath: '.amazonq/rules/rule1.md',
+                    startLine: -1,
+                    endLine: -1,
+                },
+            ])
+
+            // Add logging.info stub
+            const loggingInfoStub = sinon.stub()
+            testFeatures.logging.info = loggingInfoStub as any
+
+            // First message - should log success
+            await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            // Verify info log about successful initialization
+            sinon.assert.calledWith(
+                loggingInfoStub,
+                'Indexing library successfully initialized and cached as available'
+            )
         })
     })
 
