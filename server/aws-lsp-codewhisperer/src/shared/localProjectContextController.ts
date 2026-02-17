@@ -83,6 +83,19 @@ export class LocalProjectContextController {
         return this._vecLib !== undefined && this._vecLib !== null
     }
 
+    /**
+     * Synchronous check to determine if the LocalProjectContextController singleton has been initialized.
+     * Use this before calling getInstance() to avoid blocking for up to 60 seconds when the
+     * indexing library is unavailable (e.g., when using the bundled LSP which doesn't include
+     * the indexing binary). This prevents unnecessary delays in code paths that can gracefully
+     * degrade without the indexing library.
+     *
+     * @returns true if the singleton instance exists (indexing library loaded successfully)
+     */
+    public static isInitialized(): boolean {
+        return this.instance !== undefined
+    }
+
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {

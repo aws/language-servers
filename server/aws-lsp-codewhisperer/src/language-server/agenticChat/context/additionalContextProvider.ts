@@ -53,6 +53,13 @@ type ContextCommandInfo = ContextCommand & { pinned: boolean }
  */
 export class AdditionalContextProvider {
     private totalRulesCount: number = 0
+    /**
+     * Tracks the availability of the indexing library:
+     * - undefined: Not yet checked (first message will attempt to initialize)
+     * - true: Available and initialized successfully
+     * - false: Unavailable (e.g., bundled LSP missing indexing binary)
+     */
+    private indexingLibraryAvailable: boolean | undefined = undefined
 
     constructor(
         private readonly features: Features,
@@ -211,6 +218,59 @@ export class AdditionalContextProvider {
             }
         }
         return 'file'
+    }
+
+    /**
+     * Reads context items directly from the filesystem without requiring the indexing library.
+     * This is used as a fallback when the indexing library is unavailable (e.g., bundled LSP
+     * that doesn't include the indexing binary due to firewall blocking the LSP download).
+     *
+     * Only file-based context items (rules, prompts, regular files) can be read this way.
+     * Code symbols and folder context require the indexing library and will be skipped.
+     *
+     * @param contextItems - Array of context command items to read
+     * @param workspaceFolderPath - The workspace folder path for resolving relative paths
+     * @returns Array of AdditionalContextPrompt with file contents read directly from disk
+     */
+    async readContextItemsDirectlyFromFilesystem(
+        contextItems: ContextCommandItem[],
+        workspaceFolderPath: string
+    ): Promise<AdditionalContextPrompt[]> {
+        const prompts: AdditionalContextPrompt[] = []
+
+        for (const item of contextItems) {
+            // Only read file-based context items (rules, prompts, regular files).
+            // Code symbols (type === 'code') and folders (type === 'folder') require
+            // the indexing library and cannot be read directly from disk.
+            if (item.type === 'code' || item.type === 'folder') {
+                this.features.logging.debug(
+                    `Skipping ${item.type} context item (requires indexing library): ${item.relativePath}`
+                )
+                continue
+            }
+
+            // Resolve the full file path from the context item
+            const filePath = item.id || path.join(item.workspaceFolder || workspaceFolderPath, item.relativePath)
+
+            try {
+                const content = await this.features.workspace.fs.readFile(filePath, { encoding: 'utf-8' })
+                prompts.push({
+                    filePath: filePath,
+                    relativePath: item.relativePath,
+                    content: content,
+                    name: path.basename(item.relativePath, promptFileExtension),
+                    description: '',
+                    startLine: -1,
+                    endLine: -1,
+                })
+            } catch (error) {
+                this.features.logging.warn(
+                    `Failed to read context file directly from filesystem: ${filePath}: ${error}`
+                )
+            }
+        }
+
+        return prompts
     }
 
     /**
@@ -393,12 +453,62 @@ export class AdditionalContextProvider {
 
         let promptContextPrompts: AdditionalContextPrompt[] = []
         let pinnedContextPrompts: AdditionalContextPrompt[] = []
-        try {
-            const localProjectContextController = await LocalProjectContextController.getInstance()
-            promptContextPrompts = await localProjectContextController.getContextCommandPrompt(promptContextCommands)
-            pinnedContextPrompts = await localProjectContextController.getContextCommandPrompt(pinnedContextCommands)
-        } catch (error) {
-            // do nothing
+
+        /**
+         * Caching strategy for indexing library availability:
+         * 1. First message (indexingLibraryAvailable === undefined): Try getInstance() with 60s timeout
+         *    - If successful: Cache as available (true) for instant future access
+         *    - If failed: Cache as unavailable (false) to skip future waits
+         * 2. Subsequent messages when cached as unavailable (false): Skip directly to filesystem read
+         * 3. Subsequent messages when cached as available (true): Use getInstance() instantly
+         *
+         * This ensures only the FIRST message experiences the 60-second wait when the indexing
+         * library is missing (e.g., bundled LSP without indexing binary due to firewall).
+         */
+        if (this.indexingLibraryAvailable === false) {
+            // Indexing library was previously determined to be unavailable.
+            // Skip getInstance() entirely and read directly from filesystem.
+            this.features.logging.debug(
+                'Indexing library previously unavailable, skipping getInstance() and reading from filesystem'
+            )
+            promptContextPrompts = await this.readContextItemsDirectlyFromFilesystem(
+                promptContextCommands,
+                workspaceFolderPath
+            )
+            pinnedContextPrompts = await this.readContextItemsDirectlyFromFilesystem(
+                pinnedContextCommands,
+                workspaceFolderPath
+            )
+        } else {
+            // Either first attempt (undefined) or library is known to be available (true)
+            try {
+                const localProjectContextController = await LocalProjectContextController.getInstance()
+                promptContextPrompts =
+                    await localProjectContextController.getContextCommandPrompt(promptContextCommands)
+                pinnedContextPrompts =
+                    await localProjectContextController.getContextCommandPrompt(pinnedContextCommands)
+
+                // Cache success: getInstance() worked, library is available
+                if (this.indexingLibraryAvailable === undefined) {
+                    this.indexingLibraryAvailable = true
+                    this.features.logging.info('Indexing library successfully initialized and cached as available')
+                }
+            } catch (error) {
+                // Indexing library failed to initialize after 60-second timeout.
+                // Cache failure to prevent future waits, then fall back to filesystem read.
+                this.indexingLibraryAvailable = false
+                this.features.logging.warn(
+                    `Indexing library unavailable after timeout, caching as unavailable and falling back to filesystem read: ${error}`
+                )
+                promptContextPrompts = await this.readContextItemsDirectlyFromFilesystem(
+                    promptContextCommands,
+                    workspaceFolderPath
+                )
+                pinnedContextPrompts = await this.readContextItemsDirectlyFromFilesystem(
+                    pinnedContextCommands,
+                    workspaceFolderPath
+                )
+            }
         }
 
         const contextEntry: AdditionalContentEntryAddition[] = []

@@ -479,10 +479,17 @@ export class AgenticChatController implements ChatHandlers {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
             await this.#features.workspace.fs.rm(input.path)
-            void LocalProjectContextController.getInstance().then(controller => {
-                const filePath = URI.file(input.path).fsPath
-                return controller.updateIndexAndContextCommand([filePath], false)
-            })
+            // Add .catch() to prevent unhandled promise rejection crash
+            void LocalProjectContextController.getInstance()
+                .then(controller => {
+                    const filePath = URI.file(input.path).fsPath
+                    return controller.updateIndexAndContextCommand([filePath], false)
+                })
+                .catch(error => {
+                    this.#log(
+                        `Failed to update index after file deletion (indexing library may be unavailable): ${error}`
+                    )
+                })
         }
     }
 
@@ -3905,17 +3912,42 @@ export class AgenticChatController implements ChatHandlers {
     onLinkClick() {}
 
     /**
-     * After the Chat UI (mynah-ui) is ready.
+     * Called after the Chat UI (mynah-ui) is ready.
+     *
+     * Uses isInitialized() check to avoid calling getInstance() when the indexing
+     * library is unavailable. Previously, getInstance() would block for 60 seconds and then
+     * throw an unhandled promise rejection that crashed the entire LSP process, causing:
+     * - runtime_processCrash telemetry event
+     * - "Connection to server got closed. Server will restart."
+     * - Chat session permanently stuck in "Working..." state
+     *
      */
     async onReady() {
         await this.restorePreviousChats()
         this.#contextCommandsProvider.onReady()
+
+        // Guard against the 60-second getInstance() timeout when indexing library is unavailable.
+        // Without this check, the unguarded promise rejection crashes the LSP process.
+        if (!LocalProjectContextController.isInitialized()) {
+            this.#log(
+                'Indexing library not initialized — skipping context command initialization. ' +
+                    'Code symbols and folder context will be unavailable. ' +
+                    'This typically occurs when using the bundled LSP (firewall blocking LSP download).'
+            )
+            this.#contextCommandsProvider.setFilesAndFoldersFailed(true)
+            await this.#contextCommandsProvider.processContextCommandUpdate([])
+            return
+        }
+
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
             this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
-            void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+            // Add .catch() to prevent unhandled promise rejection
+            void this.#contextCommandsProvider.maybeUpdateCodeSymbols().catch(error => {
+                this.#log(`Error updating code symbols (non-critical, indexing library may be unavailable): ${error}`)
+            })
         } catch (error) {
             this.#contextCommandsProvider.setFilesAndFoldersFailed(true)
             await this.#contextCommandsProvider.processContextCommandUpdate([])
