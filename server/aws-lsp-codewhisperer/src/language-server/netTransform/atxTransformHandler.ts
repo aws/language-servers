@@ -991,6 +991,11 @@ export class ATXTransformHandler {
                     request.SolutionRootPath
                 )
 
+                // If GetCheckpoints is requested, populate HasCheckpoint field on steps
+                if (request.GetCheckpoints) {
+                    this.populateCheckpointsOnPlan(plan, request.TransformationJobId, request.SolutionRootPath)
+                }
+
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -1303,6 +1308,61 @@ export class ATXTransformHandler {
         }
     }
 
+    /**
+     * Populates HasCheckpoint field on plan steps based on checkpoint-settings.json or defaults to true.
+     */
+    private populateCheckpointsOnPlan(plan: AtxTransformationPlan, jobId: string, solutionRootPath: string): void {
+        try {
+            const checkpointSettingsPath = path.join(
+                solutionRootPath,
+                workspaceFolderName,
+                jobId,
+                'checkpoints',
+                'checkpoint-settings.json'
+            )
+
+            let checkpointSettings: Record<string, boolean> | null = null
+
+            // Check if checkpoint-settings.json exists
+            if (fs.existsSync(checkpointSettingsPath)) {
+                try {
+                    const fileContent = fs.readFileSync(checkpointSettingsPath, 'utf-8')
+                    checkpointSettings = JSON.parse(fileContent)
+                    this.logging.log(`ATX: Loaded checkpoint settings from ${checkpointSettingsPath}`)
+                } catch (e) {
+                    this.logging.error(`ATX: Failed to parse checkpoint-settings.json: ${String(e)}`)
+                }
+            } else {
+                this.logging.log('ATX: No checkpoint-settings.json found, defaulting all steps to HasCheckpoint=true')
+            }
+
+            // Recursively set HasCheckpoint on all steps
+            this.setCheckpointsOnSteps(plan.Root, checkpointSettings)
+        } catch (error) {
+            this.logging.error(`ATX: populateCheckpointsOnPlan error: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Recursively sets HasCheckpoint on steps based on settings or defaults to true.
+     */
+    private setCheckpointsOnSteps(step: AtxPlanStep, settings: Record<string, boolean> | null): void {
+        // Skip the root node
+        if (step.StepId !== 'root') {
+            if (settings && settings[step.StepId] !== undefined) {
+                step.HasCheckpoint = settings[step.StepId]
+            } else {
+                // Default to true if no settings file or step not in settings
+                step.HasCheckpoint = true
+            }
+        }
+
+        // Recursively process children
+        for (const child of step.Children) {
+            this.setCheckpointsOnSteps(child, settings)
+        }
+    }
+
     async uploadPlan(request: AtxUploadPlanRequest): Promise<AtxUploadPlanResponse | null> {
         this.logging.log('ATX: Starting upload plan')
 
@@ -1493,7 +1553,8 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Downloads artifacts for completed steps in interactive mode if they don't already exist.
+     * Downloads artifacts for completed steps in interactive mode if they don't already exist,
+     * then applies the changes in order, tracking progress in checkpoints-applied.json.
      */
     private async downloadCompletedStepArtifacts(
         workspaceId: string,
@@ -1503,7 +1564,14 @@ export class ATXTransformHandler {
     ): Promise<void> {
         try {
             const completedSteps = this.findCompletedSteps(plan.Root)
+
+            // Sort by score to ensure correct application order
+            completedSteps.sort((a, b) => (a.score || 0) - (b.score || 0))
+
             this.logging.log(`ATX: Found ${completedSteps.length} completed steps to check for artifacts`)
+
+            // Load the list of already applied steps
+            const appliedSteps = this.loadAppliedCheckpoints(solutionRootPath, jobId)
 
             for (const step of completedSteps) {
                 const stepCheckpointPath = path.join(
@@ -1515,13 +1583,31 @@ export class ATXTransformHandler {
                 )
 
                 // Check if the checkpoint folder already exists
-                if (fs.existsSync(stepCheckpointPath)) {
-                    this.logging.log(`ATX: Checkpoint folder already exists for step: ${step.StepId}`)
-                    continue
+                if (!fs.existsSync(stepCheckpointPath)) {
+                    // Download the artifact for this completed step
+                    await this.downloadCompletedStepArtifact(workspaceId, jobId, step.StepId, solutionRootPath)
                 }
 
-                // Download the artifact for this completed step
-                await this.downloadCompletedStepArtifact(workspaceId, jobId, step.StepId, solutionRootPath)
+                // Apply changes if not already applied
+                if (!appliedSteps.includes(step.StepId)) {
+                    // Check if checkpoint folder exists after download attempt
+                    if (fs.existsSync(stepCheckpointPath)) {
+                        const result = await this.applyChanges(stepCheckpointPath, solutionRootPath)
+                        if (result.success) {
+                            // Mark this step as applied
+                            this.saveAppliedCheckpoint(solutionRootPath, jobId, step.StepId)
+                            this.logging.log(`ATX: Applied changes for step: ${step.StepId}`)
+                        } else {
+                            this.logging.error(`ATX: Failed to apply changes for step ${step.StepId}: ${result.error}`)
+                        }
+                    } else {
+                        this.logging.log(
+                            `ATX: Checkpoint folder not available for step: ${step.StepId}, skipping apply`
+                        )
+                    }
+                } else {
+                    this.logging.log(`ATX: Changes already applied for step: ${step.StepId}`)
+                }
             }
         } catch (error) {
             this.logging.error(`ATX: downloadCompletedStepArtifacts error: ${String(error)}`)
@@ -1529,16 +1615,78 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Recursively finds all steps with SUCCEEDED status in the plan tree.
+     * Loads the list of step IDs that have already had their changes applied.
      */
-    private findCompletedSteps(step: AtxPlanStep): AtxPlanStep[] {
-        const completedSteps: AtxPlanStep[] = []
+    private loadAppliedCheckpoints(solutionRootPath: string, jobId: string): string[] {
+        try {
+            const appliedPath = path.join(
+                solutionRootPath,
+                workspaceFolderName,
+                jobId,
+                'checkpoints',
+                'checkpoints-applied.json'
+            )
+
+            if (fs.existsSync(appliedPath)) {
+                const content = fs.readFileSync(appliedPath, 'utf-8')
+                const data = JSON.parse(content)
+                return data.appliedSteps || []
+            }
+
+            return []
+        } catch (error) {
+            this.logging.error(`ATX: loadAppliedCheckpoints error: ${String(error)}`)
+            return []
+        }
+    }
+
+    /**
+     * Saves a step ID to the list of applied checkpoints.
+     */
+    private saveAppliedCheckpoint(solutionRootPath: string, jobId: string, stepId: string): void {
+        try {
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            const appliedPath = path.join(checkpointsDir, 'checkpoints-applied.json')
+
+            // Ensure directory exists
+            if (!fs.existsSync(checkpointsDir)) {
+                fs.mkdirSync(checkpointsDir, { recursive: true })
+            }
+
+            // Load existing data or create new
+            let data: { appliedSteps: string[] } = { appliedSteps: [] }
+            if (fs.existsSync(appliedPath)) {
+                const content = fs.readFileSync(appliedPath, 'utf-8')
+                data = JSON.parse(content)
+            }
+
+            // Add step if not already present
+            if (!data.appliedSteps.includes(stepId)) {
+                data.appliedSteps.push(stepId)
+            }
+
+            // Save back to file
+            fs.writeFileSync(appliedPath, JSON.stringify(data, null, 2))
+            this.logging.log(`ATX: Saved applied checkpoint: ${stepId}`)
+        } catch (error) {
+            this.logging.error(`ATX: saveAppliedCheckpoint error: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Recursively finds all leaf steps with SUCCEEDED status in the plan tree.
+     * Returns steps sorted by their score to ensure correct application order.
+     */
+    private findCompletedSteps(step: AtxPlanStep): (AtxPlanStep & { score?: number })[] {
+        const completedSteps: (AtxPlanStep & { score?: number })[] = []
 
         // PlanStepStatus uses 'SUCCEEDED' for completed steps (not 'COMPLETED')
-        if (step.Status === 'SUCCEEDED') {
+        // Only add leaf steps (steps without children) as those are the actual checkpoints
+        if (step.Status === 'SUCCEEDED' && step.Children.length === 0) {
             completedSteps.push(step)
         }
 
+        // Process children
         for (const child of step.Children) {
             completedSteps.push(...this.findCompletedSteps(child))
         }
@@ -2094,6 +2242,138 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: SubmitStandardHitl error: ${String(error)}`)
             return null
+        }
+    }
+
+    /**
+     * Apply changes from a checkpoint folder to the solution root.
+     * Reads metadata.json and applies file additions, removals, updates, and moves.
+     */
+    private async applyChanges(
+        checkpointFolderPath: string,
+        solutionRootPath: string
+    ): Promise<{
+        success: boolean
+        error?: string
+        filesAdded?: number
+        filesRemoved?: number
+        filesUpdated?: number
+        filesMoved?: number
+    }> {
+        try {
+            this.logging.log(`ATX: Starting applyChanges from ${checkpointFolderPath} to ${solutionRootPath}`)
+
+            // Read metadata.json from checkpoint folder
+            const metadataPath = path.join(checkpointFolderPath, 'metadata.json')
+            if (!fs.existsSync(metadataPath)) {
+                return { success: false, error: `metadata.json not found at ${metadataPath}` }
+            }
+
+            const metadataContent = fs.readFileSync(metadataPath, 'utf-8')
+            const metadata = JSON.parse(metadataContent)
+
+            const filesAdded = metadata.filesAdded || []
+            const filesRemoved = metadata.filesRemoved || []
+            const filesUpdated = metadata.filesUpdated || []
+            const movedFilesMap = metadata.movedFilesMap || []
+
+            let addedCount = 0
+            let removedCount = 0
+            let updatedCount = 0
+            let movedCount = 0
+
+            // Handle filesAdded: Copy from {checkpointFolder}/after/{relativePath} to {solutionRootPath}/{relativePath}
+            for (const relativePath of filesAdded) {
+                try {
+                    const sourcePath = path.join(checkpointFolderPath, 'after', relativePath)
+                    const destPath = path.join(solutionRootPath, relativePath)
+
+                    // Ensure destination directory exists
+                    const destDir = path.dirname(destPath)
+                    if (!fs.existsSync(destDir)) {
+                        fs.mkdirSync(destDir, { recursive: true })
+                    }
+
+                    fs.copyFileSync(sourcePath, destPath)
+                    addedCount++
+                    this.logging.log(`ATX: Added file: ${relativePath}`)
+                } catch (e) {
+                    this.logging.error(`ATX: Failed to add file ${relativePath}: ${String(e)}`)
+                }
+            }
+
+            // Handle filesRemoved: Delete file at {solutionRootPath}/{relativePath}
+            for (const relativePath of filesRemoved) {
+                try {
+                    const filePath = path.join(solutionRootPath, relativePath)
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath)
+                        removedCount++
+                        this.logging.log(`ATX: Removed file: ${relativePath}`)
+                    }
+                } catch (e) {
+                    this.logging.error(`ATX: Failed to remove file ${relativePath}: ${String(e)}`)
+                }
+            }
+
+            // Handle filesUpdated: Copy from {checkpointFolder}/after/{relativePath} to {solutionRootPath}/{relativePath}
+            for (const relativePath of filesUpdated) {
+                try {
+                    const sourcePath = path.join(checkpointFolderPath, 'after', relativePath)
+                    const destPath = path.join(solutionRootPath, relativePath)
+
+                    // Ensure destination directory exists
+                    const destDir = path.dirname(destPath)
+                    if (!fs.existsSync(destDir)) {
+                        fs.mkdirSync(destDir, { recursive: true })
+                    }
+
+                    fs.copyFileSync(sourcePath, destPath)
+                    updatedCount++
+                    this.logging.log(`ATX: Updated file: ${relativePath}`)
+                } catch (e) {
+                    this.logging.error(`ATX: Failed to update file ${relativePath}: ${String(e)}`)
+                }
+            }
+
+            // Handle filesMoved: Use movedFilesMap to copy content from before to after location, delete before file
+            for (const mapping of movedFilesMap) {
+                try {
+                    const beforePath = path.join(solutionRootPath, mapping.before)
+                    const afterPath = path.join(solutionRootPath, mapping.after)
+
+                    // Ensure destination directory exists
+                    const afterDir = path.dirname(afterPath)
+                    if (!fs.existsSync(afterDir)) {
+                        fs.mkdirSync(afterDir, { recursive: true })
+                    }
+
+                    // Copy content from before to after
+                    if (fs.existsSync(beforePath)) {
+                        fs.copyFileSync(beforePath, afterPath)
+                        // Delete the before file
+                        fs.unlinkSync(beforePath)
+                        movedCount++
+                        this.logging.log(`ATX: Moved file: ${mapping.before} -> ${mapping.after}`)
+                    }
+                } catch (e) {
+                    this.logging.error(`ATX: Failed to move file ${mapping.before} -> ${mapping.after}: ${String(e)}`)
+                }
+            }
+
+            this.logging.log(
+                `ATX: applyChanges completed - Added: ${addedCount}, Removed: ${removedCount}, Updated: ${updatedCount}, Moved: ${movedCount}`
+            )
+            return {
+                success: true,
+                filesAdded: addedCount,
+                filesRemoved: removedCount,
+                filesUpdated: updatedCount,
+                filesMoved: movedCount,
+            }
+        } catch (error) {
+            this.logging.error(`ATX: applyChanges error: ${String(error)}`)
+            return { success: false, error: String(error) }
         }
     }
 }

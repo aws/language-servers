@@ -15,6 +15,7 @@ export interface AtxPlanStep {
     Description: string
     Status: PlanStepStatus
     Children: AtxPlanStep[]
+    HasCheckpoint?: boolean
 }
 
 /**
@@ -88,6 +89,7 @@ export interface AtxGetTransformInfoRequest extends ExecuteCommandParams {
     TransformationJobId: string
     WorkspaceId: string
     SolutionRootPath: string
+    GetCheckpoints?: boolean
 }
 
 export interface AtxGetTransformInfoResponse {
@@ -158,4 +160,18 @@ export interface AtxCheckpointActionRequest extends ExecuteCommandParams {
 export interface AtxCheckpointActionResponse {
     Success: boolean
     Error?: string | null
+}
+
+// Metadata JSON structure for checkpoint changes (used by applyChanges helper)
+export interface AtxCheckpointMetadata {
+    filesAdded: string[]
+    filesRemoved: string[]
+    filesUpdated: string[]
+    filesMoved: string[]
+    movedFilesMap: AtxMovedFileMapping[]
+}
+
+export interface AtxMovedFileMapping {
+    before: string
+    after: string
 }
