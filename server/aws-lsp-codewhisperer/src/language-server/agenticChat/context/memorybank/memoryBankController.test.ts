@@ -31,6 +31,7 @@ describe('MemoryBankController', () => {
             info: sinon.stub(),
             error: sinon.stub(),
             warn: sinon.stub(),
+            debug: sinon.stub(),
         }
 
         mockFeatures = {
@@ -205,43 +206,54 @@ describe('MemoryBankController', () => {
     describe('memoryBankExists', () => {
         const workspaceFolder = '/test/workspace'
 
-        it('should return false if memory bank directory does not exist', async () => {
+        it('should return false if no memory bank files exist', async () => {
+            // All 4 file checks return false
             mockFs.exists.resolves(false)
 
             const result = await controller.memoryBankExists(workspaceFolder)
 
             assert.strictEqual(result, false)
-            sinon.assert.calledOnce(mockFs.exists)
+            // Should check all 4 files directly (no directory check)
+            assert.strictEqual(mockFs.exists.callCount, 4)
         })
 
-        it('should return false if directory exists but no files exist', async () => {
-            mockFs.exists.onFirstCall().resolves(true) // directory exists
-            mockFs.exists.onSecondCall().resolves(false) // product.md doesn't exist
-            mockFs.exists.onThirdCall().resolves(false) // structure.md doesn't exist
-            mockFs.exists.onCall(3).resolves(false) // tech.md doesn't exist
-            mockFs.exists.onCall(4).resolves(false) // guidelines.md doesn't exist
-
-            const result = await controller.memoryBankExists(workspaceFolder)
-
-            assert.strictEqual(result, false)
-        })
-
-        it('should return true if directory exists and at least one file exists', async () => {
-            mockFs.exists.onFirstCall().resolves(true) // directory exists
-            mockFs.exists.onSecondCall().resolves(true) // product.md exists
+        it('should return true if at least one memory bank file exists', async () => {
+            mockFs.exists.onFirstCall().resolves(true) // product.md exists
+            mockFs.exists.onSecondCall().resolves(false) // structure.md doesn't exist
+            mockFs.exists.onThirdCall().resolves(false) // tech.md doesn't exist
+            mockFs.exists.onCall(3).resolves(false) // guidelines.md doesn't exist
 
             const result = await controller.memoryBankExists(workspaceFolder)
 
             assert.strictEqual(result, true)
         })
 
-        it('should handle filesystem errors gracefully', async () => {
+        it('should return true if all memory bank files exist', async () => {
+            mockFs.exists.resolves(true) // all files exist
+
+            const result = await controller.memoryBankExists(workspaceFolder)
+
+            assert.strictEqual(result, true)
+            assert.strictEqual(mockFs.exists.callCount, 4)
+        })
+
+        it('should handle individual file check errors gracefully and continue checking', async () => {
+            mockFs.exists.onFirstCall().rejects(new Error('File system error')) // product.md check fails
+            mockFs.exists.onSecondCall().resolves(true) // structure.md exists
+            mockFs.exists.onThirdCall().resolves(false) // tech.md doesn't exist
+            mockFs.exists.onCall(3).resolves(false) // guidelines.md doesn't exist
+
+            const result = await controller.memoryBankExists(workspaceFolder)
+
+            assert.strictEqual(result, true) // Found structure.md despite product.md error
+        })
+
+        it('should handle complete filesystem errors gracefully', async () => {
             mockFs.exists.rejects(new Error('File system error'))
 
             const result = await controller.memoryBankExists(workspaceFolder)
 
             assert.strictEqual(result, false)
-            sinon.assert.calledOnce(mockLogging.error)
         })
     })
 })
