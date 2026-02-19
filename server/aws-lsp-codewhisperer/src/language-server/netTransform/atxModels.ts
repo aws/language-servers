@@ -51,6 +51,7 @@ export interface AtxStartTransformRequest extends ExecuteCommandParams {
     WorkspaceId: string
     JobName?: string
     StartTransformRequest: object // Original RTS-style request for ZIP creation
+    IncludeMissingPackageAnalysis?: boolean
 }
 
 export interface AtxStartTransformResponse {

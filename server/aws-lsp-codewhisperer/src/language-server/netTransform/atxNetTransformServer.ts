@@ -38,7 +38,8 @@ export const AtxNetTransformServerToken =
                         return result
                     }
                     case AtxStartTransformCommand: {
-                        const { WorkspaceId, JobName, StartTransformRequest } = params as AtxStartTransformRequest
+                        const { WorkspaceId, JobName, StartTransformRequest, IncludeMissingPackageAnalysis } =
+                            params as AtxStartTransformRequest
 
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
@@ -48,6 +49,7 @@ export const AtxNetTransformServerToken =
                             workspaceId: WorkspaceId,
                             jobName: JobName,
                             startTransformRequest: StartTransformRequest,
+                            includeMissingPackageAnalysis: IncludeMissingPackageAnalysis ?? false,
                         })
 
                         if (!result) {

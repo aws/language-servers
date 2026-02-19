@@ -41,9 +41,9 @@ export class ArtifactManager {
         this.solutionRootPath = solutionRootPath
     }
 
-    async createZip(request: StartTransformRequest): Promise<string> {
+    async createZip(request: StartTransformRequest, includeMissingPackageAnalysis: boolean = false): Promise<string> {
         // Requirements.json contains project metadata
-        const requirementJson = await this.createRequirementJsonContent(request)
+        const requirementJson = await this.createRequirementJsonContent(request, includeMissingPackageAnalysis)
         await this.writeRequirementJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
 
         // Transformation preferences contains user intent for the transformation type
@@ -162,7 +162,10 @@ export class ArtifactManager {
         await this.copyFile(filePath, this.getWorkspaceCodePathFromRelativePath(relativePath))
     }
 
-    async createRequirementJsonContent(request: StartTransformRequest): Promise<RequirementJson> {
+    async createRequirementJsonContent(
+        request: StartTransformRequest,
+        includeMissingPackageAnalysis: boolean = false
+    ): Promise<RequirementJson> {
         const projects: Project[] = []
         for (const project of request.ProjectMetadata) {
             const sourceCodeFilePaths = project.SourceCodeFilePaths.filter(filePath => filePath)
@@ -246,6 +249,7 @@ export class ArtifactManager {
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
+            IncludeMissingPackageAnalysis: includeMissingPackageAnalysis,
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),
