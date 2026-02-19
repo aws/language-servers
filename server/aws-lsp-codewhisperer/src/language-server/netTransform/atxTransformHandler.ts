@@ -822,11 +822,13 @@ export class ATXTransformHandler {
 
             const hitls = await this.listHitls(workspaceId, jobId)
 
-            if (hitls && hitls.length != 1) {
+            if (!hitls || hitls.length === 0) {
+                this.logging.log(`ATX: No hitls available`)
+                return null
+            }
+
+            if (hitls.length != 1) {
                 this.logging.log(`ATX: Found ${hitls.length} hitls (expected 1)`)
-            } else if (!hitls) {
-                this.logging.error(`ATX: No hitls available for download`)
-                throw new Error('no or many HITLE_FROM_USER artifacts available for download (expects 1 artifact)')
             }
 
             const hitl = hitls[0]
@@ -946,6 +948,11 @@ export class ATXTransformHandler {
                     request.WorkspaceId,
                     request.TransformationJobId,
                     request.SolutionRootPath
+                )
+
+                this.logging.log(`ATX: HITL full response: ${JSON.stringify(response)}`)
+                this.logging.log(
+                    `ATX: HITL response - HitlTag: ${response?.HitlTag}, MissingPackageJsonPath: ${response?.MissingPackageJsonPath}`
                 )
 
                 return {
