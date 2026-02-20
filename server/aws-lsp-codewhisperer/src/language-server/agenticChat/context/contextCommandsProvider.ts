@@ -39,7 +39,24 @@ export class ContextCommandsProvider implements Disposable {
         }
     }
 
+    /**
+     * Registers handlers for context command updates from the indexing library.
+     *
+     * Added isInitialized() check to avoid calling getInstance() when the indexing
+     * library is unavailable. This prevents 60-second timeouts and unhandled promise
+     * rejections that can crash the LSP process.
+     *
+     */
     private async registerContextCommandHandler() {
+        // Guard against the 60-second getInstance() timeout when indexing library is unavailable
+        if (!LocalProjectContextController.isInitialized()) {
+            this.logging.info(
+                'Indexing library not initialized — skipping context command handler registration. ' +
+                    'Code symbols and folder context will be unavailable.'
+            )
+            return
+        }
+
         try {
             const controller = await LocalProjectContextController.getInstance()
             controller.onContextItemsUpdated = async contextItems => {

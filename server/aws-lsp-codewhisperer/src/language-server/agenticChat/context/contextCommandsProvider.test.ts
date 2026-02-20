@@ -118,6 +118,7 @@ describe('ContextCommandsProvider', () => {
             }
 
             const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+            sinon.stub(LocalProjectContextController, 'isInitialized').returns(true)
             ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves(mockController as any)
 
             // Set initial state to false so condition is met
