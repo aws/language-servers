@@ -57,11 +57,8 @@ export class FsReplace {
         }
     }
 
-    public async requiresAcceptance(
-        params: FsReplaceParams,
-        approvedPaths?: Map<string, Set<string>>
-    ): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, 'fsReplace', this.workspace, this.logging, approvedPaths)
+    public async requiresAcceptance(params: FsReplaceParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
     private async handleReplace(params: ReplaceParams, sanitizedPath: string): Promise<void> {
