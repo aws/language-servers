@@ -18,6 +18,7 @@ export class LspClient {
     constructor(runtimeFile: string) {
         this.process = spawn('node', [runtimeFile, '--stdio'], {
             stdio: ['pipe', 'pipe', 'pipe'],
+            env: process.env, // Pass environment variables to LSP server
         })
 
         this.process.stdout.on('data', (data: Buffer) => {
