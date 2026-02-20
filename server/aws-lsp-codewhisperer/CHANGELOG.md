@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.107](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.106...lsp-codewhisperer/v0.0.107) (2026-02-20)
+
+
+### Bug Fixes
+
+* add proxy support for ATX Transform using sdkInitializator ([#2619](https://github.com/aws/language-servers/issues/2619)) ([83d3bc9](https://github.com/aws/language-servers/commit/83d3bc9dd8f2d58dc44ca59a4daa6176b569024f))
+
+
+### Reverts
+
+* fix for tool permissions in allowed paths per tool ([#2601](https://github.com/aws/language-servers/issues/2601)) ([#2615](https://github.com/aws/language-servers/issues/2615)) ([7b62151](https://github.com/aws/language-servers/commit/7b62151acd4908073fe8b369f1a3e9ca1ba0be9e))
+
 ## [0.0.106](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.105...lsp-codewhisperer/v0.0.106) (2026-02-17)
 
 
