@@ -176,7 +176,15 @@ export class ChatController implements ChatHandlers {
                 (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')
             ) {
                 metric.setDimension('cwsprChatRepsonseCode', err.$metadata.httpStatusCode ?? 400)
-                this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
+                const modelId = session.modelId
+                this.#telemetryController.emitMessageResponseError(
+                    params.tabId,
+                    metric.metric,
+                    undefined,
+                    undefined,
+                    undefined,
+                    modelId
+                )
             }
 
             const authFollowType = getAuthFollowUpType(err)
@@ -223,7 +231,14 @@ export class ChatController implements ChatHandlers {
             }
 
             metric.setDimension('codewhispererCustomizationArn', requestInput.conversationState?.customizationArn)
-            await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
+            await this.#telemetryController.emitAddMessageMetric(
+                params.tabId,
+                metric.metric,
+                undefined,
+                undefined,
+                undefined,
+                session.modelId
+            )
 
             this.#telemetryController.updateTriggerInfo(params.tabId, {
                 lastMessageTrigger: {
