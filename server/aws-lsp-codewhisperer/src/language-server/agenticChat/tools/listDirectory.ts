@@ -53,9 +53,9 @@ export class ListDirectory {
 
     public async requiresAcceptance(
         params: ListDirectoryParams,
-        approvedPaths?: Map<string, Set<string>>
+        approvedPaths?: Set<string>
     ): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, 'listDirectory', this.workspace, this.logging, approvedPaths)
+        return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
