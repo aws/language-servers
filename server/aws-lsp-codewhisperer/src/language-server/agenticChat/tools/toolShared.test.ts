@@ -11,39 +11,39 @@ import { Context } from 'mocha'
 describe('toolShared', () => {
     describe('isPathApproved', () => {
         it('should return false if approvedPaths is undefined', () => {
-            assert.strictEqual(isPathApproved('/test/path', 'testTool', undefined), false)
+            assert.strictEqual(isPathApproved('/test/path', undefined), false)
         })
 
         it('should return false if approvedPaths is empty', () => {
-            assert.strictEqual(isPathApproved('/test/path', 'testTool', new Map()), false)
+            assert.strictEqual(isPathApproved('/test/path', new Set()), false)
         })
 
-        it('should return true if the exact path is approved for the specific tool', () => {
-            const approvedPaths = new Map([['testTool', new Set(['/test/path'])]])
+        it('should return true if the exact path is in approved paths', () => {
+            const approvedPaths = new Set(['/test/path'])
             const filePath = '/test/path'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should return true if a path is a parent folder', () => {
-            const approvedPaths = new Map([['testTool', new Set(['/test'])]])
+            const approvedPaths = new Set(['/test'])
             const filePath = '/test/path/file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should handle paths with trailing slashes', () => {
-            const approvedPaths = new Map([['testTool', new Set(['/test/'])]])
+            const approvedPaths = new Set(['/test/'])
             const filePath = '/test/path/file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should handle paths without trailing slashes', () => {
-            const approvedPaths = new Map([['testTool', new Set(['/test'])]])
+            const approvedPaths = new Set(['/test'])
             const filePath = '/test/path/file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should normalize Windows-style paths', function (this: Context) {
@@ -53,45 +53,45 @@ describe('toolShared', () => {
                 return
             }
 
-            const approvedPaths = new Map([['testTool', new Set(['C:/test'])]])
+            const approvedPaths = new Set(['C:/test'])
             const filePath = 'C:\\test\\path\\file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should match normalized paths with different trailing slashes', () => {
             // Test with trailing slash in approvedPaths but not in filePath
-            const approvedPaths = new Map([['testTool', new Set(['/test/path/'])]])
+            const approvedPaths = new Set(['/test/path/'])
             const filePath = '/test/path'
 
             // For this test, we need to manually add both paths to the Set
             // since the function doesn't automatically normalize trailing slashes for exact matches
-            approvedPaths.get('testTool')?.add('/test/path')
+            approvedPaths.add('/test/path')
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
 
             // Test with trailing slash in filePath but not in approvedPaths
-            const approvedPaths2 = new Map([['testTool', new Set(['/test/path'])]])
+            const approvedPaths2 = new Set(['/test/path'])
             const filePath2 = '/test/path/'
 
             // For this test, we need to manually add both paths to the Set
-            approvedPaths2.get('testTool')!.add('/test/path/')
+            approvedPaths2.add('/test/path/')
 
-            assert.strictEqual(isPathApproved(filePath2, 'testTool', approvedPaths2), true)
+            assert.strictEqual(isPathApproved(filePath2, approvedPaths2), true)
         })
 
         it('should work with multiple approved paths', () => {
-            const approvedPaths = new Map([['testTool', new Set(['/path1', '/path2', '/path3/subdir'])]])
+            const approvedPaths = new Set(['/path1', '/path2', '/path3/subdir'])
             const filePath = '/path3/subdir/file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should respect case sensitivity appropriately', function (this: Context) {
             // This test depends on the platform's case sensitivity
             // On Windows (case-insensitive), '/Test/Path' should match '/test/path'
             // On Unix (case-sensitive), they should not match
-            const approvedPaths = new Map([['testTool', new Set(['/Test/Path'])]])
+            const approvedPaths = new Set(['/Test/Path'])
             const filePath = '/test/path'
 
             if (process.platform === 'win32') {
@@ -101,23 +101,23 @@ describe('toolShared', () => {
                 isParentFolderStub.returns(true)
 
                 try {
-                    assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+                    assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
                 } finally {
                     isParentFolderStub.restore()
                 }
             } else {
                 // On Unix, paths are case-sensitive
                 const isParent = workspaceUtils.isParentFolder('/Test/Path', filePath)
-                assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), isParent)
+                assert.strictEqual(isPathApproved(filePath, approvedPaths), isParent)
             }
         })
 
         it('should handle root directory as approved path', () => {
             const rootDir = path.parse('/some/file.js').root // Should be '/'
-            const approvedPaths = new Map([['testTool', new Set([rootDir])]])
+            const approvedPaths = new Set([rootDir])
             const filePath = '/some/file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
 
         it('should handle mixed path separators', function (this: Context) {
@@ -128,10 +128,10 @@ describe('toolShared', () => {
             }
 
             // Unix path in approvedPaths, Windows path in filePath
-            const approvedPaths = new Map([['testTool', new Set(['/test/path'])]])
+            const approvedPaths = new Set(['/test/path'])
             const filePath = '/test\\path\\file.js'
 
-            assert.strictEqual(isPathApproved(filePath, 'testTool', approvedPaths), true)
+            assert.strictEqual(isPathApproved(filePath, approvedPaths), true)
         })
     })
 
@@ -199,14 +199,13 @@ describe('toolShared', () => {
 
         it('should return requiresAcceptance=false if path is already approved', async () => {
             const filePath = '/some/path/file.js'
-            const approvedPaths = new Map([['testTool', new Set(['/some/path'])]])
+            const approvedPaths = new Set(['/some/path'])
 
             // Make isPathApproved return true
             isPathApprovedStub.returns(true)
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging'],
                 approvedPaths
@@ -226,7 +225,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -249,7 +247,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -275,7 +272,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -296,7 +292,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -317,7 +312,6 @@ describe('toolShared', () => {
             // This should not throw even though logging is undefined
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 undefined as unknown as Features['logging']
             )
@@ -333,7 +327,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -346,7 +339,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -364,7 +356,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -381,7 +372,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'listDirectory',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -395,7 +385,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -409,7 +398,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -423,7 +411,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -437,7 +424,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -451,7 +437,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -467,7 +452,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -482,7 +466,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -497,7 +480,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -510,7 +492,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -524,7 +505,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -538,7 +518,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -552,7 +531,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -566,7 +544,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -580,7 +557,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -594,7 +570,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -610,7 +585,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -625,7 +599,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -641,7 +614,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -656,7 +628,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -671,7 +642,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
@@ -686,7 +656,6 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                'testTool',
                 mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
