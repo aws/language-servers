@@ -61,6 +61,10 @@ export class ATXTransformHandler {
         this.logging = logging
         this.runtime = runtime
 
+        // Debug: Check if ATX_TEST_ID is available at startup
+        console.error(`[ATX STARTUP DEBUG] ATX_TEST_ID = "${process.env.ATX_TEST_ID}"`)
+        this.logging.log(`ATX Handler initialized. ATX_TEST_ID = "${process.env.ATX_TEST_ID}"`)
+
         this.serviceManager.registerCacheCallback(() => this.onProfileUpdate())
     }
 
@@ -140,6 +144,16 @@ export class ATXTransformHandler {
                     args.request.headers = {}
                 }
                 args.request.headers['Authorization'] = `Bearer ${bearerToken}`
+
+                // Add test classification header if running in test mode
+                console.error(`[DEBUG] ATX_TEST_ID env var = "${process.env.ATX_TEST_ID}"`)
+                const testId = process.env.ATX_TEST_ID
+                if (testId) {
+                    console.error(`[DEBUG] Adding header x-amzn-qt-test-id = "${testId}"`)
+                    args.request.headers['x-amzn-qt-test-id'] = testId
+                } else {
+                    console.error(`[DEBUG] No ATX_TEST_ID set, skipping header`)
+                }
 
                 if (applicationUrl) {
                     const cleanOrigin = applicationUrl.endsWith('/') ? applicationUrl.slice(0, -1) : applicationUrl
@@ -879,7 +893,6 @@ export class ATXTransformHandler {
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
-                this.logging.error(`ATX: Job failed - Reason: ${job?.statusDetails?.failureReason ?? 'Unknown'}`)
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
