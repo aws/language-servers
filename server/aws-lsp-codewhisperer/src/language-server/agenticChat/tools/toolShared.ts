@@ -50,27 +50,21 @@ export enum OutputKind {
 }
 
 /**
- * Checks if a path has already been approved for a specific tool
+ * Checks if a path has already been approved
  * @param path The path to check
- * @param toolName The name of the tool requesting access
- * @param approvedPaths Map of tool names to their approved paths
- * @returns True if the path or any parent directory has been approved for this tool
+ * @param approvedPaths Set of approved paths
+ * @returns True if the path or any parent directory has been approved
  */
-export function isPathApproved(filePath: string, toolName: string, approvedPaths?: Map<string, Set<string>>): boolean {
+export function isPathApproved(filePath: string, approvedPaths?: Set<string>): boolean {
     if (!approvedPaths || approvedPaths.size === 0) {
-        return false
-    }
-
-    const toolPaths = approvedPaths.get(toolName)
-    if (!toolPaths || toolPaths.size === 0) {
         return false
     }
 
     // Normalize path separators for consistent comparison
     const normalizedFilePath = filePath.replace(/\\\\/g, '/')
 
-    // Check if the exact path is approved for this tool
-    if (toolPaths.has(filePath) || toolPaths.has(normalizedFilePath)) {
+    // Check if the exact path is approved (try both original and normalized)
+    if (approvedPaths.has(filePath) || approvedPaths.has(normalizedFilePath)) {
         return true
     }
 
@@ -78,7 +72,7 @@ export function isPathApproved(filePath: string, toolName: string, approvedPaths
     const rootDir = path.parse(filePath).root.replace(/\\\\/g, '/')
 
     // Check if any approved path is a parent of the file path using isParentFolder
-    for (const approvedPath of toolPaths) {
+    for (const approvedPath of approvedPaths) {
         const normalizedApprovedPath = approvedPath.replace(/\\\\/g, '/')
 
         // Check using the isParentFolder utility
@@ -116,24 +110,11 @@ export function isPathApproved(filePath: string, toolName: string, approvedPaths
  * @param approvedPaths Optional set of paths that have already been approved
  * @returns CommandValidation object with requiresAcceptance flag
  */
-/**
- * Shared implementation to check if a file path requires user acceptance.
- * Returns true when the file is not resolvable within our workspace (i.e., is outside of our workspace).
- * If the path has already been approved (in approvedPaths), returns false.
- *
- * @param path The file path to check
- * @param toolName The name of the tool requesting access
- * @param workspace The workspace feature to get workspace folders
- * @param logging Optional logging feature for better error reporting
- * @param approvedPaths Optional map of tool names to their approved paths
- * @returns CommandValidation object with requiresAcceptance flag
- */
 export async function requiresPathAcceptance(
     inputPath: string,
-    toolName: string,
     workspace: Features['workspace'],
     logging: Features['logging'],
-    approvedPaths?: Map<string, Set<string>>
+    approvedPaths?: Set<string>
 ): Promise<CommandValidation> {
     try {
         // Canonicalize the path first to resolve any ".." traversal sequences.
@@ -148,8 +129,8 @@ export async function requiresPathAcceptance(
             }
         }
 
-        // Then check if the path is already approved for this specific tool
-        if (isPathApproved(canonicalPath, toolName, approvedPaths)) {
+        // First check if the path is already approved
+        if (isPathApproved(canonicalPath, approvedPaths)) {
             return { requiresAcceptance: false }
         }
 
