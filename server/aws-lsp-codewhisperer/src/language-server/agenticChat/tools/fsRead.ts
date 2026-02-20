@@ -40,13 +40,10 @@ export class FsRead {
         }
     }
 
-    public async requiresAcceptance(
-        params: FsReadParams,
-        approvedPaths?: Map<string, Set<string>>
-    ): Promise<CommandValidation> {
+    public async requiresAcceptance(params: FsReadParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
         // Check acceptance for all paths in the array
         for (const path of params.paths) {
-            const validation = await requiresPathAcceptance(path, 'fsRead', this.workspace, this.logging, approvedPaths)
+            const validation = await requiresPathAcceptance(path, this.workspace, this.logging, approvedPaths)
             if (validation.requiresAcceptance) {
                 return validation
             }

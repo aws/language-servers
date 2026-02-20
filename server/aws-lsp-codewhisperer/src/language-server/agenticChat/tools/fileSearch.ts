@@ -48,11 +48,8 @@ export class FileSearch {
         return
     }
 
-    public async requiresAcceptance(
-        params: FileSearchParams,
-        approvedPaths?: Map<string, Set<string>>
-    ): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, 'fileSearch', this.workspace, this.logging, approvedPaths)
+    public async requiresAcceptance(params: FileSearchParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
+        return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
     public async invoke(params: FileSearchParams, token?: CancellationToken): Promise<InvokeOutput> {
