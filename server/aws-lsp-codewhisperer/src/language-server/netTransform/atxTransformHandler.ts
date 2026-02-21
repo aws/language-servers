@@ -1078,6 +1078,11 @@ export class ATXTransformHandler {
     ): Promise<AtxGetTransformInfoResponse> {
         this.logging.log(`ATX: Execution phase HITL - plan has ${plan.Root.Children.length} steps`)
 
+        // If GetCheckpoints is requested, populate HasCheckpoint field on steps
+        if (request.GetCheckpoints) {
+            this.populateCheckpointsOnPlan(plan, request.TransformationJobId, request.SolutionRootPath)
+        }
+
         try {
             // Find the step with PENDING_HUMAN_INPUT status in the plan
             const pendingStep = this.findPendingHumanInputStep(plan.Root)
