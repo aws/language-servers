@@ -500,7 +500,7 @@ export class ATXTransformHandler {
     /**
      * Create ZIP file from solution using ArtifactManager
      */
-    async createZip(request: any, includeMissingPackageAnalysis: boolean = false): Promise<string> {
+    async createZip(request: any): Promise<string> {
         try {
             this.logging.log('ATX: Starting ZIP file creation from solution')
 
@@ -513,7 +513,7 @@ export class ATXTransformHandler {
                 request.SolutionRootPath
             )
 
-            const zipFilePath = await artifactManager.createZip(request, includeMissingPackageAnalysis ?? false)
+            const zipFilePath = await artifactManager.createZip(request)
             this.logging.log(`ATX: ZIP file created successfully: ${zipFilePath}`)
             return zipFilePath
         } catch (error) {
@@ -548,10 +548,7 @@ export class ATXTransformHandler {
             }
 
             // Step 2: Create ZIP file
-            const zipFilePath = await this.createZip(
-                request.startTransformRequest,
-                request.includeMissingPackageAnalysis ?? false
-            )
+            const zipFilePath = await this.createZip(request.startTransformRequest)
 
             if (!zipFilePath) {
                 throw new Error('Failed to create ZIP file for ATX transformation')
