@@ -74,6 +74,8 @@ export interface AtxGetTransformInfoResponse {
     TransformationPlan?: TransformationPlan | null
     ArtifactPath?: string | null
     ErrorString?: string | null
+    HitlTag?: string | null
+    MissingPackageJsonPath?: string | null
 }
 
 // ATX Stop Job request
@@ -92,4 +94,15 @@ export interface AtxUploadPlanResponse {
     Message: string
     PlanPath?: string
     ReportPath?: string
+}
+
+export interface AtxUploadPackagesRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    WorkspaceId: string
+    PackagesZipPath?: string | null
+}
+
+export interface AtxUploadPackagesResponse {
+    Success: boolean
+    Message?: string
 }
