@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.25](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.24...lsp-antlr4/v0.1.25) (2026-02-17)
+
+
+### Bug Fixes
+
+* **amazonq:** bumping up the language server runtime version ([#2621](https://github.com/aws/language-servers/issues/2621)) ([33c9eba](https://github.com/aws/language-servers/commit/33c9eba1fcc5ab7da5c520842c239e22b2237e4c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.20 to ^0.0.21
+
 ## [0.1.24](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.23...lsp-antlr4/v0.1.24) (2025-12-19)
 
 
