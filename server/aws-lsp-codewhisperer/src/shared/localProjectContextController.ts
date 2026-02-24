@@ -161,23 +161,32 @@ export class LocalProjectContextController {
             const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
-                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
-                if (enableIndexing) {
-                    this.buildIndex('all').catch(e => {
-                        this.log.error(`Error building index on init with indexing enabled: ${e}`)
-                    })
-                } else {
-                    this.buildIndex('default').catch(e => {
-                        this.log.error(`Error building index on init with indexing disabled: ${e}`)
-                    })
+                try {
+                    this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
+                } catch (startError) {
+                    this.log.warn(`Vector library start() failed (native modules may be missing): ${startError}`)
+                    this.log.warn('Context commands will be unavailable')
+                }
+                if (this._vecLib) {
+                    if (enableIndexing) {
+                        this.buildIndex('all').catch(e => {
+                            this.log.error(`Error building index on init with indexing enabled: ${e}`)
+                        })
+                    } else {
+                        this.buildIndex('default').catch(e => {
+                            this.log.error(`Error building index on init with indexing disabled: ${e}`)
+                        })
+                    }
                 }
                 LocalProjectContextController.instance = this
                 this._isIndexingEnabled = enableIndexing
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
+                LocalProjectContextController.instance = this
             }
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
+            LocalProjectContextController.instance = this
         }
     }
 
