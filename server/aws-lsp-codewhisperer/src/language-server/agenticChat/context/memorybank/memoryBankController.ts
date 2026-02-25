@@ -756,6 +756,8 @@ export class MemoryBankController {
 
     /**
      * Check if memory bank exists in workspace
+     * Checks individual file existence directly instead of relying on directory existence,
+     * since workspace.fs.exists() may not reliably detect directories on all runtimes.
      */
     async memoryBankExists(workspaceFolderUri: string): Promise<boolean> {
         try {
@@ -764,31 +766,34 @@ export class MemoryBankController {
 
             this.features.logging.info(`Memory Bank: Checking existence at path: "${memoryBankPath}"`)
 
-            const exists = await this.features.workspace.fs.exists(memoryBankPath)
-            if (!exists) {
-                this.features.logging.info(`Memory Bank: Directory does not exist: "${memoryBankPath}"`)
-                return false
-            }
-
-            // Check if at least one memory bank file exists
+            // Check individual memory bank files directly instead of checking directory first.
+            // workspace.fs.exists() may not reliably detect directories on all runtimes
+            // (e.g., some implementations only handle file paths correctly).
             const files = Object.values(MEMORY_BANK_FILES)
             let foundFiles = 0
             for (const file of files) {
                 const filePath = `${memoryBankPath}/${file}`
-                const fileExists = await this.features.workspace.fs.exists(filePath)
-                if (fileExists) {
-                    foundFiles++
+                try {
+                    const fileExists = await this.features.workspace.fs.exists(filePath)
+                    if (fileExists) {
+                        foundFiles++
+                        this.features.logging.info(`Memory Bank: Found existing file: "${file}"`)
+                    }
+                } catch (error) {
+                    // Individual file check failed, continue checking others
+                    this.features.logging.debug(`Memory Bank: Could not check file "${file}": ${error}`)
                 }
             }
 
-            const hasFiles = foundFiles > 0
-            if (hasFiles) {
-                this.features.logging.info(`Memory Bank: Found ${foundFiles} existing memory bank files`)
+            if (foundFiles > 0) {
+                this.features.logging.info(
+                    `Memory Bank: Found ${foundFiles}/${files.length} existing memory bank files`
+                )
             } else {
-                this.features.logging.info(`Memory Bank: No existing memory bank files found`)
+                this.features.logging.info(`Memory Bank: No existing memory bank files found at "${memoryBankPath}"`)
             }
 
-            return hasFiles
+            return foundFiles > 0
         } catch (error) {
             this.features.logging.error(`Error checking memory bank existence: ${error}`)
             return false
