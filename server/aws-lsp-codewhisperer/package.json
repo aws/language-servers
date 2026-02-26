@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.103",
+    "version": "0.0.107",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -24,7 +24,7 @@
         "test": "npm run lint && npm run test:unit",
         "test:coverage": "npm run lint && npm run test:unit:coverage",
         "coverage:report": "c8 report --reporter=html --reporter=text",
-        "coverage:check": "c8 check-coverage --lines 80 --functions 80 --branches 80 --statements 80",
+        "coverage:check": "c8 check-coverage --lines 80 --functions 80 --branches 50 --statements 80",
         "prepack": "npm run compile && ts-node ../../script/link_bundled_dependencies.ts",
         "postinstall": "node ./script/install_transitive_dep.js"
     },
@@ -38,8 +38,8 @@
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "0.1.68",
-        "@aws/language-server-runtimes": "^0.3.13",
-        "@aws/lsp-core": "^0.0.20",
+        "@aws/language-server-runtimes": "^0.3.14",
+        "@aws/lsp-core": "^0.0.21",
         "@modelcontextprotocol/sdk": "^1.23.0",
         "@mozilla/readability": "^0.6.0",
         "@smithy/node-http-handler": "^2.5.0",

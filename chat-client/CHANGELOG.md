@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.49](https://github.com/aws/language-servers/compare/chat-client/v0.1.48...chat-client/v0.1.49) (2026-02-17)
+
+
+### Bug Fixes
+
+* **amazonq:** bumping up the language server runtime version ([#2621](https://github.com/aws/language-servers/issues/2621)) ([33c9eba](https://github.com/aws/language-servers/commit/33c9eba1fcc5ab7da5c520842c239e22b2237e4c))
+
+## [0.1.48](https://github.com/aws/language-servers/compare/chat-client/v0.1.47...chat-client/v0.1.48) (2026-02-10)
+
+
+### Bug Fixes
+
+* amazon q chat history restoration to display rich ui elements and persisting model/agentic toggle preferences. ([#2610](https://github.com/aws/language-servers/issues/2610)) ([75135dd](https://github.com/aws/language-servers/commit/75135ddf2342a355a1fcba463dd6a42d040b75fa))
+
 ## [0.1.47](https://github.com/aws/language-servers/compare/chat-client/v0.1.46...chat-client/v0.1.47) (2026-01-13)
 
 

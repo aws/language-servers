@@ -225,6 +225,23 @@ export class ArtifactManager {
         let packages: string[] = []
         if (request.PackageReferences != null) {
             for (const pkg of request.PackageReferences) {
+                // Copy private package source nupkg if available
+                if (pkg.IsPrivatePackage && pkg.SourceNupkgFilePath) {
+                    try {
+                        const packageRelativePath = this.normalizePackageFileRelativePath(pkg.SourceNupkgFilePath)
+                        packages.push(packageRelativePath)
+                        await this.copyFile(
+                            pkg.SourceNupkgFilePath,
+                            this.getWorkspaceReferencePathFromRelativePath(packageRelativePath)
+                        )
+                        this.logging.log(
+                            'Successfully copy the private package file to artifacts: ' + pkg.SourceNupkgFilePath
+                        )
+                    } catch (error) {
+                        this.logging.log('Failed to process private package file: ' + error + pkg.SourceNupkgFilePath)
+                    }
+                }
+
                 if (!pkg.NetCompatiblePackageFilePath) {
                     continue
                 }
@@ -246,6 +263,7 @@ export class ArtifactManager {
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
+            IncludeMissingPackageAnalysis: request.IncludeMissingPackageAnalysis ?? false,
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),

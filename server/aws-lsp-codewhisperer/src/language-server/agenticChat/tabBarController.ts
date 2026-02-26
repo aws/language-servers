@@ -292,6 +292,7 @@ export class TabBarController {
 
     /**
      * Opens new tab with a conversation from history.
+     * Restores the tab's messages and per-tab preferences (model selection and agentic coding mode).
      */
     async restoreTab(selectedTab?: Tab | null) {
         if (selectedTab) {
@@ -307,6 +308,33 @@ export class TabBarController {
             this.#chatHistoryDb.setHistoryIdMapping(tabId, selectedTab.historyId)
             this.#chatHistoryDb.updateTabOpenState(tabId, true)
             this.#sendPinnedContext(tabId)
+
+            // Restore per-tab preferences (model selection and agentic coding mode)
+            const preferences = this.#chatHistoryDb.getTabPreferences(selectedTab.historyId)
+            if (preferences.modelId !== undefined || preferences.pairProgrammingMode !== undefined) {
+                // Validate modelId against current available models
+                let validModelId = preferences.modelId
+                if (preferences.modelId !== undefined) {
+                    const cachedModels = this.#chatHistoryDb.getCachedModels()
+                    const isValidModel = cachedModels?.models?.some(m => m.id === preferences.modelId)
+
+                    if (!isValidModel) {
+                        // Model is invalid or no longer available, fall back to default
+                        validModelId = cachedModels?.defaultModelId
+                        this.#features.logging.warn(
+                            `Restored modelId "${preferences.modelId}" is invalid. Falling back to default: "${validModelId}"`
+                        )
+                    }
+                }
+
+                this.#features.chat.chatOptionsUpdate({
+                    tabId,
+                    ...(validModelId !== undefined ? { modelId: validModelId } : {}),
+                    ...(preferences.pairProgrammingMode !== undefined
+                        ? { pairProgrammingMode: preferences.pairProgrammingMode }
+                        : {}),
+                })
+            }
         }
     }
 

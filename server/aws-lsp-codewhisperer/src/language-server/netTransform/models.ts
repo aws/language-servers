@@ -26,6 +26,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     PackageReferences?: PackageReferenceMetadata[]
     DmsArn?: string
     DatabaseSettings?: DatabaseSettings
+    IncludeMissingPackageAnalysis?: boolean
 }
 
 export interface StartTransformResponse {
@@ -189,4 +190,5 @@ export interface PackageReferenceMetadata {
     NetCompatibleAssemblyRelativePath?: string
     NetCompatiblePackageFilePath?: string
     CurrentVersionAssemblyPath?: string
+    SourceNupkgFilePath?: string
 }

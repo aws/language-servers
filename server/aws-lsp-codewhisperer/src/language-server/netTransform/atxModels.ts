@@ -101,6 +101,8 @@ export interface AtxGetTransformInfoResponse {
     ArtifactPath?: string | null
     ErrorString?: string | null
     StepInformation?: AtxStepInformation | null
+    HitlTag?: string | null
+    MissingPackageJsonPath?: string | null
 }
 
 /**
@@ -174,4 +176,14 @@ export interface AtxCheckpointMetadata {
 export interface AtxMovedFileMapping {
     before: string
     after: string
+}
+export interface AtxUploadPackagesRequest extends ExecuteCommandParams {
+    TransformationJobId: string
+    WorkspaceId: string
+    PackagesZipPath?: string | null
+}
+
+export interface AtxUploadPackagesResponse {
+    Success: boolean
+    Message?: string
 }

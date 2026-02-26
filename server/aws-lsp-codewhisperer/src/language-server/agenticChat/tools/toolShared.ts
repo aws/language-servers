@@ -111,14 +111,26 @@ export function isPathApproved(filePath: string, approvedPaths?: Set<string>): b
  * @returns CommandValidation object with requiresAcceptance flag
  */
 export async function requiresPathAcceptance(
-    path: string,
+    inputPath: string,
     workspace: Features['workspace'],
     logging: Features['logging'],
     approvedPaths?: Set<string>
 ): Promise<CommandValidation> {
     try {
+        // Canonicalize the path first to resolve any ".." traversal sequences.
+        // This prevents bypasses like "/workspace/../../etc" appearing to be in-workspace.
+        const canonicalPath = path.resolve(inputPath)
+
+        // Check for sensitive paths on BOTH the raw input and the resolved path
+        if (isSensitivePath(inputPath) || isSensitivePath(canonicalPath)) {
+            return {
+                requiresAcceptance: true,
+                warning: 'Access to sensitive system files requires explicit approval',
+            }
+        }
+
         // First check if the path is already approved
-        if (isPathApproved(path, approvedPaths)) {
+        if (isPathApproved(canonicalPath, approvedPaths)) {
             return { requiresAcceptance: false }
         }
 
@@ -129,7 +141,8 @@ export async function requiresPathAcceptance(
             }
             return { requiresAcceptance: true }
         }
-        const isInWorkspace = workspaceUtils.isInWorkspace(workspaceFolders, path)
+
+        const isInWorkspace = workspaceUtils.isInWorkspace(workspaceFolders, canonicalPath)
         return { requiresAcceptance: !isInWorkspace }
     } catch (error) {
         if (logging) {
@@ -138,4 +151,23 @@ export async function requiresPathAcceptance(
         // In case of error, safer to require acceptance
         return { requiresAcceptance: true }
     }
+}
+
+function isSensitivePath(filePath: string): boolean {
+    const sensitivePatterns = [
+        /\/\.ssh\//,
+        /\/\.aws\//,
+        /\/\.env$/,
+        /\/\.env\./,
+        /password/i,
+        /secret/i,
+        /credential/i,
+        /private.*key/i,
+        /\/etc\//,
+        /\/proc\//,
+        /\/sys\//,
+        /\/dev\//,
+    ]
+
+    return sensitivePatterns.some(pattern => pattern.test(filePath))
 }

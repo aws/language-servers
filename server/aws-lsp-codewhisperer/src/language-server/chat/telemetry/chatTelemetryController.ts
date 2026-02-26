@@ -299,7 +299,8 @@ export class ChatTelemetryController {
         metric: Partial<CombinedConversationEvent>,
         result?: string,
         errorMessage?: string,
-        errorCode?: string
+        errorCode?: string,
+        modelId?: string
     ) {
         const conversationId = this.getConversationId(tabId)
         // Store the customization value associated with the message
@@ -326,6 +327,7 @@ export class ChatTelemetryController {
                 numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
                 agenticCodingMode: metric.enabled,
                 result: result,
+                modelId: modelId,
             },
             {
                 chatTriggerInteraction: metric.cwsprChatTriggerInteraction,
@@ -430,10 +432,11 @@ export class ChatTelemetryController {
     public emitInteractWithMessageMetric(
         tabId: string,
         metric: Omit<InteractWithMessageEvent, 'cwsprChatConversationId'>,
-        acceptedLineCount?: number
+        acceptedLineCount?: number,
+        conversationId?: string
     ) {
         return this.#telemetryService.emitChatInteractWithMessage(metric, {
-            conversationId: this.getConversationId(tabId),
+            conversationId: conversationId ?? this.getConversationId(tabId),
             acceptedLineCount,
         })
     }
@@ -443,7 +446,8 @@ export class ChatTelemetryController {
         metric: Partial<CombinedConversationEvent>,
         requestId?: string,
         errorReason?: string,
-        agenticCodingMode?: boolean
+        agenticCodingMode?: boolean,
+        modelId?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.MessageResponseError,
@@ -466,6 +470,7 @@ export class ChatTelemetryController {
                 languageServerVersion: metric.languageServerVersion,
                 experimentName: metric.experimentName,
                 userVariation: metric.userVariation,
+                modelId: modelId,
             },
         })
     }
