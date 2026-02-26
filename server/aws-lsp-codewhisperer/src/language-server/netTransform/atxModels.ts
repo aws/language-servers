@@ -70,11 +70,17 @@ export interface AtxListOrCreateWorkspaceResponse {
     CreatedWorkspace?: AtxCreatedWorkspaceInfo
 }
 
+/**
+ * Defines the interactive mode for transformation operations.
+ * Matches C# InteractiveMode enum.
+ */
+export type InteractiveMode = 'Autonomous' | 'OnFailure' | 'Interactive'
+
 // ATX Start Transform request/response (orchestration)
 export interface AtxStartTransformRequest extends ExecuteCommandParams {
     WorkspaceId: string
     JobName?: string
-    InteractiveMode?: boolean
+    InteractiveMode?: InteractiveMode
     StartTransformRequest: object // Original RTS-style request for ZIP creation
 }
 

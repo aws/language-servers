@@ -50,6 +50,7 @@ import {
     AtxCheckpointActionResponse,
     AtxUploadPackagesRequest,
     AtxUploadPackagesResponse,
+    InteractiveMode,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -68,7 +69,7 @@ export class ATXTransformHandler {
     private atxClient: ElasticGumbyFrontendClient | null = null
     private cachedHitl: string | null = null
     private cachedStepHitl: string | null = null
-    private cachedInteractiveMode: boolean | null = null
+    private cachedInteractiveMode: InteractiveMode | null = null
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -370,7 +371,7 @@ export class ATXTransformHandler {
         workspaceId: string
         jobName?: string
         targetFramework?: string
-        interactiveMode?: boolean
+        interactiveMode?: InteractiveMode
     }): Promise<{ jobId: string; status: string } | null> {
         try {
             this.logging.log(`ATX: Starting CreateJob for workspace: ${request.workspaceId}`)
@@ -380,16 +381,28 @@ export class ATXTransformHandler {
                 throw new Error('ATX FES client not initialized')
             }
 
-            // Build objective object with target_framework and optionally interactive_mode
+            // Map InteractiveMode enum to backend format (all strings)
+            // Autonomous -> "autonomous", OnFailure -> "on_failure", Interactive -> "interactive"
+            let interactiveModeValue: string = 'autonomous'
+            if (request.interactiveMode === 'Interactive') {
+                interactiveModeValue = 'interactive'
+            } else if (request.interactiveMode === 'OnFailure') {
+                interactiveModeValue = 'on_failure'
+            }
+
+            // Build objective object with target_framework and interactive_mode
             const objective: any = {
                 target_framework: request.targetFramework || 'net10.0',
-                interactive_mode: request.interactiveMode || false,
+                interactive_mode: interactiveModeValue,
             }
+
+            this.logging.log(`ATX: CreateJob objective: ${JSON.stringify(objective)}`)
 
             const command = new CreateJobCommand({
                 workspaceId: request.workspaceId,
                 objective: JSON.stringify(objective),
-                jobType: 'DOTNET_IDE' as any,
+                // jobType: 'DOTNET_IDE' as any,
+                orchestratorAgent: 'dotnet-chatty-agent-internal',
                 jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
                 idempotencyToken: uuidv4(),
@@ -560,7 +573,7 @@ export class ATXTransformHandler {
     async startTransform(request: {
         workspaceId: string
         jobName?: string
-        interactiveMode?: boolean
+        interactiveMode?: InteractiveMode
         startTransformRequest: object
         includeMissingPackageAnalysis?: boolean
     }): Promise<{ TransformationJobId: string; ArtifactPath: string; UploadId: string } | null> {
@@ -568,7 +581,7 @@ export class ATXTransformHandler {
             this.logging.log(`ATX: Starting transform workflow for workspace: ${request.workspaceId}`)
 
             // Cache the interactive mode setting
-            this.cachedInteractiveMode = request.interactiveMode || false
+            this.cachedInteractiveMode = request.interactiveMode || 'Autonomous'
 
             // Step 1: Create transformation job
             const createJobResponse = await this.createJob({
@@ -952,13 +965,21 @@ export class ATXTransformHandler {
             if (this.cachedInteractiveMode === null && job.objective) {
                 try {
                     const objective = JSON.parse(job.objective)
-                    this.cachedInteractiveMode = objective.interactive_mode === true
+                    // Map backend string format to InteractiveMode enum
+                    // "interactive" -> Interactive, "on_failure" -> OnFailure, "autonomous" -> Autonomous
+                    if (objective.interactive_mode === 'interactive') {
+                        this.cachedInteractiveMode = 'Interactive'
+                    } else if (objective.interactive_mode === 'on_failure') {
+                        this.cachedInteractiveMode = 'OnFailure'
+                    } else {
+                        this.cachedInteractiveMode = 'Autonomous'
+                    }
                     this.logging.log(
                         `ATX: Determined interactive mode from job objective: ${this.cachedInteractiveMode}`
                     )
                 } catch (e) {
                     this.logging.log('ATX: Could not parse job objective for interactive mode')
-                    this.cachedInteractiveMode = false
+                    this.cachedInteractiveMode = 'Autonomous'
                 }
             }
 
@@ -1667,8 +1688,8 @@ export class ATXTransformHandler {
                 this.logging.log(`ATX: Could not get worklogs for workspace: ${workspaceId}, job: ${jobId}`)
             })
 
-            // For interactive mode, download completed step artifacts if not already present
-            if (this.cachedInteractiveMode) {
+            // For interactive mode (Interactive or OnFailure), download completed step artifacts if not already present
+            if (this.cachedInteractiveMode && this.cachedInteractiveMode !== 'Autonomous') {
                 await this.downloadCompletedStepArtifacts(workspaceId, jobId, solutionRootPath, plan)
             }
 
