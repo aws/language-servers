@@ -382,8 +382,8 @@ export class ATXTransformHandler {
             }
 
             // Map InteractiveMode enum to backend format (all strings)
-            // Autonomous -> "autonomous", OnFailure -> "on_failure", Interactive -> "interactive"
-            let interactiveModeValue: string = 'autonomous'
+            // Autonomous -> "auto", OnFailure -> "on_failure", Interactive -> "interactive"
+            let interactiveModeValue: string = 'auto'
             if (request.interactiveMode === 'Interactive') {
                 interactiveModeValue = 'interactive'
             } else if (request.interactiveMode === 'OnFailure') {
@@ -643,6 +643,16 @@ export class ATXTransformHandler {
 
             if (!startJobResponse?.success) {
                 throw new Error('Failed to start ATX transformation job')
+            }
+
+            // Step 7: Write source files list to checkpoints folder for tracking (only in interactive mode)
+            if (request.interactiveMode && request.interactiveMode !== 'Autonomous') {
+                const startTransformReq = request.startTransformRequest as any
+                this.writeSourceFilesManifest(
+                    startTransformReq.SolutionRootPath,
+                    createJobResponse.jobId,
+                    startTransformReq
+                )
             }
 
             this.logging.log('ATX: Transform workflow completed successfully')
@@ -1035,7 +1045,7 @@ export class ATXTransformHandler {
                     } as AtxTransformationJob,
                     ErrorString: 'Transformation job stopped',
                 } as AtxGetTransformInfoResponse
-            } else if (jobStatus === 'PLANNED') {
+            } else if (jobStatus === 'EXECUTING') {
                 const plan = await this.getTransformationPlan(
                     request.WorkspaceId,
                     request.TransformationJobId,
@@ -1418,6 +1428,67 @@ export class ATXTransformHandler {
         // Recursively process children
         for (const child of step.Children) {
             this.setCheckpointsOnSteps(child, settings)
+        }
+    }
+
+    /**
+     * Writes a manifest of source files to the checkpoints folder for tracking changes.
+     * Creates source-files.json containing all source code file paths from the transformation request.
+     */
+    private writeSourceFilesManifest(solutionRootPath: string, jobId: string, request: any): void {
+        try {
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+
+            if (!fs.existsSync(checkpointsDir)) {
+                fs.mkdirSync(checkpointsDir, { recursive: true })
+            }
+
+            const sourceFiles: string[] = []
+
+            // Extract source file paths from project metadata
+            if (request.ProjectMetadata) {
+                for (const project of request.ProjectMetadata) {
+                    if (project.SourceCodeFilePaths) {
+                        for (const filePath of project.SourceCodeFilePaths) {
+                            if (filePath) {
+                                sourceFiles.push(filePath)
+                            }
+                        }
+                    }
+                    // Include project file itself
+                    if (project.ProjectPath) {
+                        sourceFiles.push(project.ProjectPath)
+                    }
+                }
+            }
+
+            // Include solution file
+            if (request.SolutionFilePath) {
+                sourceFiles.push(request.SolutionFilePath)
+            }
+
+            // Include solution config files
+            if (request.SolutionConfigPaths) {
+                for (const configPath of request.SolutionConfigPaths) {
+                    if (configPath) {
+                        sourceFiles.push(configPath)
+                    }
+                }
+            }
+
+            const manifest = {
+                jobId: jobId,
+                solutionRootPath: solutionRootPath,
+                createdAt: new Date().toISOString(),
+                sourceFiles: sourceFiles,
+            }
+
+            const manifestPath = path.join(checkpointsDir, 'source-files.json')
+            fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+
+            this.logging.log(`ATX: Source files manifest written to ${manifestPath} with ${sourceFiles.length} files`)
+        } catch (error) {
+            this.logging.error(`ATX: Failed to write source files manifest: ${String(error)}`)
         }
     }
 
