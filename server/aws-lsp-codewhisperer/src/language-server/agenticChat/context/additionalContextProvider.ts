@@ -710,13 +710,22 @@ export class AdditionalContextProvider {
                         continue
                     }
                     if ('content' in context && context.content) {
-                        imageBlocks.push({
-                            format: format as ImageFormat,
-                            source: {
-                                bytes: new Uint8Array(Object.values(context.content)),
-                            },
-                        })
-                        continue
+                        // Validate content has actual byte data before creating Uint8Array
+                        // After JSON deserialization, Uint8Array becomes plain object with numeric keys
+                        const values = Object.values(context.content)
+                        if (values.length > 0 && values.every((v): v is number => typeof v === 'number')) {
+                            imageBlocks.push({
+                                format: format as ImageFormat,
+                                source: {
+                                    bytes: new Uint8Array(values),
+                                },
+                            })
+                            continue
+                        }
+                        // Invalid content data, fall through to read from file
+                        this.features.logging.warn(
+                            `Invalid image content data for ${imagePath}, attempting to read from file`
+                        )
                     }
                     const fileContent = await this.features.workspace.fs.readFile(imagePath, {
                         encoding: 'binary',
