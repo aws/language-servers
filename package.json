@@ -39,6 +39,7 @@
         "@aws/language-server-runtimes": "^0.3.14",
         "@smithy/types": "4.2.0",
         "clean": "^4.0.2",
+        "fuzzball": "^2.2.3",
         "typescript": "^5.8.2"
     },
     "devDependencies": {
@@ -48,6 +49,7 @@
         "@types/node": "^22.9.0",
         "@typescript-eslint/eslint-plugin": "^8.32.1",
         "@typescript-eslint/parser": "^8.32.1",
+        "buffer": "^6.0.3",
         "c8": "^10.1.2",
         "conventional-changelog-conventionalcommits": "^8.0.0",
         "eslint": "^8.42.0",
@@ -59,6 +61,7 @@
         "oss-attribution-generator": "^1.7.1",
         "prettier": "^3.3.3",
         "pretty-quick": "^4.0.0",
+        "process": "^0.11.10",
         "shx": "^0.3.4",
         "ts-node": "^10.9.1"
     },

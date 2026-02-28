@@ -71,13 +71,13 @@ function createServerArtifact() {
         }
 
         console.log('\nStep 1: Running clean in root directory...')
-        executeCommand('npm run clean', ROOT_DIR)
+        // executeCommand('npm run clean', ROOT_DIR)
 
         console.log('\nStep 2: Installing dependencies in root directory...')
-        executeCommand('npm i', ROOT_DIR)
+        // executeCommand('npm i', ROOT_DIR)
 
         console.log('\nStep 3: Running compile in root directory...')
-        executeCommand('npm run compile', ROOT_DIR)
+        // executeCommand('npm run compile', ROOT_DIR)
 
         console.log('\nStep 4: Running package in target directory...')
 

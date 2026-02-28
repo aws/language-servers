@@ -429,7 +429,8 @@ export async function getCrossFileCandidates(
      * for a resumed IDE session, opened tabs are restored but this getAllTextDocuments function returns empty
      * in that case we manually create TextDocuments from it
      */
-    let unsortedCandidates: TextDocument[] = await workspace.getAllTextDocuments()
+    // TODO: experimental changes for vscode simulation implementation, should revert as vscode editors are closed via API, it will not fire `textDocument/didClose`
+    let unsortedCandidates: TextDocument[] = []
     if (openTabFiles && openTabFiles.length > 0) {
         for (const openTabFile of openTabFiles) {
             try {
