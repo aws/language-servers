@@ -1,4 +1,5 @@
 import * as os from 'os'
+import * as fs from 'fs'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
@@ -291,6 +292,43 @@ export const autoTrigger = (
 
     const r = sigmoid(classifierResult)
     const shouldTrigger = r > TRIGGER_THRESHOLD
+
+    logging.log(`@@autotrigger@@
+version: Postflare
+classifierResult: ${r}
+triggerChar: ${char}
+
+Coefficient Contributions:
+    lengthOfRight:  ${coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')},
+    lengthOfLeftCurrent: ${coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')},
+    lengthOfLeftPrev: ${coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')},
+    lineNum: ${coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')},
+    osCoefficient: ${osCoefficient},
+    triggerType: ${triggerTypeCoefficient},
+    char: ${charCoefficient},
+    keyWord: ${keyWordCoefficient},
+    ide: ${ideCoefficient},
+    intercept: ${coefficients.intercept},
+    previousDecision: ${previousDecisionCoefficient},
+    language: ${languageCoefficient},
+    leftContextLength: ${leftContextLengthCoefficient}
+    --------------------------------------------------------------
+    lengthOfRight = ${coefficients.lengthOfRightCoefficient} * ${normalize(lengthOfRight, 'lenRight')};
+    lengthOfLeftCurrent = ${coefficients.lengthOfLeftCurrentCoefficient} * ${normalize(lengthOfLeftCurrent, 'lenLeftCur')};
+    lengthOfLeftPrev = ${coefficients.lengthOfLeftPrevCoefficient} * ${normalize(lengthOfLeftPrev, 'lenLeftPrev')};
+    ---------------------------------------------------------------
+`)
+
+    logging.log(`
+right context (length=${fileContext.rightFileContent.length})
+${fileContext.rightFileContent}
+***************************************
+left current context (length=${leftContextLines[leftContextLines.length - 1].length})
+${leftContextLines[leftContextLines.length - 1]}
+***************************************
+left prev context (length=${leftContextLines[leftContextLines.length - 2].length})
+${leftContextLines[leftContextLines.length - 2]}
+***************************************`)
 
     return {
         shouldTrigger,
