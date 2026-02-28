@@ -92,6 +92,61 @@ export class AdditionalContextProvider {
     }
 
     /**
+     * Filesystem fallback for reading context command prompts when the local indexing library
+     * (vecLib) is not available. Reads file contents directly from the filesystem.
+     *
+     * This ensures that rules in .amazonq/rules, README.md, AmazonQ.md, and other context files
+     * are still loaded even when the indexing library fails to initialize (e.g., in certain
+     * remote development environments like Red Hat OpenShift Dev Spaces).
+     *
+     * @param contextCommandItems The context command items to read content for
+     * @returns Array of AdditionalContextPrompt with file contents read from disk
+     */
+    private async readContextCommandPromptsFromFilesystem(
+        contextCommandItems: ContextCommandItem[]
+    ): Promise<AdditionalContextPrompt[]> {
+        const prompts: AdditionalContextPrompt[] = []
+
+        for (const item of contextCommandItems) {
+            try {
+                // The item.id contains the full file path for workspace rules
+                const filePath = item.id
+                if (!filePath) {
+                    continue
+                }
+
+                const fileExists = await this.features.workspace.fs.exists(filePath)
+                if (!fileExists) {
+                    continue
+                }
+
+                const content = await this.features.workspace.fs.readFile(filePath, { encoding: 'utf-8' })
+                const fileName = path.basename(filePath, promptFileExtension)
+
+                prompts.push({
+                    filePath: filePath,
+                    relativePath: item.relativePath,
+                    content: content,
+                    name: fileName,
+                    description: '',
+                    startLine: -1,
+                    endLine: -1,
+                })
+            } catch (error) {
+                this.features.logging.warn(`Failed to read context file from filesystem: ${item.id}: ${error}`)
+            }
+        }
+
+        if (prompts.length > 0) {
+            this.features.logging.info(
+                `Filesystem fallback: successfully loaded ${prompts.length} context file(s) directly from disk`
+            )
+        }
+
+        return prompts
+    }
+
+    /**
      * Internal method to collect workspace rules without tab filtering
      */
     private async collectWorkspaceRulesInternal(): Promise<ContextCommandItem[]> {
@@ -398,7 +453,19 @@ export class AdditionalContextProvider {
             promptContextPrompts = await localProjectContextController.getContextCommandPrompt(promptContextCommands)
             pinnedContextPrompts = await localProjectContextController.getContextCommandPrompt(pinnedContextCommands)
         } catch (error) {
-            // do nothing
+            this.features.logging.info(
+                `LocalProjectContextController unavailable, using filesystem fallback for context: ${error}`
+            )
+        }
+
+        // Filesystem fallback: if LocalProjectContextController returned empty results but we have
+        // context commands to process, read the file contents directly from the filesystem.
+        // This handles environments where the local indexing library (vecLib) is not available.
+        if (promptContextPrompts.length === 0 && promptContextCommands.length > 0) {
+            promptContextPrompts = await this.readContextCommandPromptsFromFilesystem(promptContextCommands)
+        }
+        if (pinnedContextPrompts.length === 0 && pinnedContextCommands.length > 0) {
+            pinnedContextPrompts = await this.readContextCommandPromptsFromFilesystem(pinnedContextCommands)
         }
 
         const contextEntry: AdditionalContentEntryAddition[] = []
