@@ -2634,9 +2634,9 @@ export class ATXTransformHandler {
                 return { success: true, data: sendResult }
             }
 
-            // Poll for response
-            for (let attempt = 0; attempt < 8; attempt++) {
-                await new Promise(resolve => setTimeout(resolve, 2000))
+            // Poll for response (60 attempts * 5s = 5 minutes max)
+            for (let attempt = 0; attempt < 60; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 5000))
 
                 const listResult = await this.listMessages({
                     workspaceId: request.workspaceId,
@@ -2680,7 +2680,7 @@ export class ATXTransformHandler {
                 data: {
                     sentMessage: sendResult.message,
                     response: null,
-                    note: 'No final response within 16s. Use listMessages + batchGetMessages to check later.',
+                    note: 'No final response within 5 minutes. Use listMessages + batchGetMessages to check later.',
                 },
             }
         } catch (error) {
