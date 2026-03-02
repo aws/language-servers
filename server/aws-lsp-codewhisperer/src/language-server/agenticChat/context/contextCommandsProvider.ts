@@ -17,7 +17,6 @@ export class ContextCommandsProvider implements Disposable {
     private filesAndFoldersPending = true
     private filesAndFoldersFailed = false
     private workspacePending = true
-    private workspaceFailed = false
     private initialStateSent = false
     constructor(
         private readonly logging: Logging,
@@ -43,11 +42,6 @@ export class ContextCommandsProvider implements Disposable {
     private async registerContextCommandHandler() {
         try {
             const controller = await LocalProjectContextController.getInstance()
-            // Check if vecLib failed to initialize (native modules missing in stripped bundle)
-            if (!controller.isEnabled) {
-                this.workspaceFailed = true
-                this.workspacePending = false
-            }
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
             }
@@ -187,7 +181,7 @@ export class ContextCommandsProvider implements Disposable {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
-            disabledText: this.workspaceFailed ? 'failed' : this.workspacePending ? 'pending' : undefined,
+            disabledText: this.workspacePending ? 'pending' : undefined,
         }
         const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
 
@@ -262,13 +256,6 @@ export class ContextCommandsProvider implements Disposable {
         this.filesAndFoldersFailed = value
         if (value) {
             this.filesAndFoldersPending = false
-        }
-    }
-
-    setWorkspaceFailed(value: boolean) {
-        this.workspaceFailed = value
-        if (value) {
-            this.workspacePending = false
         }
     }
 
