@@ -36,6 +36,8 @@ import {
     AtxTransformationJob,
     AtxUploadPlanRequest,
     AtxUploadPlanResponse,
+    AtxUploadPackagesRequest,
+    AtxUploadPackagesResponse,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -529,6 +531,7 @@ export class ATXTransformHandler {
         workspaceId: string
         jobName?: string
         startTransformRequest: object
+        includeMissingPackageAnalysis?: boolean
     }): Promise<{ TransformationJobId: string; ArtifactPath: string; UploadId: string } | null> {
         try {
             this.logging.log(`ATX: Starting transform workflow for workspace: ${request.workspaceId}`)
@@ -800,7 +803,12 @@ export class ATXTransformHandler {
         workspaceId: string,
         jobId: string,
         solutionRootPath: string
-    ): Promise<{ PlanPath: string; ReportPath: string } | null> {
+    ): Promise<{
+        PlanPath?: string
+        ReportPath?: string
+        MissingPackageJsonPath?: string
+        HitlTag?: string
+    } | null> {
         try {
             this.logging.log(`ATX: Getting Hitl Agent Artifact for job: ${jobId}`)
 
@@ -811,16 +819,18 @@ export class ATXTransformHandler {
 
             const hitls = await this.listHitls(workspaceId, jobId)
 
-            if (hitls && hitls.length != 1) {
+            if (!hitls || hitls.length === 0) {
+                this.logging.log(`ATX: No hitls available`)
+                return null
+            }
+
+            if (hitls.length != 1) {
                 this.logging.log(`ATX: Found ${hitls.length} hitls (expected 1)`)
-            } else if (!hitls) {
-                this.logging.error(`ATX: No hitls available for download`)
-                throw new Error('no or many HITLE_FROM_USER artifacts available for download (expects 1 artifact)')
             }
 
             const hitl = hitls[0]
             this.cachedHitl = hitl.taskId
-
+            const hitlTag = hitl.tag || null
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
 
             if (!downloadInfo) {
@@ -837,10 +847,21 @@ export class ATXTransformHandler {
                 this.logging
             )
 
+            const fs = require('fs')
+            const extractedFiles = fs.readdirSync(pathToDownload)
+            this.logging.log(`ATX: Extracted files in ${pathToDownload}: ${JSON.stringify(extractedFiles)}`)
+
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
             const reportPath = path.join(pathToDownload, 'assessment-report.md')
+            const missingPackageJsonPath = path.join(pathToDownload, 'missing-packages.json')
+
             this.logging.log(`ATX: GetHitlAgentArtifact completed successfully`)
-            return { PlanPath: planPath, ReportPath: reportPath }
+            return {
+                PlanPath: fs.existsSync(planPath) ? planPath : undefined,
+                ReportPath: fs.existsSync(reportPath) ? reportPath : undefined,
+                MissingPackageJsonPath: fs.existsSync(missingPackageJsonPath) ? missingPackageJsonPath : undefined,
+                HitlTag: hitlTag,
+            }
         } catch (error) {
             this.logging.error(`ATX: GetHitlAgentArtifact error: ${String(error)}`)
             return null
@@ -926,6 +947,11 @@ export class ATXTransformHandler {
                     request.SolutionRootPath
                 )
 
+                this.logging.log(`ATX: HITL full response: ${JSON.stringify(response)}`)
+                this.logging.log(
+                    `ATX: HITL response - HitlTag: ${response?.HitlTag}, MissingPackageJsonPath: ${response?.MissingPackageJsonPath}`
+                )
+
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -934,6 +960,8 @@ export class ATXTransformHandler {
                     } as AtxTransformationJob,
                     PlanPath: response?.PlanPath,
                     ReportPath: response?.ReportPath,
+                    MissingPackageJsonPath: response?.MissingPackageJsonPath,
+                    HitlTag: response?.HitlTag,
                 } as AtxGetTransformInfoResponse
             } else {
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
@@ -1046,6 +1074,97 @@ export class ATXTransformHandler {
             this.logging.error(`ATX: UploadPlan error: ${String(error)}`)
             return null
         }
+    }
+
+    // Upload Missing package dependencies
+    async uploadPackages(request: AtxUploadPackagesRequest): Promise<AtxUploadPackagesResponse | null> {
+        this.logging.log('ATX: Starting upload packages')
+
+        if (!this.cachedHitl) {
+            this.logging.error('ATX: UploadPackages error: No cached hitl')
+            return { Success: false, Message: 'No cached HITL task' }
+        }
+
+        try {
+            if (!request.PackagesZipPath) {
+                this.logging.log('ATX: No packages to upload, submitting HITL without artifact')
+                return { Success: false, Message: "No Package xip path found. Can't proceed with HITL" }
+            }
+
+            var humanArtifactId = await this.uploadArtifactAndComplete(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                request.PackagesZipPath
+            )
+
+            if (!humanArtifactId) {
+                return { Success: false, Message: 'Failed to upload packages' }
+            }
+
+            this.logging.log('ATX: Packages uploaded successfully')
+
+            // Submit HITL (with or without artifact)
+            const submitHitl = await this.submitHitl(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                this.cachedHitl,
+                humanArtifactId
+            )
+
+            if (!submitHitl) {
+                throw new Error('Failed to submit hitl')
+            }
+
+            this.logging.log('ATX: HITL submitted successfully')
+
+            return {
+                Success: true,
+                Message: 'Packages uploaded and HITL submitted successfully',
+            }
+        } catch (error) {
+            this.logging.error(`ATX: UploadPackages error: ${String(error)}`)
+            return { Success: false, Message: String(error) }
+        }
+    }
+
+    private async uploadArtifactAndComplete(
+        workspaceId: string,
+        jobId: string,
+        filePath: string
+    ): Promise<string | null> {
+        const uploadInfo = await this.createArtifactUploadUrl(
+            workspaceId,
+            jobId,
+            filePath,
+            CategoryType.HITL_FROM_USER,
+            FileType.ZIP
+        )
+
+        if (!uploadInfo) {
+            this.logging.error('ATX: Failed to get upload URL')
+            return null
+        }
+
+        const uploadSuccess = await Utils.uploadArtifact(
+            uploadInfo.uploadUrl,
+            filePath,
+            uploadInfo.requestHeaders,
+            this.logging
+        )
+
+        if (!uploadSuccess) {
+            this.logging.error('ATX: Failed to upload to S3')
+            return null
+        }
+
+        const completeResponse = await this.completeArtifactUpload(workspaceId, jobId, uploadInfo.uploadId)
+
+        if (!completeResponse?.success) {
+            this.logging.error('ATX: Failed to complete artifact upload')
+            return null
+        }
+
+        return uploadInfo.uploadId
     }
 
     /**

@@ -26,6 +26,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     PackageReferences?: PackageReferenceMetadata[]
     DmsArn?: string
     DatabaseSettings?: DatabaseSettings
+    IncludeMissingPackageAnalysis?: boolean
 }
 
 export interface StartTransformResponse {

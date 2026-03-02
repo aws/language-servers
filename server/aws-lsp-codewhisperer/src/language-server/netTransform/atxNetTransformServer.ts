@@ -12,6 +12,7 @@ import {
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
     AtxUploadPlanRequest,
+    AtxUploadPackagesRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -20,6 +21,7 @@ const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
+const AtxUploadPackagesCommand = 'aws/atxTransform/uploadPackages'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -79,6 +81,10 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
                         return { Status: result }
                     }
+                    case AtxUploadPackagesCommand: {
+                        const request = params as AtxUploadPackagesRequest
+                        return await atxTransformHandler.uploadPackages(request)
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -106,6 +112,7 @@ export const AtxNetTransformServerToken =
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
+                            AtxUploadPackagesCommand,
                         ],
                     },
                 },

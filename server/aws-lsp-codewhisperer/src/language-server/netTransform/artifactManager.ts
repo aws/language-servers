@@ -263,6 +263,7 @@ export class ArtifactManager {
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
             Projects: projects,
             TransformNetStandardProjects: request.TransformNetStandardProjects,
+            IncludeMissingPackageAnalysis: request.IncludeMissingPackageAnalysis ?? false,
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),
