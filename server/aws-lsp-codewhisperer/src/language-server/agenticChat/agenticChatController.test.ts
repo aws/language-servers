@@ -1587,6 +1587,65 @@ describe('AgenticChatController', () => {
 
                 getFileListFromContextStub.restore()
             })
+
+            it('includes empty file as active file in context transparency list', async () => {
+                const mockAdditionalContext: any[] = []
+
+                // Mock getAdditionalContext to return empty additional context
+                additionalContextProviderStub.resolves(mockAdditionalContext)
+
+                // Mock the expected return value from getFileListFromContext
+                const expectedFileList = {
+                    filePaths: ['src/empty.ts'],
+                    details: {
+                        'src/empty.ts': { description: '/workspace/src/empty.ts' },
+                    },
+                }
+
+                // Mock getFileListFromContext to capture what gets passed to it
+                const getFileListFromContextStub = sinon.stub(
+                    AdditionalContextProvider.prototype,
+                    'getFileListFromContext'
+                )
+                getFileListFromContextStub.returns(expectedFileList)
+
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: 'src/empty.ts',
+                    activeFilePath: '/workspace/src/empty.ts',
+                    text: '',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///workspace/src/empty.ts' },
+                        cursorState: [mockCursorState],
+                        partialResultToken: 1,
+                    },
+                    mockCancellationToken
+                )
+
+                // Verify getFileListFromContext was called with the active file even though it's empty
+                sinon.assert.calledOnce(getFileListFromContextStub)
+                const contextItemsPassedToGetFileList = getFileListFromContextStub.firstCall.args[0]
+
+                // Should include the empty active file
+                assert.strictEqual(contextItemsPassedToGetFileList.length, 1)
+
+                // Find the active file item
+                const activeFileItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/empty.ts'
+                )
+                assert.ok(activeFileItem, 'Empty file should be included as active file in context transparency list')
+                assert.strictEqual(activeFileItem.path, '/workspace/src/empty.ts')
+                assert.strictEqual(activeFileItem.type, 'file')
+
+                getFileListFromContextStub.restore()
+            })
         })
     })
     describe('truncateRequest', () => {
