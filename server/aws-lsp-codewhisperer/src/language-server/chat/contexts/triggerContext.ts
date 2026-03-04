@@ -76,31 +76,32 @@ export class QChatTriggerContext {
                 currentMessage: {
                     userInputMessage: {
                         content: prompt.escapedPrompt ?? prompt.prompt,
-                        userInputMessageContext: triggerContext.relativeFilePath
-                            ? {
-                                  editorState: {
-                                      cursorState: triggerContext.cursorState,
-                                      document: {
-                                          text: documentText,
-                                          programmingLanguage: triggerContext.programmingLanguage,
-                                          relativeFilePath: triggerContext.relativeFilePath,
+                        userInputMessageContext:
+                            triggerContext.cursorState && triggerContext.relativeFilePath
+                                ? {
+                                      editorState: {
+                                          cursorState: triggerContext.cursorState,
+                                          document: {
+                                              text: documentText,
+                                              programmingLanguage: triggerContext.programmingLanguage,
+                                              relativeFilePath: triggerContext.relativeFilePath,
+                                          },
+                                          ...(triggerContext.useRelevantDocuments && {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          }),
                                       },
+                                      tools,
+                                  }
+                                : {
+                                      tools,
                                       ...(triggerContext.useRelevantDocuments && {
-                                          useRelevantDocuments: triggerContext.useRelevantDocuments,
-                                          relevantDocuments: triggerContext.relevantDocuments,
+                                          editorState: {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          },
                                       }),
                                   },
-                                  tools,
-                              }
-                            : {
-                                  tools,
-                                  ...(triggerContext.useRelevantDocuments && {
-                                      editorState: {
-                                          useRelevantDocuments: triggerContext.useRelevantDocuments,
-                                          relevantDocuments: triggerContext.relevantDocuments,
-                                      },
-                                  }),
-                              },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
                     },
