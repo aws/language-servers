@@ -1049,7 +1049,7 @@ export class AgenticChatController implements ChatHandlers {
             )
             // Add active file to context list if it's not already there
             const activeFile =
-                triggerContext.text &&
+                triggerContext.text !== undefined &&
                 triggerContext.relativeFilePath &&
                 triggerContext.activeFilePath &&
                 !additionalContext.some(item => item.path === triggerContext.activeFilePath)
