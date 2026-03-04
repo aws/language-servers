@@ -291,6 +291,7 @@ export class AdditionalContextProvider {
         if (!contextInfo?.find(item => item.id === ACTIVE_EDITOR_CONTEXT_ID)) {
             triggerContext.text = undefined
             triggerContext.cursorState = undefined
+            triggerContext.activeFilePath = undefined
         } else {
             // Remove Active File from context list since its contents have already been added to triggerContext.text
             contextInfo = contextInfo.filter(item => item.id !== ACTIVE_EDITOR_CONTEXT_ID)
