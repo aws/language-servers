@@ -215,6 +215,48 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
+/**
+ * Recursively sanitize a JSON Schema for Ajv draft-07 compatibility.
+ *
+ * MCP spec (SEP-1613) defaults to JSON Schema 2020-12, but our Ajv instance
+ * only supports draft-07. This function:
+ *  - Strips `$schema` and `$id` meta-annotations that cause Ajv to throw
+ *  - Converts `prefixItems` (2020-12 tuple syntax) to array-form `items` (draft-07)
+ *  - Processes nested schemas so sub-schemas are also compatible
+ *
+ * Unknown 2020-12 keywords like `$dynamicRef` are left as-is — Ajv ignores
+ * them with `strictSchema: false`, making validation more permissive (safe
+ * direction; the MCP server validates inputs independently).
+ */
+function sanitizeSchemaForAjv(schema: any): any {
+    if (schema === null || schema === undefined || typeof schema !== 'object') {
+        return schema
+    }
+
+    if (Array.isArray(schema)) {
+        return schema.map(sanitizeSchemaForAjv)
+    }
+
+    const result: any = {}
+    for (const [key, value] of Object.entries(schema)) {
+        // Strip meta-annotations that reference unsupported drafts
+        if (key === '$schema' || key === '$id') {
+            continue
+        }
+
+        // Convert draft-2020-12 prefixItems to draft-07 array-form items
+        if (key === 'prefixItems') {
+            result['items'] = Array.isArray(value) ? value.map(sanitizeSchemaForAjv) : sanitizeSchemaForAjv(value)
+            continue
+        }
+
+        // Recurse into nested schema objects/arrays
+        result[key] = sanitizeSchemaForAjv(value)
+    }
+
+    return result
+}
+
 export const McpToolsServer: Server = ({
     credentialsProvider,
     workspace,
@@ -292,11 +334,18 @@ export const McpToolsServer: Server = ({
             )
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
+            // Sanitize schema for Ajv compatibility. MCP spec (SEP-1613) defaults to
+            // JSON Schema 2020-12, but our Ajv instance only supports draft-07. Strip
+            // $schema/$id meta-annotations that cause Ajv to throw, and convert
+            // draft-2020-12 keywords (prefixItems) to their draft-07 equivalents so
+            // validation still works for tuple-style arrays.
+            const sanitizedSchema = sanitizeSchemaForAjv(def.inputSchema ?? {})
+
             // Add explanation field to input schema
             const inputSchemaWithExplanation = {
-                ...def.inputSchema,
+                ...sanitizedSchema,
                 properties: {
-                    ...def.inputSchema.properties,
+                    ...sanitizedSchema.properties,
                     explanation: {
                         type: 'string',
                         description:
