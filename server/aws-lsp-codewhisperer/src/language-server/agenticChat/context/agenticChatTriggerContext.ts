@@ -267,32 +267,31 @@ export class AgenticChatTriggerContext {
                 currentMessage: {
                     userInputMessage: {
                         content: promptContent,
-                        userInputMessageContext:
-                            triggerContext.cursorState && triggerContext.relativeFilePath
-                                ? {
-                                      editorState: {
-                                          cursorState: triggerContext.cursorState,
-                                          document: {
-                                              text: triggerContext.text,
-                                              programmingLanguage: triggerContext.programmingLanguage,
-                                              relativeFilePath: triggerContext.relativeFilePath,
-                                          },
-                                          relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
-                                          useRelevantDocuments: useRelevantDocuments,
-                                          ...defaultEditorState,
+                        userInputMessageContext: triggerContext.relativeFilePath
+                            ? {
+                                  editorState: {
+                                      cursorState: triggerContext.cursorState,
+                                      document: {
+                                          text: triggerContext.text,
+                                          programmingLanguage: triggerContext.programmingLanguage,
+                                          relativeFilePath: triggerContext.relativeFilePath,
                                       },
-                                      tools,
-                                      envState: this.#mapPlatformToEnvState(process.platform),
-                                  }
-                                : {
-                                      tools,
-                                      editorState: {
-                                          relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
-                                          useRelevantDocuments: useRelevantDocuments,
-                                          ...defaultEditorState,
-                                      },
-                                      envState: this.#mapPlatformToEnvState(process.platform),
+                                      relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
+                                      useRelevantDocuments: useRelevantDocuments,
+                                      ...defaultEditorState,
                                   },
+                                  tools,
+                                  envState: this.#mapPlatformToEnvState(process.platform),
+                              }
+                            : {
+                                  tools,
+                                  editorState: {
+                                      relevantDocuments: useRelevantDocuments ? relevantDocuments : undefined,
+                                      useRelevantDocuments: useRelevantDocuments,
+                                      ...defaultEditorState,
+                                  },
+                                  envState: this.#mapPlatformToEnvState(process.platform),
+                              },
                         userIntent: triggerContext.userIntent,
                         origin: origin ? origin : 'IDE',
                         modelId,
