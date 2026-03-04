@@ -170,6 +170,9 @@ export const createChat = (
      * @param event - The message event containing data from the IDE
      */
     const handleInboundMessage = (event: MessageEvent): void => {
+        if (event.origin !== window.location.origin) {
+            return
+        }
         if (event.data === undefined) {
             return
         }
