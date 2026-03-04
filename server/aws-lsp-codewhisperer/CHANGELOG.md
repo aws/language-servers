@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.108](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.107...lsp-codewhisperer/v0.0.108) (2026-03-03)
+
+
+### Bug Fixes
+
+* adding HITL handling for Missing Private Packages ([#2630](https://github.com/aws/language-servers/issues/2630)) ([77b6e7d](https://github.com/aws/language-servers/commit/77b6e7d0974eb5c1aaebab7b888c9d2f53cb85c2))
+* **amazonq:** sanitize MCP tool schemas for Ajv draft-07 compatibility ([#2638](https://github.com/aws/language-servers/issues/2638)) ([69b275f](https://github.com/aws/language-servers/commit/69b275f001b964d024ac88d4c5bef70b83bac0e7))
+* support stripped indexing folder in bundled LSP and also update indexing bundle to AWSVectorConsolasLocalWorkspaceIndexing `d6762f8b` ([#2629](https://github.com/aws/language-servers/issues/2629)) ([a005b29](https://github.com/aws/language-servers/commit/a005b29d66d88abacd41d55954110d92c7e7a616))
+* toBase64() encoder which only accepts string ([#2636](https://github.com/aws/language-servers/issues/2636)) ([#2637](https://github.com/aws/language-servers/issues/2637)) ([5e4fda8](https://github.com/aws/language-servers/commit/5e4fda89499ac9266fa56e290c0805febffa7f81))
+
 ## [0.0.107](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.106...lsp-codewhisperer/v0.0.107) (2026-02-20)
 
 
