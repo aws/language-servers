@@ -1678,7 +1678,7 @@ export class ATXTransformHandler {
                     archive.file(filePath, { name: relativePath })
                 }
 
-                archive.finalize()
+                void archive.finalize()
             })
 
             this.logging.log(`ATX: Created modified files zip with ${modifiedFiles.length} files at ${zipPath}`)
@@ -1956,10 +1956,8 @@ export class ATXTransformHandler {
                 this.logging.log(`ATX: Could not get worklogs for workspace: ${workspaceId}, job: ${jobId}`)
             })
 
-            // For interactive mode (Interactive or OnFailure), download completed step artifacts if not already present
-            if (this.cachedInteractiveMode && this.cachedInteractiveMode !== 'Autonomous') {
-                await this.downloadCompletedStepArtifacts(workspaceId, jobId, solutionRootPath, plan)
-            }
+            // Download completed step artifacts if not already present (all modes)
+            await this.downloadCompletedStepArtifacts(workspaceId, jobId, solutionRootPath, plan)
 
             this.logging.log(`ATX: Successfully built plan tree with ${plan.Root.Children.length} root steps`)
             return plan
