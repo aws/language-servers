@@ -1070,13 +1070,29 @@ export class ATXTransformHandler {
             } else {
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
 
+                // For demo only
+                const plan = await this.getTransformationPlan(
+                    request.WorkspaceId,
+                    request.TransformationJobId,
+                    request.SolutionRootPath
+                )
+
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
                         JobId: request.TransformationJobId,
-                        Status: jobStatus,
+                        Status: 'EXECUTING',
                     } as AtxTransformationJob,
+                    TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
+
+                //return {
+                //    TransformationJob: {
+                //        WorkspaceId: request.WorkspaceId,
+                //        JobId: request.TransformationJobId,
+                //        Status: jobStatus,
+                //    } as AtxTransformationJob,
+                //} as AtxGetTransformInfoResponse
             }
         } catch (error) {
             this.logging.error(`ATX: GetTransformInfo error: ${String(error)}`)
@@ -1341,7 +1357,7 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Downloads and extracts the diff artifact ZIP.
+     * Downloads and extracts the diff artifact ZIP, then immediately applies changes.
      */
     private async downloadDiffArtifact(
         workspaceId: string,
@@ -1369,6 +1385,26 @@ export class ATXTransformHandler {
             )
 
             this.logging.log(`ATX: Diff artifact extracted to: ${pathToDownload}`)
+
+            // Immediately apply changes after extraction
+            const result = await this.applyChanges(pathToDownload, solutionRootPath)
+            if (result.success) {
+                this.logging.log(`ATX: Changes applied immediately for step: ${stepId}`)
+
+                // Update source files manifest with newly added files
+                if (result.addedFiles && result.addedFiles.length > 0) {
+                    this.updateSourceFilesManifest(solutionRootPath, jobId, result.addedFiles)
+                }
+
+                // Mark this step as applied
+                this.saveAppliedCheckpoint(solutionRootPath, jobId, stepId)
+
+                // Save timestamp after changes are applied for tracking user modifications
+                this.saveLastAppliedTimestamp(solutionRootPath, jobId, stepId)
+            } else {
+                this.logging.error(`ATX: Failed to apply changes for step ${stepId}: ${result.error}`)
+            }
+
             return pathToDownload
         } catch (error) {
             this.logging.error(`ATX: downloadDiffArtifact error: ${String(error)}`)
@@ -1489,6 +1525,167 @@ export class ATXTransformHandler {
             this.logging.log(`ATX: Source files manifest written to ${manifestPath} with ${sourceFiles.length} files`)
         } catch (error) {
             this.logging.error(`ATX: Failed to write source files manifest: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Updates the source files manifest with newly added files from HITL checkpoints.
+     * Adds new file paths to the existing manifest, avoiding duplicates.
+     */
+    private updateSourceFilesManifest(solutionRootPath: string, jobId: string, newFiles: string[]): void {
+        try {
+            if (!newFiles || newFiles.length === 0) {
+                return
+            }
+
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            const manifestPath = path.join(checkpointsDir, 'source-files.json')
+
+            if (!fs.existsSync(manifestPath)) {
+                this.logging.log('ATX: Source files manifest not found, skipping update')
+                return
+            }
+
+            const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
+            const manifest = JSON.parse(manifestContent)
+
+            // Convert new relative paths to absolute paths and add to manifest
+            const existingFiles = new Set(manifest.sourceFiles || [])
+            let addedCount = 0
+
+            for (const relativePath of newFiles) {
+                const absolutePath = path.join(solutionRootPath, relativePath)
+                if (!existingFiles.has(absolutePath)) {
+                    manifest.sourceFiles.push(absolutePath)
+                    existingFiles.add(absolutePath)
+                    addedCount++
+                }
+            }
+
+            if (addedCount > 0) {
+                manifest.lastUpdated = new Date().toISOString()
+                fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+                this.logging.log(`ATX: Updated source files manifest with ${addedCount} new files`)
+            }
+        } catch (error) {
+            this.logging.error(`ATX: Failed to update source files manifest: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Saves the timestamp when changes were applied for a step.
+     * Used to detect user modifications after checkpoint application.
+     */
+    private saveLastAppliedTimestamp(solutionRootPath: string, jobId: string, stepId: string): void {
+        try {
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            const manifestPath = path.join(checkpointsDir, 'source-files.json')
+
+            if (!fs.existsSync(manifestPath)) {
+                this.logging.log('ATX: Source files manifest not found, skipping timestamp save')
+                return
+            }
+
+            const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
+            const manifest = JSON.parse(manifestContent)
+
+            manifest.lastAppliedTimestamp = Date.now()
+            manifest.lastAppliedStepId = stepId
+
+            fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+            this.logging.log(`ATX: Saved last applied timestamp for step: ${stepId}`)
+        } catch (error) {
+            this.logging.error(`ATX: Failed to save last applied timestamp: ${String(error)}`)
+        }
+    }
+
+    /**
+     * Gets the list of files that have been modified since the last checkpoint was applied.
+     * Returns absolute paths of modified files.
+     */
+    private getModifiedFilesSinceCheckpoint(solutionRootPath: string, jobId: string): string[] {
+        try {
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            const manifestPath = path.join(checkpointsDir, 'source-files.json')
+
+            if (!fs.existsSync(manifestPath)) {
+                this.logging.log('ATX: Source files manifest not found')
+                return []
+            }
+
+            const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
+            const manifest = JSON.parse(manifestContent)
+
+            const lastAppliedTimestamp = manifest.lastAppliedTimestamp
+            if (!lastAppliedTimestamp) {
+                this.logging.log('ATX: No last applied timestamp found')
+                return []
+            }
+
+            const sourceFiles: string[] = manifest.sourceFiles || []
+            const modifiedFiles: string[] = []
+
+            for (const filePath of sourceFiles) {
+                try {
+                    if (fs.existsSync(filePath)) {
+                        const stats = fs.statSync(filePath)
+                        if (stats.mtimeMs > lastAppliedTimestamp) {
+                            modifiedFiles.push(filePath)
+                        }
+                    }
+                } catch (e) {
+                    this.logging.error(`ATX: Failed to check file modification time for ${filePath}: ${String(e)}`)
+                }
+            }
+
+            this.logging.log(`ATX: Found ${modifiedFiles.length} modified files since last checkpoint`)
+            return modifiedFiles
+        } catch (error) {
+            this.logging.error(`ATX: Failed to get modified files: ${String(error)}`)
+            return []
+        }
+    }
+
+    /**
+     * Creates a zip file containing the modified files for checkpoint action.
+     * Returns the path to the created zip file, or empty string if no files or error.
+     */
+    private async createModifiedFilesZip(
+        solutionRootPath: string,
+        jobId: string,
+        modifiedFiles: string[]
+    ): Promise<string> {
+        try {
+            if (modifiedFiles.length === 0) {
+                return ''
+            }
+
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            const zipPath = path.join(checkpointsDir, 'user-modifications.zip')
+
+            const archive = archiver('zip', { zlib: { level: 9 } })
+            const stream = fs.createWriteStream(zipPath)
+
+            await new Promise<void>((resolve, reject) => {
+                archive.on('error', err => reject(err))
+                stream.on('close', () => resolve())
+
+                archive.pipe(stream)
+
+                for (const filePath of modifiedFiles) {
+                    // Calculate relative path from solution root
+                    const relativePath = path.relative(solutionRootPath, filePath)
+                    archive.file(filePath, { name: relativePath })
+                }
+
+                archive.finalize()
+            })
+
+            this.logging.log(`ATX: Created modified files zip with ${modifiedFiles.length} files at ${zipPath}`)
+            return zipPath
+        } catch (error) {
+            this.logging.error(`ATX: Failed to create modified files zip: ${String(error)}`)
+            return ''
         }
     }
 
@@ -1817,6 +2014,11 @@ export class ATXTransformHandler {
                             // Mark this step as applied
                             this.saveAppliedCheckpoint(solutionRootPath, jobId, step.StepId)
                             this.logging.log(`ATX: Applied changes for step: ${step.StepId}`)
+
+                            // Update source files manifest with newly added files
+                            if (result.addedFiles && result.addedFiles.length > 0) {
+                                this.updateSourceFilesManifest(solutionRootPath, jobId, result.addedFiles)
+                            }
                         } else {
                             this.logging.error(`ATX: Failed to apply changes for step ${step.StepId}: ${result.error}`)
                         }
@@ -2353,12 +2555,57 @@ export class ATXTransformHandler {
             // At this point taskId is guaranteed to be a string
             const validTaskId = taskId as string
 
+            // Check for user-modified files since last checkpoint
+            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId)
+            let modifiedFilesZipPath = ''
+            let modifiedFilesUploadId = ''
+
+            if (modifiedFiles.length > 0) {
+                this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip`)
+                modifiedFilesZipPath = await this.createModifiedFilesZip(solutionRootPath, jobId, modifiedFiles)
+
+                if (modifiedFilesZipPath) {
+                    // Upload the modified files zip
+                    const modifiedFilesUploadInfo = await this.createArtifactUploadUrl(
+                        workspaceId,
+                        jobId,
+                        modifiedFilesZipPath,
+                        CategoryType.HITL_FROM_USER,
+                        FileType.ZIP
+                    )
+
+                    if (modifiedFilesUploadInfo) {
+                        const uploadSuccess = await Utils.uploadArtifact(
+                            modifiedFilesUploadInfo.uploadUrl,
+                            modifiedFilesZipPath,
+                            modifiedFilesUploadInfo.requestHeaders,
+                            this.logging
+                        )
+
+                        if (uploadSuccess) {
+                            const completeResponse = await this.completeArtifactUpload(
+                                workspaceId,
+                                jobId,
+                                modifiedFilesUploadInfo.uploadId
+                            )
+                            if (completeResponse?.success) {
+                                modifiedFilesUploadId = modifiedFilesUploadInfo.uploadId
+                                this.logging.log(`ATX: Uploaded user-modified files zip: ${modifiedFilesUploadId}`)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Create the human artifact JSON
             const artifactContent: any = {
                 action: action,
             }
             if (action === 'RETRY' && newInstruction) {
                 artifactContent.newInstruction = newInstruction
+            }
+            if (modifiedFilesUploadId) {
+                artifactContent.userModificationsArtifactId = modifiedFilesUploadId
             }
 
             // Create the JSON file at {solutionRootPath}/{workspaceFolderName}/{jobId}/checkpoints/checkpoint-action.json
@@ -2479,6 +2726,7 @@ export class ATXTransformHandler {
         filesRemoved?: number
         filesUpdated?: number
         filesMoved?: number
+        addedFiles?: string[]
     }> {
         try {
             this.logging.log(`ATX: Starting applyChanges from ${checkpointFolderPath} to ${solutionRootPath}`)
@@ -2501,6 +2749,7 @@ export class ATXTransformHandler {
             let removedCount = 0
             let updatedCount = 0
             let movedCount = 0
+            const successfullyAddedFiles: string[] = []
 
             // Handle filesAdded: Copy from {checkpointFolder}/after/{relativePath} to {solutionRootPath}/{relativePath}
             for (const relativePath of filesAdded) {
@@ -2516,6 +2765,7 @@ export class ATXTransformHandler {
 
                     fs.copyFileSync(sourcePath, destPath)
                     addedCount++
+                    successfullyAddedFiles.push(relativePath)
                     this.logging.log(`ATX: Added file: ${relativePath}`)
                 } catch (e) {
                     this.logging.error(`ATX: Failed to add file ${relativePath}: ${String(e)}`)
@@ -2590,6 +2840,7 @@ export class ATXTransformHandler {
                 filesRemoved: removedCount,
                 filesUpdated: updatedCount,
                 filesMoved: movedCount,
+                addedFiles: successfullyAddedFiles,
             }
         } catch (error) {
             this.logging.error(`ATX: applyChanges error: ${String(error)}`)
