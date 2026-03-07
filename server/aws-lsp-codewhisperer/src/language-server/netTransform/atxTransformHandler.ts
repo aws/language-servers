@@ -21,6 +21,9 @@ import {
     ListArtifactsCommand,
     StartJobCommand,
     StopJobCommand,
+    SendMessageCommand,
+    ListMessagesCommand,
+    BatchGetMessageCommand,
     CategoryType,
     FileType,
     JobInfo,
@@ -1574,6 +1577,165 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: ListWorklogs error: ${String(error)}`)
             return null
+        }
+    }
+
+    /**
+     * Send chat message to Transform service
+     */
+    async sendMessage(request: {
+        workspaceId: string
+        jobId?: string
+        text: string
+        skipPolling?: boolean
+    }): Promise<any> {
+        try {
+            this.logging.log(`ATX: Sending chat message for workspace: ${request.workspaceId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const command = new SendMessageCommand({
+                text: request.text,
+                idempotencyToken: uuidv4(),
+                metadata: {
+                    resourcesOnScreen: {
+                        workspace: {
+                            workspaceId: request.workspaceId,
+                            ...(request.jobId ? { jobs: [{ jobId: request.jobId, focusState: 'ACTIVE' }] } : {}),
+                        },
+                    },
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const sendResult = (await this.atxClient!.send(command)) as any
+            const sentMessageId = sendResult?.message?.messageId
+
+            if (!sentMessageId || request.skipPolling) {
+                return { success: true, data: sendResult }
+            }
+
+            // Poll for response
+            for (let attempt = 0; attempt < 8; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 2000))
+
+                const listResult = await this.listMessages({
+                    workspaceId: request.workspaceId,
+                    jobId: request.jobId,
+                    maxResults: 10,
+                })
+
+                const messageIds = listResult?.messageIds ?? []
+                if (!messageIds.length) continue
+
+                const batchResult = await this.batchGetMessages({
+                    workspaceId: request.workspaceId,
+                    messageIds,
+                })
+
+                const responses = (batchResult?.messages ?? []).filter(
+                    (m: any) => m.parentMessageId === sentMessageId && m.messageOrigin === 'SYSTEM'
+                )
+
+                const finalResponse = responses.find((m: any) => m.processingInfo?.messageType === 'FINAL_RESPONSE')
+
+                if (finalResponse) {
+                    return {
+                        success: true,
+                        data: {
+                            sentMessage: sendResult.message,
+                            response: {
+                                messageId: finalResponse.messageId,
+                                text: finalResponse.text,
+                                messageType: 'FINAL_RESPONSE',
+                                interactions: finalResponse.interactions,
+                                createdAt: finalResponse.createdAt,
+                            },
+                        },
+                    }
+                }
+            }
+
+            return {
+                success: true,
+                data: {
+                    sentMessage: sendResult.message,
+                    response: null,
+                    note: 'No final response within 16s. Use listMessages + batchGetMessages to check later.',
+                },
+            }
+        } catch (error) {
+            this.logging.error(`ATX: SendMessage error: ${String(error)}`)
+            throw error
+        }
+    }
+
+    /**
+     * List chat messages
+     */
+    async listMessages(request: {
+        workspaceId: string
+        jobId?: string
+        maxResults?: number
+        nextToken?: string
+        startTimestamp?: Date
+    }): Promise<any> {
+        try {
+            this.logging.log(`ATX: Listing messages for workspace: ${request.workspaceId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const workspace: any = { workspaceId: request.workspaceId }
+            if (request.jobId) {
+                workspace.jobs = [{ jobId: request.jobId, focusState: 'ACTIVE' }]
+            }
+
+            const command = new ListMessagesCommand({
+                metadata: { resourcesOnScreen: { workspace } },
+                ...(request.maxResults && { maxResults: request.maxResults }),
+                ...(request.nextToken && { nextToken: request.nextToken }),
+                ...(request.startTimestamp && { startTimestamp: request.startTimestamp }),
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            this.logging.log(`ATX: ListMessages completed - Found ${result.messageIds?.length || 0} messages`)
+            return result
+        } catch (error) {
+            this.logging.error(`ATX: ListMessages error: ${String(error)}`)
+            throw error
+        }
+    }
+
+    /**
+     * Batch get messages by IDs
+     */
+    async batchGetMessages(request: { workspaceId: string; messageIds: string[] }): Promise<any> {
+        try {
+            this.logging.log(`ATX: Batch getting ${request.messageIds.length} messages`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const command = new BatchGetMessageCommand({
+                messageIds: request.messageIds,
+                workspaceId: request.workspaceId,
+            })
+
+            await this.addAuthToCommand(command)
+            const result = await this.atxClient!.send(command)
+
+            this.logging.log(`ATX: BatchGetMessages completed`)
+            return result
+        } catch (error) {
+            this.logging.error(`ATX: BatchGetMessages error: ${String(error)}`)
+            throw error
         }
     }
 }
