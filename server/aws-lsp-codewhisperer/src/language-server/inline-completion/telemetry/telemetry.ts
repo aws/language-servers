@@ -61,7 +61,7 @@ export const emitServiceInvocationFailure = (
         codewhispererLastSuggestionIndex: -1,
         codewhispererTriggerType: session.triggerType,
         codewhispererAutomatedTriggerType: session.autoTriggerType,
-        reason: `CodeWhisperer Invocation Exception: ${error.name || 'UnknownError'}`,
+        reason: `${error.message || 'UnknownError'}`,
         duration,
         codewhispererLineNumber: session.startPosition.line,
         codewhispererCursorOffset: session.startPosition.character,
