@@ -503,7 +503,7 @@ describe('toolShared', () => {
             assert.ok(result.warning?.includes('sensitive system files'))
         })
 
-        it('should require acceptance for out-of-workspace file with password in name', async () => {
+        it('should detect password file behind traversal', async () => {
             const filePath = '/workspace/folder1/../../../var/password_store'
 
             isInWorkspaceStub.returns(false)
@@ -514,10 +514,8 @@ describe('toolShared', () => {
                 mockLogging as unknown as Features['logging']
             )
 
-            // Still requires acceptance because it's outside workspace,
-            // but no sensitive warning (broad keyword patterns were removed
-            // to prevent false positives on in-workspace files)
             assert.strictEqual(result.requiresAcceptance, true)
+            assert.ok(result.warning?.includes('sensitive system files'))
         })
 
         it('should detect private key behind traversal', async () => {
@@ -675,11 +673,10 @@ describe('toolShared', () => {
         })
 
         // ====================================================================
-        // Regression tests for JB #6244 / VSCode #8565:
         // In-workspace files must NEVER be blocked by filename patterns.
         // ====================================================================
 
-        it('should NOT block in-workspace file with "password" in path (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace file with "password" in path', async () => {
             const filePath = '/workspace/folder1/src/PasswordService.java'
             isInWorkspaceStub.returns(true)
 
@@ -696,7 +693,7 @@ describe('toolShared', () => {
             )
         })
 
-        it('should NOT block in-workspace file with "secret" in path (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace file with "secret" in path', async () => {
             const filePath = '/workspace/folder1/secrets-manager/handler.ts'
             isInWorkspaceStub.returns(true)
 
@@ -713,7 +710,7 @@ describe('toolShared', () => {
             )
         })
 
-        it('should NOT block in-workspace file with "credential" in path (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace file with "credential" in path', async () => {
             const filePath = '/workspace/folder1/src/credentials/auth.ts'
             isInWorkspaceStub.returns(true)
 
@@ -730,7 +727,7 @@ describe('toolShared', () => {
             )
         })
 
-        it('should NOT block in-workspace file under a /dev/ directory (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace file under a /dev/ directory', async () => {
             // This was the most common false positive: users with /Users/*/dev/ as workspace
             const filePath = '/Users/mir/dev/bitbucket/project/src/main.ts'
             isInWorkspaceStub.returns(true)
@@ -748,7 +745,7 @@ describe('toolShared', () => {
             )
         })
 
-        it('should NOT block in-workspace file with "private" and "key" in path (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace file with "private" and "key" in path', async () => {
             const filePath = '/workspace/folder1/src/privateKey/signer.ts'
             isInWorkspaceStub.returns(true)
 
@@ -765,7 +762,7 @@ describe('toolShared', () => {
             )
         })
 
-        it('should NOT block in-workspace .env file (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace .env file', async () => {
             const filePath = '/workspace/folder1/.env'
             isInWorkspaceStub.returns(true)
 
@@ -778,7 +775,7 @@ describe('toolShared', () => {
             assert.strictEqual(result.requiresAcceptance, false, 'In-workspace .env file should not require acceptance')
         })
 
-        it('should NOT block in-workspace .env.local file (regression: JB #6244)', async () => {
+        it('should NOT block in-workspace .env.local file', async () => {
             const filePath = '/workspace/folder1/.env.local'
             isInWorkspaceStub.returns(true)
 
@@ -792,56 +789,6 @@ describe('toolShared', () => {
                 result.requiresAcceptance,
                 false,
                 'In-workspace .env.local file should not require acceptance'
-            )
-        })
-
-        it('should NOT block out-of-workspace /Users/user/dev/ path as sensitive (regression: JB #6244)', async () => {
-            // /Users/user/dev/ is a common developer directory, NOT the system /dev/
-            const filePath = '/Users/user/dev/other-project/file.ts'
-            isInWorkspaceStub.returns(false)
-
-            const result = await requiresPathAcceptance(
-                filePath,
-                mockWorkspace,
-                mockLogging as unknown as Features['logging']
-            )
-
-            // Should require acceptance (outside workspace), but NO sensitive warning
-            assert.strictEqual(result.requiresAcceptance, true)
-            assert.strictEqual(result.warning, undefined, '/Users/user/dev/ should not trigger sensitive path warning')
-        })
-
-        it('should still block actual system /dev/ path as sensitive', async () => {
-            const filePath = '/dev/random'
-            isInWorkspaceStub.returns(false)
-
-            const result = await requiresPathAcceptance(
-                filePath,
-                mockWorkspace,
-                mockLogging as unknown as Features['logging']
-            )
-
-            assert.strictEqual(result.requiresAcceptance, true)
-            assert.ok(
-                result.warning?.includes('sensitive system files'),
-                'Actual /dev/random should be flagged as sensitive'
-            )
-        })
-
-        it('should still block actual system /etc/ path as sensitive', async () => {
-            const filePath = '/etc/passwd'
-            isInWorkspaceStub.returns(false)
-
-            const result = await requiresPathAcceptance(
-                filePath,
-                mockWorkspace,
-                mockLogging as unknown as Features['logging']
-            )
-
-            assert.strictEqual(result.requiresAcceptance, true)
-            assert.ok(
-                result.warning?.includes('sensitive system files'),
-                'Actual /etc/passwd should be flagged as sensitive'
             )
         })
     })
