@@ -142,9 +142,8 @@ export class TransformConfigurationServer {
 
             // Cache profiles in AtxTokenServiceManager for ARN-based lookup
             try {
-                const { AtxTokenServiceManager } = await import(
-                    '../../shared/amazonQServiceManager/AtxTokenServiceManager'
-                )
+                const { AtxTokenServiceManager } =
+                    await import('../../shared/amazonQServiceManager/AtxTokenServiceManager')
                 const atxServiceManager = AtxTokenServiceManager.getInstance()
 
                 atxServiceManager.cacheTransformProfiles(allProfiles)
