@@ -54,11 +54,15 @@ type ContextCommandInfo = ContextCommand & { pinned: boolean }
  */
 export class AdditionalContextProvider {
     private totalRulesCount: number = 0
+    private readonly getResources: () => string[]
 
     constructor(
         private readonly features: Features,
-        private readonly chatDb: ChatDatabase
-    ) {}
+        private readonly chatDb: ChatDatabase,
+        getResources?: () => string[]
+    ) {
+        this.getResources = getResources ?? (() => [])
+    }
 
     /**
      * Recursively collects markdown files from a directory and its subdirectories
@@ -121,10 +125,10 @@ export class AdditionalContextProvider {
             return rulesFiles
         }
 
-        // Get resources from agentConfig if McpManager is initialized, otherwise use defaults
+        // Get resources from agentConfig via injected callback
         let resources: string[]
         try {
-            resources = McpManager.isInitialized() ? McpManager.instance.getResources() : []
+            resources = this.getResources()
         } catch {
             resources = []
         }
@@ -256,10 +260,11 @@ export class AdditionalContextProvider {
             }
             // Custom resources from agentConfig.resources (absolute paths outside workspace)
             try {
-                const resources = McpManager.isInitialized() ? McpManager.instance.getResources() : []
+                const resources = this.getResources()
                 if (
                     resources.some(
-                        r => r.startsWith('file:///') && prompt.filePath === path.normalize(r.slice('file://'.length))
+                        (r: string) =>
+                            r.startsWith('file:///') && prompt.filePath === path.normalize(r.slice('file://'.length))
                     )
                 ) {
                     return 'rule'
