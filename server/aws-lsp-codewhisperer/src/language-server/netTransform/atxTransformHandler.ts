@@ -2600,25 +2600,17 @@ export class ATXTransformHandler {
                 return { Success: false, Error: 'Failed to complete artifact upload' }
             }
 
-            // Submit the standard HITL task with the human artifact
-            const submitResult = await this.submitStandardHitl(workspaceId, jobId, validTaskId, uploadInfo.uploadId)
+            // Update the HITL task with the human artifact
+            const updateResult = await this.updateHitl(workspaceId, jobId, validTaskId, uploadInfo.uploadId)
 
-            if (!submitResult) {
-                return { Success: false, Error: 'Failed to submit update workspace' }
+            if (!updateResult) {
+                return { Success: false, Error: 'Failed to update workspace HITL' }
             }
 
-            // Poll the HITL task until it's closed
-            this.logging.log('ATX: Polling step HITL task for completion')
-            const pollResult = await this.pollHitlTask(workspaceId, jobId, validTaskId)
-
-            if (!pollResult) {
-                return { Success: false, Error: 'Timeout waiting for update workspace to complete' }
-            }
-
-            // Clear the cached step HITL after successful submission
+            // Clear the cached step HITL after successful update
             this.cachedStepHitl = null
 
-            this.logging.log(`ATX: updateWorkspace completed successfully - ${pollResult}`)
+            this.logging.log(`ATX: updateWorkspace completed successfully`)
             return { Success: true }
         } catch (error) {
             this.logging.error(`ATX: updateWorkspace error: ${String(error)}`)
