@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.110](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.109...lsp-codewhisperer/v0.0.110) (2026-03-10)
+
+
+### Bug Fixes
+
+* rules created in default file is not working ([#2652](https://github.com/aws/language-servers/issues/2652)) ([#2655](https://github.com/aws/language-servers/issues/2655)) ([b380e97](https://github.com/aws/language-servers/commit/b380e97051251a0ead0a7bc3314f8850f14073ac))
+
 ## [0.0.109](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.108...lsp-codewhisperer/v0.0.109) (2026-03-10)
 
 
