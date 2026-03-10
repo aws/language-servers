@@ -1266,7 +1266,7 @@ export class ATXTransformHandler {
                 jobId: jobId,
                 taskType: 'NORMAL',
                 taskFilter: {
-                    taskStatuses: ['AWAITING_HUMAN_INPUT'],
+                    taskStatuses: ['AWAITING_HUMAN_INPUT', 'IN_PROGRESS'],
                     tag: `${stepId}-review`,
                 },
             })
