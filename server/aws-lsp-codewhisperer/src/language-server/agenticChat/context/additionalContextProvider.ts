@@ -29,7 +29,6 @@ import {
 } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
-import { McpManager } from '../tools/mcp/mcpManager'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
@@ -54,6 +53,13 @@ type ContextCommandInfo = ContextCommand & { pinned: boolean }
  */
 export class AdditionalContextProvider {
     private totalRulesCount: number = 0
+
+    /**
+     * Callback to retrieve resource paths from the agent configuration (default.json).
+     * Injected via constructor to avoid a direct import of McpManager, which would pull
+     * Node.js-only dependencies (node:process, node:stream via @modelcontextprotocol/sdk)
+     * into the webworker webpack bundle and break packaging.
+     */
     private readonly getResources: () => string[]
 
     constructor(
