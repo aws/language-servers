@@ -121,14 +121,6 @@ export async function requiresPathAcceptance(
         // This prevents bypasses like "/workspace/../../etc" appearing to be in-workspace.
         const canonicalPath = path.resolve(inputPath)
 
-        // Check for sensitive paths on BOTH the raw input and the resolved path
-        if (isSensitivePath(inputPath) || isSensitivePath(canonicalPath)) {
-            return {
-                requiresAcceptance: true,
-                warning: 'Access to sensitive system files requires explicit approval',
-            }
-        }
-
         // First check if the path is already approved
         if (isPathApproved(canonicalPath, approvedPaths)) {
             return { requiresAcceptance: false }
@@ -142,8 +134,27 @@ export async function requiresPathAcceptance(
             return { requiresAcceptance: true }
         }
 
-        const isInWorkspace = workspaceUtils.isInWorkspace(workspaceFolders, canonicalPath)
-        return { requiresAcceptance: !isInWorkspace }
+        // Check if the canonicalized path is inside the workspace.
+        // This is the primary security check — files genuinely inside the workspace
+        // are trusted regardless of their filename (e.g. "PasswordService.java",
+        // "credentials/auth.ts", or paths under a "/dev/" folder).
+        const isInWs = workspaceUtils.isInWorkspace(workspaceFolders, canonicalPath)
+        if (isInWs) {
+            return { requiresAcceptance: false }
+        }
+
+        // For paths OUTSIDE the workspace, check if they target sensitive system
+        // locations. We check both the raw input and the resolved path to catch
+        // traversal attempts like "/workspace/../../etc/passwd".
+        if (isSensitivePath(inputPath) || isSensitivePath(canonicalPath)) {
+            return {
+                requiresAcceptance: true,
+                warning: 'Access to sensitive system files requires explicit approval',
+            }
+        }
+
+        // Path is outside workspace but not a known sensitive location
+        return { requiresAcceptance: true }
     } catch (error) {
         if (logging) {
             logging.error(`Error checking file acceptance: ${error}`)
