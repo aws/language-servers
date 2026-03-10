@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.109](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.108...lsp-codewhisperer/v0.0.109) (2026-03-10)
+
+
+### Bug Fixes
+
+* tools always ask for permissions ([#2647](https://github.com/aws/language-servers/issues/2647)) ([#2648](https://github.com/aws/language-servers/issues/2648)) ([997793d](https://github.com/aws/language-servers/commit/997793dd13b8d7685997b43ea06774ce2f609ea5))
+
 ## [0.0.108](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.107...lsp-codewhisperer/v0.0.108) (2026-03-03)
 
 
