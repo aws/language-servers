@@ -148,6 +148,7 @@ export interface AtxSetCheckpointsRequest extends ExecuteCommandParams {
     WorkspaceId: string
     SolutionRootPath: string
     Checkpoints: Record<string, boolean>
+    InteractiveMode?: InteractiveMode
 }
 
 export interface AtxSetCheckpointsResponse {
@@ -190,4 +191,37 @@ export interface AtxUploadPackagesRequest extends ExecuteCommandParams {
 export interface AtxUploadPackagesResponse {
     Success: boolean
     Message?: string
+}
+
+// ATX List Artifacts request/response
+export interface AtxListArtifactsRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    TransformationJobId: string
+}
+
+export interface AtxArtifactInfo {
+    ArtifactId: string
+    Name: string
+    Description: string
+    SizeInBytes: number
+    CreatedTimestamp: number
+}
+
+export interface AtxListArtifactsResponse {
+    Artifacts: AtxArtifactInfo[]
+    Error?: string
+}
+
+// ATX Download Artifact request/response
+export interface AtxDownloadArtifactRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    TransformationJobId: string
+    ArtifactId: string
+    SavePath: string
+}
+
+export interface AtxDownloadArtifactResponse {
+    Success: boolean
+    FilePath?: string
+    Error?: string
 }

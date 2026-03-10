@@ -2410,7 +2410,8 @@ export class ATXTransformHandler {
         workspaceId: string,
         jobId: string,
         solutionRootPath: string,
-        checkpoints: Record<string, boolean>
+        checkpoints: Record<string, boolean>,
+        interactiveMode?: InteractiveMode
     ): Promise<AtxSetCheckpointsResponse> {
         try {
             this.logging.log(`ATX: Starting setCheckpoints for job: ${jobId}`)
@@ -2434,8 +2435,20 @@ export class ATXTransformHandler {
                 fs.mkdirSync(artifactDir, { recursive: true })
             }
 
+            // Build JSON content with optional interactiveMode
+            const jsonContent: Record<string, any> = { ...checkpoints }
+            if (interactiveMode) {
+                // Map PascalCase to backend format: Interactive->interactive, OnFailure->on_failure, Autonomous->auto
+                let mappedMode = 'auto'
+                if (interactiveMode === 'Interactive') mappedMode = 'interactive'
+                else if (interactiveMode === 'OnFailure') mappedMode = 'on_failure'
+                jsonContent.interactive_mode = mappedMode
+                this.logging.log(`ATX: setCheckpoints interactive_mode=${mappedMode}`)
+            }
+
             const jsonFilePath = path.join(artifactDir, 'checkpoint-settings.json')
-            fs.writeFileSync(jsonFilePath, JSON.stringify(checkpoints, null, 2))
+            this.logging.log(`ATX: Writing checkpoint-settings.json to ${jsonFilePath}`)
+            fs.writeFileSync(jsonFilePath, JSON.stringify(jsonContent, null, 2))
 
             // Step 3: Upload the JSON artifact
             const uploadInfo = await this.createArtifactUploadUrl(
@@ -3006,6 +3019,60 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: BatchGetMessages error: ${String(error)}`)
             throw error
+        }
+    }
+
+    async listArtifactsForDownload(
+        workspaceId: string,
+        jobId: string
+    ): Promise<{ Artifacts: any[]; Error?: string }> {
+        try {
+            this.logging.log(`ATX: listArtifactsForDownload called - workspaceId: ${workspaceId}, jobId: ${jobId}`)
+            const artifacts = await this.listArtifacts(workspaceId, jobId)
+            this.logging.log(`ATX: listArtifactsForDownload raw response: ${JSON.stringify(artifacts)}`)
+            if (!artifacts) {
+                this.logging.log(`ATX: listArtifactsForDownload - artifacts is null/undefined`)
+                return { Artifacts: [], Error: 'Failed to list artifacts' }
+            }
+
+            const mapped = artifacts.map((a: any) => ({
+                ArtifactId: a.artifactId,
+                Name: a.fileMetadata?.path || a.artifactId,
+                Description: a.fileMetadata?.description || '',
+                SizeInBytes: a.sizeInBytes || 0,
+                CreatedTimestamp: a.artifactCreatedTimestamp || 0,
+            }))
+            this.logging.log(`ATX: listArtifactsForDownload returning ${mapped.length} artifacts: ${JSON.stringify(mapped)}`)
+            return { Artifacts: mapped }
+        } catch (error) {
+            this.logging.error(`ATX: listArtifactsForDownload error: ${error}`)
+            return { Artifacts: [], Error: String(error) }
+        }
+    }
+
+    async downloadArtifactToPath(
+        workspaceId: string,
+        jobId: string,
+        artifactId: string,
+        savePath: string
+    ): Promise<{ Success: boolean; FilePath?: string; Error?: string }> {
+        try {
+            const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, artifactId)
+            if (!downloadInfo) {
+                return { Success: false, Error: 'Failed to get download URL' }
+            }
+
+            await Utils.downloadAndExtractArchive(
+                downloadInfo.s3PresignedUrl,
+                downloadInfo.requestHeaders,
+                savePath,
+                'artifact.zip',
+                this.logging
+            )
+
+            return { Success: true, FilePath: savePath }
+        } catch (error) {
+            return { Success: false, Error: String(error) }
         }
     }
 }

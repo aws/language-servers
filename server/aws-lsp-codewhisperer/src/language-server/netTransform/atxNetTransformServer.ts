@@ -15,6 +15,8 @@ import {
     AtxSetCheckpointsRequest,
     AtxUpdateWorkspaceRequest,
     AtxUploadPackagesRequest,
+    AtxListArtifactsRequest,
+    AtxDownloadArtifactRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -29,6 +31,8 @@ const AtxUploadPackagesCommand = 'aws/atxTransform/uploadPackages'
 const AtxSendMessageCommand = 'aws/atxTransform/sendMessage'
 const AtxListMessagesCommand = 'aws/atxTransform/listMessages'
 const AtxBatchGetMessagesCommand = 'aws/atxTransform/batchGetMessages'
+const AtxListArtifactsCommand = 'aws/atxTransform/listArtifacts'
+const AtxDownloadArtifactCommand = 'aws/atxTransform/downloadArtifact'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -91,14 +95,17 @@ export const AtxNetTransformServerToken =
                         return { Status: result }
                     }
                     case AtxSetCheckpointsCommand: {
-                        const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints } =
+                        const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints, InteractiveMode } =
                             params as AtxSetCheckpointsRequest
+
+                        logging.info(`ATX: setCheckpoints params - InteractiveMode=${InteractiveMode}, Checkpoints=${JSON.stringify(Checkpoints)}`)
 
                         return await atxTransformHandler.setCheckpoints(
                             WorkspaceId,
                             TransformationJobId,
                             SolutionRootPath,
-                            Checkpoints || {}
+                            Checkpoints || {},
+                            InteractiveMode
                         )
                     }
                     case AtxUpdateWorkspaceCommand: {
@@ -142,6 +149,21 @@ export const AtxNetTransformServerToken =
                             messageIds,
                         })
                     }
+                    case AtxListArtifactsCommand: {
+                        const { WorkspaceId, TransformationJobId } = params as AtxListArtifactsRequest
+                        logging.log(`ATX: ListArtifacts command received - WorkspaceId: ${WorkspaceId}, JobId: ${TransformationJobId}`)
+                        return await atxTransformHandler.listArtifactsForDownload(WorkspaceId, TransformationJobId)
+                    }
+                    case AtxDownloadArtifactCommand: {
+                        const { WorkspaceId, TransformationJobId, ArtifactId, SavePath } =
+                            params as AtxDownloadArtifactRequest
+                        return await atxTransformHandler.downloadArtifactToPath(
+                            WorkspaceId,
+                            TransformationJobId,
+                            ArtifactId,
+                            SavePath
+                        )
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -175,6 +197,8 @@ export const AtxNetTransformServerToken =
                             AtxSendMessageCommand,
                             AtxListMessagesCommand,
                             AtxBatchGetMessagesCommand,
+                            AtxListArtifactsCommand,
+                            AtxDownloadArtifactCommand,
                         ],
                     },
                 },
