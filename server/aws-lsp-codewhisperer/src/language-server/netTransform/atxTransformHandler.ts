@@ -47,7 +47,7 @@ import {
     PlanStepStatus,
     createEmptyRootNode,
     AtxStepInformation,
-    AtxCheckpointActionResponse,
+    AtxUpdateWorkspaceResponse,
     AtxUploadPackagesRequest,
     AtxUploadPackagesResponse,
     InteractiveMode,
@@ -2522,18 +2522,18 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Handle checkpoint action (APPLY or RETRY) for a step-level HITL.
+     * Update workspace by detecting modified files and submitting them to the step HITL.
+     * Goes through source-files.json to find files with last modified date > recorded timestamp,
+     * creates a zip with modified files and metadata.json containing filesUpdated with relative paths.
      */
-    async checkpointAction(
+    async updateWorkspace(
         workspaceId: string,
         jobId: string,
-        stepId: string,
-        action: string,
         solutionRootPath: string,
-        newInstruction?: string
-    ): Promise<AtxCheckpointActionResponse> {
+        stepId: string
+    ): Promise<AtxUpdateWorkspaceResponse> {
         try {
-            this.logging.log(`ATX: Starting checkpointAction for job: ${jobId}, step: ${stepId}, action: ${action}`)
+            this.logging.log(`ATX: Starting updateWorkspace for job: ${jobId}, step: ${stepId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
                 return { Success: false, Error: 'ATX FES client not initialized' }
@@ -2550,78 +2550,32 @@ export class ATXTransformHandler {
                 taskId = stepHitl.taskId
             }
 
-            // At this point taskId is guaranteed to be a string
             const validTaskId = taskId as string
 
             // Check for user-modified files since last checkpoint
             const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId)
-            let modifiedFilesZipPath = ''
-            let modifiedFilesUploadId = ''
 
-            if (modifiedFiles.length > 0) {
-                this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip`)
-                modifiedFilesZipPath = await this.createModifiedFilesZip(solutionRootPath, jobId, modifiedFiles)
-
-                if (modifiedFilesZipPath) {
-                    // Upload the modified files zip
-                    const modifiedFilesUploadInfo = await this.createArtifactUploadUrl(
-                        workspaceId,
-                        jobId,
-                        modifiedFilesZipPath,
-                        CategoryType.HITL_FROM_USER,
-                        FileType.ZIP
-                    )
-
-                    if (modifiedFilesUploadInfo) {
-                        const uploadSuccess = await Utils.uploadArtifact(
-                            modifiedFilesUploadInfo.uploadUrl,
-                            modifiedFilesZipPath,
-                            modifiedFilesUploadInfo.requestHeaders,
-                            this.logging
-                        )
-
-                        if (uploadSuccess) {
-                            const completeResponse = await this.completeArtifactUpload(
-                                workspaceId,
-                                jobId,
-                                modifiedFilesUploadInfo.uploadId
-                            )
-                            if (completeResponse?.success) {
-                                modifiedFilesUploadId = modifiedFilesUploadInfo.uploadId
-                                this.logging.log(`ATX: Uploaded user-modified files zip: ${modifiedFilesUploadId}`)
-                            }
-                        }
-                    }
-                }
+            if (modifiedFiles.length === 0) {
+                this.logging.log('ATX: No modified files found')
+                return { Success: false, Error: 'No modified files found since last checkpoint' }
             }
 
-            // Create the human artifact JSON
-            const artifactContent: any = {
-                action: action,
-            }
-            if (action === 'RETRY' && newInstruction) {
-                artifactContent.newInstruction = newInstruction
-            }
-            if (modifiedFilesUploadId) {
-                artifactContent.userModificationsArtifactId = modifiedFilesUploadId
+            this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip with metadata`)
+
+            // Create zip with modified files and metadata.json
+            const zipPath = await this.createUpdateWorkspaceZip(solutionRootPath, jobId, modifiedFiles)
+
+            if (!zipPath) {
+                return { Success: false, Error: 'Failed to create update workspace zip' }
             }
 
-            // Create the JSON file at {solutionRootPath}/{workspaceFolderName}/{jobId}/checkpoints/checkpoint-action.json
-            const artifactDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
-            if (!fs.existsSync(artifactDir)) {
-                fs.mkdirSync(artifactDir, { recursive: true })
-            }
-
-            const jsonFilePath = path.join(artifactDir, 'checkpoint-action.json')
-            fs.writeFileSync(jsonFilePath, JSON.stringify(artifactContent, null, 2))
-
-            // Upload the JSON artifact
+            // Upload the zip
             const uploadInfo = await this.createArtifactUploadUrl(
                 workspaceId,
                 jobId,
-                jsonFilePath,
+                zipPath,
                 CategoryType.HITL_FROM_USER,
-                FileType.JSON
+                FileType.ZIP
             )
 
             if (!uploadInfo) {
@@ -2630,13 +2584,13 @@ export class ATXTransformHandler {
 
             const uploadSuccess = await Utils.uploadArtifact(
                 uploadInfo.uploadUrl,
-                jsonFilePath,
+                zipPath,
                 uploadInfo.requestHeaders,
                 this.logging
             )
 
             if (!uploadSuccess) {
-                return { Success: false, Error: 'Failed to upload checkpoint action artifact to S3' }
+                return { Success: false, Error: 'Failed to upload update workspace zip to S3' }
             }
 
             // Complete artifact upload
@@ -2650,7 +2604,7 @@ export class ATXTransformHandler {
             const submitResult = await this.submitStandardHitl(workspaceId, jobId, validTaskId, uploadInfo.uploadId)
 
             if (!submitResult) {
-                return { Success: false, Error: 'Failed to submit checkpoint action' }
+                return { Success: false, Error: 'Failed to submit update workspace' }
             }
 
             // Poll the HITL task until it's closed
@@ -2658,17 +2612,75 @@ export class ATXTransformHandler {
             const pollResult = await this.pollHitlTask(workspaceId, jobId, validTaskId)
 
             if (!pollResult) {
-                return { Success: false, Error: 'Timeout waiting for checkpoint action to complete' }
+                return { Success: false, Error: 'Timeout waiting for update workspace to complete' }
             }
 
             // Clear the cached step HITL after successful submission
             this.cachedStepHitl = null
 
-            this.logging.log(`ATX: checkpointAction completed successfully - ${pollResult}`)
+            this.logging.log(`ATX: updateWorkspace completed successfully - ${pollResult}`)
             return { Success: true }
         } catch (error) {
-            this.logging.error(`ATX: checkpointAction error: ${String(error)}`)
+            this.logging.error(`ATX: updateWorkspace error: ${String(error)}`)
             return { Success: false, Error: String(error) }
+        }
+    }
+
+    /**
+     * Creates a zip file containing modified files and a metadata.json with filesUpdated list.
+     * Returns the path to the created zip file, or empty string if error.
+     */
+    private async createUpdateWorkspaceZip(
+        solutionRootPath: string,
+        jobId: string,
+        modifiedFiles: string[]
+    ): Promise<string> {
+        try {
+            if (modifiedFiles.length === 0) {
+                return ''
+            }
+
+            const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
+            if (!fs.existsSync(checkpointsDir)) {
+                fs.mkdirSync(checkpointsDir, { recursive: true })
+            }
+
+            const zipPath = path.join(checkpointsDir, 'update-workspace.zip')
+
+            // Calculate relative paths for metadata
+            const filesUpdated: string[] = modifiedFiles.map(filePath => path.relative(solutionRootPath, filePath))
+
+            // Create metadata.json content
+            const metadata = {
+                filesUpdated: filesUpdated,
+            }
+
+            const archive = archiver('zip', { zlib: { level: 9 } })
+            const stream = fs.createWriteStream(zipPath)
+
+            await new Promise<void>((resolve, reject) => {
+                archive.on('error', err => reject(err))
+                stream.on('close', () => resolve())
+
+                archive.pipe(stream)
+
+                // Add metadata.json
+                archive.append(JSON.stringify(metadata, null, 2), { name: 'metadata.json' })
+
+                // Add modified files with relative paths
+                for (const filePath of modifiedFiles) {
+                    const relativePath = path.relative(solutionRootPath, filePath)
+                    archive.file(filePath, { name: relativePath })
+                }
+
+                void archive.finalize()
+            })
+
+            this.logging.log(`ATX: Created update workspace zip with ${modifiedFiles.length} files at ${zipPath}`)
+            return zipPath
+        } catch (error) {
+            this.logging.error(`ATX: Failed to create update workspace zip: ${String(error)}`)
+            return ''
         }
     }
 

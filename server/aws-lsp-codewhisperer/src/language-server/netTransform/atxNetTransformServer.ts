@@ -13,7 +13,7 @@ import {
     AtxStopJobRequest,
     AtxUploadPlanRequest,
     AtxSetCheckpointsRequest,
-    AtxCheckpointActionRequest,
+    AtxUpdateWorkspaceRequest,
     AtxUploadPackagesRequest,
 } from './atxModels'
 
@@ -24,7 +24,7 @@ const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
 const AtxSetCheckpointsCommand = 'aws/atxTransform/setCheckpoints'
-const AtxCheckpointActionCommand = 'aws/atxTransform/checkpointAction'
+const AtxUpdateWorkspaceCommand = 'aws/atxTransform/updateWorkspace'
 const AtxUploadPackagesCommand = 'aws/atxTransform/uploadPackages'
 const AtxSendMessageCommand = 'aws/atxTransform/sendMessage'
 const AtxListMessagesCommand = 'aws/atxTransform/listMessages'
@@ -101,17 +101,15 @@ export const AtxNetTransformServerToken =
                             Checkpoints || {}
                         )
                     }
-                    case AtxCheckpointActionCommand: {
-                        const { WorkspaceId, TransformationJobId, StepId, Action, NewInstruction, SolutionRootPath } =
-                            params as AtxCheckpointActionRequest
+                    case AtxUpdateWorkspaceCommand: {
+                        const { WorkspaceId, TransformationJobId, StepId, SolutionRootPath } =
+                            params as AtxUpdateWorkspaceRequest
 
-                        return await atxTransformHandler.checkpointAction(
+                        return await atxTransformHandler.updateWorkspace(
                             WorkspaceId,
                             TransformationJobId,
-                            StepId,
-                            Action,
                             SolutionRootPath,
-                            NewInstruction
+                            StepId
                         )
                     }
                     case AtxUploadPackagesCommand: {
@@ -172,7 +170,7 @@ export const AtxNetTransformServerToken =
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
                             AtxSetCheckpointsCommand,
-                            AtxCheckpointActionCommand,
+                            AtxUpdateWorkspaceCommand,
                             AtxUploadPackagesCommand,
                             AtxSendMessageCommand,
                             AtxListMessagesCommand,

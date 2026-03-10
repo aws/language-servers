@@ -155,17 +155,15 @@ export interface AtxSetCheckpointsResponse {
     Error?: string
 }
 
-// ATX Checkpoint Action request/response
-export interface AtxCheckpointActionRequest extends ExecuteCommandParams {
-    Action: string // "APPLY" or "RETRY"
-    NewInstruction?: string // Only used when Action is "RETRY"
-    StepId: string
+// ATX Update Workspace request/response
+export interface AtxUpdateWorkspaceRequest extends ExecuteCommandParams {
     TransformationJobId: string
     WorkspaceId: string
     SolutionRootPath: string
+    StepId: string
 }
 
-export interface AtxCheckpointActionResponse {
+export interface AtxUpdateWorkspaceResponse {
     Success: boolean
     Error?: string | null
 }
