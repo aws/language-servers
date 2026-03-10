@@ -1855,6 +1855,10 @@ export class McpManager {
     /**
      * Get the registry service instance
      */
+    public getResources(): string[] {
+        return this.agentConfig?.resources ?? []
+    }
+
     public getRegistryService(): McpRegistryService | undefined {
         return this.registryService
     }
