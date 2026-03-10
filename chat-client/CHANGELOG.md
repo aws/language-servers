@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.50](https://github.com/aws/language-servers/compare/chat-client/v0.1.49...chat-client/v0.1.50) (2026-03-10)
+
+
+### Bug Fixes
+
+* update @aws/mynah-ui to 4.39.1 for XSS security fixes ([#2653](https://github.com/aws/language-servers/issues/2653)) ([db4283f](https://github.com/aws/language-servers/commit/db4283f57f65cc9d1b13e7e0c22f4bedf680c873))
+
 ## [0.1.49](https://github.com/aws/language-servers/compare/chat-client/v0.1.48...chat-client/v0.1.49) (2026-02-17)
 
 
