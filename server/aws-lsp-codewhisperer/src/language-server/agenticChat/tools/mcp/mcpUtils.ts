@@ -393,6 +393,15 @@ export async function loadAgentConfig(
             }
         }
 
+        // 5b) Process resources
+        if (Array.isArray(json.resources)) {
+            for (const resource of json.resources) {
+                if (typeof resource === 'string' && !agentConfig.resources!.includes(resource)) {
+                    agentConfig.resources!.push(resource)
+                }
+            }
+        }
+
         // 6) Process MCP servers (similar to loadMcpServerConfigs)
         if (json.mcpServers && typeof json.mcpServers === 'object') {
             for (const [name, entryRaw] of Object.entries(json.mcpServers)) {
