@@ -54,10 +54,21 @@ type ContextCommandInfo = ContextCommand & { pinned: boolean }
 export class AdditionalContextProvider {
     private totalRulesCount: number = 0
 
+    /**
+     * Callback to retrieve resource paths from the agent configuration (default.json).
+     * Injected via constructor to avoid a direct import of McpManager, which would pull
+     * Node.js-only dependencies (node:process, node:stream via @modelcontextprotocol/sdk)
+     * into the webworker webpack bundle and break packaging.
+     */
+    private readonly getResources: () => string[]
+
     constructor(
         private readonly features: Features,
-        private readonly chatDb: ChatDatabase
-    ) {}
+        private readonly chatDb: ChatDatabase,
+        getResources?: () => string[]
+    ) {
+        this.getResources = getResources ?? (() => [])
+    }
 
     /**
      * Recursively collects markdown files from a directory and its subdirectories
@@ -92,7 +103,25 @@ export class AdditionalContextProvider {
     }
 
     /**
-     * Internal method to collect workspace rules without tab filtering
+     * Resolves a resource URI (file://relative or file:///absolute) against a workspace folder.
+     * Returns the absolute fs path, or undefined if the resource is not a file:// URI.
+     */
+    private resolveResourcePath(resource: string, workspaceFolder: string): string | undefined {
+        if (!resource.startsWith('file://')) {
+            return undefined
+        }
+        const withoutScheme = resource.slice('file://'.length)
+        // Absolute path: file:///abs/path or file://C:/... on Windows
+        if (withoutScheme.startsWith('/') || /^[a-zA-Z]:/.test(withoutScheme)) {
+            return path.normalize(withoutScheme)
+        }
+        // Relative path: file://relative/path
+        return path.join(workspaceFolder, withoutScheme)
+    }
+
+    /**
+     * Internal method to collect workspace rules without tab filtering.
+     * Resolves paths from agentConfig.resources when available, falling back to hardcoded defaults.
      */
     private async collectWorkspaceRulesInternal(): Promise<ContextCommandItem[]> {
         const rulesFiles: ContextCommandItem[] = []
@@ -102,37 +131,63 @@ export class AdditionalContextProvider {
             return rulesFiles
         }
 
+        // Get resources from agentConfig via injected callback
+        let resources: string[]
+        try {
+            resources = this.getResources()
+        } catch {
+            resources = []
+        }
+
+        // Fall back to default resources if none configured
+        if (resources.length === 0) {
+            resources = ['file://AmazonQ.md', 'file://README.md', 'file://.amazonq/rules/**/*.md']
+        }
+
         for (const workspaceFolder of workspaceFolders) {
-            // Check for rules in .amazonq/rules directory and its subdirectories
-            const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
-            const folderExists = await this.features.workspace.fs.exists(rulesPath)
+            for (const resource of resources) {
+                const resolved = this.resolveResourcePath(resource, workspaceFolder)
+                if (!resolved) {
+                    continue
+                }
 
-            if (folderExists) {
-                await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles)
-            }
+                // Handle glob pattern for rules directory
+                if (resolved.endsWith(path.join('.amazonq', 'rules', '**', '*.md'))) {
+                    const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
+                    const folderExists = await this.features.workspace.fs.exists(rulesPath)
+                    if (folderExists) {
+                        await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles)
+                    }
+                    continue
+                }
 
-            // Check for README.md in workspace root
-            const readmePath = path.join(workspaceFolder, 'README.md')
-            const readmeExists = await this.features.workspace.fs.exists(readmePath)
-            if (readmeExists) {
-                rulesFiles.push({
-                    workspaceFolder: workspaceFolder,
-                    type: 'file',
-                    relativePath: 'README.md',
-                    id: readmePath,
-                })
-            }
+                // Handle absolute paths (custom resources outside workspace)
+                const isAbsolute = path.isAbsolute(
+                    resource.startsWith('file://') ? resource.slice('file://'.length) : resource
+                )
+                if (isAbsolute) {
+                    const exists = await this.features.workspace.fs.exists(resolved)
+                    if (exists) {
+                        rulesFiles.push({
+                            workspaceFolder: path.dirname(resolved),
+                            type: 'file',
+                            relativePath: path.basename(resolved),
+                            id: resolved,
+                        })
+                    }
+                    continue
+                }
 
-            // Check for AmazonQ.md in workspace root
-            const amazonQPath = path.join(workspaceFolder, 'AmazonQ.md')
-            const amazonQExists = await this.features.workspace.fs.exists(amazonQPath)
-            if (amazonQExists) {
-                rulesFiles.push({
-                    workspaceFolder: workspaceFolder,
-                    type: 'file',
-                    relativePath: 'AmazonQ.md',
-                    id: amazonQPath,
-                })
+                // Handle workspace-relative file
+                const exists = await this.features.workspace.fs.exists(resolved)
+                if (exists) {
+                    rulesFiles.push({
+                        workspaceFolder,
+                        type: 'file',
+                        relativePath: path.relative(workspaceFolder, resolved),
+                        id: resolved,
+                    })
+                }
             }
         }
 
@@ -208,6 +263,20 @@ export class AdditionalContextProvider {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
                 return 'prompt'
+            }
+            // Custom resources from agentConfig.resources (absolute paths outside workspace)
+            try {
+                const resources = this.getResources()
+                if (
+                    resources.some(
+                        (r: string) =>
+                            r.startsWith('file:///') && prompt.filePath === path.normalize(r.slice('file://'.length))
+                    )
+                ) {
+                    return 'rule'
+                }
+            } catch {
+                // ignore
             }
         }
         return 'file'
