@@ -2568,14 +2568,9 @@ export class ATXTransformHandler {
             // Check for user-modified files since last checkpoint
             const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId)
 
-            if (modifiedFiles.length === 0) {
-                this.logging.log('ATX: No modified files found')
-                return { Success: false, Error: 'No modified files found since last checkpoint' }
-            }
-
             this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip with metadata`)
 
-            // Create zip with modified files and metadata.json
+            // Create zip with modified files and metadata.json (even if empty)
             const zipPath = await this.createUpdateWorkspaceZip(solutionRootPath, jobId, modifiedFiles)
 
             if (!zipPath) {
@@ -2633,6 +2628,7 @@ export class ATXTransformHandler {
 
     /**
      * Creates a zip file containing modified files and a metadata.json with filesUpdated list.
+     * If no files are modified, creates a zip with just an empty metadata.json.
      * Returns the path to the created zip file, or empty string if error.
      */
     private async createUpdateWorkspaceZip(
@@ -2641,10 +2637,6 @@ export class ATXTransformHandler {
         modifiedFiles: string[]
     ): Promise<string> {
         try {
-            if (modifiedFiles.length === 0) {
-                return ''
-            }
-
             const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
             if (!fs.existsSync(checkpointsDir)) {
                 fs.mkdirSync(checkpointsDir, { recursive: true })
@@ -2655,7 +2647,7 @@ export class ATXTransformHandler {
             // Calculate relative paths for metadata
             const filesUpdated: string[] = modifiedFiles.map(filePath => path.relative(solutionRootPath, filePath))
 
-            // Create metadata.json content
+            // Create metadata.json content (empty array if no files modified)
             const metadata = {
                 filesUpdated: filesUpdated,
             }
