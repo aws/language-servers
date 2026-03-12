@@ -3024,11 +3024,8 @@ export class ATXTransformHandler {
 
     async listArtifactsForDownload(workspaceId: string, jobId: string): Promise<{ Artifacts: any[]; Error?: string }> {
         try {
-            this.logging.log(`ATX: listArtifactsForDownload called - workspaceId: ${workspaceId}, jobId: ${jobId}`)
             const artifacts = await this.listArtifacts(workspaceId, jobId)
-            this.logging.log(`ATX: listArtifactsForDownload raw response: ${JSON.stringify(artifacts)}`)
             if (!artifacts) {
-                this.logging.log(`ATX: listArtifactsForDownload - artifacts is null/undefined`)
                 return { Artifacts: [], Error: 'Failed to list artifacts' }
             }
 
@@ -3039,9 +3036,6 @@ export class ATXTransformHandler {
                 SizeInBytes: a.sizeInBytes || 0,
                 CreatedTimestamp: a.artifactCreatedTimestamp || 0,
             }))
-            this.logging.log(
-                `ATX: listArtifactsForDownload returning ${mapped.length} artifacts: ${JSON.stringify(mapped)}`
-            )
             return { Artifacts: mapped }
         } catch (error) {
             this.logging.error(`ATX: listArtifactsForDownload error: ${error}`)
