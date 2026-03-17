@@ -79,7 +79,8 @@ export class AdditionalContextProvider {
     private async collectMarkdownFilesRecursively(
         workspaceFolder: string,
         dirPath: string,
-        rulesFiles: ContextCommandItem[]
+        rulesFiles: ContextCommandItem[],
+        seenIds?: Set<string>
     ): Promise<void> {
         const entries = await this.features.workspace.fs.readdir(dirPath)
 
@@ -88,8 +89,13 @@ export class AdditionalContextProvider {
 
             if (entry.isDirectory()) {
                 // Recursively search subdirectories
-                await this.collectMarkdownFilesRecursively(workspaceFolder, fullPath, rulesFiles)
+                await this.collectMarkdownFilesRecursively(workspaceFolder, fullPath, rulesFiles, seenIds)
             } else if (entry.isFile() && entry.name.endsWith(promptFileExtension)) {
+                // Skip duplicate rules (same file resolved from multiple workspace folders)
+                if (seenIds?.has(fullPath)) {
+                    continue
+                }
+                seenIds?.add(fullPath)
                 // Add markdown file to the list
                 const relativePath = path.relative(workspaceFolder, fullPath)
                 rulesFiles.push({
@@ -125,6 +131,9 @@ export class AdditionalContextProvider {
      */
     private async collectWorkspaceRulesInternal(): Promise<ContextCommandItem[]> {
         const rulesFiles: ContextCommandItem[] = []
+        // Track seen rule IDs (resolved absolute paths) to avoid duplicates when
+        // multiple workspace folders resolve to the same file (e.g. absolute-path resources)
+        const seenIds = new Set<string>()
         let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
 
         if (!workspaceFolders.length) {
@@ -156,7 +165,7 @@ export class AdditionalContextProvider {
                     const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
                     const folderExists = await this.features.workspace.fs.exists(rulesPath)
                     if (folderExists) {
-                        await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles)
+                        await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles, seenIds)
                     }
                     continue
                 }
@@ -166,8 +175,12 @@ export class AdditionalContextProvider {
                     resource.startsWith('file://') ? resource.slice('file://'.length) : resource
                 )
                 if (isAbsolute) {
+                    if (seenIds.has(resolved)) {
+                        continue
+                    }
                     const exists = await this.features.workspace.fs.exists(resolved)
                     if (exists) {
+                        seenIds.add(resolved)
                         rulesFiles.push({
                             workspaceFolder: path.dirname(resolved),
                             type: 'file',
@@ -179,8 +192,12 @@ export class AdditionalContextProvider {
                 }
 
                 // Handle workspace-relative file
+                if (seenIds.has(resolved)) {
+                    continue
+                }
                 const exists = await this.features.workspace.fs.exists(resolved)
                 if (exists) {
+                    seenIds.add(resolved)
                     rulesFiles.push({
                         workspaceFolder,
                         type: 'file',
