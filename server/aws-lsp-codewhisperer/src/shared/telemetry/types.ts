@@ -319,6 +319,7 @@ export type AddMessageEvent = {
 
     // context related metrics
     cwsprChatHasContextList?: boolean
+    cwsprChatHasWorkspaceContext?: boolean
     cwsprChatFolderContextCount?: number
     cwsprChatFileContextCount?: number
     cwsprChatFileContextLength?: number
