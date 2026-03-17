@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.110](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.109...lsp-codewhisperer/v0.0.110) (2026-03-17)
+
+
+### Features
+
+* add cwsprChatHasWorkspaceContext metric to amazonq_addMessage event ([#2665](https://github.com/aws/language-servers/issues/2665)) ([#2668](https://github.com/aws/language-servers/issues/2668)) ([7d71d0a](https://github.com/aws/language-servers/commit/7d71d0a38d1e9adbb29210fff1c2b6b5e6d7d120))
+
+
+### Bug Fixes
+
+* amazon q ignores rules for other os, so adding fallback ([#2663](https://github.com/aws/language-servers/issues/2663)) ([4be527a](https://github.com/aws/language-servers/commit/4be527a69b4cecc801e23009a63c8d3301b84f2d))
+* deduplicate rules in multi workspace mode ([#2660](https://github.com/aws/language-servers/issues/2660)) ([c8022fe](https://github.com/aws/language-servers/commit/c8022feb7637c64f71330856ecb3cb96096dccb7))
+* rules created in default file is not working ([#2652](https://github.com/aws/language-servers/issues/2652)) ([#2655](https://github.com/aws/language-servers/issues/2655)) ([b380e97](https://github.com/aws/language-servers/commit/b380e97051251a0ead0a7bc3314f8850f14073ac))
+
 ## [0.0.109](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.108...lsp-codewhisperer/v0.0.109) (2026-03-10)
 
 
