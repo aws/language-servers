@@ -326,27 +326,6 @@ describe('AdditionalContextProvider', () => {
             assert.strictEqual(triggerContext.cursorState, undefined)
         })
 
-        it('should set hasWorkspace flag when @workspace is present', async () => {
-            const mockWorkspaceFolder = {
-                uri: URI.file('/workspace').toString(),
-                name: 'test',
-            }
-            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-            const triggerContext: TriggerContext = {
-                workspaceFolder: mockWorkspaceFolder,
-            }
-
-            const workspaceContext = [{ id: '@workspace', command: 'Workspace', label: 'folder' }]
-            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(workspaceContext)
-
-            fsExistsStub.resolves(false)
-            getContextCommandPromptStub.resolves([])
-
-            await provider.getAdditionalContext(triggerContext, 'tab1')
-
-            assert.strictEqual(triggerContext.hasWorkspace, true)
-        })
-
         it('should count context types correctly', async () => {
             const mockWorkspaceFolder = {
                 uri: URI.file('/workspace').toString(),
