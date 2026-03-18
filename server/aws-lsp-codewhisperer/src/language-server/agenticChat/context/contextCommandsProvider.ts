@@ -16,7 +16,6 @@ export class ContextCommandsProvider implements Disposable {
     private codeSymbolsFailed = false
     private filesAndFoldersPending = true
     private filesAndFoldersFailed = false
-    private workspacePending = true
     private initialStateSent = false
     constructor(
         private readonly logging: Logging,
@@ -44,12 +43,6 @@ export class ContextCommandsProvider implements Disposable {
             const controller = await LocalProjectContextController.getInstance()
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
-            }
-            controller.onIndexingInProgressChanged = (indexingInProgress: boolean) => {
-                if (this.workspacePending !== indexingInProgress) {
-                    this.workspacePending = indexingInProgress
-                    void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
-                }
             }
         } catch (e) {
             this.logging.warn(`Error processing context command update: ${e}`)
@@ -177,12 +170,6 @@ export class ContextCommandsProvider implements Disposable {
             placeholder: 'Select an image file',
         }
 
-        const workspaceCmd: ContextCommand = {
-            command: '@workspace',
-            id: '@workspace',
-            description: 'Reference all code in workspace',
-            disabledText: this.workspacePending ? 'pending' : undefined,
-        }
         const commands = [folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
 
         if (imageContextEnabled) {
