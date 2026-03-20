@@ -915,7 +915,14 @@ export class ATXTransformHandler {
                 this.logging.log(`ATX: Found ${hitls.length} hitls (expected 1)`)
             }
 
-            const hitl = hitls[0]
+            const hitl =
+                hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') || hitls[0]
+            this.logging.log(
+                `ATX: getHitlAgentArtifact picked hitl tag: ${hitl.tag}, all tags: ${hitls.map(h => h.tag).join(',')}`
+            )
+            this.logging.log(
+                `ATX: getHitlAgentArtifact - selected tag: ${hitl.tag}, artifactId: ${hitl.agentArtifact?.artifactId}, allTags: ${hitls.map((h: any) => h.tag)}`
+            )
             this.cachedHitl = hitl.taskId
             const hitlTag = hitl.tag || null
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
@@ -925,18 +932,32 @@ export class ATXTransformHandler {
             }
 
             const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId)
-
-            await Utils.downloadAndExtractArchive(
-                downloadInfo.s3PresignedUrl,
-                downloadInfo.requestHeaders,
-                pathToDownload,
-                'transformation-plan-download.zip',
-                this.logging
-            )
-
             const fs = require('fs')
+            await Utils.directoryExists(pathToDownload)
+
+            // Missing-packages artifact is raw JSON, not a zip
+            if (hitlTag === 'missing-packages' || hitlTag === 'handle_missing_packages_hitl') {
+                const response = await got.get(downloadInfo.s3PresignedUrl, {
+                    headers: downloadInfo.requestHeaders || {},
+                    responseType: 'buffer',
+                })
+                const rawPath = path.join(pathToDownload, 'missing-packages.json')
+                fs.writeFileSync(rawPath, response.body)
+                this.logging.log(
+                    `ATX: Missing packages artifact saved as JSON: ${rawPath} (${response.body.length} bytes)`
+                )
+            } else {
+                await Utils.downloadAndExtractArchive(
+                    downloadInfo.s3PresignedUrl,
+                    downloadInfo.requestHeaders,
+                    pathToDownload,
+                    'transformation-plan-download.zip',
+                    this.logging
+                )
+            }
+
             const extractedFiles = fs.readdirSync(pathToDownload)
-            this.logging.log(`ATX: Extracted files in ${pathToDownload}: ${JSON.stringify(extractedFiles)}`)
+            this.logging.log(`ATX: Files in ${pathToDownload}: ${JSON.stringify(extractedFiles)}`)
 
             const planPath = path.join(pathToDownload, 'transformation-plan.md')
             const reportPath = path.join(pathToDownload, 'assessment-report.md')
@@ -1068,31 +1089,70 @@ export class ATXTransformHandler {
             } else if (jobStatus === 'AWAITING_HUMAN_INPUT') {
                 return await this.handleAwaitingHumanInput(request)
             } else {
+                this.logging.log(`ATX: Job status is ${jobStatus} - checking for pending HITL tasks`)
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
 
-                // For demo only
-                const plan = await this.getTransformationPlan(
-                    request.WorkspaceId,
-                    request.TransformationJobId,
-                    request.SolutionRootPath
-                )
+                // Try to get plan regardless of status
+                let plan: any = undefined
+                try {
+                    plan = await this.getTransformationPlan(
+                        request.WorkspaceId,
+                        request.TransformationJobId,
+                        request.SolutionRootPath
+                    )
+                } catch (e) {
+                    // Plan not available yet
+                }
+
+                // Check for pending HITL tasks (e.g. missing packages) - job stays in PLANNING while HITL is pending
+                const hitls = await this.listHitls(request.WorkspaceId, request.TransformationJobId)
+                if (hitls && hitls.length > 0) {
+                    const hitl =
+                        hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
+                        hitls[0]
+                    this.logging.log(`ATX: Found HITL task - tag: ${hitl.tag}, hasArtifact: ${!!hitl.agentArtifact}`)
+                    // For missing packages HITL, try to download artifact if available
+                    if (hitl.tag === 'handle_missing_packages_hitl' || hitl.tag === 'missing-packages') {
+                        this.cachedHitl = hitl.taskId
+                        let missingPkgPath: string | undefined
+                        if (hitl.agentArtifact?.artifactId) {
+                            try {
+                                const result = await this.handlePlanningPhaseHitl(request)
+                                missingPkgPath = result?.MissingPackageJsonPath ?? undefined
+                                this.logging.log(`ATX: Missing packages artifact downloaded: ${missingPkgPath}`)
+                            } catch (e) {
+                                this.logging.log(`ATX: Missing packages artifact download failed: ${e}`)
+                            }
+                        }
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            MissingPackageJsonPath: missingPkgPath,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // For other HITLs with artifact (checkpoint etc), try handlePlanningPhaseHitl
+                    if (hitl.agentArtifact?.artifactId) {
+                        try {
+                            return await this.handlePlanningPhaseHitl(request)
+                        } catch (e) {
+                            this.logging.log(`ATX: handlePlanningPhaseHitl failed: ${e}`)
+                        }
+                    }
+                }
 
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
                         JobId: request.TransformationJobId,
-                        Status: 'EXECUTING',
+                        Status: jobStatus,
                     } as AtxTransformationJob,
                     TransformationPlan: plan,
                 } as AtxGetTransformInfoResponse
-
-                //return {
-                //    TransformationJob: {
-                //        WorkspaceId: request.WorkspaceId,
-                //        JobId: request.TransformationJobId,
-                //        Status: jobStatus,
-                //    } as AtxTransformationJob,
-                //} as AtxGetTransformInfoResponse
             }
         } catch (error) {
             this.logging.error(`ATX: GetTransformInfo error: ${String(error)}`)
@@ -1114,7 +1174,7 @@ export class ATXTransformHandler {
             request.SolutionRootPath
         )
 
-        const hasPlan = plan.Root.Children[0].Children.length > 0
+        const hasPlan = plan.Root.Children.length > 0 && plan.Root.Children[0].Children.length > 0
 
         if (hasPlan) {
             // Execution phase: Plan exists, HITL raised during transformation
@@ -1133,6 +1193,10 @@ export class ATXTransformHandler {
             request.WorkspaceId,
             request.TransformationJobId,
             request.SolutionRootPath
+        )
+
+        this.logging.log(
+            `ATX: Planning phase HITL - HitlTag: ${response?.HitlTag}, MissingPackageJsonPath: ${response?.MissingPackageJsonPath}, PlanPath: ${response?.PlanPath}`
         )
 
         return {
