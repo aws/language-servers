@@ -1135,14 +1135,6 @@ export class ATXTransformHandler {
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
                     }
-                    // For other HITLs with artifact (checkpoint etc), try handlePlanningPhaseHitl
-                    if (hitl.agentArtifact?.artifactId) {
-                        try {
-                            return await this.handlePlanningPhaseHitl(request)
-                        } catch (e) {
-                            this.logging.log(`ATX: handlePlanningPhaseHitl failed: ${e}`)
-                        }
-                    }
                 }
 
                 return {
