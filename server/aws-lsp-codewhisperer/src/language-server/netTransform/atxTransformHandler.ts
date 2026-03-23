@@ -3085,13 +3085,15 @@ export class ATXTransformHandler {
                 return { Artifacts: [], Error: 'Failed to list artifacts' }
             }
 
-            const mapped = artifacts.map((a: any) => ({
-                ArtifactId: a.artifactId,
-                Name: a.fileMetadata?.path || a.artifactId,
-                Description: a.fileMetadata?.description || '',
-                SizeInBytes: a.sizeInBytes || 0,
-                CreatedTimestamp: a.artifactCreatedTimestamp || 0,
-            }))
+            const mapped = artifacts
+                .filter((a: any) => a.fileMetadata?.path)
+                .map((a: any) => ({
+                    ArtifactId: a.artifactId,
+                    Name: a.fileMetadata.path,
+                    Description: a.fileMetadata.description || '',
+                    SizeInBytes: a.sizeInBytes || 0,
+                    CreatedTimestamp: a.artifactCreatedTimestamp || 0,
+                }))
             return { Artifacts: mapped }
         } catch (error) {
             this.logging.error(`ATX: listArtifactsForDownload error: ${error}`)
