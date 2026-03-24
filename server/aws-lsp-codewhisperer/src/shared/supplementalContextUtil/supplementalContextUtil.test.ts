@@ -4,19 +4,18 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CancellationToken, Logging, Position, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { fetchSupplementalContext, CancellationError } from './supplementalContextUtil'
 import * as crossFileContextUtil from './crossFileContextUtil'
-import * as codeParsingUtil from './codeParsingUtil'
+import * as unitTestIntentDetection from './unitTestIntentDetection'
 import { CodeWhispererSupplementalContext } from '../models/model'
 
 describe('fetchSupplementalContext', function () {
     let workspace: Workspace
     let logging: Logging
     let cancellationToken: CancellationToken
-    let amazonQServiceManager: any
     let document: TextDocument
     let position: Position
     let crossFileContextStub: sinon.SinonStub
-    let isTestFileStub: sinon.SinonStub
-    let performanceStub: sinon.SinonStubbedInstance<{ now: () => number }>
+    let detectUnitTestIntentStub: sinon.SinonStub
+    let dateNowStub: sinon.SinonStub
 
     beforeEach(() => {
         document = TextDocument.create('file:///somefile.js', 'javascript', 1, 'console.log("Hello, World!");')
@@ -24,22 +23,18 @@ describe('fetchSupplementalContext', function () {
         workspace = {} as Workspace
         logging = {
             log: sinon.stub(),
+            info: sinon.stub(),
         } as unknown as Logging
         cancellationToken = {
             isCancellationRequested: false,
             onCancellationRequested: sinon.stub(),
         }
         crossFileContextStub = sinon.stub(crossFileContextUtil, 'fetchSupplementalContextForSrc')
-        isTestFileStub = sinon.stub(codeParsingUtil, 'isTestFile')
-        amazonQServiceManager = {
-            getConfiguration: sinon.stub().returns({
-                projectContext: {
-                    enableLocalIndexing: true,
-                },
-            }),
-        }
-        performanceStub = sinon.stub({ now: () => 0 })
-        sinon.stub(global, 'performance').value(performanceStub)
+        detectUnitTestIntentStub = sinon.stub(
+            unitTestIntentDetection.TestIntentDetector.prototype,
+            'detectUnitTestIntent'
+        )
+        dateNowStub = sinon.stub(Date, 'now')
     })
 
     afterEach(() => {
@@ -47,9 +42,9 @@ describe('fetchSupplementalContext', function () {
     })
 
     it('should return supplemental context for non-test files', async function () {
-        performanceStub.now.onFirstCall().returns(0)
-        performanceStub.now.onSecondCall().returns(100) // 100ms elapsed time
-        isTestFileStub.returns(false)
+        dateNowStub.onFirstCall().returns(0)
+        dateNowStub.onSecondCall().returns(100)
+        detectUnitTestIntentStub.returns(false)
         crossFileContextStub.returns({
             supplementalContextItems: [{ content: 'test content', filePath: 'somefile.js' }],
             strategy: 'OpenTabs_BM25',
@@ -70,14 +65,14 @@ describe('fetchSupplementalContext', function () {
             workspace,
             logging,
             cancellationToken,
-            amazonQServiceManager
+            'codemap'
         )
 
         assert.deepStrictEqual(result, expectedContext)
     })
 
-    it('should return undefined for test files', async function () {
-        isTestFileStub.returns(true)
+    it('should return undefined for test files when focal file is not found', async function () {
+        detectUnitTestIntentStub.returns(true)
 
         const result = await fetchSupplementalContext(
             document,
@@ -85,17 +80,17 @@ describe('fetchSupplementalContext', function () {
             workspace,
             logging,
             cancellationToken,
-            amazonQServiceManager
+            'codemap'
         )
 
         assert.strictEqual(result, undefined)
     })
 
     it('should return empty context when CancellationError is received', async function () {
-        isTestFileStub.returns(false)
+        detectUnitTestIntentStub.returns(false)
         crossFileContextStub.throws(new CancellationError())
-        performanceStub.now.onFirstCall().returns(0)
-        performanceStub.now.onSecondCall().returns(100) // 100ms elapsed time
+        dateNowStub.onFirstCall().returns(0)
+        dateNowStub.onSecondCall().returns(100)
         const expectedContext = {
             contentsLength: 0,
             isProcessTimeout: true,
@@ -111,14 +106,14 @@ describe('fetchSupplementalContext', function () {
             workspace,
             logging,
             cancellationToken,
-            amazonQServiceManager
+            'codemap'
         )
 
         assert.deepStrictEqual(result, expectedContext)
     })
 
     it('should handle errors and return undefined', async function () {
-        isTestFileStub.returns(false)
+        detectUnitTestIntentStub.returns(false)
         crossFileContextStub.throws(new Error('Some error'))
 
         const result = await fetchSupplementalContext(
@@ -127,7 +122,7 @@ describe('fetchSupplementalContext', function () {
             workspace,
             logging,
             cancellationToken,
-            amazonQServiceManager
+            'codemap'
         )
 
         assert.strictEqual(result, undefined)
@@ -138,16 +133,10 @@ describe('fetchSupplementalContext', function () {
         )
     })
 
-    it('should return empty context when workspace context is disabled', async function () {
-        amazonQServiceManager.getConfiguration.returns({
-            projectContext: {
-                enableLocalIndexing: false,
-            },
-        })
-
-        performanceStub.now.onFirstCall().returns(0)
-        performanceStub.now.onSecondCall().returns(100) // 100ms elapsed time
-        isTestFileStub.returns(false)
+    it('should return empty context when supplemental context is not supported', async function () {
+        dateNowStub.onFirstCall().returns(0)
+        dateNowStub.onSecondCall().returns(100)
+        detectUnitTestIntentStub.returns(false)
 
         crossFileContextStub.returns({
             supplementalContextItems: [],
@@ -160,7 +149,7 @@ describe('fetchSupplementalContext', function () {
             workspace,
             logging,
             cancellationToken,
-            amazonQServiceManager
+            'codemap'
         )
 
         const expectedContext: CodeWhispererSupplementalContext = {
