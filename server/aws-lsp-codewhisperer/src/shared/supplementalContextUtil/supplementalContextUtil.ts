@@ -158,7 +158,7 @@ export function truncateSupplementalContext(
     let curTotalLength = c.reduce((acc, cur) => {
         return acc + cur.content.length
     }, 0)
-    while (curTotalLength >= 20480 && c.length - 1 >= 0) {
+    while (curTotalLength > crossFileContextConfig.maximumTotalLength && c.length > 0) {
         const last = c[c.length - 1]
         c = c.slice(0, -1)
         curTotalLength -= last.content.length
@@ -171,14 +171,16 @@ export function truncateSupplementalContext(
     }
 }
 
-// Constants for supplemental context limits
-const supplementalContextMaxTotalLength: number = 8192
-const charactersLimit: number = 10000
+// Constants for supplemental context limits — aligned with crossFileContextConfig
+// to ensure consistent enforcement across all code paths.
 
-// TODO: what's the difference between this implementation vs. [truncateSupplementalContext] above?
 /**
  * Trims the supplementalContexts array to ensure it doesn't exceed the max number
- * of contexts or total character length limit
+ * of contexts or total character length limit.
+ *
+ * Unlike truncateSupplementalContext which truncates oversized items line-by-line,
+ * this function also truncates items that exceed the per-item limit to keep as
+ * much content as possible rather than silently dropping them.
  *
  * @param supplementalContextItems - Array of CodeWhispererSupplementalContextItem objects (already sorted with newest first)
  * @param maxContexts - Maximum number of supplemental contexts allowed
@@ -192,9 +194,15 @@ export function trimSupplementalContexts(
         return supplementalContextItems
     }
 
-    // First filter out any individual context that exceeds the character limit
-    let result = supplementalContextItems.filter(context => {
-        return context.content.length <= charactersLimit
+    // Truncate any individual context that exceeds the per-chunk character limit
+    let result = supplementalContextItems.map(item => {
+        if (item.content.length > crossFileContextConfig.maxLengthEachChunk) {
+            return {
+                ...item,
+                content: truncateLineByLine(item.content, crossFileContextConfig.maxLengthEachChunk),
+            }
+        }
+        return item
     })
 
     // Then limit by max number of contexts
@@ -208,7 +216,7 @@ export function trimSupplementalContexts(
 
     while (i < result.length) {
         totalLength += result[i].content.length
-        if (totalLength > supplementalContextMaxTotalLength) {
+        if (totalLength > crossFileContextConfig.maximumTotalLength) {
             break
         }
         i++
@@ -228,13 +236,23 @@ export function truncateLineByLine(input: string, l: number): string {
         return ''
     }
 
+    const eolLen = os.EOL.length
     const shouldAddNewLineBack = input.endsWith(os.EOL)
     let lines = input.trim().split(os.EOL)
-    let curLen = input.length
-    while (curLen > maxLength && lines.length - 1 >= 0) {
+
+    // Compute actual length from the trimmed+split lines to avoid stale curLen
+    let curLen = lines.reduce((acc, line, idx) => {
+        return acc + line.length + (idx < lines.length - 1 ? eolLen : 0)
+    }, 0)
+    if (shouldAddNewLineBack) {
+        curLen += eolLen
+    }
+
+    while (curLen > maxLength && lines.length > 0) {
         const last = lines[lines.length - 1]
         lines = lines.slice(0, -1)
-        curLen -= last.length + 1
+        // Subtract the line length plus the EOL that preceded it (if there are remaining lines)
+        curLen -= last.length + eolLen
     }
 
     const r = lines.join(os.EOL)
