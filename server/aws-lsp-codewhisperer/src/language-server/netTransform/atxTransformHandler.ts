@@ -2447,7 +2447,13 @@ export class ATXTransformHandler {
             this.logging.log(`ATX: ListWorklogs completed - Found ${result.worklogs?.length || 0} entries`)
             for (const value of result.worklogs || []) {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
-                await Utils.saveWorklogsToJson(jobId, currentStepId, value.description || '', solutionRootPath)
+                await Utils.saveWorklogsToJson(
+                    jobId,
+                    currentStepId,
+                    value.description || '',
+                    solutionRootPath,
+                    value.timestamp
+                )
             }
 
             return result.worklogs || []

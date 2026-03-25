@@ -85,14 +85,15 @@ export class Utils {
         jobId: string,
         stepId: string | null,
         description: string,
-        solutionRootPath: string
+        solutionRootPath: string,
+        timestamp?: Date
     ): Promise<void> {
         const worklogDir = path.join(solutionRootPath, workspaceFolderName, jobId)
         const worklogPath = path.join(worklogDir, 'worklogs.json')
 
         await Utils.directoryExists(worklogDir)
 
-        let worklogData: Record<string, string[]> = {}
+        let worklogData: Record<string, any[]> = {}
 
         // Read existing worklog if it exists
         if (fs.existsSync(worklogPath)) {
@@ -104,17 +105,18 @@ export class Utils {
             stepId = 'Progress'
         }
 
-        // Initialize array if stepId doesn't exist
         if (!worklogData[stepId]) {
             worklogData[stepId] = []
         }
 
-        // Add description if not already present
-        if (!worklogData[stepId].includes(description)) {
-            worklogData[stepId].push(description)
+        const entry = {
+            timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+            text: description,
+        }
+        if (!worklogData[stepId].some((e: any) => (typeof e === 'string' ? e : e.text) === description)) {
+            worklogData[stepId].push(entry)
         }
 
-        // Write back to file
         fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
     }
 
