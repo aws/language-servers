@@ -13,6 +13,8 @@ import {
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
     AtxUploadPlanRequest,
+    AtxGetJobDashboardRequest,
+    AtxGetJobReportRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -22,6 +24,8 @@ const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
+const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
+const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -89,6 +93,24 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
                         return { Status: result }
                     }
+                    case AtxGetJobDashboardCommand: {
+                        const { WorkspaceId, JobId } = params as AtxGetJobDashboardRequest
+
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for getJobDashboard')
+                        }
+
+                        return await atxTransformHandler.getJobDashboard(WorkspaceId, JobId)
+                    }
+                    case AtxGetJobReportCommand: {
+                        const { WorkspaceId, JobId, ArtifactId } = params as AtxGetJobReportRequest
+
+                        if (!WorkspaceId || !JobId || !ArtifactId) {
+                            throw new Error('WorkspaceId, JobId and ArtifactId are required for getJobReport')
+                        }
+
+                        return await atxTransformHandler.getJobReport(WorkspaceId, JobId, ArtifactId)
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -117,6 +139,8 @@ export const AtxNetTransformServerToken =
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
+                            AtxGetJobDashboardCommand,
+                            AtxGetJobReportCommand,
                         ],
                     },
                 },

@@ -114,3 +114,42 @@ export interface AtxUploadPlanResponse {
     PlanPath?: string
     ReportPath?: string
 }
+
+// ATX Get Job Dashboard request/response
+export interface AtxGetJobDashboardRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+}
+
+export interface AtxDashboardRepo {
+    repositoryName: string
+    cloneUrl: string
+    targetBranch: string
+    sourceBranch?: string
+    status?: string
+    totalLoc?: number
+    totalProjects?: number
+    solutions?: string[]
+    assessmentReportArtifactId?: string
+    transformationReportArtifactId?: string
+}
+
+export interface AtxGetJobDashboardResponse {
+    targetBranch?: string
+    targetVersion?: string
+    repos: AtxDashboardRepo[]
+    reportArtifactId?: string
+    jobAssessmentReportArtifactId?: string
+}
+
+// ATX Get Job Report request/response
+export interface AtxGetJobReportRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+    ArtifactId: string
+}
+
+export interface AtxGetJobReportResponse {
+    reportBase64: string
+    fileName: string
+}
