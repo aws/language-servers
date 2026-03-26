@@ -72,6 +72,7 @@
         "xmlbuilder2": "^3.1.1"
     },
     "devDependencies": {
+        "@aws/mynah-ui": "4.39.2-beta.1",
         "@types/adm-zip": "^0.5.5",
         "@types/archiver": "^6.0.2",
         "@types/diff": "^7.0.2",
