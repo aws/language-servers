@@ -85,7 +85,15 @@ export async function saveSharedConfigFile(
 
     // Backup file just in case
     if (filepathExists) {
-        await rename(filepath, filepath + '~')
+        try {
+            await rename(filepath, filepath + '~')
+        } catch (e: any) {
+            // File may have been removed between the existence check and the rename.
+            // ENOENT is safe to ignore here — we simply skip the backup.
+            if (e.code !== 'ENOENT') {
+                throw e
+            }
+        }
     }
 
     await mkdir(path.dirname(filepath), { mode: 0o755, recursive: true })
