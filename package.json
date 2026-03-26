@@ -71,5 +71,8 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
+    },
+    "overrides": {
+        "@aws/mynah-ui": "4.39.2-beta.1"
     }
 }
