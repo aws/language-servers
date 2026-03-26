@@ -244,6 +244,8 @@ export interface AtxDownloadArtifactResponse {
     Success: boolean
     FilePath?: string
     Error?: string
+}
+
 // ATX Get Job Dashboard request/response
 export interface AtxGetJobDashboardRequest extends ExecuteCommandParams {
     WorkspaceId: string
