@@ -188,8 +188,8 @@ export class OAuthClient {
                     }
                 }
             }
-        } catch {
-            // Fall through to next discovery method
+        } catch (e) {
+            this.logger.info(`OAuth: RFC 9728 discovery failed — ${e instanceof Error ? e.message : String(e)}`)
         }
 
         // Step 2: HEAD → WWW-Authenticate → resource_metadata link
@@ -202,8 +202,8 @@ export class OAuthClient {
                 const raw = await this.json<any>(metaUrl)
                 return await this.fetchASFromResourceMeta(raw, metaUrl)
             }
-        } catch {
-            // Fall through to next discovery method
+        } catch (e) {
+            this.logger.info(`OAuth: WWW-Authenticate discovery failed — ${e instanceof Error ? e.message : String(e)}`)
         }
 
         // Step 3: Well-known endpoints on the resource server
