@@ -2934,6 +2934,12 @@ export class ATXTransformHandler {
         skipPolling?: boolean
     }): Promise<any> {
         try {
+            // LOCAL AGENT PROXY: forward to local agent if configured
+            const localAgentUrl = process.env.ATX_LOCAL_AGENT_URL
+            if (localAgentUrl) {
+                return await this.sendMessageToLocalAgent(localAgentUrl, request)
+            }
+
             this.logging.log(`ATX: Sending chat message for workspace: ${request.workspaceId}`)
 
             if (!this.atxClient && !(await this.initializeAtxClient())) {
@@ -3012,6 +3018,64 @@ export class ATXTransformHandler {
             }
         } catch (error) {
             this.logging.error(`ATX: SendMessage error: ${String(error)}`)
+            throw error
+        }
+    }
+
+    /**
+     * Forward a chat message directly to a local agent via HTTP POST.
+     * Used for local testing — bypasses FES SendMessage so the local agent
+     * receives the request with a valid auth token.
+     */
+    private async sendMessageToLocalAgent(
+        agentUrl: string,
+        request: { workspaceId: string; jobId?: string; text: string; skipPolling?: boolean }
+    ): Promise<any> {
+        this.logging.log(`ATX: Forwarding message to local agent at ${agentUrl}`)
+
+        const bearerToken = await this.serviceManager.getBearerToken()
+        const agentInstanceId = uuidv4()
+
+        const payload = {
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'message/send',
+            params: {
+                message: {
+                    role: 'user',
+                    parts: [{ kind: 'text', text: request.text }],
+                    messageId: `ide-msg-${uuidv4().substring(0, 8)}`,
+                    contextId: `ide-ctx-${uuidv4().substring(0, 8)}`,
+                    kind: 'message',
+                    extensions: ['https://aws.com/transform/ext/source_information/v1'],
+                    metadata: {
+                        'https://aws.com/transform/ext/source_information/v1': {
+                            senderAgentInstanceId: 'ATX_CHAT',
+                        },
+                        'ATX_A2A.AgentInitializationContext': {
+                            jobMetadata: {
+                                jobId: request.jobId,
+                                workspaceId: request.workspaceId,
+                            },
+                            agentInstanceId: agentInstanceId,
+                            authorizationToken: bearerToken,
+                        },
+                    },
+                },
+            },
+        }
+
+        try {
+            const response = await got.post(`${agentUrl}/invocations`, {
+                json: payload,
+                timeout: { request: 120000 },
+                responseType: 'json',
+            })
+
+            this.logging.log('ATX: Local agent responded successfully')
+            return { success: true, data: response.body }
+        } catch (error) {
+            this.logging.error(`ATX: Local agent error: ${String(error)}`)
             throw error
         }
     }
