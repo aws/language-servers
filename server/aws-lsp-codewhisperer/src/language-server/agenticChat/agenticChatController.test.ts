@@ -443,6 +443,20 @@ describe('AgenticChatController', () => {
             await new Promise(resolve => setTimeout(resolve, 0))
             sinon.assert.notCalled(getSubscriptionStatusStub)
         })
+
+        it('deduplicates concurrent calls: multiple tabs opened before the first promise settles fire only one API call', async () => {
+            // Fire 5 tab-adds synchronously before the promise resolves.
+            chatController.onTabAdd({ tabId: 'tab-1' })
+            chatController.onTabAdd({ tabId: 'tab-2' })
+            chatController.onTabAdd({ tabId: 'tab-3' })
+            chatController.onTabAdd({ tabId: 'tab-4' })
+            chatController.onTabAdd({ tabId: 'tab-5' })
+
+            // Let all pending microtasks/macrotasks settle.
+            await new Promise(resolve => setTimeout(resolve, 0))
+
+            sinon.assert.calledOnce(getSubscriptionStatusStub)
+        })
     })
 
     it('onTabRemove unsets tab id if current tab is removed and emits metrics', () => {

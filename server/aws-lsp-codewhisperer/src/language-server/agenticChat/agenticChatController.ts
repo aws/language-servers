@@ -278,6 +278,7 @@ export class AgenticChatController implements ChatHandlers {
     #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
+    #subscriptionStatusPromise: Promise<void> | undefined
     #origin: Origin
     #activeUserTracker: ActiveUserTracker
 
@@ -4265,30 +4266,38 @@ export class AgenticChatController implements ChatHandlers {
             if (this.#paidTierMode) {
                 mode = this.#paidTierMode
             } else {
-                // Note: intentionally async.
-                this.#serviceManager
-                    ?.getCodewhispererService()
-                    .getSubscriptionStatus(true)
-                    .then(o => {
-                        this.#log(`setPaidTierMode: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
-                        this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
-                    })
-                    .catch(err => {
-                        this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(err as Error).message}`)
-                        const isAccessDenied = (err as Error).name === 'AccessDeniedException'
-                        const message = isAccessDenied
-                            ? `To increase your limit, subscribe to a Kiro subscription. Choose the right [plan](https://kiro.dev/pricing/) and log in to [app.kiro.dev](https://app.kiro.dev/signin), pick the plan, and once active, you should be able to continue and use Q and Kiro services with the new limits. If you have questions, refer to our [FAQs](https://aws.amazon.com/q/developer/faqs/?p=qdev&z=subnav&loc=8#general)`
-                            : `setPaidTierMode: getSubscriptionStatus failed: ${fmtError(err)}`
-                        this.#features.lsp.window
-                            .showMessage({
-                                message,
-                                type: MessageType.Error,
+                // Deduplicate in-flight requests: if a getSubscriptionStatus call is already
+                // in progress (e.g. multiple tabs opened before the first promise settles),
+                // reuse the same promise instead of firing additional API calls.
+                if (!this.#subscriptionStatusPromise) {
+                    this.#subscriptionStatusPromise =
+                        this.#serviceManager
+                            ?.getCodewhispererService()
+                            .getSubscriptionStatus(true)
+                            .then(o => {
+                                this.#log(
+                                    `setPaidTierMode: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`
+                                )
+                                this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                             })
-                            .catch(e => {
-                                this.#log(`setPaidTierMode: showMessage failed: ${(e as Error).message}`)
-                            })
-                    })
-                // mode = isFreeTierUser ? 'freetier' : 'paidtier'
+                            .catch(err => {
+                                // Clear the promise so the next call can retry.
+                                this.#subscriptionStatusPromise = undefined
+                                this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${(err as Error).message}`)
+                                const isAccessDenied = (err as Error).name === 'AccessDeniedException'
+                                const message = isAccessDenied
+                                    ? `To increase your limit, subscribe to a Kiro subscription. Choose the right [plan](https://kiro.dev/pricing/) and log in to [app.kiro.dev](https://app.kiro.dev/signin), pick the plan, and once active, you should be able to continue and use Q and Kiro services with the new limits. If you have questions, refer to our [FAQs](https://aws.amazon.com/q/developer/faqs/?p=qdev&z=subnav&loc=8#general)`
+                                    : `setPaidTierMode: getSubscriptionStatus failed: ${fmtError(err)}`
+                                this.#features.lsp.window
+                                    .showMessage({
+                                        message,
+                                        type: MessageType.Error,
+                                    })
+                                    .catch(e => {
+                                        this.#log(`setPaidTierMode: showMessage failed: ${(e as Error).message}`)
+                                    })
+                            }) ?? Promise.resolve()
+                }
                 return
             }
         }
@@ -4769,6 +4778,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Force a service request to get current Q user subscription status.
         this.#paidTierMode = undefined
+        this.#subscriptionStatusPromise = undefined
     }
 
     #getTools(session: ChatSessionService) {
