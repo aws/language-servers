@@ -575,6 +575,7 @@ export class ATXTransformHandler {
         jobName?: string
         interactiveMode?: InteractiveMode
         startTransformRequest: object
+        existingJobId?: string
         includeMissingPackageAnalysis?: boolean
     }): Promise<{ TransformationJobId: string; ArtifactPath: string; UploadId: string } | null> {
         try {
@@ -583,16 +584,24 @@ export class ATXTransformHandler {
             // Cache the interactive mode setting
             this.cachedInteractiveMode = request.interactiveMode || 'Autonomous'
 
-            // Step 1: Create transformation job
-            const createJobResponse = await this.createJob({
-                workspaceId: request.workspaceId,
-                jobName: request.jobName || 'Transform Job',
-                targetFramework: (request.startTransformRequest as any).TargetFramework,
-                interactiveMode: request.interactiveMode,
-            })
+            let jobId: string
 
-            if (!createJobResponse?.jobId) {
-                throw new Error('Failed to create ATX transformation job')
+            // Step 1: Create transformation job (skip if existingJobId provided)
+            if (request.existingJobId) {
+                jobId = request.existingJobId
+                this.logging.log(`ATX: Using existing job: ${jobId}`)
+            } else {
+                const createJobResponse = await this.createJob({
+                    workspaceId: request.workspaceId,
+                    jobName: request.jobName || 'Transform Job',
+                    targetFramework: (request.startTransformRequest as any).TargetFramework,
+                    interactiveMode: request.interactiveMode,
+                })
+
+                if (!createJobResponse?.jobId) {
+                    throw new Error('Failed to create ATX transformation job')
+                }
+                jobId = createJobResponse.jobId
             }
 
             // Step 2: Create ZIP file
@@ -605,7 +614,7 @@ export class ATXTransformHandler {
             // Step 3: Create artifact upload URL
             const uploadResponse = await this.createArtifactUploadUrl(
                 request.workspaceId,
-                createJobResponse.jobId,
+                jobId,
                 zipFilePath,
                 CategoryType.CUSTOMER_INPUT,
                 FileType.ZIP
@@ -630,7 +639,7 @@ export class ATXTransformHandler {
             // Step 5: Complete artifact upload
             const completeResponse = await this.completeArtifactUpload(
                 request.workspaceId,
-                createJobResponse.jobId,
+                jobId,
                 uploadResponse.uploadId
             )
 
@@ -638,27 +647,25 @@ export class ATXTransformHandler {
                 throw new Error('Failed to complete artifact upload')
             }
 
-            // Step 6: Start the transformation job
-            const startJobResponse = await this.startJob(request.workspaceId, createJobResponse.jobId)
+            // Step 6: Start the transformation job (skip if existingJobId - job already exists)
+            if (!request.existingJobId) {
+                const startJobResponse = await this.startJob(request.workspaceId, jobId)
 
-            if (!startJobResponse?.success) {
-                throw new Error('Failed to start ATX transformation job')
+                if (!startJobResponse?.success) {
+                    throw new Error('Failed to start ATX transformation job')
+                }
             }
 
-            // Step 7: Write source files list to checkpoints folder for tracking (only in interactive mode)
+            // Step 7: Write source files list (only in interactive mode)
             if (request.interactiveMode && request.interactiveMode !== 'Autonomous') {
                 const startTransformReq = request.startTransformRequest as any
-                this.writeSourceFilesManifest(
-                    startTransformReq.SolutionRootPath,
-                    createJobResponse.jobId,
-                    startTransformReq
-                )
+                this.writeSourceFilesManifest(startTransformReq.SolutionRootPath, jobId, startTransformReq)
             }
 
             this.logging.log('ATX: Transform workflow completed successfully')
 
             return {
-                TransformationJobId: createJobResponse.jobId,
+                TransformationJobId: jobId,
                 ArtifactPath: zipFilePath,
                 UploadId: uploadResponse.uploadId,
             }

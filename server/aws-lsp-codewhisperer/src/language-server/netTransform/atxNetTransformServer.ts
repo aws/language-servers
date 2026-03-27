@@ -49,7 +49,7 @@ export const AtxNetTransformServerToken =
                         return result
                     }
                     case AtxStartTransformCommand: {
-                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest } =
+                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest, ExistingJobId } =
                             params as AtxStartTransformRequest
 
                         if (!WorkspaceId) {
@@ -61,6 +61,7 @@ export const AtxNetTransformServerToken =
                             jobName: JobName,
                             interactiveMode: InteractiveMode,
                             startTransformRequest: StartTransformRequest,
+                            existingJobId: ExistingJobId,
                         })
 
                         if (!result) {
@@ -98,7 +99,9 @@ export const AtxNetTransformServerToken =
                         const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints, InteractiveMode } =
                             params as AtxSetCheckpointsRequest
 
-                        logging.info(`ATX: setCheckpoints params - InteractiveMode=${InteractiveMode}, Checkpoints=${JSON.stringify(Checkpoints)}`)
+                        logging.info(
+                            `ATX: setCheckpoints params - InteractiveMode=${InteractiveMode}, Checkpoints=${JSON.stringify(Checkpoints)}`
+                        )
 
                         return await atxTransformHandler.setCheckpoints(
                             WorkspaceId,
@@ -151,7 +154,9 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxListArtifactsCommand: {
                         const { WorkspaceId, TransformationJobId } = params as AtxListArtifactsRequest
-                        logging.log(`ATX: ListArtifacts command received - WorkspaceId: ${WorkspaceId}, JobId: ${TransformationJobId}`)
+                        logging.log(
+                            `ATX: ListArtifacts command received - WorkspaceId: ${WorkspaceId}, JobId: ${TransformationJobId}`
+                        )
                         return await atxTransformHandler.listArtifactsForDownload(WorkspaceId, TransformationJobId)
                     }
                     case AtxDownloadArtifactCommand: {

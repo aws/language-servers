@@ -82,6 +82,7 @@ export interface AtxStartTransformRequest extends ExecuteCommandParams {
     JobName?: string
     InteractiveMode?: InteractiveMode
     StartTransformRequest: object // Original RTS-style request for ZIP creation
+    ExistingJobId?: string // If provided, skip CreateJob/StartJob - only upload artifacts
 }
 
 export interface AtxStartTransformResponse {
