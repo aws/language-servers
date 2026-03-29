@@ -73,7 +73,7 @@ describe('Preservation: Context Commands Provider Small Payload Behavior', () =>
         sinon.stub(provider, 'registerPromptFileWatcher').resolves()
 
         // testFeatures.chat.sendContextCommands is already a stub, so wrap it with a spy
-        sendContextCommandsSpy = testFeatures.chat.sendContextCommands as sinon.SinonStub
+        sendContextCommandsSpy = testFeatures.chat.sendContextCommands as unknown as sinon.SinonStub
     })
 
     afterEach(() => {
