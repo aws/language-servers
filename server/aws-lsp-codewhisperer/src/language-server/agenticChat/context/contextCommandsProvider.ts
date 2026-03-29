@@ -9,6 +9,30 @@ import { LocalProjectContextController } from '../../../shared/localProjectConte
 import { URI } from 'vscode-uri'
 import { activeFileCmd } from './additionalContextProvider'
 
+/**
+ * Maximum number of context command items sent to the webview in a single payload.
+ * Large repos can have 100k+ items; sending all of them causes massive serialization
+ * overhead and memory growth. Items beyond this cap are still cached locally but
+ * not serialized to the webview.
+ */
+export const CONTEXT_COMMAND_PAYLOAD_CAP = 10_000
+
+/**
+ * Number of static commands added by mapContextCommandItems (e.g., "Active File",
+ * user prompt commands) that are always present regardless of input items.
+ * Subtracted from the cap so the total items in the payload (including static
+ * commands) stays within CONTEXT_COMMAND_PAYLOAD_CAP.
+ */
+const STATIC_COMMAND_HEADROOM = 100
+
+/**
+ * Throttle window (in ms) for coalescing rapid `onIndexingInProgressChanged`
+ * callbacks.  When indexing status toggles rapidly (e.g. true→false→true),
+ * only the final state triggers a `processContextCommandUpdate` call after
+ * this delay elapses with no further changes.
+ */
+export const INDEXING_THROTTLE_MS = 500
+
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
     private cachedContextCommands?: ContextCommandItem[]
@@ -18,6 +42,8 @@ export class ContextCommandsProvider implements Disposable {
     private filesAndFoldersFailed = false
     private workspacePending = true
     private initialStateSent = false
+    /** Handle for the pending indexing-change throttle timer */
+    private indexingThrottleTimer?: ReturnType<typeof setTimeout>
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
@@ -48,7 +74,17 @@ export class ContextCommandsProvider implements Disposable {
             controller.onIndexingInProgressChanged = (indexingInProgress: boolean) => {
                 if (this.workspacePending !== indexingInProgress) {
                     this.workspacePending = indexingInProgress
-                    void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+
+                    // Coalesce rapid indexing status toggles: cancel any pending
+                    // throttle timer and start a new one.  Only the final state
+                    // after the throttle window triggers processContextCommandUpdate.
+                    if (this.indexingThrottleTimer !== undefined) {
+                        clearTimeout(this.indexingThrottleTimer)
+                    }
+                    this.indexingThrottleTimer = setTimeout(() => {
+                        this.indexingThrottleTimer = undefined
+                        void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                    }, INDEXING_THROTTLE_MS)
                 }
             }
         } catch (e) {
@@ -106,9 +142,19 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async processContextCommandUpdate(items: ContextCommandItem[]) {
-        const allItems = await this.mapContextCommandItems(items)
-        this.chat.sendContextCommands({ contextCommandGroups: allItems })
+        // Cache the full item list so subsequent operations (e.g., indexing updates)
+        // have access to all items regardless of the payload cap.
         this.cachedContextCommands = items
+
+        // Cap the items sent to the webview to avoid massive serialization and memory overhead.
+        // Small repos (below the cap) send everything as before.
+        // Leave headroom for static commands (e.g., "Active File", prompt commands) added
+        // by mapContextCommandItems so the total payload stays within CONTEXT_COMMAND_PAYLOAD_CAP.
+        const effectiveCap = CONTEXT_COMMAND_PAYLOAD_CAP - STATIC_COMMAND_HEADROOM
+        const cappedItems = items.length > effectiveCap ? items.slice(0, effectiveCap) : items
+
+        const allItems = await this.mapContextCommandItems(cappedItems)
+        this.chat.sendContextCommands({ contextCommandGroups: allItems })
     }
 
     async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
@@ -260,6 +306,9 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     dispose() {
+        if (this.indexingThrottleTimer !== undefined) {
+            clearTimeout(this.indexingThrottleTimer)
+        }
         void this.promptFileWatcher?.close()
     }
 }
