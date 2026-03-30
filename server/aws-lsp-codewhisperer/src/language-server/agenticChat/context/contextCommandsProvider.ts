@@ -81,9 +81,14 @@ export class ContextCommandsProvider implements Disposable {
                     if (this.indexingThrottleTimer !== undefined) {
                         clearTimeout(this.indexingThrottleTimer)
                     }
-                    this.indexingThrottleTimer = setTimeout(() => {
+                    this.indexingThrottleTimer = setTimeout(async () => {
                         this.indexingThrottleTimer = undefined
-                        void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                        try {
+                            const items = await controller.getContextCommandItems()
+                            await this.processContextCommandUpdate(items)
+                        } catch {
+                            void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                        }
                     }, INDEXING_THROTTLE_MS)
                 }
             }
