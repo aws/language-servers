@@ -259,24 +259,26 @@ describe('Chat Session Service', () => {
             chatSessionService = new ChatSessionService()
         })
 
-        it('should initialize with an empty set of approved paths', () => {
+        it('should initialize with an empty map of approved paths', () => {
             const approvedPaths = chatSessionService.approvedPaths
             assert.strictEqual(approvedPaths.size, 0)
-            assert.ok(approvedPaths instanceof Set)
+            assert.ok(approvedPaths instanceof Map)
         })
 
         it('should add a path to approved paths', () => {
             const testPath = '/test/path/file.js'
-            chatSessionService.addApprovedPath(testPath)
+            const toolName = 'testTool'
+            chatSessionService.addApprovedPath(testPath, toolName)
 
             const approvedPaths = chatSessionService.approvedPaths
             assert.strictEqual(approvedPaths.size, 1)
-            assert.ok(approvedPaths.has(testPath))
+            assert.ok(approvedPaths.has(toolName))
+            assert.ok(approvedPaths.get(toolName)!.has(testPath))
         })
 
         it('should not add empty paths', () => {
-            chatSessionService.addApprovedPath('')
-            chatSessionService.addApprovedPath(undefined as unknown as string)
+            chatSessionService.addApprovedPath('', 'testTool')
+            chatSessionService.addApprovedPath(undefined as unknown as string, 'testTool')
 
             const approvedPaths = chatSessionService.approvedPaths
             assert.strictEqual(approvedPaths.size, 0)
@@ -285,47 +287,61 @@ describe('Chat Session Service', () => {
         it('should normalize Windows-style paths', () => {
             const windowsPath = 'C:\\Users\\test\\file.js'
             const normalizedPath = 'C:/Users/test/file.js'
+            const toolName = 'testTool'
 
-            chatSessionService.addApprovedPath(windowsPath)
+            chatSessionService.addApprovedPath(windowsPath, toolName)
 
             const approvedPaths = chatSessionService.approvedPaths
             assert.strictEqual(approvedPaths.size, 1)
-            assert.ok(approvedPaths.has(normalizedPath))
-            assert.ok(!approvedPaths.has(windowsPath))
+            assert.ok(approvedPaths.has(toolName))
+            assert.ok(approvedPaths.get(toolName)!.has(normalizedPath))
+            assert.ok(!approvedPaths.get(toolName)!.has(windowsPath))
         })
 
         it('should handle multiple paths correctly', () => {
             const paths = ['/path/one/file.js', '/path/two/file.js', 'C:\\path\\three\\file.js']
+            const toolName = 'testTool'
 
-            paths.forEach(p => chatSessionService.addApprovedPath(p))
+            paths.forEach(p => chatSessionService.addApprovedPath(p, toolName))
 
             const approvedPaths = chatSessionService.approvedPaths
-            assert.strictEqual(approvedPaths.size, 3)
-            assert.ok(approvedPaths.has(paths[0]))
-            assert.ok(approvedPaths.has(paths[1]))
-            assert.ok(approvedPaths.has('C:/path/three/file.js'))
+            assert.strictEqual(approvedPaths.size, 1)
+            assert.ok(approvedPaths.has(toolName))
+            const toolPaths = approvedPaths.get(toolName)!
+            assert.strictEqual(toolPaths.size, 3)
+            assert.ok(toolPaths.has(paths[0]))
+            assert.ok(toolPaths.has(paths[1]))
+            assert.ok(toolPaths.has('C:/path/three/file.js'))
         })
 
         it('should not add duplicate paths', () => {
             const testPath = '/test/path/file.js'
+            const toolName = 'testTool'
 
-            chatSessionService.addApprovedPath(testPath)
-            chatSessionService.addApprovedPath(testPath)
+            chatSessionService.addApprovedPath(testPath, toolName)
+            chatSessionService.addApprovedPath(testPath, toolName)
 
             const approvedPaths = chatSessionService.approvedPaths
             assert.strictEqual(approvedPaths.size, 1)
+            assert.ok(approvedPaths.has(toolName))
+            const toolPaths = approvedPaths.get(toolName)!
+            assert.strictEqual(toolPaths.size, 1)
         })
 
         it('should treat normalized paths as the same path', () => {
             const unixPath = '/test/path/file.js'
             const windowsPath = '/test\\path\\file.js'
+            const toolName = 'testTool'
 
-            chatSessionService.addApprovedPath(unixPath)
-            chatSessionService.addApprovedPath(windowsPath)
+            chatSessionService.addApprovedPath(unixPath, toolName)
+            chatSessionService.addApprovedPath(windowsPath, toolName)
 
             const approvedPaths = chatSessionService.approvedPaths
             assert.strictEqual(approvedPaths.size, 1)
-            assert.ok(approvedPaths.has(unixPath))
+            assert.ok(approvedPaths.has(toolName))
+            const toolPaths = approvedPaths.get(toolName)!
+            assert.strictEqual(toolPaths.size, 1)
+            assert.ok(toolPaths.has(unixPath))
         })
     })
 
