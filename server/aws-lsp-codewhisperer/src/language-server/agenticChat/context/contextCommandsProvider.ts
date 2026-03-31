@@ -1,6 +1,11 @@
 import * as path from 'path'
 import { FSWatcher, watch } from 'chokidar'
-import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
+import {
+    ContextCommand,
+    ContextCommandGroup,
+    FilterContextCommandsParams,
+    FilterContextCommandsResult,
+} from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { getCodeSymbolDescription, getUserPromptsDirectory, promptFileExtension } from './contextUtils'
@@ -16,6 +21,44 @@ import { activeFileCmd } from './additionalContextProvider'
  * this delay elapses with no further changes.
  */
 export const INDEXING_THROTTLE_MS = 500
+
+/**
+ * Maximum number of context command items to include in the initial
+ * `sendContextCommands` notification.  Large repos can have 80k+ items;
+ * sending all of them to the webview causes deep-clone and serialization
+ * overhead.  Server-side filtering (via `onFilterContextCommands`) handles
+ * search over the full set, so the initial push only needs enough items
+ * to populate the picker when the user presses `@` before typing.
+ */
+export const CONTEXT_COMMAND_PAYLOAD_CAP = 1000
+
+/** Maximum number of items returned by a single filter request. */
+export const MAX_FILTER_RESULTS = 1000
+
+/**
+ * Score a candidate string against a search term.
+ * Mirrors the scoring tiers used by mynah-ui's filterQuickPickItems:
+ *   exact=100, prefix=80, word-start=60, contains=40, no-match=0
+ */
+export function calculateItemScore(text: string, searchTerm: string): number {
+    const normalizedText = text.toLowerCase()
+    const normalizedTerm = searchTerm.toLowerCase()
+
+    if (normalizedText === normalizedTerm) return 100
+    if (normalizedText.startsWith(normalizedTerm)) return 80
+    if (normalizedText.split(/[\s/\\._\-]/).some(word => word.startsWith(normalizedTerm))) return 60
+    if (normalizedText.includes(normalizedTerm)) return 40
+    return 0
+}
+
+/**
+ * Return the display name used by the picker for a given context command item.
+ * Files/folders → basename of relativePath, code → symbol name.
+ */
+function getDisplayName(item: ContextCommandItem): string {
+    if (item.symbol) return item.symbol.name
+    return path.basename(item.relativePath)
+}
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
@@ -38,6 +81,7 @@ export class ContextCommandsProvider implements Disposable {
         this.registerContextCommandHandler().catch(e =>
             this.logging.error(`Error registering context command handler: ${e}`)
         )
+        this.registerFilterHandler()
     }
 
     onReady() {
@@ -130,9 +174,49 @@ export class ContextCommandsProvider implements Disposable {
         }
     }
 
+    private registerFilterHandler() {
+        this.chat.onFilterContextCommands(
+            async (params: FilterContextCommandsParams): Promise<FilterContextCommandsResult> => {
+                const items = this.cachedContextCommands ?? []
+                const searchTerm = params.searchTerm?.trim() ?? ''
+
+                if (!searchTerm) {
+                    // Empty search: return the capped initial set
+                    const capped = items.slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+                    const mapped = await this.mapContextCommandItems(capped)
+                    return { contextCommandGroups: mapped }
+                }
+
+                // Score all items, then take the top results by score
+                const scored: { score: number; item: ContextCommandItem }[] = []
+                for (const item of items) {
+                    const displayName = getDisplayName(item)
+                    const score = calculateItemScore(displayName, searchTerm)
+                    if (score > 0) {
+                        scored.push({ score, item })
+                    }
+                }
+
+                scored.sort((a, b) => b.score - a.score)
+                const filtered = scored.slice(0, MAX_FILTER_RESULTS).map(s => s.item)
+                const mapped = await this.mapContextCommandItems(filtered)
+                return { contextCommandGroups: mapped }
+            }
+        )
+    }
+
     async processContextCommandUpdate(items: ContextCommandItem[]) {
+        const previousIds = new Set(this.cachedContextCommands?.map(i => i.id) ?? [])
         this.cachedContextCommands = items
-        const allItems = await this.mapContextCommandItems(items)
+
+        // Cap the initial payload to avoid serialization/deep-clone overhead.
+        // Server-side filtering (onFilterContextCommands) searches the full set.
+        // Prioritize newly added items so they appear immediately in the picker.
+        const newItems = previousIds.size > 0 ? items.filter(i => !previousIds.has(i.id)) : []
+        const existingItems = previousIds.size > 0 ? items.filter(i => previousIds.has(i.id)) : items
+        const capped = [...newItems, ...existingItems].slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+
+        const allItems = await this.mapContextCommandItems(capped)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })
     }
 

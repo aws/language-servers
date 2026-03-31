@@ -49,6 +49,8 @@ import {
     PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD,
     PinnedContextParams,
     LIST_AVAILABLE_MODELS_REQUEST_METHOD,
+    FILTER_CONTEXT_COMMANDS_REQUEST_METHOD,
+    FilterContextCommandsParams,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -83,6 +85,7 @@ export type ServerMessageCommand =
     | typeof PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD
     | typeof LIST_AVAILABLE_MODELS_REQUEST_METHOD
     | typeof OPEN_FILE_DIALOG_METHOD
+    | typeof FILTER_CONTEXT_COMMANDS_REQUEST_METHOD
 
 export interface ServerMessage {
     command: ServerMessageCommand
@@ -119,3 +122,4 @@ export type ServerMessageParams =
     | ListRulesParams
     | PinnedContextParams
     | OpenFileDialogParams
+    | FilterContextCommandsParams

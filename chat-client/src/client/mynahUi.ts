@@ -36,6 +36,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    FilterContextCommandsResult,
     ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
@@ -100,6 +101,7 @@ export interface InboundChatApi {
     addSelectedFilesToContext(params: OpenFileDialogParams): void
     sendPinnedContext(params: PinnedContextParams): void
     listAvailableModels(params: ListAvailableModelsResult): void
+    filterContextCommandsResponse(params: FilterContextCommandsResult): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -809,6 +811,9 @@ export const createMynahUi = (
         defaults: {
             store: tabFactory.createTab(false),
         },
+        onContextCommandFilter: (tabId, searchTerm) => {
+            messager.onFilterContextCommands({ tabId, searchTerm })
+        },
         config: {
             maxTabs: 10,
             test: true,
@@ -1449,6 +1454,29 @@ ${params.message}`,
         })
     }
 
+    const filterContextCommandsResponse = (params: FilterContextCommandsResult) => {
+        const filtered = params.contextCommandGroups.map(group => ({
+            ...group,
+            commands: toContextCommands(group.commands),
+        }))
+
+        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            mynahUi.updateStore(tabId, {
+                contextCommands: [
+                    ...filtered,
+                    ...(featureConfig?.get('highlightCommand')
+                        ? [
+                              {
+                                  groupName: 'Additional commands',
+                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                              },
+                          ]
+                        : []),
+                ],
+            })
+        })
+    }
+
     const addSelectedFilesToContext = (params: OpenFileDialogResult) => {
         if (params.errorMessage) {
             mynahUi.notify({
@@ -1605,6 +1633,7 @@ ${params.message}`,
         ruleClicked: ruleClicked,
         listAvailableModels: listAvailableModels,
         addSelectedFilesToContext: addSelectedFilesToContext,
+        filterContextCommandsResponse: filterContextCommandsResponse,
     }
 
     return [mynahUi, api]

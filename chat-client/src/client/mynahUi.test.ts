@@ -78,6 +78,7 @@ describe('MynahUI', () => {
             onListAvailableModels: sinon.stub(),
             onOpenFileDialogClick: sinon.stub(),
             onFilesDropped: sinon.stub(),
+            filterContextCommands: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)

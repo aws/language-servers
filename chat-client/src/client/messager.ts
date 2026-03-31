@@ -28,6 +28,7 @@ import {
     CreatePromptParams,
     FeedbackParams,
     FileClickParams,
+    FilterContextCommandsParams,
     FilterValue,
     FollowUpClickParams,
     GetSerializedChatResult,
@@ -112,6 +113,7 @@ export interface OutboundChatApi {
     onListAvailableModels(params: ListAvailableModelsParams): void
     onOpenFileDialogClick(params: OpenFileDialogParams): void
     onFilesDropped(params: { tabId: string; files: FileList; insertPosition: number }): void
+    filterContextCommands(params: FilterContextCommandsParams): void
 }
 
 export class Messager {
@@ -296,5 +298,9 @@ export class Messager {
 
     onFilesDropped = (params: { tabId: string; files: FileList; insertPosition: number }): void => {
         this.chatApi.onFilesDropped(params)
+    }
+
+    onFilterContextCommands = (params: FilterContextCommandsParams): void => {
+        this.chatApi.filterContextCommands(params)
     }
 }
