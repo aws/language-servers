@@ -3103,7 +3103,8 @@ export class ATXTransformHandler {
         workspaceId: string,
         jobId: string,
         artifactId: string,
-        savePath: string
+        savePath: string,
+        artifactName?: string
     ): Promise<{ Success: boolean; FilePath?: string; Error?: string }> {
         try {
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, artifactId)
@@ -3117,7 +3118,8 @@ export class ATXTransformHandler {
             })
 
             await Utils.directoryExists(savePath)
-            const filePath = path.join(savePath, 'artifact.zip')
+            const fileName = artifactName || 'artifact.zip'
+            const filePath = path.join(savePath, fileName)
             fs.writeFileSync(filePath, Buffer.from(response.body))
 
             return { Success: true, FilePath: savePath }

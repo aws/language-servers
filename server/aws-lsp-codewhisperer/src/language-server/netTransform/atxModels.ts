@@ -217,6 +217,7 @@ export interface AtxDownloadArtifactRequest extends ExecuteCommandParams {
     WorkspaceId: string
     TransformationJobId: string
     ArtifactId: string
+    ArtifactName?: string
     SavePath: string
 }
 
