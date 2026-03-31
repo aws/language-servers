@@ -44,7 +44,7 @@ export class ChatSessionService {
     > = new Map()
     #currentUndoAllId?: string
     // Map to store approved paths to avoid repeated validation
-    #approvedPaths: Set<string> = new Set<string>()
+    #approvedPaths: Map<string, Set<string>> = new Map<string, Set<string>>()
     #serviceManager?: AmazonQBaseServiceManager
     #logging?: Logging
     #origin?: Origin
@@ -113,24 +113,30 @@ export class ChatSessionService {
     }
 
     /**
-     * Gets the set of approved paths for this session
+     * Gets the map of approved paths for this session
      */
-    public get approvedPaths(): Set<string> {
+    public get approvedPaths(): Map<string, Set<string>> {
         return this.#approvedPaths
     }
 
     /**
      * Adds a path to the approved paths list for this session
      * @param filePath The absolute path to add
+     * @param toolName The name of the tool that should have access to this path
      */
-    public addApprovedPath(filePath: string): void {
-        if (!filePath) {
+    public addApprovedPath(filePath: string, toolName: string): void {
+        if (!filePath || !toolName) {
             return
         }
 
         // Normalize path separators for consistent comparison
         const normalizedPath = filePath.replace(/\\/g, '/')
-        this.#approvedPaths.add(normalizedPath)
+
+        if (!this.#approvedPaths.has(toolName)) {
+            this.#approvedPaths.set(toolName, new Set<string>())
+        }
+
+        this.#approvedPaths.get(toolName)!.add(normalizedPath)
     }
 
     constructor(serviceManager?: AmazonQBaseServiceManager, lsp?: Features['lsp'], logging?: Logging) {
