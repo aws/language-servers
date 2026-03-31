@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.111](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.110...lsp-codewhisperer/v0.0.111) (2026-03-31)
+
+
+### Features
+
+* **amazonq:** align mcp oauth client with mcp sdk auth patterns ([#2679](https://github.com/aws/language-servers/issues/2679)) ([4ff5ab0](https://github.com/aws/language-servers/commit/4ff5ab0e6ab4bf1659ffdb07a72bba4d6c358339))
+
+
+### Bug Fixes
+
+* cache subscription status to prevent excessive CreateSubscriptionToken API calls ([#2680](https://github.com/aws/language-servers/issues/2680)) ([d26edb7](https://github.com/aws/language-servers/commit/d26edb7dfd321122515373e0d08b757f6e367561))
+
+
+### Reverts
+
+* undo revert of fix for tool permissions in allowed paths per tool ([#2601](https://github.com/aws/language-servers/issues/2601)) ([#2683](https://github.com/aws/language-servers/issues/2683)) ([#2684](https://github.com/aws/language-servers/issues/2684)) ([8a615fa](https://github.com/aws/language-servers/commit/8a615faf27c6b519045263f5bddf0bfe98f609e0))
+
 ## [0.0.110](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.109...lsp-codewhisperer/v0.0.110) (2026-03-17)
 
 
