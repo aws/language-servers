@@ -3118,7 +3118,7 @@ export class ATXTransformHandler {
             })
 
             await Utils.directoryExists(savePath)
-            const fileName = artifactName || 'artifact.zip'
+            const fileName = artifactName ? path.basename(artifactName) : 'artifact.zip'
             const filePath = path.join(savePath, fileName)
             fs.writeFileSync(filePath, Buffer.from(response.body))
 
