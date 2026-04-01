@@ -100,6 +100,7 @@ export const LocalProjectContextServer =
                 const filePaths = VSCWindowsOverride
                     ? event.files.map(file => URI.file(file.uri).fsPath)
                     : event.files.map(file => URI.parse(file.uri).fsPath)
+                logging.log(`[DEBUG] onDidCreateFiles fired: ${JSON.stringify(filePaths)}`)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, true)
             } catch (error) {
                 logging.error(`Error handling create event: ${error}`)

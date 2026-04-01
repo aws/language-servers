@@ -23,12 +23,9 @@ import { activeFileCmd } from './additionalContextProvider'
 export const INDEXING_THROTTLE_MS = 500
 
 /**
- * Maximum number of context command items to include in the initial
- * `sendContextCommands` notification.  Large repos can have 80k+ items;
- * sending all of them to the webview causes deep-clone and serialization
- * overhead.  Server-side filtering (via `onFilterContextCommands`) handles
- * search over the full set, so the initial push only needs enough items
- * to populate the picker when the user presses `@` before typing.
+ * Maximum items in the initial `sendContextCommands` push.
+ * The client shows these when the user presses `@` before typing.
+ * Server-side filtering (onFilterContextCommands) searches the full set.
  */
 export const CONTEXT_COMMAND_PAYLOAD_CAP = 1000
 
@@ -180,25 +177,39 @@ export class ContextCommandsProvider implements Disposable {
                 const items = this.cachedContextCommands ?? []
                 const searchTerm = params.searchTerm?.trim() ?? ''
 
+                this.logging.log(
+                    `[DEBUG] onFilterContextCommands: searchTerm="${searchTerm}", cachedItems=${items.length}`
+                )
+
                 if (!searchTerm) {
-                    // Empty search: return the capped initial set
-                    const capped = items.slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
-                    const mapped = await this.mapContextCommandItems(capped)
+                    this.logging.log(
+                        `[DEBUG] onFilterContextCommands: empty search, returning all ${items.length} items`
+                    )
+                    const mapped = await this.mapContextCommandItems(items)
                     return { contextCommandGroups: mapped }
                 }
 
-                // Score all items, then take the top results by score
+                // Score items in chunks, yielding to the event loop between
+                // chunks so the server stays responsive (e.g. for other LSP
+                // requests) while filtering 80k+ items.
                 const scored: { score: number; item: ContextCommandItem }[] = []
-                for (const item of items) {
-                    const displayName = getDisplayName(item)
+                for (let i = 0; i < items.length; i++) {
+                    const displayName = getDisplayName(items[i])
                     const score = calculateItemScore(displayName, searchTerm)
                     if (score > 0) {
-                        scored.push({ score, item })
+                        scored.push({ score, item: items[i] })
                     }
+                    // Yield every 2000 items (~1 frame worth of work)
+                    // if (i > 0 && i % 2000 === 0) {
+                    //     await new Promise<void>(resolve => setTimeout(resolve, 0))
+                    // }
                 }
 
                 scored.sort((a, b) => b.score - a.score)
                 const filtered = scored.slice(0, MAX_FILTER_RESULTS).map(s => s.item)
+                this.logging.log(
+                    `[DEBUG] onFilterContextCommands: searchTerm="${searchTerm}", matched=${scored.length}, returning=${filtered.length}`
+                )
                 const mapped = await this.mapContextCommandItems(filtered)
                 return { contextCommandGroups: mapped }
             }
@@ -206,15 +217,13 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async processContextCommandUpdate(items: ContextCommandItem[]) {
-        const previousIds = new Set(this.cachedContextCommands?.map(i => i.id) ?? [])
         this.cachedContextCommands = items
 
-        // Cap the initial payload to avoid serialization/deep-clone overhead.
-        // Server-side filtering (onFilterContextCommands) searches the full set.
-        // Prioritize newly added items so they appear immediately in the picker.
-        const newItems = previousIds.size > 0 ? items.filter(i => !previousIds.has(i.id)) : []
-        const existingItems = previousIds.size > 0 ? items.filter(i => previousIds.has(i.id)) : items
-        const capped = [...newItems, ...existingItems].slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+        // Cap the push payload — the client's existing code dispatches
+        // onFilterContextCommands when the user types, which searches
+        // the full cached set server-side (no cap).
+        const capped = items.slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+        this.logging.log(`[DEBUG] processContextCommandUpdate: total=${items.length}, pushing=${capped.length}`)
 
         const allItems = await this.mapContextCommandItems(capped)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })

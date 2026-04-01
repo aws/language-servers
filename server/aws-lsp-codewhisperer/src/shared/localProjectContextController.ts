@@ -326,9 +326,16 @@ export class LocalProjectContextController {
     }
 
     public async updateIndexAndContextCommand(filePaths: string[], isAdd: boolean, workspaceFolders?: string[]) {
+        this.log.log(`[DEBUG] updateIndexAndContextCommand called: isAdd=${isAdd}, files=${JSON.stringify(filePaths)}`)
         const result = await this.tryUpdateIndex(filePaths, isAdd, workspaceFolders)
+        this.log.log(`[DEBUG] tryUpdateIndex returned: ${result}`)
         if (result) {
             const contextItems = await this.getContextCommandItems()
+            this.log.log(`[DEBUG] getContextCommandItems returned ${contextItems.length} items`)
+            const match = contextItems.find(i => filePaths.some(fp => i.relativePath && fp.includes(i.relativePath)))
+            this.log.log(
+                `[DEBUG] new file found in contextItems: ${!!match}, match: ${match ? JSON.stringify({ id: match.id, relativePath: match.relativePath, type: match.type }) : 'none'}`
+            )
             if (this.onContextItemsUpdated && contextItems.length > 0) {
                 await this.onContextItemsUpdated(contextItems)
             }
