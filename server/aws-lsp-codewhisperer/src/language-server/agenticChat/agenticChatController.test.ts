@@ -385,6 +385,76 @@ describe('AgenticChatController', () => {
         sinon.assert.calledTwice(emitConversationMetricStub)
     })
 
+    describe('setPaidTierMode caching', () => {
+        let getCodewhispererServiceStub: sinon.SinonStub
+        let getSubscriptionStatusStub: sinon.SinonStub
+
+        beforeEach(() => {
+            getSubscriptionStatusStub = sinon.stub().resolves({ status: 'none' })
+            getCodewhispererServiceStub = sinon
+                .stub(AmazonQTokenServiceManager.prototype, 'getCodewhispererService')
+                .returns({ getSubscriptionStatus: getSubscriptionStatusStub } as any)
+        })
+
+        afterEach(() => {
+            getCodewhispererServiceStub.restore()
+        })
+
+        it('calls getSubscriptionStatus on first tab add', async () => {
+            chatController.onTabAdd({ tabId: mockTabId })
+            // Allow the async getSubscriptionStatus call to resolve
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sinon.assert.calledOnce(getSubscriptionStatusStub)
+        })
+
+        it('does not call getSubscriptionStatus on subsequent tab adds after status is cached', async () => {
+            chatController.onTabAdd({ tabId: mockTabId })
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sinon.assert.calledOnce(getSubscriptionStatusStub)
+
+            getSubscriptionStatusStub.resetHistory()
+            chatController.onTabAdd({ tabId: 'tab-2' })
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sinon.assert.notCalled(getSubscriptionStatusStub)
+        })
+
+        it('does not call getSubscriptionStatus on tab change after status is cached', async () => {
+            chatController.onTabAdd({ tabId: mockTabId })
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sinon.assert.calledOnce(getSubscriptionStatusStub)
+
+            getSubscriptionStatusStub.resetHistory()
+            chatController.onTabChange({ tabId: mockTabId })
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sinon.assert.notCalled(getSubscriptionStatusStub)
+        })
+
+        it('caches paidtier status when subscription is active', async () => {
+            getSubscriptionStatusStub.resolves({ status: 'active' })
+            chatController.onTabAdd({ tabId: mockTabId })
+            await new Promise(resolve => setTimeout(resolve, 0))
+
+            getSubscriptionStatusStub.resetHistory()
+            chatController.onTabAdd({ tabId: 'tab-2' })
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sinon.assert.notCalled(getSubscriptionStatusStub)
+        })
+
+        it('deduplicates concurrent calls: multiple tabs opened before the first promise settles fire only one API call', async () => {
+            // Fire 5 tab-adds synchronously before the promise resolves.
+            chatController.onTabAdd({ tabId: 'tab-1' })
+            chatController.onTabAdd({ tabId: 'tab-2' })
+            chatController.onTabAdd({ tabId: 'tab-3' })
+            chatController.onTabAdd({ tabId: 'tab-4' })
+            chatController.onTabAdd({ tabId: 'tab-5' })
+
+            // Let all pending microtasks/macrotasks settle.
+            await new Promise(resolve => setTimeout(resolve, 0))
+
+            sinon.assert.calledOnce(getSubscriptionStatusStub)
+        })
+    })
+
     it('onTabRemove unsets tab id if current tab is removed and emits metrics', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
