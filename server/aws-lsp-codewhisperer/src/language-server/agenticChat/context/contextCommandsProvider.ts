@@ -183,7 +183,7 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Reference all code in workspace',
             disabledText: this.workspacePending ? 'pending' : undefined,
         }
-        const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+        const commands = [folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
 
         if (imageContextEnabled) {
             commands.push(imageCmdGroup)
