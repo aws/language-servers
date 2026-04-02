@@ -436,9 +436,6 @@ export class AdditionalContextProvider {
             contextInfo = contextInfo.filter(item => item.id !== ACTIVE_EDITOR_CONTEXT_ID)
         }
 
-        if (contextInfo.some(item => item.id === '@workspace')) {
-            triggerContext.hasWorkspace = true
-        }
         // Handle code symbol ID mismatches between indexing sessions
         // When a workspace is re-indexed, code symbols receive new IDs
         // If a pinned symbol's ID is no longer found in the current index:

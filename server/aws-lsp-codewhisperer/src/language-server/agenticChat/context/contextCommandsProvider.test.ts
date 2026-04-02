@@ -106,31 +106,6 @@ describe('ContextCommandsProvider', () => {
         })
     })
 
-    describe('onIndexingInProgressChanged', () => {
-        it('should update workspacePending and call processContextCommandUpdate when indexing status changes', async () => {
-            let capturedCallback: ((indexingInProgress: boolean) => void) | undefined
-
-            const mockController = {
-                onContextItemsUpdated: sinon.stub(),
-                set onIndexingInProgressChanged(callback: (indexingInProgress: boolean) => void) {
-                    capturedCallback = callback
-                },
-            }
-
-            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
-            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves(mockController as any)
-
-            // Set initial state to false so condition is met
-            ;(provider as any).workspacePending = false
-
-            await (provider as any).registerContextCommandHandler()
-
-            capturedCallback?.(true)
-
-            sinon.assert.calledWith(processUpdateSpy, [])
-        })
-    })
-
     describe('setFilesAndFoldersFailed', () => {
         it('should set filesAndFoldersFailed to true and filesAndFoldersPending to false', () => {
             provider.setFilesAndFoldersFailed(true)
