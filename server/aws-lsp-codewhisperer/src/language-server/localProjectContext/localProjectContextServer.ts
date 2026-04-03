@@ -22,7 +22,6 @@ export const LocalProjectContextServer =
         let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
-        let localProjectContextEnabled: boolean = false
         let VSCWindowsOverride: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -164,22 +163,13 @@ export const LocalProjectContextServer =
         const updateConfigurationHandler = async (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.log('Updating configuration of local context server')
             try {
-                localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
                 if (process.env.DISABLE_INDEXING_LIBRARY === 'true') {
                     logging.log('Skipping local project context initialization')
-                    localProjectContextEnabled = false
                 } else {
-                    logging.log(
-                        `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
-                    )
                     await localProjectContextController.init({
-                        enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
-                        indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
                         ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
                         maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
                         maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
-                        enableIndexing: localProjectContextEnabled,
-                        indexCacheDirPath: updatedConfig.projectContext?.localIndexing?.indexCacheDirPath,
                     })
                 }
             } catch (error) {
