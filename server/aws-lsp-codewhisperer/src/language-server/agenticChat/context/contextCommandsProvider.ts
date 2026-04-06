@@ -1,3 +1,4 @@
+import * as fs from 'fs'
 import * as path from 'path'
 import { FSWatcher, watch } from 'chokidar'
 import {
@@ -55,6 +56,11 @@ export function calculateItemScore(text: string, searchTerm: string): number {
 function getDisplayName(item: ContextCommandItem): string {
     if (item.symbol) return item.symbol.name
     return path.basename(item.relativePath)
+}
+
+/** Check whether the underlying file/folder still exists on disk. */
+function existsOnDisk(item: ContextCommandItem): boolean {
+    return fs.existsSync(path.join(item.workspaceFolder, item.relativePath))
 }
 
 export class ContextCommandsProvider implements Disposable {
@@ -178,7 +184,7 @@ export class ContextCommandsProvider implements Disposable {
                 const searchTerm = params.searchTerm?.trim() ?? ''
 
                 if (!searchTerm) {
-                    const mapped = await this.mapContextCommandItems(items)
+                    const mapped = await this.mapContextCommandItems(items.filter(existsOnDisk))
                     return { contextCommandGroups: mapped }
                 }
 
@@ -199,7 +205,10 @@ export class ContextCommandsProvider implements Disposable {
                 }
 
                 scored.sort((a, b) => b.score - a.score)
-                const filtered = scored.slice(0, MAX_FILTER_RESULTS).map(s => s.item)
+                const filtered = scored
+                    .filter(s => existsOnDisk(s.item))
+                    .slice(0, MAX_FILTER_RESULTS)
+                    .map(s => s.item)
                 this.logging.log(
                     `onFilterContextCommands: searchTerm="${searchTerm}", matched=${scored.length}, returning=${filtered.length}`
                 )
@@ -215,7 +224,7 @@ export class ContextCommandsProvider implements Disposable {
         // Cap the push payload — the client's existing code dispatches
         // onFilterContextCommands when the user types, which searches
         // the full cached set server-side (no cap).
-        const capped = items.slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+        const capped = items.filter(existsOnDisk).slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
         this.logging.log(`[DEBUG] processContextCommandUpdate: total=${items.length}, pushing=${capped.length}`)
 
         const allItems = await this.mapContextCommandItems(capped)
