@@ -141,7 +141,7 @@ export const AtxNetTransformServerToken =
                             jobId,
                             maxResults,
                             nextToken,
-                            startTimestamp,
+                            startTimestamp: startTimestamp ? new Date(startTimestamp) : undefined,
                         })
                     }
                     case AtxBatchGetMessagesCommand: {
