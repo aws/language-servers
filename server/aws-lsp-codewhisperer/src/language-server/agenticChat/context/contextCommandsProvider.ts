@@ -117,7 +117,8 @@ export class ContextCommandsProvider implements Disposable {
                         try {
                             const items = await controller.getContextCommandItems()
                             await this.processContextCommandUpdate(items)
-                        } catch {
+                        } catch (e) {
+                            this.logging.error(`Error fetching context command items: ${e}`)
                             void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
                         }
                     }, INDEXING_THROTTLE_MS)
@@ -188,9 +189,7 @@ export class ContextCommandsProvider implements Disposable {
                     return { contextCommandGroups: mapped }
                 }
 
-                // Score items in chunks, yielding to the event loop between
-                // chunks so the server stays responsive (e.g. for other LSP
-                // requests) while filtering 80k+ items.
+                // Score every cached item and keep only matches (score > 0).
                 const scored: { score: number; item: ContextCommandItem }[] = []
                 for (let i = 0; i < items.length; i++) {
                     const displayName = getDisplayName(items[i])
@@ -200,7 +199,7 @@ export class ContextCommandsProvider implements Disposable {
                     }
                 }
 
-                scored.sort((a, b) => b.score - a.score)
+                scored.sort((a, b) => b.score - a.score || getDisplayName(a.item).localeCompare(getDisplayName(b.item)))
                 const filtered = scored
                     .filter(s => existsOnDisk(s.item))
                     .slice(0, MAX_FILTER_RESULTS)
