@@ -323,6 +323,7 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
+    let lastFilterTabId: string | undefined
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -812,6 +813,7 @@ export const createMynahUi = (
             store: tabFactory.createTab(false),
         },
         onContextCommandFilter: (tabId, searchTerm) => {
+            lastFilterTabId = tabId
             messager.onFilterContextCommands({ tabId, searchTerm })
         },
         config: {
@@ -1455,25 +1457,25 @@ ${params.message}`,
     }
 
     const filterContextCommandsResponse = (params: FilterContextCommandsResult) => {
+        if (!lastFilterTabId) return
+
         const filtered = params.contextCommandGroups.map(group => ({
             ...group,
             commands: toContextCommands(group.commands),
         }))
 
-        Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
-            mynahUi.updateStore(tabId, {
-                contextCommands: [
-                    ...filtered,
-                    ...(featureConfig?.get('highlightCommand')
-                        ? [
-                              {
-                                  groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
-                              },
-                          ]
-                        : []),
-                ],
-            })
+        mynahUi.updateStore(lastFilterTabId, {
+            contextCommands: [
+                ...filtered,
+                ...(featureConfig?.get('highlightCommand')
+                    ? [
+                          {
+                              groupName: 'Additional commands',
+                              commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                          },
+                      ]
+                    : []),
+            ],
         })
     }
 
