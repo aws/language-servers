@@ -198,10 +198,6 @@ export class ContextCommandsProvider implements Disposable {
                     if (score > 0) {
                         scored.push({ score, item: items[i] })
                     }
-                    // Yield every 2000 items (~1 frame worth of work)
-                    // if (i > 0 && i % 2000 === 0) {
-                    //     await new Promise<void>(resolve => setTimeout(resolve, 0))
-                    // }
                 }
 
                 scored.sort((a, b) => b.score - a.score)
@@ -225,7 +221,6 @@ export class ContextCommandsProvider implements Disposable {
         // onFilterContextCommands when the user types, which searches
         // the full cached set server-side (no cap).
         const capped = items.filter(existsOnDisk).slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
-        this.logging.log(`[DEBUG] processContextCommandUpdate: total=${items.length}, pushing=${capped.length}`)
 
         const allItems = await this.mapContextCommandItems(capped)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })
