@@ -177,14 +177,7 @@ export class ContextCommandsProvider implements Disposable {
                 const items = this.cachedContextCommands ?? []
                 const searchTerm = params.searchTerm?.trim() ?? ''
 
-                this.logging.log(
-                    `[DEBUG] onFilterContextCommands: searchTerm="${searchTerm}", cachedItems=${items.length}`
-                )
-
                 if (!searchTerm) {
-                    this.logging.log(
-                        `[DEBUG] onFilterContextCommands: empty search, returning all ${items.length} items`
-                    )
                     const mapped = await this.mapContextCommandItems(items)
                     return { contextCommandGroups: mapped }
                 }
@@ -208,7 +201,7 @@ export class ContextCommandsProvider implements Disposable {
                 scored.sort((a, b) => b.score - a.score)
                 const filtered = scored.slice(0, MAX_FILTER_RESULTS).map(s => s.item)
                 this.logging.log(
-                    `[DEBUG] onFilterContextCommands: searchTerm="${searchTerm}", matched=${scored.length}, returning=${filtered.length}`
+                    `onFilterContextCommands: searchTerm="${searchTerm}", matched=${scored.length}, returning=${filtered.length}`
                 )
                 const mapped = await this.mapContextCommandItems(filtered)
                 return { contextCommandGroups: mapped }
