@@ -219,7 +219,14 @@ export class ContextCommandsProvider implements Disposable {
         // Cap the push payload — the client's existing code dispatches
         // onFilterContextCommands when the user types, which searches
         // the full cached set server-side (no cap).
-        const capped = items.filter(existsOnDisk).slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+        // Partition by type so folders aren't starved by a file-heavy list.
+        const alive = items.filter(existsOnDisk)
+        const folders = alive.filter(i => i.type === 'folder')
+        const nonFolders = alive.filter(i => i.type !== 'folder')
+
+        const folderBudget = Math.min(folders.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.1))
+        const remainingBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget
+        const capped = [...folders.slice(0, folderBudget), ...nonFolders.slice(0, remainingBudget)]
 
         const allItems = await this.mapContextCommandItems(capped)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })
