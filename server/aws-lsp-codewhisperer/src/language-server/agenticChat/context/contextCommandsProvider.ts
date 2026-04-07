@@ -185,7 +185,15 @@ export class ContextCommandsProvider implements Disposable {
                 const searchTerm = params.searchTerm?.trim() ?? ''
 
                 if (!searchTerm) {
-                    const mapped = await this.mapContextCommandItems(items.filter(existsOnDisk))
+                    // Return the same capped set as the initial push so the
+                    // store stays consistent with contextCommandGroups.
+                    const alive = items.filter(existsOnDisk)
+                    const folders = alive.filter(i => i.type === 'folder')
+                    const nonFolders = alive.filter(i => i.type !== 'folder')
+                    const folderBudget = Math.min(folders.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.1))
+                    const remainingBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget
+                    const capped = [...folders.slice(0, folderBudget), ...nonFolders.slice(0, remainingBudget)]
+                    const mapped = await this.mapContextCommandItems(capped)
                     return { contextCommandGroups: mapped }
                 }
 
