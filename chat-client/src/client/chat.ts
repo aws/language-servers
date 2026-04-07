@@ -108,6 +108,9 @@ import {
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
     EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD,
+    FILTER_CONTEXT_COMMANDS_REQUEST_METHOD,
+    FilterContextCommandsParams,
+    FilterContextCommandsResult,
 } from '@aws/language-server-runtimes-types'
 import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
@@ -214,6 +217,9 @@ export const createChat = (
                 break
             case CONTEXT_COMMAND_NOTIFICATION_METHOD:
                 mynahApi.sendContextCommands(message.params as ContextCommandParams)
+                break
+            case FILTER_CONTEXT_COMMANDS_REQUEST_METHOD:
+                mynahApi.filterContextCommandsResponse(message.params as FilterContextCommandsResult)
                 break
             case PINNED_CONTEXT_NOTIFICATION_METHOD:
                 mynahApi.sendPinnedContext(message.params as PinnedContextParams)
@@ -511,6 +517,9 @@ export const createChat = (
         },
         onFilesDropped: (params: { tabId: string; files: FileList; insertPosition: number }) => {
             sendMessageToClient({ command: FILES_DROPPED, params: params })
+        },
+        filterContextCommands: (params: FilterContextCommandsParams) => {
+            sendMessageToClient({ command: FILTER_CONTEXT_COMMANDS_REQUEST_METHOD, params })
         },
     }
 
