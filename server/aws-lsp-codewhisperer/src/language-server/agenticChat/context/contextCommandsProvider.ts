@@ -1,6 +1,12 @@
+import * as fs from 'fs'
 import * as path from 'path'
 import { FSWatcher, watch } from 'chokidar'
-import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
+import {
+    ContextCommand,
+    ContextCommandGroup,
+    FilterContextCommandsParams,
+    FilterContextCommandsResult,
+} from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { getCodeSymbolDescription, getUserPromptsDirectory, promptFileExtension } from './contextUtils'
@@ -8,6 +14,54 @@ import { ContextCommandItem } from 'local-indexing'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { activeFileCmd } from './additionalContextProvider'
+
+/**
+ * Throttle window (in ms) for coalescing rapid `onIndexingInProgressChanged`
+ * callbacks.  When indexing status toggles rapidly (e.g. true→false→true),
+ * only the final state triggers a `processContextCommandUpdate` call after
+ * this delay elapses with no further changes.
+ */
+export const INDEXING_THROTTLE_MS = 500
+
+/**
+ * Maximum items in the initial `sendContextCommands` push.
+ * The client shows these when the user presses `@` before typing.
+ * Server-side filtering (onFilterContextCommands) searches the full set.
+ */
+export const CONTEXT_COMMAND_PAYLOAD_CAP = 1000
+
+/** Maximum number of items returned by a single filter request. */
+export const MAX_FILTER_RESULTS = 1000
+
+/**
+ * Score a candidate string against a search term.
+ * Mirrors the scoring tiers used by mynah-ui's filterQuickPickItems:
+ *   exact=100, prefix=80, word-start=60, contains=40, no-match=0
+ */
+export function calculateItemScore(text: string, searchTerm: string): number {
+    const normalizedText = text.toLowerCase()
+    const normalizedTerm = searchTerm.toLowerCase()
+
+    if (normalizedText === normalizedTerm) return 100
+    if (normalizedText.startsWith(normalizedTerm)) return 80
+    if (normalizedText.split(/[\s/\\._\-]/).some(word => word.startsWith(normalizedTerm))) return 60
+    if (normalizedText.includes(normalizedTerm)) return 40
+    return 0
+}
+
+/**
+ * Return the display name used by the picker for a given context command item.
+ * Files/folders → basename of relativePath, code → symbol name.
+ */
+function getDisplayName(item: ContextCommandItem): string {
+    if (item.symbol) return item.symbol.name
+    return path.basename(item.relativePath)
+}
+
+/** Check whether the underlying file/folder still exists on disk. */
+function existsOnDisk(item: ContextCommandItem): boolean {
+    return fs.existsSync(path.join(item.workspaceFolder, item.relativePath))
+}
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
@@ -19,6 +73,8 @@ export class ContextCommandsProvider implements Disposable {
     private workspacePending = true
     private workspaceFailed = false
     private initialStateSent = false
+    /** Handle for the pending indexing-change throttle timer */
+    private indexingThrottleTimer?: ReturnType<typeof setTimeout>
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
@@ -29,6 +85,7 @@ export class ContextCommandsProvider implements Disposable {
         this.registerContextCommandHandler().catch(e =>
             this.logging.error(`Error registering context command handler: ${e}`)
         )
+        this.registerFilterHandler()
     }
 
     onReady() {
@@ -54,7 +111,23 @@ export class ContextCommandsProvider implements Disposable {
             controller.onIndexingInProgressChanged = (indexingInProgress: boolean) => {
                 if (this.workspacePending !== indexingInProgress) {
                     this.workspacePending = indexingInProgress
-                    void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+
+                    // Coalesce rapid indexing status toggles: cancel any pending
+                    // throttle timer and start a new one.  Only the final state
+                    // after the throttle window triggers processContextCommandUpdate.
+                    if (this.indexingThrottleTimer !== undefined) {
+                        clearTimeout(this.indexingThrottleTimer)
+                    }
+                    this.indexingThrottleTimer = setTimeout(async () => {
+                        this.indexingThrottleTimer = undefined
+                        try {
+                            const items = await controller.getContextCommandItems()
+                            await this.processContextCommandUpdate(items)
+                        } catch (e) {
+                            this.logging.error(`Error fetching context command items: ${e}`)
+                            void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                        }
+                    }, INDEXING_THROTTLE_MS)
                 }
             }
         } catch (e) {
@@ -111,10 +184,51 @@ export class ContextCommandsProvider implements Disposable {
         }
     }
 
+    private registerFilterHandler() {
+        this.chat.onFilterContextCommands(
+            async (params: FilterContextCommandsParams): Promise<FilterContextCommandsResult> => {
+                const items = this.cachedContextCommands ?? []
+                const searchTerm = params.searchTerm?.trim() ?? ''
+
+                if (!searchTerm) {
+                    const mapped = await this.mapContextCommandItems(items.filter(existsOnDisk))
+                    return { contextCommandGroups: mapped }
+                }
+
+                // Score every cached item and keep only matches (score > 0).
+                const scored: { score: number; item: ContextCommandItem }[] = []
+                for (let i = 0; i < items.length; i++) {
+                    const displayName = getDisplayName(items[i])
+                    const score = calculateItemScore(displayName, searchTerm)
+                    if (score > 0) {
+                        scored.push({ score, item: items[i] })
+                    }
+                }
+
+                scored.sort((a, b) => b.score - a.score || getDisplayName(a.item).localeCompare(getDisplayName(b.item)))
+                const filtered = scored
+                    .filter(s => existsOnDisk(s.item))
+                    .slice(0, MAX_FILTER_RESULTS)
+                    .map(s => s.item)
+                this.logging.log(
+                    `onFilterContextCommands: searchTerm="${searchTerm}", matched=${scored.length}, returning=${filtered.length}`
+                )
+                const mapped = await this.mapContextCommandItems(filtered)
+                return { contextCommandGroups: mapped }
+            }
+        )
+    }
+
     async processContextCommandUpdate(items: ContextCommandItem[]) {
-        const allItems = await this.mapContextCommandItems(items)
-        this.chat.sendContextCommands({ contextCommandGroups: allItems })
         this.cachedContextCommands = items
+
+        // Cap the push payload — the client's existing code dispatches
+        // onFilterContextCommands when the user types, which searches
+        // the full cached set server-side (no cap).
+        const capped = items.filter(existsOnDisk).slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
+
+        const allItems = await this.mapContextCommandItems(capped)
+        this.chat.sendContextCommands({ contextCommandGroups: allItems })
     }
 
     async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
@@ -273,6 +387,9 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     dispose() {
+        if (this.indexingThrottleTimer !== undefined) {
+            clearTimeout(this.indexingThrottleTimer)
+        }
         void this.promptFileWatcher?.close()
     }
 }
