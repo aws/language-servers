@@ -1,4 +1,4 @@
-import { ContextCommandsProvider } from './contextCommandsProvider'
+import { ContextCommandsProvider, INDEXING_THROTTLE_MS } from './contextCommandsProvider'
 import * as sinon from 'sinon'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as chokidar from 'chokidar'
@@ -107,7 +107,8 @@ describe('ContextCommandsProvider', () => {
     })
 
     describe('onIndexingInProgressChanged', () => {
-        it('should update workspacePending and call processContextCommandUpdate when indexing status changes', async () => {
+        it('should update workspacePending and call processContextCommandUpdate after throttle window', async () => {
+            const clock = sinon.useFakeTimers()
             let capturedCallback: ((indexingInProgress: boolean) => void) | undefined
 
             const mockController = {
@@ -127,7 +128,15 @@ describe('ContextCommandsProvider', () => {
 
             capturedCallback?.(true)
 
+            // Not called yet — still within throttle window
+            sinon.assert.notCalled(processUpdateSpy)
+
+            // Advance past the throttle window
+            clock.tick(INDEXING_THROTTLE_MS)
+
             sinon.assert.calledWith(processUpdateSpy, [])
+
+            clock.restore()
         })
     })
 
