@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51](https://github.com/aws/language-servers/compare/chat-client/v0.1.50...chat-client/v0.1.51) (2026-04-07)
+
+
+### Performance Improvements
+
+* **amazonq:** context command performance ([#2682](https://github.com/aws/language-servers/issues/2682)) ([f8dec9a](https://github.com/aws/language-servers/commit/f8dec9a65b7e72e78e5e16cbbfd470b2d69e75b0))
+
 ## [0.1.50](https://github.com/aws/language-servers/compare/chat-client/v0.1.49...chat-client/v0.1.50) (2026-03-10)
 
 
