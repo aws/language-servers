@@ -36,6 +36,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    FilterContextCommandsResult,
     ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
@@ -100,6 +101,7 @@ export interface InboundChatApi {
     addSelectedFilesToContext(params: OpenFileDialogParams): void
     sendPinnedContext(params: PinnedContextParams): void
     listAvailableModels(params: ListAvailableModelsResult): void
+    filterContextCommandsResponse(params: FilterContextCommandsResult): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -321,6 +323,7 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
+    let lastFilterTabId: string | undefined
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -808,6 +811,10 @@ export const createMynahUi = (
         },
         defaults: {
             store: tabFactory.createTab(false),
+        },
+        onContextCommandFilter: (tabId, searchTerm) => {
+            lastFilterTabId = tabId
+            messager.onFilterContextCommands({ tabId, searchTerm })
         },
         config: {
             maxTabs: 10,
@@ -1449,6 +1456,29 @@ ${params.message}`,
         })
     }
 
+    const filterContextCommandsResponse = (params: FilterContextCommandsResult) => {
+        if (!lastFilterTabId) return
+
+        const filtered = params.contextCommandGroups.map(group => ({
+            ...group,
+            commands: toContextCommands(group.commands),
+        }))
+
+        mynahUi.updateStore(lastFilterTabId, {
+            contextCommands: [
+                ...filtered,
+                ...(featureConfig?.get('highlightCommand')
+                    ? [
+                          {
+                              groupName: 'Additional commands',
+                              commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                          },
+                      ]
+                    : []),
+            ],
+        })
+    }
+
     const addSelectedFilesToContext = (params: OpenFileDialogResult) => {
         if (params.errorMessage) {
             mynahUi.notify({
@@ -1605,6 +1635,7 @@ ${params.message}`,
         ruleClicked: ruleClicked,
         listAvailableModels: listAvailableModels,
         addSelectedFilesToContext: addSelectedFilesToContext,
+        filterContextCommandsResponse: filterContextCommandsResponse,
     }
 
     return [mynahUi, api]
