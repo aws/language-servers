@@ -121,9 +121,9 @@ export const LocalProjectContextServer =
             try {
                 const oldPaths = VSCWindowsOverride
                     ? event.files.map(file => URI.file(file.oldUri).fsPath)
-                    : event.files.map(file => URI.parse(file.newUri).fsPath)
+                    : event.files.map(file => URI.parse(file.oldUri).fsPath)
                 const newPaths = VSCWindowsOverride
-                    ? event.files.map(file => URI.file(file.oldUri).fsPath)
+                    ? event.files.map(file => URI.file(file.newUri).fsPath)
                     : event.files.map(file => URI.parse(file.newUri).fsPath)
 
                 await localProjectContextController.updateIndexAndContextCommand(oldPaths, false)
