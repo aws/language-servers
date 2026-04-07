@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.112](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.111...lsp-codewhisperer/v0.0.112) (2026-04-07)
+
+
+### Bug Fixes
+
+* correct URI mapping in onDidRenameFiles handler ([#2688](https://github.com/aws/language-servers/issues/2688)) ([e2e0b2c](https://github.com/aws/language-servers/commit/e2e0b2cd56dbe48f462064d0d0a5cc8397975be7))
+
+
+### Performance Improvements
+
+* **amazonq:** context command performance ([#2682](https://github.com/aws/language-servers/issues/2682)) ([f8dec9a](https://github.com/aws/language-servers/commit/f8dec9a65b7e72e78e5e16cbbfd470b2d69e75b0))
+
 ## [0.0.111](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.110...lsp-codewhisperer/v0.0.111) (2026-03-31)
 
 
