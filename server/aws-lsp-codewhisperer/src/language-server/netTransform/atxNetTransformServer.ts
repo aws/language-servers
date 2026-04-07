@@ -112,7 +112,9 @@ export const AtxNetTransformServerToken =
                         const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints, InteractiveMode } =
                             params as AtxSetCheckpointsRequest
 
-                        logging.info(`ATX: setCheckpoints params - InteractiveMode=${InteractiveMode}, Checkpoints=${JSON.stringify(Checkpoints)}`)
+                        logging.info(
+                            `ATX: setCheckpoints params - InteractiveMode=${InteractiveMode}, Checkpoints=${JSON.stringify(Checkpoints)}`
+                        )
 
                         return await atxTransformHandler.setCheckpoints(
                             WorkspaceId,
@@ -153,7 +155,7 @@ export const AtxNetTransformServerToken =
                             jobId,
                             maxResults,
                             nextToken,
-                            startTimestamp,
+                            startTimestamp: startTimestamp ? new Date(startTimestamp) : undefined,
                         })
                     }
                     case AtxBatchGetMessagesCommand: {
@@ -165,17 +167,20 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxListArtifactsCommand: {
                         const { WorkspaceId, TransformationJobId } = params as AtxListArtifactsRequest
-                        logging.log(`ATX: ListArtifacts command received - WorkspaceId: ${WorkspaceId}, JobId: ${TransformationJobId}`)
+                        logging.log(
+                            `ATX: ListArtifacts command received - WorkspaceId: ${WorkspaceId}, JobId: ${TransformationJobId}`
+                        )
                         return await atxTransformHandler.listArtifactsForDownload(WorkspaceId, TransformationJobId)
                     }
                     case AtxDownloadArtifactCommand: {
-                        const { WorkspaceId, TransformationJobId, ArtifactId, SavePath } =
+                        const { WorkspaceId, TransformationJobId, ArtifactId, ArtifactName, SavePath } =
                             params as AtxDownloadArtifactRequest
                         return await atxTransformHandler.downloadArtifactToPath(
                             WorkspaceId,
                             TransformationJobId,
                             ArtifactId,
-                            SavePath
+                            SavePath,
+                            ArtifactName
                         )
                     }
                     case AtxGetJobDashboardCommand: {
