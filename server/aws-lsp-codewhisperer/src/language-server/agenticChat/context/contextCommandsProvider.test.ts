@@ -1,5 +1,6 @@
-import { ContextCommandsProvider, INDEXING_THROTTLE_MS } from './contextCommandsProvider'
+import { ContextCommandsProvider, CONTEXT_COMMAND_PAYLOAD_CAP, INDEXING_THROTTLE_MS } from './contextCommandsProvider'
 import * as sinon from 'sinon'
+import * as fs from 'fs'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as chokidar from 'chokidar'
 import { ContextCommandItem } from 'local-indexing'
@@ -184,6 +185,98 @@ describe('ContextCommandsProvider', () => {
 
             sinon.assert.match(filesCmd?.disabledText, undefined)
             sinon.assert.match(foldersCmd?.disabledText, undefined)
+        })
+    })
+
+    describe('processContextCommandUpdate folder budget', () => {
+        let sendContextCommandsSpy: sinon.SinonStub
+        let existsSyncStub: sinon.SinonStub
+
+        function makeItem(type: 'file' | 'folder', index: number): ContextCommandItem {
+            return {
+                workspaceFolder: '/workspace',
+                type,
+                relativePath: type === 'folder' ? `dir${index}` : `file${index}.ts`,
+                id: `${type}-${index}`,
+            }
+        }
+
+        beforeEach(() => {
+            sendContextCommandsSpy = testFeatures.chat.sendContextCommands as unknown as sinon.SinonStub
+            existsSyncStub = sinon.stub(fs, 'existsSync').returns(true)
+        })
+
+        it('should include folders in capped payload when items exceed cap', async () => {
+            const folders = Array.from({ length: 200 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
+            const items = [...files, ...folders]
+
+            await provider.processContextCommandUpdate(items)
+
+            sinon.assert.calledOnce(sendContextCommandsSpy)
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // Folders should be present (budget = ceil(1000 * 0.1) = 100)
+            sinon.assert.match(folderChildren.length, 100)
+            // Files fill the remaining budget (1000 - 100 = 900), plus the "Active File" command
+            sinon.assert.match(fileChildren.length, 901)
+        })
+
+        it('should include all folders when fewer than budget', async () => {
+            const folders = Array.from({ length: 5 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
+            const items = [...files, ...folders]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // All 5 folders included
+            sinon.assert.match(folderChildren.length, 5)
+            // Remaining budget: 1000 - 5 = 995, plus "Active File"
+            sinon.assert.match(fileChildren.length, 996)
+        })
+
+        it('should not exceed cap total', async () => {
+            const folders = Array.from({ length: 500 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
+            const items = [...files, ...folders]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // Folder budget capped at ceil(1000 * 0.1) = 100
+            sinon.assert.match(folderChildren.length, 100)
+            // Total items (excluding "Active File") should not exceed CONTEXT_COMMAND_PAYLOAD_CAP
+            const totalItems = folderChildren.length + (fileChildren.length - 1) // subtract Active File
+            sinon.assert.match(totalItems <= CONTEXT_COMMAND_PAYLOAD_CAP, true)
+        })
+
+        it('should work normally when items are under cap', async () => {
+            const folders = Array.from({ length: 10 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 50 }, (_, i) => makeItem('file', i))
+            const items = [...files, ...folders]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // All items included when under cap
+            sinon.assert.match(folderChildren.length, 10)
+            sinon.assert.match(fileChildren.length, 51) // 50 + Active File
         })
     })
 })
