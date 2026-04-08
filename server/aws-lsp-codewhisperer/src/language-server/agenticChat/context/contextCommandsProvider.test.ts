@@ -279,4 +279,104 @@ describe('ContextCommandsProvider', () => {
             sinon.assert.match(fileChildren.length, 51) // 50 + Active File
         })
     })
+
+    describe('getFreshItems', () => {
+        it('should return empty array and log when LocalProjectContextController.getInstance rejects', async () => {
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).rejects(new Error('boom'))
+            const errorSpy = testFeatures.logging.error as unknown as sinon.SinonStub
+
+            const result = await (provider as any).getFreshItems()
+
+            sinon.assert.match(result.length, 0)
+            sinon.assert.calledOnce(errorSpy)
+        })
+
+        it('should return empty array and log when getContextCommandItems rejects', async () => {
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
+                getContextCommandItems: sinon.stub().rejects(new Error('indexer down')),
+            } as any)
+            const errorSpy = testFeatures.logging.error as unknown as sinon.SinonStub
+
+            const result = await (provider as any).getFreshItems()
+
+            sinon.assert.match(result.length, 0)
+            sinon.assert.calledOnce(errorSpy)
+        })
+
+        it('should return items from controller on success', async () => {
+            const fakeItems: ContextCommandItem[] = [
+                { workspaceFolder: '/workspace', type: 'file', relativePath: 'a.ts', id: 'a' },
+            ]
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
+                getContextCommandItems: sinon.stub().resolves(fakeItems),
+            } as any)
+
+            const result = await (provider as any).getFreshItems()
+
+            sinon.assert.match(result.length, 1)
+            sinon.assert.match(result[0].id, 'a')
+        })
+    })
+
+    describe('registerFilterHandler empty-search path', () => {
+        let existsSyncStub: sinon.SinonStub
+
+        function makeItem(type: 'file' | 'folder', index: number): ContextCommandItem {
+            return {
+                workspaceFolder: '/workspace',
+                type,
+                relativePath: type === 'folder' ? `dir${index}` : `file${index}.ts`,
+                id: `${type}-${index}`,
+            }
+        }
+
+        beforeEach(() => {
+            existsSyncStub = sinon.stub(fs, 'existsSync').returns(true)
+        })
+
+        it('should apply capItems folder budget when filter handler called with empty searchTerm', async () => {
+            const folders = Array.from({ length: 200 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
+                getContextCommandItems: sinon.stub().resolves([...files, ...folders]),
+            } as any)
+
+            // Register a fresh filter handler so the new stubbed controller is used.
+            ;(provider as any).registerFilterHandler()
+
+            const onFilterStub = testFeatures.chat.onFilterContextCommands as unknown as sinon.SinonStub
+            // The handler is the most recently-registered one (initial registration
+            // happens in the constructor with the placeholder controller stub).
+            const handler = onFilterStub.lastCall.args[0]
+            const result = await handler({ searchTerm: '' })
+
+            const topCommands = result.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // Folder budget = ceil(1000 * 0.1) = 100
+            sinon.assert.match(folderChildren.length, 100)
+            // Files fill the remaining 900 + the "Active File" command
+            sinon.assert.match(fileChildren.length, 901)
+        })
+
+        it('should also apply capItems when searchTerm is whitespace-only', async () => {
+            const folders = Array.from({ length: 200 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
+                getContextCommandItems: sinon.stub().resolves([...files, ...folders]),
+            } as any)
+            ;(provider as any).registerFilterHandler()
+
+            const onFilterStub = testFeatures.chat.onFilterContextCommands as unknown as sinon.SinonStub
+            const handler = onFilterStub.lastCall.args[0]
+            const result = await handler({ searchTerm: '   ' })
+
+            const topCommands = result.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+
+            // Whitespace trims to empty → folder budget enforced
+            sinon.assert.match(folderChildren.length, 100)
+        })
+    })
 })
