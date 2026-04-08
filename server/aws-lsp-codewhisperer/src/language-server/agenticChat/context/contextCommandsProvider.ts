@@ -214,15 +214,19 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     /**
-     * Cap items with a reserved budget for folders so they aren't starved
-     * by file-heavy repos.
+     * Cap items with reserved budgets for folders and code symbols so neither
+     * is starved by file-heavy repos. Default split is 10/10/80 (folders /
+     * code / files); slack from an under-filled folder or code budget flows
+     * automatically into the file budget via the subtraction below.
      */
     private capItems(items: ContextCommandItem[]): ContextCommandItem[] {
         const folders = items.filter(i => i.type === 'folder')
-        const nonFolders = items.filter(i => i.type !== 'folder')
+        const code = items.filter(i => i.type === 'code')
+        const files = items.filter(i => i.type === 'file')
         const folderBudget = Math.min(folders.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.1))
-        const remainingBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget
-        return [...folders.slice(0, folderBudget), ...nonFolders.slice(0, remainingBudget)]
+        const codeBudget = Math.min(code.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.1))
+        const fileBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget - codeBudget
+        return [...folders.slice(0, folderBudget), ...code.slice(0, codeBudget), ...files.slice(0, fileBudget)]
     }
 
     /**

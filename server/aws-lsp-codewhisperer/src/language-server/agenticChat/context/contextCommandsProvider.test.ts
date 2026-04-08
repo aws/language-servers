@@ -280,6 +280,131 @@ describe('ContextCommandsProvider', () => {
         })
     })
 
+    describe('processContextCommandUpdate code budget', () => {
+        let sendContextCommandsSpy: sinon.SinonStub
+        let existsSyncStub: sinon.SinonStub
+
+        function makeFile(index: number): ContextCommandItem {
+            return {
+                workspaceFolder: '/workspace',
+                type: 'file',
+                relativePath: `file${index}.ts`,
+                id: `file-${index}`,
+            }
+        }
+
+        function makeFolder(index: number): ContextCommandItem {
+            return {
+                workspaceFolder: '/workspace',
+                type: 'folder',
+                relativePath: `dir${index}`,
+                id: `folder-${index}`,
+            }
+        }
+
+        function makeCode(index: number): ContextCommandItem {
+            return {
+                workspaceFolder: '/workspace',
+                type: 'code',
+                relativePath: `file${index}.ts`,
+                id: `code-${index}`,
+                symbol: {
+                    kind: 'Function',
+                    name: `func${index}`,
+                    range: {
+                        start: { line: 0, column: 0 },
+                        end: { line: 10, column: 0 },
+                    },
+                },
+            } as ContextCommandItem
+        }
+
+        beforeEach(() => {
+            sendContextCommandsSpy = testFeatures.chat.sendContextCommands as unknown as sinon.SinonStub
+            existsSyncStub = sinon.stub(fs, 'existsSync').returns(true)
+        })
+
+        it('should include code symbols in capped payload when items exceed cap', async () => {
+            const code = Array.from({ length: 200 }, (_, i) => makeCode(i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeFile(i))
+            // Files first in input order to mirror typical indexer output (files
+            // scanned before AST symbol extraction).
+            const items = [...files, ...code]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // Code budget = ceil(1000 * 0.1) = 100
+            sinon.assert.match(codeChildren.length, 100)
+            // Files fill the remaining budget (1000 - 100 = 900), plus the "Active File" command
+            sinon.assert.match(fileChildren.length, 901)
+        })
+
+        it('should include all code symbols when fewer than budget', async () => {
+            const code = Array.from({ length: 5 }, (_, i) => makeCode(i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeFile(i))
+            const items = [...files, ...code]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // All 5 code symbols included
+            sinon.assert.match(codeChildren.length, 5)
+            // File budget grows to absorb the slack: 1000 - 5 = 995, plus Active File
+            sinon.assert.match(fileChildren.length, 996)
+        })
+
+        it('should split 100/100/800 when folders, code, and files all exceed budget', async () => {
+            const folders = Array.from({ length: 200 }, (_, i) => makeFolder(i))
+            const code = Array.from({ length: 200 }, (_, i) => makeCode(i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeFile(i))
+            const items = [...files, ...folders, ...code]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            sinon.assert.match(folderChildren.length, 100)
+            sinon.assert.match(codeChildren.length, 100)
+            sinon.assert.match(fileChildren.length, 801) // 800 + Active File
+
+            // Total non-active items must not exceed CONTEXT_COMMAND_PAYLOAD_CAP
+            const totalItems = folderChildren.length + codeChildren.length + (fileChildren.length - 1)
+            sinon.assert.match(totalItems <= CONTEXT_COMMAND_PAYLOAD_CAP, true)
+        })
+
+        it('should not starve code symbols when files come first in input', async () => {
+            // This is the regression case: pre-fix, the flat slice(0, 900) on
+            // nonFolders consumed the entire budget with files (which appear
+            // first in typical indexer output) and dropped all code symbols.
+            const files = Array.from({ length: 5000 }, (_, i) => makeFile(i))
+            const code = Array.from({ length: 50 }, (_, i) => makeCode(i))
+            const items = [...files, ...code]
+
+            await provider.processContextCommandUpdate(items)
+
+            const sent = sendContextCommandsSpy.firstCall.args[0]
+            const topCommands = sent.contextCommandGroups[0].commands
+            const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
+
+            // All 50 code symbols should appear regardless of where they sit
+            // in the input array.
+            sinon.assert.match(codeChildren.length, 50)
+        })
+    })
+
     describe('getFreshItems', () => {
         it('should return empty array and log when LocalProjectContextController.getInstance rejects', async () => {
             ;(LocalProjectContextController.getInstance as sinon.SinonStub).rejects(new Error('boom'))
@@ -377,6 +502,44 @@ describe('ContextCommandsProvider', () => {
 
             // Whitespace trims to empty → folder budget enforced
             sinon.assert.match(folderChildren.length, 100)
+        })
+
+        it('should reserve a code budget on the empty-search path', async () => {
+            const folders = Array.from({ length: 200 }, (_, i) => makeItem('folder', i))
+            const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
+            const code = Array.from({ length: 200 }, (_, i) => ({
+                workspaceFolder: '/workspace',
+                type: 'code' as const,
+                relativePath: `file${i}.ts`,
+                id: `code-${i}`,
+                symbol: {
+                    kind: 'Function',
+                    name: `func${i}`,
+                    range: {
+                        start: { line: 0, column: 0 },
+                        end: { line: 10, column: 0 },
+                    },
+                },
+            })) as ContextCommandItem[]
+            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
+                // Files first to mirror typical indexer output.
+                getContextCommandItems: sinon.stub().resolves([...files, ...folders, ...code]),
+            } as any)
+            ;(provider as any).registerFilterHandler()
+
+            const onFilterStub = testFeatures.chat.onFilterContextCommands as unknown as sinon.SinonStub
+            const handler = onFilterStub.lastCall.args[0]
+            const result = await handler({ searchTerm: '' })
+
+            const topCommands = result.contextCommandGroups[0].commands
+            const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
+            const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
+            const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
+
+            // 100 / 100 / 800 split (+ 1 Active File pseudo-command in the Files group)
+            sinon.assert.match(folderChildren.length, 100)
+            sinon.assert.match(codeChildren.length, 100)
+            sinon.assert.match(fileChildren.length, 801)
         })
     })
 })
