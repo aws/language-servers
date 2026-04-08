@@ -65,7 +65,6 @@ function existsOnDisk(item: ContextCommandItem): boolean {
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
-    private cachedContextCommands?: ContextCommandItem[]
     private codeSymbolsPending = true
     private codeSymbolsFailed = false
     private filesAndFoldersPending = true
@@ -119,7 +118,7 @@ export class ContextCommandsProvider implements Disposable {
                             await this.processContextCommandUpdate(items)
                         } catch (e) {
                             this.logging.error(`Error fetching context command items: ${e}`)
-                            void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                            void this.processContextCommandUpdate([])
                         }
                     }, INDEXING_THROTTLE_MS)
                 }
@@ -137,11 +136,11 @@ export class ContextCommandsProvider implements Disposable {
         })
 
         this.promptFileWatcher.on('add', async () => {
-            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            await this.processContextCommandUpdate(await this.getFreshItems())
         })
 
         this.promptFileWatcher.on('unlink', async () => {
-            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            await this.processContextCommandUpdate(await this.getFreshItems())
         })
     }
 
@@ -181,18 +180,11 @@ export class ContextCommandsProvider implements Disposable {
     private registerFilterHandler() {
         this.chat.onFilterContextCommands(
             async (params: FilterContextCommandsParams): Promise<FilterContextCommandsResult> => {
-                const items = this.cachedContextCommands ?? []
+                const items = await this.getFreshItems()
                 const searchTerm = params.searchTerm?.trim() ?? ''
 
                 if (!searchTerm) {
-                    // Return the same capped set as the initial push so the
-                    // store stays consistent with contextCommandGroups.
-                    const alive = items.filter(existsOnDisk)
-                    const folders = alive.filter(i => i.type === 'folder')
-                    const nonFolders = alive.filter(i => i.type !== 'folder')
-                    const folderBudget = Math.min(folders.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.1))
-                    const remainingBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget
-                    const capped = [...folders.slice(0, folderBudget), ...nonFolders.slice(0, remainingBudget)]
+                    const capped = this.capItems(items.filter(existsOnDisk))
                     const mapped = await this.mapContextCommandItems(capped)
                     return { contextCommandGroups: mapped }
                 }
@@ -221,21 +213,33 @@ export class ContextCommandsProvider implements Disposable {
         )
     }
 
-    async processContextCommandUpdate(items: ContextCommandItem[]) {
-        this.cachedContextCommands = items
-
-        // Cap the push payload — the client's existing code dispatches
-        // onFilterContextCommands when the user types, which searches
-        // the full cached set server-side (no cap).
-        // Partition by type so folders aren't starved by a file-heavy list.
-        const alive = items.filter(existsOnDisk)
-        const folders = alive.filter(i => i.type === 'folder')
-        const nonFolders = alive.filter(i => i.type !== 'folder')
-
+    /**
+     * Cap items with a reserved budget for folders so they aren't starved
+     * by file-heavy repos.
+     */
+    private capItems(items: ContextCommandItem[]): ContextCommandItem[] {
+        const folders = items.filter(i => i.type === 'folder')
+        const nonFolders = items.filter(i => i.type !== 'folder')
         const folderBudget = Math.min(folders.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.1))
         const remainingBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget
-        const capped = [...folders.slice(0, folderBudget), ...nonFolders.slice(0, remainingBudget)]
+        return [...folders.slice(0, folderBudget), ...nonFolders.slice(0, remainingBudget)]
+    }
 
+    /**
+     * Pull fresh items from the indexer. Returns empty array on failure.
+     */
+    private async getFreshItems(): Promise<ContextCommandItem[]> {
+        try {
+            const controller = await LocalProjectContextController.getInstance()
+            return await controller.getContextCommandItems()
+        } catch (e) {
+            this.logging.error(`Error fetching fresh context command items: ${e}`)
+            return []
+        }
+    }
+
+    async processContextCommandUpdate(items: ContextCommandItem[]) {
+        const capped = this.capItems(items.filter(existsOnDisk))
         const allItems = await this.mapContextCommandItems(capped)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })
     }
@@ -372,7 +376,7 @@ export class ContextCommandsProvider implements Disposable {
         } catch (error) {
             this.codeSymbolsFailed = true
             this.codeSymbolsPending = false
-            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            await this.processContextCommandUpdate([])
             throw error
         }
     }
