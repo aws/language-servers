@@ -814,6 +814,25 @@ export const createMynahUi = (
         },
         onContextCommandFilter: (tabId, searchTerm) => {
             lastFilterTabId = tabId
+            if (!searchTerm || searchTerm.trim() === '') {
+                // Empty search: restore the base context commands directly
+                // instead of round-tripping to the server, which would
+                // overwrite the store with a potentially different set.
+                mynahUi.updateStore(tabId, {
+                    contextCommands: [
+                        ...(contextCommandGroups || []),
+                        ...(featureConfig?.get('highlightCommand')
+                            ? [
+                                  {
+                                      groupName: 'Additional commands',
+                                      commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                                  },
+                              ]
+                            : []),
+                    ],
+                })
+                return
+            }
             messager.onFilterContextCommands({ tabId, searchTerm })
         },
         config: {
