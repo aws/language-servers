@@ -28,10 +28,10 @@ export const INDEXING_THROTTLE_MS = 500
  * The client shows these when the user presses `@` before typing.
  * Server-side filtering (onFilterContextCommands) searches the full set.
  */
-export const CONTEXT_COMMAND_PAYLOAD_CAP = 1000
+export const CONTEXT_COMMAND_PAYLOAD_CAP = 2000
 
 /** Maximum number of items returned by a single filter request. */
-export const MAX_FILTER_RESULTS = 1000
+export const MAX_FILTER_RESULTS = 2000
 
 /**
  * Score a candidate string against a search term.
