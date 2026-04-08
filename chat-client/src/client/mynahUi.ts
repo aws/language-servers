@@ -382,6 +382,7 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
+            lastFilterTabId = undefined
             handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode, tabFactory)
         },
         onReady: () => {
@@ -431,10 +432,12 @@ export const createMynahUi = (
             messager.onListAvailableModels({ tabId })
         },
         onTabRemove: (tabId: string) => {
+            if (lastFilterTabId === tabId) lastFilterTabId = undefined
             messager.onStopChatResponse(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
+            lastFilterTabId = undefined
             messager.onTabChange(tabId)
         },
         onResetStore: () => {},
@@ -1458,19 +1461,25 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
+        const commandsWithHighlight = [
+            ...(contextCommandGroups || []),
+            ...(featureConfig?.get('highlightCommand')
+                ? [
+                      {
+                          groupName: 'Additional commands',
+                          commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                      },
+                  ]
+                : []),
+        ]
+
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+            // Skip tabs with an active filter session to avoid resetting
+            // the picker while the user is browsing sub-menus or search results.
+            if (tabId === lastFilterTabId) return
+
             mynahUi.updateStore(tabId, {
-                contextCommands: [
-                    ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommand')
-                        ? [
-                              {
-                                  groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
-                              },
-                          ]
-                        : []),
-                ],
+                contextCommands: commandsWithHighlight,
             })
         })
     }
