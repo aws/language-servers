@@ -207,7 +207,7 @@ describe('ContextCommandsProvider', () => {
         })
 
         it('should include folders in capped payload when items exceed cap', async () => {
-            const folders = Array.from({ length: 200 }, (_, i) => makeItem('folder', i))
+            const folders = Array.from({ length: 600 }, (_, i) => makeItem('folder', i))
             const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
             const items = [...files, ...folders]
 
@@ -219,10 +219,10 @@ describe('ContextCommandsProvider', () => {
             const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
             const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
 
-            // Folders should be present (budget = ceil(2000 * 0.1) = 200)
-            sinon.assert.match(folderChildren.length, 200)
-            // Files fill the remaining budget (2000 - 200 = 1800), plus the "Active File" command
-            sinon.assert.match(fileChildren.length, 1801)
+            // Folders should be present (budget = ceil(2000 * 0.25) = 500)
+            sinon.assert.match(folderChildren.length, 500)
+            // Files fill the remaining budget (2000 - 500 = 1500), plus the "Active File" command
+            sinon.assert.match(fileChildren.length, 1501)
         })
 
         it('should include all folders when fewer than budget', async () => {
@@ -244,7 +244,7 @@ describe('ContextCommandsProvider', () => {
         })
 
         it('should not exceed cap total', async () => {
-            const folders = Array.from({ length: 500 }, (_, i) => makeItem('folder', i))
+            const folders = Array.from({ length: 800 }, (_, i) => makeItem('folder', i))
             const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
             const items = [...files, ...folders]
 
@@ -255,8 +255,8 @@ describe('ContextCommandsProvider', () => {
             const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
             const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
 
-            // Folder budget capped at ceil(2000 * 0.1) = 200
-            sinon.assert.match(folderChildren.length, 200)
+            // Folder budget capped at ceil(2000 * 0.25) = 500
+            sinon.assert.match(folderChildren.length, 500)
             // Total items (excluding "Active File") should not exceed CONTEXT_COMMAND_PAYLOAD_CAP
             const totalItems = folderChildren.length + (fileChildren.length - 1) // subtract Active File
             sinon.assert.match(totalItems <= CONTEXT_COMMAND_PAYLOAD_CAP, true)
@@ -325,7 +325,7 @@ describe('ContextCommandsProvider', () => {
         })
 
         it('should include code symbols in capped payload when items exceed cap', async () => {
-            const code = Array.from({ length: 200 }, (_, i) => makeCode(i))
+            const code = Array.from({ length: 600 }, (_, i) => makeCode(i))
             const files = Array.from({ length: 2000 }, (_, i) => makeFile(i))
             // Files first in input order to mirror typical indexer output (files
             // scanned before AST symbol extraction).
@@ -338,10 +338,10 @@ describe('ContextCommandsProvider', () => {
             const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
             const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
 
-            // Code budget = ceil(2000 * 0.1) = 200
-            sinon.assert.match(codeChildren.length, 200)
-            // Files fill the remaining budget (2000 - 200 = 1800), plus the "Active File" command
-            sinon.assert.match(fileChildren.length, 1801)
+            // Code budget = ceil(2000 * 0.25) = 500
+            sinon.assert.match(codeChildren.length, 500)
+            // Files fill the remaining budget (2000 - 500 = 1500), plus the "Active File" command
+            sinon.assert.match(fileChildren.length, 1501)
         })
 
         it('should include all code symbols when fewer than budget', async () => {
@@ -362,9 +362,9 @@ describe('ContextCommandsProvider', () => {
             sinon.assert.match(fileChildren.length, 1996)
         })
 
-        it('should split 200/200/1600 when folders, code, and files all exceed budget', async () => {
-            const folders = Array.from({ length: 300 }, (_, i) => makeFolder(i))
-            const code = Array.from({ length: 300 }, (_, i) => makeCode(i))
+        it('should split 500/500/1000 when folders, code, and files all exceed budget', async () => {
+            const folders = Array.from({ length: 800 }, (_, i) => makeFolder(i))
+            const code = Array.from({ length: 800 }, (_, i) => makeCode(i))
             const files = Array.from({ length: 3000 }, (_, i) => makeFile(i))
             const items = [...files, ...folders, ...code]
 
@@ -376,9 +376,9 @@ describe('ContextCommandsProvider', () => {
             const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
             const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
 
-            sinon.assert.match(folderChildren.length, 200)
-            sinon.assert.match(codeChildren.length, 200)
-            sinon.assert.match(fileChildren.length, 1601) // 1600 + Active File
+            sinon.assert.match(folderChildren.length, 500)
+            sinon.assert.match(codeChildren.length, 500)
+            sinon.assert.match(fileChildren.length, 1001) // 1000 + Active File
 
             // Total non-active items must not exceed CONTEXT_COMMAND_PAYLOAD_CAP
             const totalItems = folderChildren.length + codeChildren.length + (fileChildren.length - 1)
@@ -460,7 +460,7 @@ describe('ContextCommandsProvider', () => {
         })
 
         it('should apply capItems folder budget when filter handler called with empty searchTerm', async () => {
-            const folders = Array.from({ length: 200 }, (_, i) => makeItem('folder', i))
+            const folders = Array.from({ length: 600 }, (_, i) => makeItem('folder', i))
             const files = Array.from({ length: 2000 }, (_, i) => makeItem('file', i))
             ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
                 getContextCommandItems: sinon.stub().resolves([...files, ...folders]),
@@ -479,14 +479,14 @@ describe('ContextCommandsProvider', () => {
             const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
             const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
 
-            // Folder budget = ceil(2000 * 0.1) = 200
-            sinon.assert.match(folderChildren.length, 200)
-            // Files fill the remaining 1800 + the "Active File" command
-            sinon.assert.match(fileChildren.length, 1801)
+            // Folder budget = ceil(2000 * 0.25) = 500
+            sinon.assert.match(folderChildren.length, 500)
+            // Files fill the remaining 1500 + the "Active File" command
+            sinon.assert.match(fileChildren.length, 1501)
         })
 
         it('should also apply capItems when searchTerm is whitespace-only', async () => {
-            const folders = Array.from({ length: 300 }, (_, i) => makeItem('folder', i))
+            const folders = Array.from({ length: 800 }, (_, i) => makeItem('folder', i))
             const files = Array.from({ length: 3000 }, (_, i) => makeItem('file', i))
             ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves({
                 getContextCommandItems: sinon.stub().resolves([...files, ...folders]),
@@ -501,13 +501,13 @@ describe('ContextCommandsProvider', () => {
             const folderChildren = topCommands.find((c: any) => c.command === 'Folders')?.children?.[0]?.commands ?? []
 
             // Whitespace trims to empty → folder budget enforced
-            sinon.assert.match(folderChildren.length, 200)
+            sinon.assert.match(folderChildren.length, 500)
         })
 
         it('should reserve a code budget on the empty-search path', async () => {
-            const folders = Array.from({ length: 300 }, (_, i) => makeItem('folder', i))
+            const folders = Array.from({ length: 800 }, (_, i) => makeItem('folder', i))
             const files = Array.from({ length: 3000 }, (_, i) => makeItem('file', i))
-            const code = Array.from({ length: 300 }, (_, i) => ({
+            const code = Array.from({ length: 800 }, (_, i) => ({
                 workspaceFolder: '/workspace',
                 type: 'code' as const,
                 relativePath: `file${i}.ts`,
@@ -536,10 +536,10 @@ describe('ContextCommandsProvider', () => {
             const codeChildren = topCommands.find((c: any) => c.command === 'Code')?.children?.[0]?.commands ?? []
             const fileChildren = topCommands.find((c: any) => c.command === 'Files')?.children?.[0]?.commands ?? []
 
-            // 200 / 200 / 1600 split (+ 1 Active File pseudo-command in the Files group)
-            sinon.assert.match(folderChildren.length, 200)
-            sinon.assert.match(codeChildren.length, 200)
-            sinon.assert.match(fileChildren.length, 1601)
+            // 500 / 500 / 1000 split (+ 1 Active File pseudo-command in the Files group)
+            sinon.assert.match(folderChildren.length, 500)
+            sinon.assert.match(codeChildren.length, 500)
+            sinon.assert.match(fileChildren.length, 1001)
         })
     })
 })
