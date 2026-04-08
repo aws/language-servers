@@ -813,27 +813,12 @@ export const createMynahUi = (
             store: tabFactory.createTab(false),
         },
         onContextCommandFilter: (tabId, searchTerm) => {
+            // Always forward to the server. Server pulls fresh items from
+            // the indexer on every request (no client-side cache), so the
+            // empty-term case (@ press) returns a fresh capped list and
+            // non-empty terms return the scored top matches.
             lastFilterTabId = tabId
-            if (!searchTerm || searchTerm.trim() === '') {
-                // Empty search: restore the base context commands directly
-                // instead of round-tripping to the server, which would
-                // overwrite the store with a potentially different set.
-                mynahUi.updateStore(tabId, {
-                    contextCommands: [
-                        ...(contextCommandGroups || []),
-                        ...(featureConfig?.get('highlightCommand')
-                            ? [
-                                  {
-                                      groupName: 'Additional commands',
-                                      commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
-                                  },
-                              ]
-                            : []),
-                    ],
-                })
-                return
-            }
-            messager.onFilterContextCommands({ tabId, searchTerm })
+            messager.onFilterContextCommands({ tabId, searchTerm: searchTerm ?? '' })
         },
         config: {
             maxTabs: 10,
