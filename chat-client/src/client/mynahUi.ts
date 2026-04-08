@@ -382,7 +382,6 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            lastFilterTabId = undefined
             handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode, tabFactory)
         },
         onReady: () => {
@@ -432,12 +431,10 @@ export const createMynahUi = (
             messager.onListAvailableModels({ tabId })
         },
         onTabRemove: (tabId: string) => {
-            if (lastFilterTabId === tabId) lastFilterTabId = undefined
             messager.onStopChatResponse(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
-            lastFilterTabId = undefined
             messager.onTabChange(tabId)
         },
         onResetStore: () => {},
@@ -1474,10 +1471,6 @@ ${params.message}`,
         ]
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
-            // Skip tabs with an active filter session to avoid resetting
-            // the picker while the user is browsing sub-menus or search results.
-            if (tabId === lastFilterTabId) return
-
             mynahUi.updateStore(tabId, {
                 contextCommands: commandsWithHighlight,
             })
@@ -1492,18 +1485,30 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
+        const highlightCommands = featureConfig?.get('highlightCommand')
+            ? [
+                  {
+                      groupName: 'Additional commands',
+                      commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                  },
+              ]
+            : []
+
+        // Update the store so the picker's store listener refreshes with
+        // filtered results (fires synchronously during updateStore).
         mynahUi.updateStore(lastFilterTabId, {
-            contextCommands: [
-                ...filtered,
-                ...(featureConfig?.get('highlightCommand')
-                    ? [
-                          {
-                              groupName: 'Additional commands',
-                              commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
-                          },
-                      ]
-                    : []),
-            ],
+            contextCommands: [...filtered, ...highlightCommands],
+        })
+
+        // Restore the base contextCommandGroups to the store on the next
+        // microtask. The picker already captured the filtered items above.
+        // This ensures sub-menu navigation (@Folder/@File) reads from the
+        // full base set, not the filtered results.
+        const tabToRestore = lastFilterTabId
+        Promise.resolve().then(() => {
+            mynahUi.updateStore(tabToRestore, {
+                contextCommands: [...(contextCommandGroups || []), ...highlightCommands],
+            })
         })
     }
 
