@@ -36,6 +36,7 @@ import { DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR, getAtxEndPointByRegion 
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListOrCreateWorkspaceResponse,
+    AtxListJobsResponse,
     AtxGetTransformInfoRequest,
     AtxGetTransformInfoResponse,
     AtxTransformationJob,
@@ -51,6 +52,8 @@ import {
     AtxUploadPackagesRequest,
     AtxUploadPackagesResponse,
     InteractiveMode,
+    AtxGetJobDashboardResponse,
+    AtxDashboardRepo,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -242,7 +245,7 @@ export class ATXTransformHandler {
     /**
      * List available workspaces
      */
-    async listWorkspaces(): Promise<any[]> {
+    async listWorkspaces(): Promise<any> {
         try {
             this.logging.log('ATX: Starting ListWorkspaces operation')
 
@@ -262,13 +265,20 @@ export class ATXTransformHandler {
             const workspaces = (response.items || []).map(workspace => ({
                 Id: workspace.id,
                 Name: workspace.name,
+                Description: workspace.description,
                 CreatedDate: new Date().toISOString(), // Use current date since createdDate not available
             }))
 
-            return workspaces
+            const applicationUrl = this.serviceManager.getActiveApplicationUrl()
+            this.logging.log(`ATX: ApplicationUrl: ${applicationUrl}`)
+
+            return {
+                workspaces,
+                applicationUrl,
+            }
         } catch (error) {
             this.logging.error(`ATX: ListWorkspaces error: ${String(error)}`)
-            return []
+            return { workspaces: [], applicationUrl: null }
         }
     }
 
@@ -276,7 +286,8 @@ export class ATXTransformHandler {
      * Create a new workspace
      */
     async createWorkspace(
-        workspaceName: string | null
+        workspaceName: string | null,
+        workspaceDescription?: string
     ): Promise<{ workspaceId: string; workspaceName: string } | null> {
         try {
             this.logging.log(`ATX: Starting CreateWorkspace with name: ${workspaceName || 'auto-generated'}`)
@@ -288,7 +299,9 @@ export class ATXTransformHandler {
             const { CreateWorkspaceCommand } = await import('@amazon/elastic-gumby-frontend-client')
             const command = new CreateWorkspaceCommand({
                 name: workspaceName || undefined,
-                description: workspaceName ? `Workspace: ${workspaceName}` : 'Auto-generated workspace',
+                description:
+                    workspaceDescription ||
+                    (workspaceName ? `Workspace: ${workspaceName}` : 'Auto-generated workspace'),
             })
             await this.addAuthToCommand(command)
 
@@ -313,6 +326,51 @@ export class ATXTransformHandler {
     }
 
     /**
+     * List jobs in a workspace
+     */
+    async listJobs(workspaceId: string): Promise<AtxListJobsResponse | null> {
+        try {
+            this.logging.log(`ATX: ========== ListJobs called for workspace: ${workspaceId} ==========`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const { ListJobsCommand } = await import('@amazon/elastic-gumby-frontend-client')
+            const allJobs: any[] = []
+            let nextToken: string | undefined
+
+            // Paginate through all jobs
+            do {
+                const command = new ListJobsCommand({ workspaceId, nextToken })
+                await this.addAuthToCommand(command)
+                const response = await this.atxClient!.send(command)
+                if (response.jobList) {
+                    allJobs.push(...response.jobList)
+                }
+                nextToken = response.nextToken
+            } while (nextToken)
+
+            this.logging.log(`ATX: ListJobs completed - found ${allJobs.length} jobs`)
+
+            const jobs = allJobs.map(entry => ({
+                JobId: entry.jobInfo?.jobId || '',
+                JobName: entry.jobInfo?.jobName,
+                Status: entry.jobInfo?.statusDetails?.status || 'UNKNOWN',
+                CreationTime: entry.jobInfo?.creationTime?.toISOString(),
+                StartExecutionTime: entry.jobInfo?.startExecutionTime?.toISOString(),
+                EndExecutionTime: entry.jobInfo?.endExecutionTime?.toISOString(),
+                ClientSource: entry.jobInfo?.clientSource,
+            }))
+
+            return { Jobs: jobs }
+        } catch (error) {
+            this.logging.error(`ATX: ListJobs error: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
      * List workspaces and optionally create new workspace (CONSOLIDATED API)
      */
     async listOrCreateWorkspace(
@@ -320,6 +378,7 @@ export class ATXTransformHandler {
     ): Promise<AtxListOrCreateWorkspaceResponse | null> {
         try {
             this.logging.log('ATX: Starting ListOrCreateWorkspace operation')
+            this.logging.log(`ATX: Request received: ${JSON.stringify(request)}`)
 
             // Call verifySession ONCE at the beginning
             if (!(await this.verifySession())) {
@@ -328,16 +387,20 @@ export class ATXTransformHandler {
             }
 
             // Always get list of existing workspaces
-            const workspaces = await this.listWorkspaces()
+            const listResult = await this.listWorkspaces()
 
             const response: AtxListOrCreateWorkspaceResponse = {
-                AvailableWorkspaces: workspaces,
+                AvailableWorkspaces: listResult.workspaces || [],
                 CreatedWorkspace: undefined,
             }
 
             // Optionally create new workspace
+            this.logging.log(`ATX: CreateWorkspaceName = ${request.CreateWorkspaceName}`)
             if (request.CreateWorkspaceName !== undefined) {
-                const newWorkspace = await this.createWorkspace(request.CreateWorkspaceName)
+                const newWorkspace = await this.createWorkspace(
+                    request.CreateWorkspaceName,
+                    request.CreateWorkspaceDescription
+                )
 
                 if (newWorkspace) {
                     response.CreatedWorkspace = {
@@ -349,6 +412,7 @@ export class ATXTransformHandler {
                     response.AvailableWorkspaces.push({
                         Id: newWorkspace.workspaceId,
                         Name: newWorkspace.workspaceName,
+                        Description: request.CreateWorkspaceDescription,
                         CreatedDate: new Date().toISOString(),
                     })
                 }
@@ -3125,6 +3189,239 @@ export class ATXTransformHandler {
             return { Success: true, FilePath: savePath }
         } catch (error) {
             return { Success: false, Error: String(error) }
+        }
+    }
+
+    /**
+     * Get job dashboard data — fetches dashboard HITL task, downloads artifact, parses repo/branch info
+     */
+    async getJobDashboard(workspaceId: string, jobId: string): Promise<AtxGetJobDashboardResponse | null> {
+        try {
+            this.logging.log(`getJobDashboard START - job: ${jobId}, workspace: ${workspaceId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX client not initialized')
+            }
+
+            // Step 1: List DASHBOARD HITL tasks
+            this.logging.log(`Step 1: ListHitlTasks taskType=DASHBOARD`)
+            const command = new ListHitlTasksCommand({
+                workspaceId,
+                jobId,
+                taskType: 'DASHBOARD',
+            })
+            await this.addAuthToCommand(command)
+            const hitlResult = await this.atxClient!.send(command)
+            this.logging.log(`Step 1: Found ${hitlResult.hitlTasks?.length || 0} DASHBOARD tasks`)
+
+            const dashboardTask = hitlResult.hitlTasks?.[0]
+            if (!dashboardTask?.agentArtifact?.artifactId) {
+                this.logging.error(`No artifact. Task: ${JSON.stringify(dashboardTask)}`)
+                return null
+            }
+            this.logging.log(`Step 1: artifactId=${dashboardTask.agentArtifact.artifactId}`)
+
+            // Step 2: Download artifact
+            this.logging.log(`Step 2: Getting download URL`)
+            const downloadInfo = await this.createArtifactDownloadUrl(
+                workspaceId,
+                jobId,
+                dashboardTask.agentArtifact.artifactId
+            )
+            if (!downloadInfo) {
+                throw new Error('Failed to get dashboard artifact download URL')
+            }
+
+            this.logging.log(`Step 2: Downloading...`)
+            const response = await got(downloadInfo.s3PresignedUrl, {
+                headers: downloadInfo.requestHeaders,
+                responseType: 'buffer',
+            })
+
+            // Step 3: Parse
+            this.logging.log(`Step 3: Downloaded ${response.body.length} bytes`)
+            this.logging.log(`Step 3: First 300 chars: ${response.body.toString('utf8').substring(0, 300)}`)
+
+            let dashboardData: any = null
+            try {
+                dashboardData = JSON.parse(response.body.toString('utf8'))
+                this.logging.log(`Step 3: Parsed as raw JSON OK`)
+            } catch (jsonErr) {
+                this.logging.log(`Step 3: JSON parse failed: ${jsonErr}, trying zip`)
+                const zip = new AdmZip(response.body)
+                for (const entry of zip.getEntries()) {
+                    this.logging.log(`Step 3: Zip entry: ${entry.entryName}`)
+                    if (entry.entryName.endsWith('.json') || entry.entryName.includes('dashboard')) {
+                        dashboardData = JSON.parse(entry.getData().toString('utf8'))
+                        break
+                    }
+                }
+            }
+
+            if (!dashboardData) {
+                throw new Error('Could not parse dashboard artifact')
+            }
+
+            this.logging.log(`Step 3: Keys: ${Object.keys(dashboardData).join(', ')}`)
+            this.logging.log(
+                `Step 3: previousDashboards: ${JSON.stringify(dashboardData.previousDashboards)?.substring(0, 500)}`
+            )
+
+            // Step 4: Extract repos
+            const projectDetail = dashboardData.projectDetail || {}
+            const resources = dashboardData.resources || []
+            this.logging.log(
+                `Step 4: targetBranch=${projectDetail.targetBranch}, targetVersion=${projectDetail.targetVersion}, resources=${resources.length}`
+            )
+
+            const repos: AtxDashboardRepo[] = resources.map((r: any, i: number) => {
+                this.logging.log(
+                    `Step 4: repo[${i}] name=${r.repositoryName} url=${r.repositoryLocation?.url} status=${r.status} loc=${r.totalLoc}`
+                )
+
+                // Get solution paths from solutionSummaryFailureReasons keys, or project names as fallback
+                let solutions: string[] = []
+                if (r.solutionSummaryFailureReasons && Object.keys(r.solutionSummaryFailureReasons).length > 0) {
+                    solutions = Object.keys(r.solutionSummaryFailureReasons)
+                } else if (r.projects && r.projects.length > 0) {
+                    // Extract unique project names
+                    solutions = r.projects.map((p: any) => p.name || '').filter((n: string) => n)
+                }
+                this.logging.log(`Step 4: repo[${i}] solutions=${solutions.join(', ')}`)
+
+                return {
+                    repositoryName: r.repositoryName || '',
+                    cloneUrl: r.repositoryLocation?.url || '',
+                    targetBranch: projectDetail.targetBranch || '',
+                    sourceBranch: r.sourceBranch || '',
+                    status: r.status || '',
+                    totalLoc: r.totalLoc,
+                    totalProjects: r.totalProjects,
+                    solutions,
+                }
+            })
+
+            // Get report artifact IDs
+            const reportArtifactId = dashboardData.jobTransformationSummaryArtifact || ''
+            this.logging.log(`Step 4: reportArtifactId=${reportArtifactId}`)
+
+            // Step 5: Get assessment report artifact IDs from DotnetCrossRepoSelector HITL
+            let jobAssessmentReportArtifactId = ''
+            const repoAssessmentMap: Record<string, string> = {} // repoName -> artifactId
+            try {
+                const normalHitlCmd = new ListHitlTasksCommand({ workspaceId, jobId, taskType: 'NORMAL' })
+                await this.addAuthToCommand(normalHitlCmd)
+                const normalHitlResult = await this.atxClient!.send(normalHitlCmd)
+                const tasks = normalHitlResult.hitlTasks || []
+                this.logging.log(`Step 5: ${tasks.length} NORMAL HITL tasks`)
+
+                const selectorTask = tasks.find(t => t.uxComponentId === 'DotnetCrossRepoSelector')
+                if (selectorTask?.agentArtifact?.artifactId) {
+                    this.logging.log(
+                        `Step 5: Downloading DotnetCrossRepoSelector artifact: ${selectorTask.agentArtifact.artifactId}`
+                    )
+                    const dlInfo = await this.createArtifactDownloadUrl(
+                        workspaceId,
+                        jobId,
+                        selectorTask.agentArtifact.artifactId
+                    )
+                    if (dlInfo) {
+                        const resp = await got(dlInfo.s3PresignedUrl, {
+                            headers: dlInfo.requestHeaders,
+                            responseType: 'text',
+                        })
+                        const selectorProps = JSON.parse(typeof resp.body === 'string' ? resp.body : String(resp.body))
+
+                        // Job-level assessment report
+                        const jobReports = selectorProps.properties?.jobAssessmentReports || []
+                        jobAssessmentReportArtifactId = jobReports[0]?.artifactId || ''
+                        this.logging.log(`Step 5: jobAssessmentReportArtifactId=${jobAssessmentReportArtifactId}`)
+
+                        // Per-repo assessment reports
+                        const discoveredResources = selectorProps.properties?.discoveredResources || []
+                        for (const r of discoveredResources) {
+                            const repoReports = r.repoAssessmentReports || []
+                            if (repoReports.length > 0 && r.name) {
+                                repoAssessmentMap[r.name] = repoReports[0].artifactId
+                                this.logging.log(
+                                    `Step 5: repo ${r.name} assessmentArtifactId=${repoReports[0].artifactId}`
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    this.logging.log(`Step 5: DotnetCrossRepoSelector task not found`)
+                }
+            } catch (e) {
+                this.logging.log(`Step 5: Failed to get assessment reports: ${e}`)
+            }
+
+            // Attach assessment + transformation report artifact IDs to repos
+            // repoTransformationSummaryArtifacts is an array of {repoName: artifactId} objects
+            const repoTransformationArtifactsRaw = dashboardData.repoTransformationSummaryArtifacts || []
+            const repoTransformationMap: Record<string, string> = {}
+            if (Array.isArray(repoTransformationArtifactsRaw)) {
+                for (const entry of repoTransformationArtifactsRaw) {
+                    for (const [name, id] of Object.entries(entry)) {
+                        repoTransformationMap[name] = id as string
+                    }
+                }
+            }
+            this.logging.log(`Step 5: repoTransformationMap keys: ${Object.keys(repoTransformationMap).join(', ')}`)
+            for (const repo of repos) {
+                repo.assessmentReportArtifactId = repoAssessmentMap[repo.repositoryName] || ''
+                repo.transformationReportArtifactId = repoTransformationMap[repo.repositoryName] || ''
+                this.logging.log(
+                    `Step 5: repo ${repo.repositoryName} assessment=${repo.assessmentReportArtifactId} transformation=${repo.transformationReportArtifactId}`
+                )
+            }
+
+            this.logging.log(`getJobDashboard DONE - ${repos.length} repos`)
+            return {
+                targetBranch: projectDetail.targetBranch,
+                targetVersion: projectDetail.targetVersion,
+                repos,
+                reportArtifactId,
+                jobAssessmentReportArtifactId,
+            }
+        } catch (error) {
+            this.logging.error(`getJobDashboard ERROR: ${String(error)}`)
+            return null
+        }
+    }
+
+    /**
+     * Find and download the assessment report XLSX for a completed job
+     */
+    async getJobReport(
+        workspaceId: string,
+        jobId: string,
+        artifactId: string
+    ): Promise<{ reportBase64: string; fileName: string } | null> {
+        try {
+            this.logging.log(`getJobReport START - job: ${jobId}, artifact: ${artifactId}`)
+
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX client not initialized')
+            }
+
+            if (!artifactId) throw new Error('ArtifactId is required')
+
+            const reportDl = await this.createArtifactDownloadUrl(workspaceId, jobId, artifactId)
+            if (!reportDl) throw new Error('Failed to get report download URL')
+            const reportResp = await got(reportDl.s3PresignedUrl, {
+                headers: reportDl.requestHeaders,
+                responseType: 'buffer',
+            })
+            this.logging.log(`getJobReport DONE - ${reportResp.body.length} bytes`)
+
+            return {
+                reportBase64: reportResp.body.toString('base64'),
+                fileName: `report_${jobId.substring(0, 8)}_${artifactId.substring(0, 8)}.xlsx`,
+            }
+        } catch (error) {
+            this.logging.error(`getJobReport ERROR: ${String(error)}`)
+            return null
         }
     }
 }

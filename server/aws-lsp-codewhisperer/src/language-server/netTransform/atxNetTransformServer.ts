@@ -8,6 +8,7 @@ import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTo
 import { ATXTransformHandler } from './atxTransformHandler'
 import {
     AtxListOrCreateWorkspaceRequest,
+    AtxListJobsRequest,
     AtxStartTransformRequest,
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
@@ -17,10 +18,13 @@ import {
     AtxUploadPackagesRequest,
     AtxListArtifactsRequest,
     AtxDownloadArtifactRequest,
+    AtxGetJobDashboardRequest,
+    AtxGetJobReportRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
 const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
+const AtxListJobsCommand = 'aws/atxTransform/listJobs'
 const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
@@ -33,6 +37,8 @@ const AtxListMessagesCommand = 'aws/atxTransform/listMessages'
 const AtxBatchGetMessagesCommand = 'aws/atxTransform/batchGetMessages'
 const AtxListArtifactsCommand = 'aws/atxTransform/listArtifacts'
 const AtxDownloadArtifactCommand = 'aws/atxTransform/downloadArtifact'
+const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
+const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -46,6 +52,14 @@ export const AtxNetTransformServerToken =
                     case AtxListOrCreateWorkspaceCommand: {
                         const request = params as AtxListOrCreateWorkspaceRequest
                         const result = await atxTransformHandler.listOrCreateWorkspace(request)
+                        return result
+                    }
+                    case AtxListJobsCommand: {
+                        const { WorkspaceId } = params as AtxListJobsRequest
+                        if (!WorkspaceId) {
+                            throw new Error('WorkspaceId is required for listJobs')
+                        }
+                        const result = await atxTransformHandler.listJobs(WorkspaceId)
                         return result
                     }
                     case AtxStartTransformCommand: {
@@ -169,6 +183,24 @@ export const AtxNetTransformServerToken =
                             ArtifactName
                         )
                     }
+                    case AtxGetJobDashboardCommand: {
+                        const { WorkspaceId, JobId } = params as AtxGetJobDashboardRequest
+
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for getJobDashboard')
+                        }
+
+                        return await atxTransformHandler.getJobDashboard(WorkspaceId, JobId)
+                    }
+                    case AtxGetJobReportCommand: {
+                        const { WorkspaceId, JobId, ArtifactId } = params as AtxGetJobReportRequest
+
+                        if (!WorkspaceId || !JobId || !ArtifactId) {
+                            throw new Error('WorkspaceId, JobId and ArtifactId are required for getJobReport')
+                        }
+
+                        return await atxTransformHandler.getJobReport(WorkspaceId, JobId, ArtifactId)
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -192,6 +224,7 @@ export const AtxNetTransformServerToken =
                     executeCommandProvider: {
                         commands: [
                             AtxListOrCreateWorkspaceCommand,
+                            AtxListJobsCommand,
                             AtxStartTransformCommand,
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
@@ -204,6 +237,8 @@ export const AtxNetTransformServerToken =
                             AtxBatchGetMessagesCommand,
                             AtxListArtifactsCommand,
                             AtxDownloadArtifactCommand,
+                            AtxGetJobDashboardCommand,
+                            AtxGetJobReportCommand,
                         ],
                     },
                 },

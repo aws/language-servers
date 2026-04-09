@@ -44,6 +44,7 @@ export function createEmptyRootNode(): AtxPlanStep {
 export interface AtxWorkspaceInfo {
     Id: string
     Name: string
+    Description?: string
     CreatedDate?: string
 }
 
@@ -63,6 +64,7 @@ export interface AtxTransformationJob {
 // ATX Consolidated API Request/Response Models
 export interface AtxListOrCreateWorkspaceRequest extends ExecuteCommandParams {
     CreateWorkspaceName?: string // Optional - if provided, creates new workspace
+    CreateWorkspaceDescription?: string // Optional - description for new workspace
 }
 
 export interface AtxListOrCreateWorkspaceResponse {
@@ -75,6 +77,24 @@ export interface AtxListOrCreateWorkspaceResponse {
  * Matches C# InteractiveMode enum.
  */
 export type InteractiveMode = 'Autonomous' | 'OnFailure' | 'Interactive'
+// ATX List Jobs Request/Response
+export interface AtxListJobsRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+}
+
+export interface AtxListJobsResponse {
+    Jobs: AtxJobInfo[]
+}
+
+export interface AtxJobInfo {
+    JobId: string
+    JobName?: string
+    Status: string
+    CreationTime?: string
+    StartExecutionTime?: string
+    EndExecutionTime?: string
+    ClientSource?: string
+}
 
 // ATX Start Transform request/response (orchestration)
 export interface AtxStartTransformRequest extends ExecuteCommandParams {
@@ -225,4 +245,43 @@ export interface AtxDownloadArtifactResponse {
     Success: boolean
     FilePath?: string
     Error?: string
+}
+
+// ATX Get Job Dashboard request/response
+export interface AtxGetJobDashboardRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+}
+
+export interface AtxDashboardRepo {
+    repositoryName: string
+    cloneUrl: string
+    targetBranch: string
+    sourceBranch?: string
+    status?: string
+    totalLoc?: number
+    totalProjects?: number
+    solutions?: string[]
+    assessmentReportArtifactId?: string
+    transformationReportArtifactId?: string
+}
+
+export interface AtxGetJobDashboardResponse {
+    targetBranch?: string
+    targetVersion?: string
+    repos: AtxDashboardRepo[]
+    reportArtifactId?: string
+    jobAssessmentReportArtifactId?: string
+}
+
+// ATX Get Job Report request/response
+export interface AtxGetJobReportRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    JobId: string
+    ArtifactId: string
+}
+
+export interface AtxGetJobReportResponse {
+    reportBase64: string
+    fileName: string
 }
