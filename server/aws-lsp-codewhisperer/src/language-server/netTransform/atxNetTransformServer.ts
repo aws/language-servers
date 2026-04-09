@@ -37,6 +37,7 @@ const AtxListMessagesCommand = 'aws/atxTransform/listMessages'
 const AtxBatchGetMessagesCommand = 'aws/atxTransform/batchGetMessages'
 const AtxListArtifactsCommand = 'aws/atxTransform/listArtifacts'
 const AtxDownloadArtifactCommand = 'aws/atxTransform/downloadArtifact'
+const AtxCompleteLocalBuildHitlCommand = 'aws/atxTransform/completeLocalBuildHitl'
 const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
 const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
 
@@ -183,6 +184,17 @@ export const AtxNetTransformServerToken =
                             ArtifactName
                         )
                     }
+                    case AtxCompleteLocalBuildHitlCommand: {
+                        const { WorkspaceId, TransformationJobId, TaskId, BuildOutput, SolutionRootPath } =
+                            params as any
+                        return await atxTransformHandler.completeHitlWithBuildResults(
+                            WorkspaceId,
+                            TransformationJobId,
+                            TaskId,
+                            BuildOutput,
+                            SolutionRootPath
+                        )
+                    }
                     case AtxGetJobDashboardCommand: {
                         const { WorkspaceId, JobId } = params as AtxGetJobDashboardRequest
 
@@ -237,6 +249,7 @@ export const AtxNetTransformServerToken =
                             AtxBatchGetMessagesCommand,
                             AtxListArtifactsCommand,
                             AtxDownloadArtifactCommand,
+                            AtxCompleteLocalBuildHitlCommand,
                             AtxGetJobDashboardCommand,
                             AtxGetJobReportCommand,
                         ],

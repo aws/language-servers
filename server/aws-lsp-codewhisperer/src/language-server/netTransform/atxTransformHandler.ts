@@ -895,6 +895,67 @@ export class ATXTransformHandler {
         }
     }
 
+    async completeHitlWithBuildResults(
+        workspaceId: string,
+        jobId: string,
+        taskId: string,
+        buildOutput: string,
+        solutionRootPath: string
+    ): Promise<{ Success: boolean; Error?: string }> {
+        try {
+            this.logging.log(`ATX: Completing HITL ${taskId} with build results`)
+
+            // Write build output to temp file
+            const tempDir = path.join(solutionRootPath, 'artifactWorkspace', jobId)
+            await Utils.directoryExists(tempDir)
+            const buildResultsPath = path.join(tempDir, 'build-results.txt')
+            fs.writeFileSync(buildResultsPath, buildOutput)
+
+            // Upload as artifact
+            const uploadResponse = await this.createArtifactUploadUrl(
+                workspaceId,
+                jobId,
+                buildResultsPath,
+                CategoryType.CUSTOMER_INPUT,
+                FileType.OTHER
+            )
+
+            if (!uploadResponse?.uploadUrl) {
+                return { Success: false, Error: 'Failed to create artifact upload URL' }
+            }
+
+            const uploadSuccess = await Utils.uploadArtifact(
+                uploadResponse.uploadUrl,
+                buildResultsPath,
+                uploadResponse.requestHeaders,
+                this.logging
+            )
+
+            if (!uploadSuccess) {
+                return { Success: false, Error: 'Failed to upload build results' }
+            }
+
+            const completeResponse = await this.completeArtifactUpload(workspaceId, jobId, uploadResponse.uploadId)
+
+            if (!completeResponse?.success) {
+                return { Success: false, Error: 'Failed to complete artifact upload' }
+            }
+
+            // Complete the HITL task with the artifact
+            const hitlResult = await this.updateHitl(workspaceId, jobId, taskId, uploadResponse.uploadId)
+
+            if (!hitlResult) {
+                return { Success: false, Error: 'Failed to update HITL task' }
+            }
+
+            this.logging.log('ATX: HITL completed with build results successfully')
+            return { Success: true }
+        } catch (error) {
+            this.logging.error(`ATX: completeHitlWithBuildResults error: ${String(error)}`)
+            return { Success: false, Error: String(error) }
+        }
+    }
+
     async getHitl(workspaceId: string, jobId: string, taskId: string): Promise<any | null> {
         try {
             this.logging.log(`ATX: Getting Hitl task: ${taskId}`)
