@@ -285,3 +285,18 @@ export interface AtxGetJobReportResponse {
     reportBase64: string
     fileName: string
 }
+
+// ATX Upload Custom Plan request/response
+export interface AtxUploadCustomPlanRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    TransformationJobId: string
+    FilePath: string
+    ArtifactStorePath?: string
+    Description?: string
+}
+
+export interface AtxUploadCustomPlanResponse {
+    Success: boolean
+    ArtifactId?: string
+    Error?: string
+}

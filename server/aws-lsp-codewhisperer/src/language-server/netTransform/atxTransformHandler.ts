@@ -54,6 +54,8 @@ import {
     InteractiveMode,
     AtxGetJobDashboardResponse,
     AtxDashboardRepo,
+    AtxUploadCustomPlanRequest,
+    AtxUploadCustomPlanResponse,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -1867,6 +1869,73 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: Failed to create modified files zip: ${String(error)}`)
             return ''
+        }
+    }
+
+    async uploadCustomPlan(request: AtxUploadCustomPlanRequest): Promise<AtxUploadCustomPlanResponse> {
+        this.logging.log('ATX: Starting upload custom plan')
+
+        try {
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const fileName = path.basename(request.FilePath)
+            const artifactStorePath = request.ArtifactStorePath
+                ? `${request.ArtifactStorePath.replace(/\/+$/, '')}/${fileName}`
+                : `Custom Plan/${fileName}`
+
+            const sha256 = await Utils.getSha256Async(request.FilePath)
+
+            const command = new CreateArtifactUploadUrlCommand({
+                workspaceId: request.WorkspaceId,
+                jobId: request.TransformationJobId,
+                contentDigest: { Sha256: sha256 },
+                artifactReference: {
+                    artifactType: {
+                        categoryType: CategoryType.CUSTOMER_INPUT,
+                        fileType: FileType.MARKDOWN,
+                    },
+                },
+                fileMetadata: {
+                    path: artifactStorePath,
+                    description: request.Description,
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = (await this.atxClient!.send(command)) as any
+
+            if (!result?.artifactId || !result?.s3PreSignedUrl) {
+                throw new Error('Failed to get upload URL from service')
+            }
+
+            const uploadSuccess = await Utils.uploadArtifact(
+                result.s3PreSignedUrl,
+                request.FilePath,
+                result.requestHeaders,
+                this.logging
+            )
+
+            if (!uploadSuccess) {
+                throw new Error('Failed to upload file to S3')
+            }
+
+            const completeResponse = await this.completeArtifactUpload(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                result.artifactId
+            )
+
+            if (!completeResponse?.success) {
+                throw new Error('Failed to complete artifact upload')
+            }
+
+            this.logging.log(`ATX: Custom plan uploaded successfully - artifactId: ${result.artifactId}`)
+            return { Success: true, ArtifactId: result.artifactId }
+        } catch (error) {
+            this.logging.error(`ATX: UploadCustomPlan error: ${String(error)}`)
+            return { Success: false, Error: String(error) }
         }
     }
 
