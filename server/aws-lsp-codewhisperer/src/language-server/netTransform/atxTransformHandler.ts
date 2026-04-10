@@ -468,7 +468,7 @@ export class ATXTransformHandler {
                 workspaceId: request.workspaceId,
                 objective: JSON.stringify(objective),
                 // jobType: 'DOTNET_IDE' as any,
-                orchestratorAgent: 'dotnet-chatty-agent-internal',
+                orchestratorAgent: 'dotnet-chatty-agent',
                 jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
                 idempotencyToken: uuidv4(),
