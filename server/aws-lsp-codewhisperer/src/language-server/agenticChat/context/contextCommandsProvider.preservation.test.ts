@@ -128,9 +128,16 @@ describe('Preservation: Context Commands Provider Small Payload Behavior', () =>
      * **Validates: Requirements 3.2**
      *
      * Property 2e: For all valid context item selections, processContextCommandUpdate
-     * sends the full payload to the webview via chat.sendContextCommands and caches items.
+     * dispatches exactly one chat.sendContextCommands call with a contextCommandGroups
+     * payload.
+     *
+     * Note: the prior version of this test also asserted that items were cached on
+     * `cachedContextCommands`. That field was removed in `refactor: remove stale
+     * context command cache, always pull fresh from indexer` — the server now pulls
+     * fresh items from the indexer on every request instead of caching, so the
+     * assertion was deleted.
      */
-    it('processContextCommandUpdate sends all items and caches them for small payloads', async () => {
+    it('processContextCommandUpdate dispatches a single sendContextCommands payload for small payloads', async () => {
         await fc.assert(
             fc.asyncProperty(smallContextItemsArb, async items => {
                 sendContextCommandsSpy.resetHistory()
@@ -143,10 +150,6 @@ describe('Preservation: Context Commands Provider Small Payload Behavior', () =>
                 // The sent payload should contain contextCommandGroups
                 const sentPayload = sendContextCommandsSpy.firstCall.args[0]
                 if (!sentPayload.contextCommandGroups) return false
-
-                // Cached items should match the input
-                const cached = (provider as any).cachedContextCommands
-                if (cached !== items) return false
 
                 return true
             }),
