@@ -28,10 +28,10 @@ export const INDEXING_THROTTLE_MS = 500
  * The client shows these when the user presses `@` before typing.
  * Server-side filtering (onFilterContextCommands) searches the full set.
  */
-export const CONTEXT_COMMAND_PAYLOAD_CAP = 1000
+export const CONTEXT_COMMAND_PAYLOAD_CAP = 2000
 
 /** Maximum number of items returned by a single filter request. */
-export const MAX_FILTER_RESULTS = 1000
+export const MAX_FILTER_RESULTS = 2000
 
 /**
  * Score a candidate string against a search term.
@@ -65,7 +65,6 @@ function existsOnDisk(item: ContextCommandItem): boolean {
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
-    private cachedContextCommands?: ContextCommandItem[]
     private codeSymbolsPending = true
     private codeSymbolsFailed = false
     private filesAndFoldersPending = true
@@ -125,7 +124,7 @@ export class ContextCommandsProvider implements Disposable {
                             await this.processContextCommandUpdate(items)
                         } catch (e) {
                             this.logging.error(`Error fetching context command items: ${e}`)
-                            void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                            void this.processContextCommandUpdate([])
                         }
                     }, INDEXING_THROTTLE_MS)
                 }
@@ -143,11 +142,11 @@ export class ContextCommandsProvider implements Disposable {
         })
 
         this.promptFileWatcher.on('add', async () => {
-            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            await this.processContextCommandUpdate(await this.getFreshItems())
         })
 
         this.promptFileWatcher.on('unlink', async () => {
-            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            await this.processContextCommandUpdate(await this.getFreshItems())
         })
     }
 
@@ -187,11 +186,12 @@ export class ContextCommandsProvider implements Disposable {
     private registerFilterHandler() {
         this.chat.onFilterContextCommands(
             async (params: FilterContextCommandsParams): Promise<FilterContextCommandsResult> => {
-                const items = this.cachedContextCommands ?? []
+                const items = await this.getFreshItems()
                 const searchTerm = params.searchTerm?.trim() ?? ''
 
                 if (!searchTerm) {
-                    const mapped = await this.mapContextCommandItems(items.filter(existsOnDisk))
+                    const capped = this.capItems(items.filter(existsOnDisk))
+                    const mapped = await this.mapContextCommandItems(capped)
                     return { contextCommandGroups: mapped }
                 }
 
@@ -219,14 +219,42 @@ export class ContextCommandsProvider implements Disposable {
         )
     }
 
+    /**
+     * Cap items with reserved budgets for folders and code symbols so neither
+     * is starved by file-heavy repos. Default split is 25/25/50 (folders /
+     * code / files); slack from an under-filled folder or code budget flows
+     * automatically into the file budget via the subtraction below.
+     *
+     * NOTE: this only affects the **empty-search** picker view (initial open).
+     * The non-empty filter path scores every item in the full indexer set —
+     * a search term will find a code symbol or file regardless of whether it
+     * fit into the cap.
+     */
+    private capItems(items: ContextCommandItem[]): ContextCommandItem[] {
+        const folders = items.filter(i => i.type === 'folder')
+        const code = items.filter(i => i.type === 'code')
+        const files = items.filter(i => i.type === 'file')
+        const folderBudget = Math.min(folders.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.25))
+        const codeBudget = Math.min(code.length, Math.ceil(CONTEXT_COMMAND_PAYLOAD_CAP * 0.25))
+        const fileBudget = CONTEXT_COMMAND_PAYLOAD_CAP - folderBudget - codeBudget
+        return [...folders.slice(0, folderBudget), ...code.slice(0, codeBudget), ...files.slice(0, fileBudget)]
+    }
+
+    /**
+     * Pull fresh items from the indexer. Returns empty array on failure.
+     */
+    private async getFreshItems(): Promise<ContextCommandItem[]> {
+        try {
+            const controller = await LocalProjectContextController.getInstance()
+            return await controller.getContextCommandItems()
+        } catch (e) {
+            this.logging.error(`Error fetching fresh context command items: ${e}`)
+            return []
+        }
+    }
+
     async processContextCommandUpdate(items: ContextCommandItem[]) {
-        this.cachedContextCommands = items
-
-        // Cap the push payload — the client's existing code dispatches
-        // onFilterContextCommands when the user types, which searches
-        // the full cached set server-side (no cap).
-        const capped = items.filter(existsOnDisk).slice(0, CONTEXT_COMMAND_PAYLOAD_CAP)
-
+        const capped = this.capItems(items.filter(existsOnDisk))
         const allItems = await this.mapContextCommandItems(capped)
         this.chat.sendContextCommands({ contextCommandGroups: allItems })
     }
@@ -363,7 +391,7 @@ export class ContextCommandsProvider implements Disposable {
         } catch (error) {
             this.codeSymbolsFailed = true
             this.codeSymbolsPending = false
-            await this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+            await this.processContextCommandUpdate([])
             throw error
         }
     }
