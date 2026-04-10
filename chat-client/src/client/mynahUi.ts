@@ -813,8 +813,12 @@ export const createMynahUi = (
             store: tabFactory.createTab(false),
         },
         onContextCommandFilter: (tabId, searchTerm) => {
+            // Always forward to the server. Server pulls fresh items from
+            // the indexer on every request (no client-side cache), so the
+            // empty-term case (@ press) returns a fresh capped list and
+            // non-empty terms return the scored top matches.
             lastFilterTabId = tabId
-            messager.onFilterContextCommands({ tabId, searchTerm })
+            messager.onFilterContextCommands({ tabId, searchTerm: searchTerm ?? '' })
         },
         config: {
             maxTabs: 10,
@@ -1439,19 +1443,21 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
+        const commandsWithHighlight = [
+            ...(contextCommandGroups || []),
+            ...(featureConfig?.get('highlightCommand')
+                ? [
+                      {
+                          groupName: 'Additional commands',
+                          commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                      },
+                  ]
+                : []),
+        ]
+
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: [
-                    ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommand')
-                        ? [
-                              {
-                                  groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
-                              },
-                          ]
-                        : []),
-                ],
+                contextCommands: commandsWithHighlight,
             })
         })
     }
