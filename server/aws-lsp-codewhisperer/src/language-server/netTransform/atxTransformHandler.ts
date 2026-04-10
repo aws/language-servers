@@ -448,12 +448,10 @@ export class ATXTransformHandler {
             }
 
             // Map InteractiveMode enum to backend format (all strings)
-            // Autonomous -> "auto", OnFailure -> "on_failure", Interactive -> "interactive"
+            // Autonomous -> "auto", Interactive -> "interactive"
             let interactiveModeValue: string = 'auto'
             if (request.interactiveMode === 'Interactive') {
                 interactiveModeValue = 'interactive'
-            } else if (request.interactiveMode === 'OnFailure') {
-                interactiveModeValue = 'on_failure'
             }
 
             // Build objective object with target_framework and interactive_mode
@@ -1124,11 +1122,9 @@ export class ATXTransformHandler {
                 try {
                     const objective = JSON.parse(job.objective)
                     // Map backend string format to InteractiveMode enum
-                    // "interactive" -> Interactive, "on_failure" -> OnFailure, "autonomous" -> Autonomous
+                    // "interactive" -> Interactive, "auto" -> Autonomous
                     if (objective.interactive_mode === 'interactive') {
                         this.cachedInteractiveMode = 'Interactive'
-                    } else if (objective.interactive_mode === 'on_failure') {
-                        this.cachedInteractiveMode = 'OnFailure'
                     } else {
                         this.cachedInteractiveMode = 'Autonomous'
                     }
@@ -2694,10 +2690,9 @@ export class ATXTransformHandler {
             // Build JSON content with optional interactiveMode
             const jsonContent: Record<string, any> = { ...checkpoints }
             if (interactiveMode) {
-                // Map PascalCase to backend format: Interactive->interactive, OnFailure->on_failure, Autonomous->auto
+                // Map PascalCase to backend format: Interactive->interactive, Autonomous->auto
                 let mappedMode = 'auto'
                 if (interactiveMode === 'Interactive') mappedMode = 'interactive'
-                else if (interactiveMode === 'OnFailure') mappedMode = 'on_failure'
                 jsonContent.interactive_mode = mappedMode
                 this.logging.log(`ATX: setCheckpoints interactive_mode=${mappedMode}`)
             }

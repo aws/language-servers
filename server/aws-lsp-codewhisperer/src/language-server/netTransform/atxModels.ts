@@ -76,7 +76,7 @@ export interface AtxListOrCreateWorkspaceResponse {
  * Defines the interactive mode for transformation operations.
  * Matches C# InteractiveMode enum.
  */
-export type InteractiveMode = 'Autonomous' | 'OnFailure' | 'Interactive'
+export type InteractiveMode = 'Autonomous' | 'Interactive'
 // ATX List Jobs Request/Response
 export interface AtxListJobsRequest extends ExecuteCommandParams {
     WorkspaceId: string
