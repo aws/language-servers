@@ -54,6 +54,8 @@ import {
     InteractiveMode,
     AtxGetJobDashboardResponse,
     AtxDashboardRepo,
+    AtxUploadCustomPlanRequest,
+    AtxUploadCustomPlanResponse,
 } from './atxModels'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
@@ -446,12 +448,10 @@ export class ATXTransformHandler {
             }
 
             // Map InteractiveMode enum to backend format (all strings)
-            // Autonomous -> "auto", OnFailure -> "on_failure", Interactive -> "interactive"
+            // Autonomous -> "auto", Interactive -> "interactive"
             let interactiveModeValue: string = 'auto'
             if (request.interactiveMode === 'Interactive') {
                 interactiveModeValue = 'interactive'
-            } else if (request.interactiveMode === 'OnFailure') {
-                interactiveModeValue = 'on_failure'
             }
 
             // Build objective object with target_framework and interactive_mode
@@ -466,7 +466,7 @@ export class ATXTransformHandler {
                 workspaceId: request.workspaceId,
                 objective: JSON.stringify(objective),
                 // jobType: 'DOTNET_IDE' as any,
-                orchestratorAgent: 'dotnet-chatty-agent-internal',
+                orchestratorAgent: 'dotnet-chatty-agent',
                 jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
                 idempotencyToken: uuidv4(),
@@ -1132,11 +1132,9 @@ export class ATXTransformHandler {
                 try {
                     const objective = JSON.parse(job.objective)
                     // Map backend string format to InteractiveMode enum
-                    // "interactive" -> Interactive, "on_failure" -> OnFailure, "autonomous" -> Autonomous
+                    // "interactive" -> Interactive, "auto" -> Autonomous
                     if (objective.interactive_mode === 'interactive') {
                         this.cachedInteractiveMode = 'Interactive'
-                    } else if (objective.interactive_mode === 'on_failure') {
-                        this.cachedInteractiveMode = 'OnFailure'
                     } else {
                         this.cachedInteractiveMode = 'Autonomous'
                     }
@@ -1879,6 +1877,73 @@ export class ATXTransformHandler {
         } catch (error) {
             this.logging.error(`ATX: Failed to create modified files zip: ${String(error)}`)
             return ''
+        }
+    }
+
+    async uploadCustomPlan(request: AtxUploadCustomPlanRequest): Promise<AtxUploadCustomPlanResponse> {
+        this.logging.log('ATX: Starting upload custom plan')
+
+        try {
+            if (!this.atxClient && !(await this.initializeAtxClient())) {
+                throw new Error('ATX FES client not initialized')
+            }
+
+            const fileName = path.basename(request.FilePath)
+            const artifactStorePath = request.ArtifactStorePath
+                ? `${request.ArtifactStorePath.replace(/\/+$/, '')}/${fileName}`
+                : `Custom Plan/${fileName}`
+
+            const sha256 = await Utils.getSha256Async(request.FilePath)
+
+            const command = new CreateArtifactUploadUrlCommand({
+                workspaceId: request.WorkspaceId,
+                jobId: request.TransformationJobId,
+                contentDigest: { Sha256: sha256 },
+                artifactReference: {
+                    artifactType: {
+                        categoryType: CategoryType.CUSTOMER_INPUT,
+                        fileType: FileType.MARKDOWN,
+                    },
+                },
+                fileMetadata: {
+                    path: artifactStorePath,
+                    description: request.Description,
+                },
+            })
+
+            await this.addAuthToCommand(command)
+            const result = (await this.atxClient!.send(command)) as any
+
+            if (!result?.artifactId || !result?.s3PreSignedUrl) {
+                throw new Error('Failed to get upload URL from service')
+            }
+
+            const uploadSuccess = await Utils.uploadArtifact(
+                result.s3PreSignedUrl,
+                request.FilePath,
+                result.requestHeaders,
+                this.logging
+            )
+
+            if (!uploadSuccess) {
+                throw new Error('Failed to upload file to S3')
+            }
+
+            const completeResponse = await this.completeArtifactUpload(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                result.artifactId
+            )
+
+            if (!completeResponse?.success) {
+                throw new Error('Failed to complete artifact upload')
+            }
+
+            this.logging.log(`ATX: Custom plan uploaded successfully - artifactId: ${result.artifactId}`)
+            return { Success: true, ArtifactId: result.artifactId }
+        } catch (error) {
+            this.logging.error(`ATX: UploadCustomPlan error: ${String(error)}`)
+            return { Success: false, Error: String(error) }
         }
     }
 
@@ -2637,10 +2702,9 @@ export class ATXTransformHandler {
             // Build JSON content with optional interactiveMode
             const jsonContent: Record<string, any> = { ...checkpoints }
             if (interactiveMode) {
-                // Map PascalCase to backend format: Interactive->interactive, OnFailure->on_failure, Autonomous->auto
+                // Map PascalCase to backend format: Interactive->interactive, Autonomous->auto
                 let mappedMode = 'auto'
                 if (interactiveMode === 'Interactive') mappedMode = 'interactive'
-                else if (interactiveMode === 'OnFailure') mappedMode = 'on_failure'
                 jsonContent.interactive_mode = mappedMode
                 this.logging.log(`ATX: setCheckpoints interactive_mode=${mappedMode}`)
             }

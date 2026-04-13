@@ -20,6 +20,7 @@ import {
     AtxDownloadArtifactRequest,
     AtxGetJobDashboardRequest,
     AtxGetJobReportRequest,
+    AtxUploadCustomPlanRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -40,6 +41,7 @@ const AtxDownloadArtifactCommand = 'aws/atxTransform/downloadArtifact'
 const AtxCompleteLocalBuildHitlCommand = 'aws/atxTransform/completeLocalBuildHitl'
 const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
 const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
+const AtxUploadCustomPlanCommand = 'aws/atxTransform/uploadCustomPlan'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -213,6 +215,10 @@ export const AtxNetTransformServerToken =
 
                         return await atxTransformHandler.getJobReport(WorkspaceId, JobId, ArtifactId)
                     }
+                    case AtxUploadCustomPlanCommand: {
+                        const request = params as AtxUploadCustomPlanRequest
+                        return await atxTransformHandler.uploadCustomPlan(request)
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -252,6 +258,7 @@ export const AtxNetTransformServerToken =
                             AtxCompleteLocalBuildHitlCommand,
                             AtxGetJobDashboardCommand,
                             AtxGetJobReportCommand,
+                            AtxUploadCustomPlanCommand,
                         ],
                     },
                 },
