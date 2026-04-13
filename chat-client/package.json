@@ -1,6 +1,6 @@
 {
     "name": "@aws/chat-client",
-    "version": "0.1.50",
+    "version": "0.1.51",
     "description": "AWS Chat Client",
     "main": "out/index.js",
     "repository": {
@@ -25,9 +25,9 @@
     },
     "dependencies": {
         "@aws/chat-client-ui-types": "0.1.68",
-        "@aws/language-server-runtimes": "^0.3.14",
-        "@aws/language-server-runtimes-types": "^0.1.63",
-        "@aws/mynah-ui": "^4.39.2"
+        "@aws/language-server-runtimes": "^0.3.16",
+        "@aws/language-server-runtimes-types": "^0.1.64",
+        "@aws/mynah-ui": "^4.40.1"
     },
     "devDependencies": {
         "@types/jsdom": "^21.1.6",
