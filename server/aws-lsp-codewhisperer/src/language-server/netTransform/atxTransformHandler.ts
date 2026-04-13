@@ -1020,6 +1020,7 @@ export class ATXTransformHandler {
         ReportPath?: string
         MissingPackageJsonPath?: string
         HitlTag?: string
+        TaskId?: string
     } | null> {
         try {
             this.logging.log(`ATX: Getting Hitl Agent Artifact for job: ${jobId}`)
@@ -1041,7 +1042,9 @@ export class ATXTransformHandler {
             }
 
             const hitl =
-                hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') || hitls[0]
+                hitls.find(h => h.tag === 'local-build-verification') ||
+                hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
+                hitls[0]
             this.logging.log(
                 `ATX: getHitlAgentArtifact picked hitl tag: ${hitl.tag}, all tags: ${hitls.map(h => h.tag).join(',')}`
             )
@@ -1050,6 +1053,12 @@ export class ATXTransformHandler {
             )
             this.cachedHitl = hitl.taskId
             const hitlTag = hitl.tag || null
+
+            // For local-build-verification HITL, no agent artifact to download — just return the tag
+            if (hitlTag === 'local-build-verification') {
+                this.logging.log('ATX: local-build-verification HITL detected — returning tag for IDE to handle')
+                return { HitlTag: hitlTag, TaskId: hitl.taskId }
+            }
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
 
             if (!downloadInfo) {
@@ -1094,6 +1103,7 @@ export class ATXTransformHandler {
                 ReportPath: fs.existsSync(reportPath) ? reportPath : undefined,
                 MissingPackageJsonPath: fs.existsSync(missingPackageJsonPath) ? missingPackageJsonPath : undefined,
                 HitlTag: hitlTag,
+                TaskId: hitl.taskId,
             }
         } catch (error) {
             this.logging.error(`ATX: GetHitlAgentArtifact error: ${String(error)}`)
@@ -1233,6 +1243,7 @@ export class ATXTransformHandler {
                 const hitls = await this.listHitls(request.WorkspaceId, request.TransformationJobId)
                 if (hitls && hitls.length > 0) {
                     const hitl =
+                        hitls.find(h => h.tag === 'local-build-verification') ||
                         hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
                         hitls[0]
                     this.logging.log(`ATX: Found HITL task - tag: ${hitl.tag}, hasArtifact: ${!!hitl.agentArtifact}`)
@@ -1326,6 +1337,7 @@ export class ATXTransformHandler {
             ReportPath: response?.ReportPath,
             MissingPackageJsonPath: response?.MissingPackageJsonPath,
             HitlTag: response?.HitlTag,
+            HitlTaskId: response?.TaskId,
         } as AtxGetTransformInfoResponse
     }
 
