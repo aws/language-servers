@@ -2352,21 +2352,21 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Recursively finds all leaf steps with SUCCEEDED status in the plan tree.
+     * Recursively finds all level 2 steps with SUCCEEDED status in the plan tree.
+     * Level 2 steps are grandchildren of root (e.g., ClassLibrary1 under Transform Projects).
      * Returns steps sorted by their score to ensure correct application order.
      */
-    private findCompletedSteps(step: AtxPlanStep): (AtxPlanStep & { score?: number })[] {
+    private findCompletedSteps(step: AtxPlanStep, depth: number = 0): (AtxPlanStep & { score?: number })[] {
         const completedSteps: (AtxPlanStep & { score?: number })[] = []
 
-        // PlanStepStatus uses 'SUCCEEDED' for completed steps (not 'COMPLETED')
-        // Only add leaf steps (steps without children) as those are the actual checkpoints
-        if (step.Status === 'SUCCEEDED' && step.Children.length === 0) {
+        // Only count SUCCEEDED steps at depth 2 (grandchildren of root)
+        if (depth === 2 && step.Status === 'SUCCEEDED') {
             completedSteps.push(step)
         }
 
         // Process children
         for (const child of step.Children) {
-            completedSteps.push(...this.findCompletedSteps(child))
+            completedSteps.push(...this.findCompletedSteps(child, depth + 1))
         }
 
         return completedSteps
