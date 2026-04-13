@@ -613,7 +613,9 @@ export class AdditionalContextProvider {
                         ordered.push(doc)
                     } else if (item.label === 'folder') {
                         // Folder expands into multiple file entries — match all children
-                        const children = docEntries.filter(entry => !entry.pinned && entry.path.startsWith(itemPath + path.sep))
+                        const children = docEntries.filter(
+                            entry => !entry.pinned && entry.path.startsWith(itemPath + path.sep)
+                        )
                         ordered.push(...children)
                     }
                 }
