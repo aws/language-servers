@@ -1054,9 +1054,9 @@ export class ATXTransformHandler {
             this.cachedHitl = hitl.taskId
             const hitlTag = hitl.tag || null
 
-            // For local-build-verification HITL, no agent artifact to download — just return the tag
-            if (hitlTag === 'local-build-verification') {
-                this.logging.log('ATX: local-build-verification HITL detected — returning tag for IDE to handle')
+            // If no agent artifact, return tag and taskId without downloading
+            if (!hitl.agentArtifact?.artifactId) {
+                this.logging.log(`ATX: HITL has no agent artifact (tag=${hitlTag}) — returning tag only`)
                 return { HitlTag: hitlTag, TaskId: hitl.taskId }
             }
             const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, hitl.agentArtifact.artifactId)
@@ -1124,7 +1124,10 @@ export class ATXTransformHandler {
 
             if (!job) {
                 this.logging.error(`ATX: Job not found: ${request.TransformationJobId}`)
-                return null
+                return {
+                    TransformationJob: null,
+                    ErrorString: 'JOB_NOT_FOUND',
+                } as unknown as AtxGetTransformInfoResponse
             }
 
             // If interactive mode is not cached, try to get it from the job objective
@@ -1293,6 +1296,31 @@ export class ATXTransformHandler {
      * 2. Execution phase: Plan exists, HITL raised for a specific step
      */
     private async handleAwaitingHumanInput(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse> {
+        // Check for local-build-verification HITL first — it can happen with or without a plan
+        const hitlResponse = await this.getHitlAgentArtifact(
+            request.WorkspaceId,
+            request.TransformationJobId,
+            request.SolutionRootPath
+        )
+        if (hitlResponse?.HitlTag === 'local-build-verification') {
+            this.logging.log('ATX: local-build-verification HITL — returning directly to IDE')
+            const plan = await this.getTransformationPlan(
+                request.WorkspaceId,
+                request.TransformationJobId,
+                request.SolutionRootPath
+            )
+            return {
+                TransformationJob: {
+                    WorkspaceId: request.WorkspaceId,
+                    JobId: request.TransformationJobId,
+                    Status: 'AWAITING_HUMAN_INPUT',
+                } as any,
+                TransformationPlan: plan,
+                HitlTag: 'local-build-verification',
+                HitlTaskId: hitlResponse.TaskId,
+            } as AtxGetTransformInfoResponse
+        }
+
         // Try to get the transformation plan first
         const plan = await this.getTransformationPlan(
             request.WorkspaceId,
@@ -3284,6 +3312,9 @@ export class ATXTransformHandler {
                 return { Artifacts: [], Error: 'Failed to list artifacts' }
             }
 
+            this.logging.log(
+                `ATX: listArtifactsForDownload raw artifacts: ${JSON.stringify(artifacts.map((a: any) => ({ id: a.artifactId, path: a.fileMetadata?.path, category: a.categoryType })))}`
+            )
             const mapped = artifacts
                 .filter((a: any) => a.fileMetadata?.path)
                 .map((a: any) => ({
