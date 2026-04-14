@@ -254,6 +254,7 @@ type ChatHandlers = Omit<
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
+    | 'onFilterContextCommands'
     | 'onListAvailableModels'
     | 'sendSubscriptionDetails'
     | 'onSubscriptionUpgrade'

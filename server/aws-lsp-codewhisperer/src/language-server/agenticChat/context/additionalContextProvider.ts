@@ -606,8 +606,19 @@ export class AdditionalContextProvider {
                 const image = imageMap.get(item.description)
                 if (image) ordered.push(image)
             } else {
-                const doc = item.route ? docMap.get(path.join(...item.route)) : undefined
-                if (doc) ordered.push(doc)
+                const itemPath = item.route ? path.join(...item.route) : undefined
+                if (itemPath) {
+                    const doc = docMap.get(itemPath)
+                    if (doc) {
+                        ordered.push(doc)
+                    } else if (item.label === 'folder') {
+                        // Folder expands into multiple file entries — match all children
+                        const children = docEntries.filter(
+                            entry => !entry.pinned && entry.path.startsWith(itemPath + path.sep)
+                        )
+                        ordered.push(...children)
+                    }
+                }
             }
         }
         // Append pinned context entries (docs and images)

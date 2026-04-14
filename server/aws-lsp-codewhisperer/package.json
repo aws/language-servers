@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.111",
+    "version": "0.0.112",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -38,7 +38,7 @@
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "0.1.68",
-        "@aws/language-server-runtimes": "^0.3.14",
+        "@aws/language-server-runtimes": "^0.3.16",
         "@aws/lsp-core": "^0.0.21",
         "@modelcontextprotocol/sdk": "^1.23.0",
         "@mozilla/readability": "^0.6.0",
@@ -85,6 +85,7 @@
         "assert": "^2.1.0",
         "c8": "^10.1.2",
         "copyfiles": "^2.4.1",
+        "fast-check": "^4.6.0",
         "mock-fs": "^5.2.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.4.4",
