@@ -1022,6 +1022,7 @@ export class ATXTransformHandler {
         HitlTag?: string
         TaskId?: string
     } | null> {
+        let hitl: any = null
         try {
             this.logging.log(`ATX: Getting Hitl Agent Artifact for job: ${jobId}`)
 
@@ -1041,7 +1042,7 @@ export class ATXTransformHandler {
                 this.logging.log(`ATX: Found ${hitls.length} hitls (expected 1)`)
             }
 
-            const hitl =
+            hitl =
                 hitls.find(h => h.tag === 'local-build-verification') ||
                 hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
                 hitls[0]
@@ -1053,6 +1054,12 @@ export class ATXTransformHandler {
             )
             this.cachedHitl = hitl.taskId
             const hitlTag = hitl.tag || null
+
+            // local-build-verification: IDE handles the build, no artifact download needed
+            if (hitlTag === 'local-build-verification') {
+                this.logging.log('ATX: local-build-verification HITL — returning tag for IDE to handle')
+                return { HitlTag: hitlTag, TaskId: hitl.taskId }
+            }
 
             // If no agent artifact, return tag and taskId without downloading
             if (!hitl.agentArtifact?.artifactId) {
@@ -1107,6 +1114,10 @@ export class ATXTransformHandler {
             }
         } catch (error) {
             this.logging.error(`ATX: GetHitlAgentArtifact error: ${String(error)}`)
+            // Guardrail: return tag/taskId even on download failure so IDE can still handle the HITL
+            if (hitl) {
+                return { HitlTag: hitl.tag || null, TaskId: hitl.taskId }
+            }
             return null
         }
     }
