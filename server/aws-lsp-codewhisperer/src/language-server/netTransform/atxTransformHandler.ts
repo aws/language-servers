@@ -1088,13 +1088,28 @@ export class ATXTransformHandler {
                     `ATX: Missing packages artifact saved as JSON: ${rawPath} (${response.body.length} bytes)`
                 )
             } else {
-                await Utils.downloadAndExtractArchive(
-                    downloadInfo.s3PresignedUrl,
-                    downloadInfo.requestHeaders,
-                    pathToDownload,
-                    'transformation-plan-download.zip',
-                    this.logging
-                )
+                try {
+                    await Utils.downloadAndExtractArchive(
+                        downloadInfo.s3PresignedUrl,
+                        downloadInfo.requestHeaders,
+                        pathToDownload,
+                        'transformation-plan-download.zip',
+                        this.logging
+                    )
+                } catch (extractError) {
+                    this.logging.error(`ATX: Zip extraction failed (${String(extractError)}), saving raw artifact`)
+                    try {
+                        const response = await got.get(downloadInfo.s3PresignedUrl, {
+                            headers: downloadInfo.requestHeaders || {},
+                            responseType: 'buffer',
+                        })
+                        const rawPath = path.join(pathToDownload, `hitl-artifact-${hitlTag || 'unknown'}`)
+                        fs.writeFileSync(rawPath, response.body)
+                        this.logging.log(`ATX: Raw artifact saved to ${rawPath} (${response.body.length} bytes)`)
+                    } catch (downloadError) {
+                        this.logging.error(`ATX: Raw artifact save also failed: ${String(downloadError)}`)
+                    }
+                }
             }
 
             const extractedFiles = fs.readdirSync(pathToDownload)

@@ -93,31 +93,43 @@ export class Utils {
 
         await Utils.directoryExists(worklogDir)
 
-        let worklogData: Record<string, any[]> = {}
+        const maxRetries = 3
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                let worklogData: Record<string, any[]> = {}
 
-        // Read existing worklog if it exists
-        if (fs.existsSync(worklogPath)) {
-            const existingData = fs.readFileSync(worklogPath, 'utf8')
-            worklogData = JSON.parse(existingData)
-        }
+                // Read existing worklog if it exists
+                if (fs.existsSync(worklogPath)) {
+                    const existingData = fs.readFileSync(worklogPath, 'utf8')
+                    worklogData = JSON.parse(existingData)
+                }
 
-        if (stepId == null) {
-            stepId = 'Progress'
-        }
+                if (stepId == null) {
+                    stepId = 'Progress'
+                }
 
-        if (!worklogData[stepId]) {
-            worklogData[stepId] = []
-        }
+                if (!worklogData[stepId]) {
+                    worklogData[stepId] = []
+                }
 
-        const entry = {
-            timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
-            text: description,
-        }
-        if (!worklogData[stepId].some((e: any) => (typeof e === 'string' ? e : e.text) === description)) {
-            worklogData[stepId].push(entry)
-        }
+                const entry = {
+                    timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+                    text: description,
+                }
+                if (!worklogData[stepId].some((e: any) => (typeof e === 'string' ? e : e.text) === description)) {
+                    worklogData[stepId].push(entry)
+                }
 
-        fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
+                fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
+                return
+            } catch (err: any) {
+                if (err.code === 'EBUSY' && attempt < maxRetries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)))
+                    continue
+                }
+                throw err
+            }
+        }
     }
 
     /**
