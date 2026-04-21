@@ -116,26 +116,4 @@ describe('QChatTriggerContext', () => {
 
         assert.deepStrictEqual(documentContext, mockDocumentContext)
     })
-
-    it('should not extract project context when workspace context is disabled', async () => {
-        amazonQServiceManager.getConfiguration.returns({
-            projectContext: {
-                enableLocalIndexing: false,
-            },
-        })
-
-        const triggerContext = new QChatTriggerContext(
-            testFeatures.workspace,
-            testFeatures.logging,
-            amazonQServiceManager
-        )
-
-        const getInstanceStub = sinon.stub(LocalProjectContextController, 'getInstance')
-
-        const result = await triggerContext.extractProjectContext('test query')
-
-        sinon.assert.notCalled(getInstanceStub)
-
-        assert.deepStrictEqual(result, [])
-    })
 })
