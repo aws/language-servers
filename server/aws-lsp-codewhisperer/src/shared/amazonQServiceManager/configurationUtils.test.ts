@@ -21,14 +21,10 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             extraContext: 'some-inline-chat-context',
         },
         projectContext: {
-            enableLocalIndexing: true,
-            enableGpuAcceleration: true,
-            indexWorkerThreads: 1,
             localIndexing: {
                 ignoreFilePatterns: [],
                 maxFileSizeMB: 10,
                 maxIndexSizeMB: 2048,
-                indexCacheDirPath: undefined,
             },
         },
     }
@@ -60,9 +56,6 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
             sendUserWrittenCodeMetrics: MOCKED_AWS_CODEWHISPERER_SECTION.sendUserWrittenCodeMetrics,
             projectContext: {
-                enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing,
-                enableGpuAcceleration: MOCKED_AWS_Q_SECTION.projectContext?.enableGpuAcceleration,
-                indexWorkerThreads: MOCKED_AWS_Q_SECTION.projectContext?.indexWorkerThreads,
                 localIndexing: MOCKED_AWS_Q_SECTION.projectContext.localIndexing,
             },
         }
@@ -112,14 +105,10 @@ describe('AmazonQConfigurationCache', () => {
             shareCodeWhispererContentWithAWS: true,
             sendUserWrittenCodeMetrics: false,
             projectContext: {
-                enableLocalIndexing: true,
-                enableGpuAcceleration: true,
-                indexWorkerThreads: 1,
                 localIndexing: {
                     ignoreFilePatterns: [],
                     maxFileSizeMB: 10,
                     maxIndexSizeMB: 2048,
-                    indexCacheDirPath: undefined,
                 },
             },
         }
@@ -136,9 +125,9 @@ describe('AmazonQConfigurationCache', () => {
         mockedQConfig.customizationArn = undefined
         mockedQConfig.inlineSuggestions = { extraContext: undefined }
         mockedQConfig.projectContext = {
-            enableLocalIndexing: false,
-            enableGpuAcceleration: false,
-            indexWorkerThreads: 0,
+            localIndexing: {
+                ignoreFilePatterns: ['*.log'],
+            },
         }
         notDeepStrictEqual(cache.getProperty('customizationArn'), mockedQConfig.customizationArn)
         notDeepStrictEqual(cache.getProperty('inlineSuggestions'), mockedQConfig.inlineSuggestions)
