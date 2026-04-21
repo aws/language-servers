@@ -14,6 +14,7 @@ import {
     EnvState,
     Origin,
     ImageBlock,
+    RelevantTextDocument,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -22,18 +23,15 @@ import {
     InlineChatParams,
     FileList,
     TextDocument,
-    OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
 } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
 import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
-import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
-import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
-import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
+import { ContextInfo } from './contextUtils'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
 import { getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 import { ChatCommandInput } from '../../../shared/streamingClientService'
@@ -47,7 +45,6 @@ export interface TriggerContext extends Partial<DocumentContext> {
      * Represents the context transparency list displayed at the top of the assistant response.
      */
     documentReference?: FileList
-    hasWorkspace?: boolean
 }
 export type LineInfo = { startLine: number; endLine: number }
 
@@ -178,7 +175,6 @@ export class AgenticChatTriggerContext {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
         const defaultEditorState = { workspaceFolders }
-        const hasWorkspace = triggerContext.hasWorkspace
 
         // prompt.prompt is what user typed in the input, should be sent to backend
         // prompt.escapedPrompt is HTML serialized string, which should only be used for UI.
@@ -188,10 +184,6 @@ export class AgenticChatTriggerContext {
         // This intereferes with routing logic thus we need to remove it
         if (promptContent && promptContent.includes('@sage')) {
             promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
-        }
-
-        if (hasWorkspace) {
-            promptContent = promptContent?.replace(/\*\*@workspace\*\*/, '')
         }
 
         // Append remote workspaceId if it exists
@@ -204,15 +196,7 @@ export class AgenticChatTriggerContext {
             undefined
         this.#logging.info(`remote workspaceId: ${workspaceId}`)
 
-        // Get workspace documents if @workspace is used
-        let relevantDocuments = hasWorkspace
-            ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
-            : []
-
-        const workspaceFileList = mergeRelevantTextDocuments(relevantDocuments)
-        triggerContext.documentReference = triggerContext.documentReference
-            ? mergeFileLists(triggerContext.documentReference, workspaceFileList)
-            : workspaceFileList
+        const relevantDocuments: RelevantTextDocumentAddition[] = []
         // Add @context in prompt to relevantDocuments
         if (additionalContent) {
             for (const item of additionalContent.filter(item => !item.pinned)) {
@@ -442,82 +426,5 @@ export class AgenticChatTriggerContext {
         }
 
         return [...uris]
-    }
-
-    async #getRelevantDocuments(
-        prompt: string,
-        chatResultStream?: AgenticChatResultStream
-    ): Promise<RelevantTextDocumentAddition[]> {
-        const localProjectContextController = await LocalProjectContextController.getInstance()
-        if (!localProjectContextController.isIndexingEnabled() && chatResultStream) {
-            await chatResultStream.writeResultBlock({
-                body: `To add your workspace as context, enable local indexing in your IDE settings. After enabling, add @workspace to your question, and I'll generate a response using your workspace as context.`,
-                buttons: [
-                    {
-                        id: OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
-                        text: 'Open settings',
-                        icon: 'external',
-                        keepCardAfterClick: false,
-                        status: 'info',
-                    },
-                ],
-            })
-            return []
-        }
-
-        let relevantTextDocuments = await this.#queryRelevantDocuments(prompt, localProjectContextController)
-        relevantTextDocuments = relevantTextDocuments.filter(doc => doc.text && doc.text.length > 0)
-        for (const relevantDocument of relevantTextDocuments) {
-            if (relevantDocument.text && relevantDocument.text.length > workspaceChunkMaxSize) {
-                relevantDocument.text = relevantDocument.text.substring(0, workspaceChunkMaxSize)
-                this.#logging.debug(`Truncating @workspace chunk: ${relevantDocument.relativeFilePath} `)
-            }
-        }
-
-        return relevantTextDocuments
-    }
-
-    async #queryRelevantDocuments(
-        prompt: string,
-        localProjectContextController: LocalProjectContextController
-    ): Promise<RelevantTextDocumentAddition[]> {
-        try {
-            const chunks = await localProjectContextController.queryVectorIndex({ query: prompt })
-            const relevantTextDocuments: RelevantTextDocumentAddition[] = []
-            if (!chunks) {
-                return relevantTextDocuments
-            }
-
-            for (const chunk of chunks) {
-                const text = chunk.context ?? chunk.content
-                const baseDocument = {
-                    text,
-                    path: chunk.filePath,
-                    relativeFilePath: chunk.relativePath ?? path.basename(chunk.filePath),
-                    startLine: chunk.startLine ?? -1,
-                    endLine: chunk.endLine ?? -1,
-                }
-
-                if (chunk.programmingLanguage && chunk.programmingLanguage !== 'unknown') {
-                    relevantTextDocuments.push({
-                        ...baseDocument,
-                        programmingLanguage: {
-                            languageName: chunk.programmingLanguage,
-                        },
-                        type: ContentType.WORKSPACE,
-                    })
-                } else {
-                    relevantTextDocuments.push({
-                        ...baseDocument,
-                        type: ContentType.WORKSPACE,
-                    })
-                }
-            }
-
-            return relevantTextDocuments
-        } catch (e) {
-            this.#logging.error(`Error querying query vector index to get relevant documents: ${e}`)
-            return []
-        }
     }
 }

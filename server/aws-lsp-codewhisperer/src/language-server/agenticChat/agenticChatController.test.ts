@@ -257,11 +257,7 @@ describe('AgenticChatController', () => {
         } as any // Using 'as any' to prevent type errors when the Agent interface is updated with new methods
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
-        additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
-            // When @workspace is in the context, set hasWorkspace flag
-            if (context && context.some(item => item.command === '@workspace')) {
-                triggerContext.hasWorkspace = true
-            }
+        additionalContextProviderStub.callsFake(async () => {
             return []
         })
         // @ts-ignore
@@ -1413,60 +1409,6 @@ describe('AgenticChatController', () => {
 
             afterEach(() => {
                 extractDocumentContextStub.restore()
-            })
-
-            it('parses relevant document and includes as requestInput if @workspace context is included', async () => {
-                const localProjectContextController = new LocalProjectContextController('client-name', [], logging)
-                const mockRelevantDocs = [
-                    { filePath: '/test/1.ts', content: 'text', id: 'id-1', index: 0, vec: [1] },
-                    { filePath: '/test/2.ts', content: 'text2', id: 'id-2', index: 0, vec: [1] },
-                ]
-
-                sinon.stub(LocalProjectContextController, 'getInstance').resolves(localProjectContextController)
-                sinon.stub(localProjectContextController, 'isIndexingEnabled').returns(true)
-                sinon.stub(localProjectContextController, 'queryVectorIndex').resolves(mockRelevantDocs)
-
-                await chatController.onChatPrompt(
-                    {
-                        tabId: 'tab',
-                        prompt: {
-                            prompt: '@workspace help me understand this code',
-                            escapedPrompt: '@workspace help me understand this code',
-                        },
-                        context: [{ command: '@workspace' }],
-                    },
-                    mockCancellationToken
-                )
-
-                const calledRequestInput: GenerateAssistantResponseCommandInput =
-                    generateAssistantResponseStub.firstCall.firstArg
-
-                assert.deepStrictEqual(
-                    calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                        ?.editorState,
-                    {
-                        workspaceFolders: [],
-                        relevantDocuments: [
-                            {
-                                endLine: -1,
-                                path: '/test/1.ts',
-                                relativeFilePath: '1.ts',
-                                startLine: -1,
-                                text: 'text',
-                                type: ContentType.WORKSPACE,
-                            },
-                            {
-                                endLine: -1,
-                                path: '/test/2.ts',
-                                relativeFilePath: '2.ts',
-                                startLine: -1,
-                                text: 'text2',
-                                type: ContentType.WORKSPACE,
-                            },
-                        ],
-                        useRelevantDocuments: true,
-                    }
-                )
             })
 
             it('leaves cursorState as undefined if cursorState is not passed', async () => {
