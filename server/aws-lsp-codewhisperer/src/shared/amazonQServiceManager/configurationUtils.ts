@@ -75,13 +75,9 @@ interface LocalIndexConfig {
     ignoreFilePatterns?: string[] // patterns must follow .gitignore convention
     maxFileSizeMB?: number
     maxIndexSizeMB?: number
-    indexCacheDirPath?: string // defaults to homedir/.aws/amazonq/cache
 }
 
 interface QProjectContextConfig {
-    enableLocalIndexing: boolean // aws.q.projectContext.enableLocalIndexing
-    enableGpuAcceleration: boolean // aws.q.projectContext.enableGpuAcceleration
-    indexWorkerThreads: number // aws.q.projectContext.indexWorkerThreads
     localIndexing?: LocalIndexConfig
 }
 
@@ -139,14 +135,10 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                     extraContext: textUtils.undefinedIfEmpty(newQConfig.inlineChat?.extraContext),
                 },
                 projectContext: {
-                    enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
-                    enableGpuAcceleration: newQConfig.projectContext?.enableGpuAcceleration === true,
-                    indexWorkerThreads: newQConfig.projectContext?.indexWorkerThreads ?? -1,
                     localIndexing: {
                         ignoreFilePatterns: newQConfig.projectContext?.localIndexing?.ignoreFilePatterns ?? [],
                         maxFileSizeMB: newQConfig.projectContext?.localIndexing?.maxFileSizeMB ?? 10,
                         maxIndexSizeMB: newQConfig.projectContext?.localIndexing?.maxIndexSizeMB ?? 2048,
-                        indexCacheDirPath: newQConfig.projectContext?.localIndexing?.indexCacheDirPath ?? undefined,
                     },
                 },
             }
@@ -202,14 +194,10 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         shareCodeWhispererContentWithAWS: false,
         sendUserWrittenCodeMetrics: false,
         projectContext: {
-            enableLocalIndexing: false,
-            enableGpuAcceleration: false,
-            indexWorkerThreads: -1,
             localIndexing: {
                 ignoreFilePatterns: [],
                 maxFileSizeMB: 10,
                 maxIndexSizeMB: 2048,
-                indexCacheDirPath: undefined,
             },
         },
     }

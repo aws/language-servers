@@ -61,7 +61,6 @@ describe('Preservation: Context Commands Provider Small Payload Behavior', () =>
 
         sinon.stub(LocalProjectContextController, 'getInstance').resolves({
             onContextItemsUpdated: sinon.stub(),
-            onIndexingInProgressChanged: sinon.stub(),
         } as any)
 
         provider = new ContextCommandsProvider(
