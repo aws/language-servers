@@ -775,7 +775,6 @@ describe('TelemetryService', () => {
                 },
                 {
                     cwsprChatHasContextList: true,
-                    cwsprChatHasWorkspaceContext: false,
                     cwsprChatFolderContextCount: 0,
                     cwsprChatFileContextCount: 0,
                     cwsprChatRuleContextCount: 0,
@@ -845,7 +844,6 @@ describe('TelemetryService', () => {
                     experimentName: undefined,
                     userVariation: undefined,
                     cwsprChatHasContextList: true,
-                    cwsprChatHasWorkspaceContext: false,
                     cwsprChatFolderContextCount: 0,
                     cwsprChatFileContextCount: 0,
                     cwsprChatRuleContextCount: 0,
