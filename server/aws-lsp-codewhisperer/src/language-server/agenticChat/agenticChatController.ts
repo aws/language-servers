@@ -3537,7 +3537,6 @@ export class AgenticChatController implements ChatHandlers {
         if (triggerContext.contextInfo) {
             metric.mergeWith({
                 cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
-                cwsprChatHasWorkspaceContext: triggerContext.hasWorkspace ?? false,
                 cwsprChatFolderContextCount: triggerContext.contextInfo.contextCount.folderContextCount,
                 cwsprChatFileContextCount: triggerContext.contextInfo.contextCount.fileContextCount,
                 cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.activeRuleContextCount,
