@@ -338,7 +338,6 @@ export class ChatTelemetryController {
                 chatConversationType: metric.cwsprChatConversationType,
                 chatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
                 cwsprChatHasContextList: metric.cwsprChatHasContextList,
-                cwsprChatHasWorkspaceContext: metric.cwsprChatHasWorkspaceContext,
                 cwsprChatFolderContextCount: metric.cwsprChatFolderContextCount,
                 cwsprChatFileContextCount: metric.cwsprChatFileContextCount,
                 cwsprChatRuleContextCount: metric.cwsprChatRuleContextCount,

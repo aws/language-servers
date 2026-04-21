@@ -4,8 +4,7 @@ import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/la
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { SendMessageCommandInput } from '../../../shared/streamingClientService'
-import { LocalProjectContextController } from '../../../shared/localProjectContextController'
-import { convertChunksToRelevantTextDocuments } from '../tools/relevantTextDocuments'
+
 import { AmazonQBaseServiceManager as AmazonQServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export interface TriggerContext extends Partial<DocumentContext> {
@@ -35,17 +34,11 @@ export class QChatTriggerContext {
     async getNewTriggerContext(params: ChatParams | InlineChatParams): Promise<TriggerContext> {
         const documentContext: DocumentContext | undefined = await this.extractDocumentContext(params)
 
-        const useRelevantDocuments =
-            'context' in params
-                ? params.context?.some(context => typeof context !== 'string' && context.command === '@workspace')
-                : false
-        let relevantDocuments = useRelevantDocuments ? await this.extractProjectContext(params.prompt.prompt) : []
-
         return {
             ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
-            useRelevantDocuments,
-            relevantDocuments,
+            useRelevantDocuments: false,
+            relevantDocuments: [],
         }
     }
 
@@ -132,32 +125,6 @@ export class QChatTriggerContext {
                   cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
               )
             : undefined
-    }
-
-    async extractProjectContext(query?: string): Promise<RelevantTextDocument[]> {
-        if (query) {
-            try {
-                let enableWorkspaceContext = true
-
-                if (this.amazonQServiceManager) {
-                    const config = this.amazonQServiceManager.getConfiguration()
-                    if (config.projectContext?.enableLocalIndexing === false) {
-                        enableWorkspaceContext = false
-                    }
-                }
-
-                if (!enableWorkspaceContext) {
-                    this.#logger.debug('Workspace context is disabled, skipping project context extraction')
-                    return []
-                }
-                const contextController = await LocalProjectContextController.getInstance()
-                const resp = await contextController.queryVectorIndex({ query })
-                return convertChunksToRelevantTextDocuments(resp)
-            } catch (e) {
-                this.#logger.error(`Failed to extract project context for chat trigger: ${e}`)
-            }
-        }
-        return []
     }
 
     #guessIntentFromPrompt(prompt?: string): UserIntent | undefined {
