@@ -1,4 +1,4 @@
-import { ContextCommandsProvider, CONTEXT_COMMAND_PAYLOAD_CAP, INDEXING_THROTTLE_MS } from './contextCommandsProvider'
+import { ContextCommandsProvider, CONTEXT_COMMAND_PAYLOAD_CAP } from './contextCommandsProvider'
 import * as sinon from 'sinon'
 import * as fs from 'fs'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -26,7 +26,6 @@ describe('ContextCommandsProvider', () => {
 
         sinon.stub(LocalProjectContextController, 'getInstance').resolves({
             onContextItemsUpdated: sinon.stub(),
-            onIndexingInProgressChanged: sinon.stub(),
         } as any)
 
         provider = new ContextCommandsProvider(
@@ -104,40 +103,6 @@ describe('ContextCommandsProvider', () => {
 
             sinon.assert.calledOnce(processUpdateSpy)
             sinon.assert.calledWith(processUpdateSpy, mockContextItems)
-        })
-    })
-
-    describe('onIndexingInProgressChanged', () => {
-        it('should update workspacePending and call processContextCommandUpdate after throttle window', async () => {
-            const clock = sinon.useFakeTimers()
-            let capturedCallback: ((indexingInProgress: boolean) => void) | undefined
-
-            const mockController = {
-                onContextItemsUpdated: sinon.stub(),
-                set onIndexingInProgressChanged(callback: (indexingInProgress: boolean) => void) {
-                    capturedCallback = callback
-                },
-            }
-
-            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
-            ;(LocalProjectContextController.getInstance as sinon.SinonStub).resolves(mockController as any)
-
-            // Set initial state to false so condition is met
-            ;(provider as any).workspacePending = false
-
-            await (provider as any).registerContextCommandHandler()
-
-            capturedCallback?.(true)
-
-            // Not called yet — still within throttle window
-            sinon.assert.notCalled(processUpdateSpy)
-
-            // Advance past the throttle window
-            clock.tick(INDEXING_THROTTLE_MS)
-
-            sinon.assert.calledWith(processUpdateSpy, [])
-
-            clock.restore()
         })
     })
 
