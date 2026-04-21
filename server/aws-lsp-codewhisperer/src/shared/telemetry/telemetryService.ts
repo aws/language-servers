@@ -563,7 +563,6 @@ export class TelemetryService {
             chatConversationType: ChatConversationType
             chatActiveEditorImportCount?: number
             cwsprChatHasContextList: boolean
-            cwsprChatHasWorkspaceContext?: boolean
             cwsprChatFolderContextCount: number
             cwsprChatFileContextCount: number
             cwsprChatFileContextLength: number
@@ -617,7 +616,6 @@ export class TelemetryService {
                     cwsprChatActiveEditorImportCount: additionalParams.chatActiveEditorImportCount,
                     codewhispererCustomizationArn: params.customizationArn,
                     cwsprChatHasContextList: additionalParams.cwsprChatHasContextList,
-                    cwsprChatHasWorkspaceContext: additionalParams.cwsprChatHasWorkspaceContext,
                     cwsprChatFolderContextCount: additionalParams.cwsprChatFolderContextCount,
                     cwsprChatFileContextCount: additionalParams.cwsprChatFileContextCount,
                     cwsprChatRuleContextCount: additionalParams.cwsprChatRuleContextCount,
