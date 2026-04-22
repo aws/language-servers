@@ -39,6 +39,8 @@ import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
+import { MessageType } from '@aws/language-server-runtimes/protocol'
+import { hasApproval, recordApproval } from './mcpConsentStore'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
@@ -407,6 +409,57 @@ export class McpManager {
         authIntent: AuthIntent = AuthIntent.Silent
     ): Promise<void> {
         const DEFAULT_SERVER_INIT_TIMEOUT_MS = 120_000
+
+        // Consent gate for workspace-scoped MCP configs (P417451767).
+        // Workspace-scoped configs live in a folder the user opened and may be attacker-controlled.
+        // Global configs (~/.aws/amazonq/...) are user-authored and trusted implicitly.
+        const home = this.features.workspace.fs.getUserHomeDir()
+        const configPath = cfg.__configPath__
+        const globalMcp = getGlobalMcpConfigPath(home)
+        const globalAgent = getGlobalAgentConfigPath(home)
+        const isWorkspaceScoped = !!configPath && configPath !== globalMcp && configPath !== globalAgent
+        if (isWorkspaceScoped && configPath) {
+            const approved = await hasApproval(
+                this.features.workspace,
+                this.features.logging,
+                serverName,
+                cfg,
+                configPath
+            )
+            if (!approved) {
+                const cmdLine = [cfg.command ?? cfg.url ?? '(none)', ...(cfg.args ?? [])].join(' ').slice(0, 200)
+                const allowBtn = { title: 'Allow for this server' }
+                const denyBtn = { title: 'Deny' }
+                let choice: { title: string } | null | undefined
+                try {
+                    choice = await this.features.lsp.window.showMessageRequest({
+                        type: MessageType.Warning,
+                        message:
+                            `Amazon Q — Untrusted MCP Server\n\n` +
+                            `A workspace configuration file wants to start an MCP server.\n` +
+                            `Server: ${serverName}\n` +
+                            `Command: ${cmdLine}\n` +
+                            `Source: ${configPath}\n\n` +
+                            `Running this server executes the above command on your machine. ` +
+                            `Only allow if you trust the authors of this workspace.`,
+                        actions: [allowBtn, denyBtn],
+                    })
+                } catch (e: any) {
+                    this.features.logging.warn(`MCP: consent prompt failed for '${serverName}': ${e?.message}`)
+                    this.setState(serverName, McpServerStatus.FAILED, 0, 'consent prompt failed')
+                    return
+                }
+                if (choice?.title !== allowBtn.title) {
+                    this.features.logging.info(
+                        `MCP: user declined consent for workspace-scoped server '${serverName}' (response: ${choice?.title ?? 'dismissed'})`
+                    )
+                    this.setState(serverName, McpServerStatus.DISABLED, 0, 'consent not granted')
+                    return
+                }
+                await recordApproval(this.features.workspace, this.features.logging, serverName, cfg, configPath)
+                this.features.logging.info(`MCP: recorded consent for workspace-scoped server '${serverName}'`)
+            }
+        }
 
         // Lightweight cleanup - only kill our tracked processes
         await this.cleanupExistingServer(serverName)
