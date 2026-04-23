@@ -22,6 +22,9 @@ const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
 const AtxUploadPackagesCommand = 'aws/atxTransform/uploadPackages'
+const AtxSendMessageCommand = 'aws/atxTransform/sendMessage'
+const AtxListMessagesCommand = 'aws/atxTransform/listMessages'
+const AtxBatchGetMessagesCommand = 'aws/atxTransform/batchGetMessages'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -85,6 +88,32 @@ export const AtxNetTransformServerToken =
                         const request = params as AtxUploadPackagesRequest
                         return await atxTransformHandler.uploadPackages(request)
                     }
+                    case AtxSendMessageCommand: {
+                        const { workspaceId, jobId, text, skipPolling } = params as any
+                        return await atxTransformHandler.sendMessage({
+                            workspaceId,
+                            jobId,
+                            text,
+                            skipPolling,
+                        })
+                    }
+                    case AtxListMessagesCommand: {
+                        const { workspaceId, jobId, maxResults, nextToken, startTimestamp } = params as any
+                        return await atxTransformHandler.listMessages({
+                            workspaceId,
+                            jobId,
+                            maxResults,
+                            nextToken,
+                            startTimestamp,
+                        })
+                    }
+                    case AtxBatchGetMessagesCommand: {
+                        const { workspaceId, messageIds } = params as any
+                        return await atxTransformHandler.batchGetMessages({
+                            workspaceId,
+                            messageIds,
+                        })
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -113,6 +142,9 @@ export const AtxNetTransformServerToken =
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
                             AtxUploadPackagesCommand,
+                            AtxSendMessageCommand,
+                            AtxListMessagesCommand,
+                            AtxBatchGetMessagesCommand,
                         ],
                     },
                 },
