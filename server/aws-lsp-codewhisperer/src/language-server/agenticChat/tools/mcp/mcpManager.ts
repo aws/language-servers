@@ -40,7 +40,7 @@ import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
 import { MessageType } from '@aws/language-server-runtimes/protocol'
-import { hasApproval, recordApproval } from './mcpConsentStore'
+import { hasApproval, recordApproval, fingerprintServerConfig } from './mcpConsentStore'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
@@ -80,6 +80,7 @@ export class McpManager {
     private currentRegistry: McpRegistryData | null = null
     private registryUrlProvided: boolean = false
     private isPeriodicSync: boolean = false
+    private sessionDeniedConsent!: Set<string>
 
     private constructor(
         private agentPaths: string[],
@@ -100,6 +101,7 @@ export class McpManager {
         this.features.logging.info(`MCP manager: initialized with ${agentPaths.length} configs`)
         this.toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
         this.serverNameMapping = new Map<string, string>()
+        this.sessionDeniedConsent = new Set<string>()
     }
 
     public static async init(
@@ -419,6 +421,11 @@ export class McpManager {
         const globalAgent = getGlobalAgentConfigPath(home)
         const isWorkspaceScoped = !!configPath && configPath !== globalMcp && configPath !== globalAgent
         if (isWorkspaceScoped && configPath) {
+            const denyKey = `${serverName}|${configPath}|${fingerprintServerConfig(cfg)}`
+            if (this.sessionDeniedConsent.has(denyKey)) {
+                this.setState(serverName, McpServerStatus.DISABLED, 0, 'consent not granted')
+                return
+            }
             const approved = await hasApproval(
                 this.features.workspace,
                 this.features.logging,
@@ -453,6 +460,7 @@ export class McpManager {
                     this.features.logging.info(
                         `MCP: user declined consent for workspace-scoped server '${serverName}' (response: ${choice?.title ?? 'dismissed'})`
                     )
+                    this.sessionDeniedConsent.add(denyKey)
                     this.setState(serverName, McpServerStatus.DISABLED, 0, 'consent not granted')
                     return
                 }
