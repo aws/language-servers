@@ -1939,7 +1939,7 @@ describe('addRegistryServer with additional headers/env', () => {
 
 describe('consent gate for workspace-scoped MCP servers (P417451767)', () => {
     const fakeHome = '/home/testuser'
-    const globalMcp = '/home/testuser/.aws/amazonq/mcp.json'
+    const globalMcp = mcpUtils.getGlobalMcpConfigPath(fakeHome)
     const workspaceMcp = '/tmp/ws-a/.amazonq/mcp.json'
 
     let showMessageStub: sinon.SinonStub
