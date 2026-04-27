@@ -376,8 +376,9 @@ export class ATXTransformHandler {
 
             this.logging.error('ATX: CreateJob failed - no jobId or status in response')
             return null
-        } catch (error) {
-            this.logging.error(`ATX: CreateJob error: ${String(error)}`)
+        } catch (error: any) {
+            const metadata = error?.$metadata || {}
+            this.logging.error(`ATX: CreateJob error: ${String(error)} | requestId: ${metadata.requestId || 'N/A'} | httpStatus: ${metadata.httpStatusCode || 'N/A'}`)
             return null
         }
     }
@@ -874,8 +875,11 @@ export class ATXTransformHandler {
     async getTransformInfo(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse | null> {
         try {
             this.logging.log(`ATX: Getting transform info for job: ${request.TransformationJobId}`)
+            console.error(`[DIAG] getTransformInfo START for job: ${request.TransformationJobId}`)
 
+            console.error(`[DIAG] getTransformInfo: calling getJob...`)
             const job = await this.getJob(request.WorkspaceId, request.TransformationJobId)
+            console.error(`[DIAG] getTransformInfo: getJob returned, status=${job?.statusDetails?.status}`)
 
             if (!job) {
                 this.logging.error(`ATX: Job not found: ${request.TransformationJobId}`)
@@ -885,16 +889,20 @@ export class ATXTransformHandler {
             const jobStatus = job.statusDetails?.status
 
             if (jobStatus === 'COMPLETED') {
+                console.error(`[DIAG] getTransformInfo: COMPLETED branch - calling downloadFinalArtifact...`)
                 const pathToArtifact = await this.downloadFinalArtifact(
                     request.WorkspaceId,
                     request.TransformationJobId,
                     request.SolutionRootPath
                 )
+                console.error(`[DIAG] getTransformInfo: downloadFinalArtifact returned`)
+                console.error(`[DIAG] getTransformInfo: calling getTransformationPlan...`)
                 const plan = await this.getTransformationPlan(
                     request.WorkspaceId,
                     request.TransformationJobId,
                     request.SolutionRootPath
                 )
+                console.error(`[DIAG] getTransformInfo: getTransformationPlan returned`)
 
                 return {
                     TransformationJob: {
@@ -926,6 +934,7 @@ export class ATXTransformHandler {
                     ErrorString: 'Transformation job stopped',
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'PLANNED') {
+                console.error(`[DIAG] getTransformInfo: PLANNED branch - calling getTransformationPlan...`)
                 const plan = await this.getTransformationPlan(
                     request.WorkspaceId,
                     request.TransformationJobId,
@@ -964,7 +973,9 @@ export class ATXTransformHandler {
                     HitlTag: response?.HitlTag,
                 } as AtxGetTransformInfoResponse
             } else {
+                console.error(`[DIAG] getTransformInfo: else branch (status=${jobStatus}) - calling listWorklogs...`)
                 await this.listWorklogs(request.WorkspaceId, request.TransformationJobId, request.SolutionRootPath)
+                console.error(`[DIAG] getTransformInfo: listWorklogs returned`)
 
                 return {
                     TransformationJob: {
@@ -975,22 +986,27 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             }
         } catch (error) {
+            console.error(`[DIAG] getTransformInfo: CAUGHT ERROR: ${String(error)}`)
             this.logging.error(`ATX: GetTransformInfo error: ${String(error)}`)
             return null
         }
     }
 
     async uploadPlan(request: AtxUploadPlanRequest): Promise<AtxUploadPlanResponse | null> {
+        console.error('[DIAG] uploadPlan: START')
         this.logging.log('ATX: Starting upload plan')
 
         if (!this.cachedHitl) {
+            console.error('[DIAG] uploadPlan: No cached hitl')
             this.logging.error('ATX: UploadPlan error: No cached hitl')
             return null
         }
 
         try {
+            console.error('[DIAG] uploadPlan: zipping file...')
             const pathToZip = path.join(path.dirname(request.PlanPath), 'transformation-plan-upload.zip')
             await Utils.zipFile(request.PlanPath, pathToZip)
+            console.error('[DIAG] uploadPlan: zip done, creating upload URL...')
 
             const uploadInfo = await this.createArtifactUploadUrl(
                 request.WorkspaceId,
@@ -1039,13 +1055,14 @@ export class ATXTransformHandler {
                 throw new Error('Failed to submit hitl')
             }
 
-            this.logging.log('ATX: Hitl submitted, polling for status')
+            console.error('[DIAG] uploadPlan: submitHitl done, polling hitl task...')
 
             const validation = await this.pollHitlTask(
                 request.WorkspaceId,
                 request.TransformationJobId,
                 this.cachedHitl
             )
+            console.error(`[DIAG] uploadPlan: pollHitlTask returned: ${validation}`)
 
             if (!validation) {
                 throw new Error('Failed to poll hitl task')
@@ -1065,12 +1082,14 @@ export class ATXTransformHandler {
                     ReportPath: response?.ReportPath,
                 } as AtxUploadPlanResponse
             } else {
+                console.error('[DIAG] uploadPlan: returning VerificationStatus=true')
                 return {
                     VerificationStatus: true,
                     Message: validation,
                 } as AtxUploadPlanResponse
             }
         } catch (error) {
+            console.error(`[DIAG] uploadPlan: CAUGHT ERROR: ${String(error)}`)
             this.logging.error(`ATX: UploadPlan error: ${String(error)}`)
             return null
         }

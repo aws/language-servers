@@ -91,6 +91,7 @@ export const AtxNetTransformServerToken =
                 }
             } catch (e: any) {
                 logging.error(`ATXTransformServer: Error executing command: ${String(e)}`)
+                return { error: String(e) }
             }
         }
 
@@ -98,6 +99,7 @@ export const AtxNetTransformServerToken =
             params: ExecuteCommandParams,
             _token: CancellationToken
         ): Promise<any> => {
+            console.error(`[DIAG] onExecuteCommandHandler: ${params.command}`)
             logging.info(`Received ATX FES command: ${params.command}`)
             return runAtxTransformCommand(params, _token)
         }
