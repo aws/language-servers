@@ -1936,3 +1936,150 @@ describe('addRegistryServer with additional headers/env', () => {
         expect(agentCfg.env).to.be.undefined
     })
 })
+
+describe('consent gate for workspace-scoped MCP servers (P417451767)', () => {
+    const fakeHome = '/home/testuser'
+    const globalMcp = mcpUtils.getGlobalMcpConfigPath(fakeHome)
+    const workspaceMcp = '/tmp/ws-a/.amazonq/mcp.json'
+
+    let showMessageStub: sinon.SinonStub
+    let hasApprovalStub: sinon.SinonStub
+    let recordApprovalStub: sinon.SinonStub
+    let setStateSpy: sinon.SinonSpy
+
+    async function buildMgr(): Promise<any> {
+        const consentStore = require('./mcpConsentStore')
+        hasApprovalStub = sinon.stub(consentStore, 'hasApproval').resolves(false)
+        recordApprovalStub = sinon.stub(consentStore, 'recordApproval').resolves()
+
+        showMessageStub = sinon.stub()
+        const featuresWithPrompt = {
+            ...features,
+            workspace: {
+                ...fakeWorkspace,
+                fs: { ...fakeWorkspace.fs, getUserHomeDir: () => fakeHome },
+            },
+            lsp: { window: { showMessageRequest: showMessageStub } },
+        }
+        sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map(),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test',
+                description: '',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+        const mgr = await McpManager.init([], featuresWithPrompt as any)
+        setStateSpy = sinon.spy(mgr as any, 'setState')
+        return mgr
+    }
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('does not prompt for global-scoped config', async () => {
+        const mgr = await buildMgr()
+        const cfg: MCPServerConfig = { command: 'sh', args: [], __configPath__: globalMcp }
+        // Fail fast after gate (cleanupExistingServer is safe to call on unknown server)
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
+    it('does not prompt for global agent config path', async () => {
+        const mgr = await buildMgr()
+        const globalAgent = mcpUtils.getGlobalAgentConfigPath(fakeHome)
+        const cfg: MCPServerConfig = { command: 'sh', args: [], __configPath__: globalAgent }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
+    it('does not prompt for global persona config path', async () => {
+        const mgr = await buildMgr()
+        const globalPersona = mcpUtils.getGlobalPersonaConfigPath(fakeHome)
+        const cfg: MCPServerConfig = { command: 'sh', args: [], __configPath__: globalPersona }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
+    it('prompts for workspace-scoped config when no prior approval', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = { command: 'sh', args: ['-c', 'x'], __configPath__: workspaceMcp }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.calledOnce).to.be.true
+    })
+
+    it('denial sets DISABLED state and caches the decision', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = { command: 'sh', args: ['-c', 'x'], __configPath__: workspaceMcp }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(setStateSpy.calledWith('svc', McpServerStatus.DISABLED, 0, 'consent not granted')).to.be.true
+
+        // Second call with same cfg should not re-prompt
+        showMessageStub.resetHistory()
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
+    it('mutation of args invalidates session denial (fingerprint change)', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.resolves({ title: 'Deny' })
+        const cfg1: MCPServerConfig = { command: 'sh', args: ['-c', 'x'], __configPath__: workspaceMcp }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg1)
+        } catch {}
+        expect(showMessageStub.calledOnce).to.be.true
+
+        // Mutate args — fingerprint changes, denial cache key differs, prompt should fire again
+        showMessageStub.resetHistory()
+        const cfg2: MCPServerConfig = { command: 'sh', args: ['-c', 'y'], __configPath__: workspaceMcp }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg2)
+        } catch {}
+        expect(showMessageStub.calledOnce).to.be.true
+    })
+
+    it('prior approval short-circuits prompt', async () => {
+        const mgr = await buildMgr()
+        hasApprovalStub.resolves(true)
+        const cfg: MCPServerConfig = { command: 'sh', args: [], __configPath__: workspaceMcp }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
+    it('allow records approval', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.resolves({ title: 'Allow for this server' })
+        const cfg: MCPServerConfig = { command: 'sh', args: ['-c', 'x'], __configPath__: workspaceMcp }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(recordApprovalStub.calledOnce).to.be.true
+    })
+})
