@@ -38,9 +38,11 @@ export function fingerprintServerConfig(cfg: MCPServerConfig): string {
     return 'sha256:' + createHash('sha256').update(JSON.stringify(canonical)).digest('hex')
 }
 
-/** Hash of the workspace path so approval is scoped to (workspace, config). */
+/** Hash of the workspace path so approval is scoped to (workspace, config).
+ *  Normalizes the path to forward slashes for cross-platform consistency. */
 export function fingerprintWorkspace(configPath: string): string {
-    return 'sha256:' + createHash('sha256').update(path.dirname(configPath)).digest('hex')
+    const normalized = path.resolve(path.dirname(configPath)).replace(/\\/g, '/')
+    return 'sha256:' + createHash('sha256').update(normalized).digest('hex')
 }
 
 function getStorePath(workspace: Workspace): string {
@@ -99,10 +101,9 @@ export async function recordApproval(
     const store = await readStore(workspace, logging)
     const fp = fingerprintServerConfig(cfg)
     const wh = fingerprintWorkspace(configPath)
-    // dedupe: same server+fingerprint+workspace = single entry
-    store.approvals = store.approvals.filter(
-        a => !(a.serverName === serverName && a.fingerprint === fp && a.workspaceHash === wh)
-    )
+    // Replace any prior approval for the same (server, workspace) — this evicts
+    // stale entries when the config changes (fingerprint differs).
+    store.approvals = store.approvals.filter(a => !(a.serverName === serverName && a.workspaceHash === wh))
     store.approvals.push({
         serverName,
         fingerprint: fp,

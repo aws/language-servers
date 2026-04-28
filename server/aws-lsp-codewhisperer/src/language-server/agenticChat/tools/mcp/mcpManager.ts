@@ -33,6 +33,7 @@ import {
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
@@ -80,7 +81,7 @@ export class McpManager {
     private currentRegistry: McpRegistryData | null = null
     private registryUrlProvided: boolean = false
     private isPeriodicSync: boolean = false
-    private sessionDeniedConsent!: Set<string>
+    private sessionDeniedConsent = new Set<string>()
 
     private constructor(
         private agentPaths: string[],
@@ -101,7 +102,6 @@ export class McpManager {
         this.features.logging.info(`MCP manager: initialized with ${agentPaths.length} configs`)
         this.toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
         this.serverNameMapping = new Map<string, string>()
-        this.sessionDeniedConsent = new Set<string>()
     }
 
     public static async init(
@@ -419,7 +419,9 @@ export class McpManager {
         const configPath = cfg.__configPath__
         const globalMcp = getGlobalMcpConfigPath(home)
         const globalAgent = getGlobalAgentConfigPath(home)
-        const isWorkspaceScoped = !!configPath && configPath !== globalMcp && configPath !== globalAgent
+        const globalPersona = getGlobalPersonaConfigPath(home)
+        const isWorkspaceScoped =
+            !!configPath && configPath !== globalMcp && configPath !== globalAgent && configPath !== globalPersona
         if (isWorkspaceScoped && configPath) {
             const denyKey = `${serverName}|${configPath}|${fingerprintServerConfig(cfg)}`
             if (this.sessionDeniedConsent.has(denyKey)) {
@@ -448,7 +450,9 @@ export class McpManager {
                             `Command: ${cmdLine}\n` +
                             `Source: ${configPath}\n\n` +
                             `Running this server executes the above command on your machine. ` +
-                            `Only allow if you trust the authors of this workspace.`,
+                            `Only allow if you trust the authors of this workspace.\n\n` +
+                            `Your choice will be remembered for this workspace. ` +
+                            `If you allow, you won't be asked again unless the server configuration changes.`,
                         actions: [allowBtn, denyBtn],
                     })
                 } catch (e: any) {
@@ -1346,6 +1350,7 @@ export class McpManager {
         this.mcpTools = []
         this.mcpServers.clear()
         this.mcpServerStates.clear()
+        this.sessionDeniedConsent.clear()
         this.agentConfig = {
             name: 'q_ide_default',
             description: 'Agent configuration',

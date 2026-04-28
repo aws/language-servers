@@ -1998,6 +1998,26 @@ describe('consent gate for workspace-scoped MCP servers (P417451767)', () => {
         expect(showMessageStub.called).to.be.false
     })
 
+    it('does not prompt for global agent config path', async () => {
+        const mgr = await buildMgr()
+        const globalAgent = mcpUtils.getGlobalAgentConfigPath(fakeHome)
+        const cfg: MCPServerConfig = { command: 'sh', args: [], __configPath__: globalAgent }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
+    it('does not prompt for global persona config path', async () => {
+        const mgr = await buildMgr()
+        const globalPersona = mcpUtils.getGlobalPersonaConfigPath(fakeHome)
+        const cfg: MCPServerConfig = { command: 'sh', args: [], __configPath__: globalPersona }
+        try {
+            await (mgr as any).initOneServerInternal('svc', cfg)
+        } catch {}
+        expect(showMessageStub.called).to.be.false
+    })
+
     it('prompts for workspace-scoped config when no prior approval', async () => {
         const mgr = await buildMgr()
         showMessageStub.resolves({ title: 'Deny' })

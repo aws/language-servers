@@ -122,6 +122,18 @@ describe('mcpConsentStore', () => {
             expect(stored.approvals).to.have.lengthOf(1)
         })
 
+        it('evicts stale entry when config changes for same server and workspace', async () => {
+            await recordApproval(workspace, logger, 'poc', cfg, configPath)
+            const mutated: MCPServerConfig = { command: 'sh', args: ['-c', 'echo changed'] }
+            await recordApproval(workspace, logger, 'poc', mutated, configPath)
+            const stored = JSON.parse(
+                fs.readFileSync(path.join(tmpHome, '.aws', 'amazonq', 'mcp-approvals.json')).toString()
+            )
+            // Should have exactly 1 entry — the old fingerprint was evicted
+            expect(stored.approvals).to.have.lengthOf(1)
+            expect(stored.approvals[0].fingerprint).to.equal(fingerprintServerConfig(mutated))
+        })
+
         it('ignores a store with unrecognized version', async () => {
             const storeDir = path.join(tmpHome, '.aws', 'amazonq')
             fs.mkdirSync(storeDir, { recursive: true })
