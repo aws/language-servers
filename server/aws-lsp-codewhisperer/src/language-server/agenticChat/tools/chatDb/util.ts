@@ -175,9 +175,32 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   userIntent: msg.userIntent,
                   origin: msg.origin || 'IDE',
                   userInputMessageContext: msg.userInputMessageContext,
-                  images: msg.images || [],
+                  images: restoreImageBytes(msg.images || []),
               },
           }
+}
+
+/**
+ * Restores image bytes to proper Uint8Array after deserialization from JSON.
+ *
+ * When images are persisted via LokiJS (JSON serialization), Uint8Array bytes
+ * are serialized as plain objects with numeric keys (e.g., {"0": 137, "1": 80, ...}).
+ * On reload, these need to be converted back to Uint8Array for the AWS SDK's
+ * toBase64() encoder which only accepts string | Uint8Array.
+ */
+function restoreImageBytes(images: ImageBlock[]): ImageBlock[] {
+    return images.map(image => {
+        if (image.source?.bytes && !(image.source.bytes instanceof Uint8Array)) {
+            return {
+                ...image,
+                source: {
+                    ...image.source,
+                    bytes: new Uint8Array(Object.values(image.source.bytes)),
+                },
+            }
+        }
+        return image
+    })
 }
 
 /**

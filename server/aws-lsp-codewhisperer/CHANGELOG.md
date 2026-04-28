@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.0.112](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.111...lsp-codewhisperer/v0.0.112) (2026-04-07)
+
+
+### Bug Fixes
+
+* correct URI mapping in onDidRenameFiles handler ([#2688](https://github.com/aws/language-servers/issues/2688)) ([e2e0b2c](https://github.com/aws/language-servers/commit/e2e0b2cd56dbe48f462064d0d0a5cc8397975be7))
+
+
+### Performance Improvements
+
+* **amazonq:** context command performance ([#2682](https://github.com/aws/language-servers/issues/2682)) ([f8dec9a](https://github.com/aws/language-servers/commit/f8dec9a65b7e72e78e5e16cbbfd470b2d69e75b0))
+
+## [0.0.111](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.110...lsp-codewhisperer/v0.0.111) (2026-03-31)
+
+
+### Features
+
+* **amazonq:** align mcp oauth client with mcp sdk auth patterns ([#2679](https://github.com/aws/language-servers/issues/2679)) ([4ff5ab0](https://github.com/aws/language-servers/commit/4ff5ab0e6ab4bf1659ffdb07a72bba4d6c358339))
+
+
+### Bug Fixes
+
+* cache subscription status to prevent excessive CreateSubscriptionToken API calls ([#2680](https://github.com/aws/language-servers/issues/2680)) ([d26edb7](https://github.com/aws/language-servers/commit/d26edb7dfd321122515373e0d08b757f6e367561))
+
+
+### Reverts
+
+* undo revert of fix for tool permissions in allowed paths per tool ([#2601](https://github.com/aws/language-servers/issues/2601)) ([#2683](https://github.com/aws/language-servers/issues/2683)) ([#2684](https://github.com/aws/language-servers/issues/2684)) ([8a615fa](https://github.com/aws/language-servers/commit/8a615faf27c6b519045263f5bddf0bfe98f609e0))
+
+## [0.0.110](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.109...lsp-codewhisperer/v0.0.110) (2026-03-17)
+
+
+### Features
+
+* add cwsprChatHasWorkspaceContext metric to amazonq_addMessage event ([#2665](https://github.com/aws/language-servers/issues/2665)) ([#2668](https://github.com/aws/language-servers/issues/2668)) ([7d71d0a](https://github.com/aws/language-servers/commit/7d71d0a38d1e9adbb29210fff1c2b6b5e6d7d120))
+
+
+### Bug Fixes
+
+* amazon q ignores rules for other os, so adding fallback ([#2663](https://github.com/aws/language-servers/issues/2663)) ([4be527a](https://github.com/aws/language-servers/commit/4be527a69b4cecc801e23009a63c8d3301b84f2d))
+* deduplicate rules in multi workspace mode ([#2660](https://github.com/aws/language-servers/issues/2660)) ([c8022fe](https://github.com/aws/language-servers/commit/c8022feb7637c64f71330856ecb3cb96096dccb7))
+* rules created in default file is not working ([#2652](https://github.com/aws/language-servers/issues/2652)) ([#2655](https://github.com/aws/language-servers/issues/2655)) ([b380e97](https://github.com/aws/language-servers/commit/b380e97051251a0ead0a7bc3314f8850f14073ac))
+
+## [0.0.109](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.108...lsp-codewhisperer/v0.0.109) (2026-03-10)
+
+
+### Bug Fixes
+
+* tools always ask for permissions ([#2647](https://github.com/aws/language-servers/issues/2647)) ([#2648](https://github.com/aws/language-servers/issues/2648)) ([997793d](https://github.com/aws/language-servers/commit/997793dd13b8d7685997b43ea06774ce2f609ea5))
+
+## [0.0.108](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.107...lsp-codewhisperer/v0.0.108) (2026-03-03)
+
+
+### Bug Fixes
+
+* adding HITL handling for Missing Private Packages ([#2630](https://github.com/aws/language-servers/issues/2630)) ([77b6e7d](https://github.com/aws/language-servers/commit/77b6e7d0974eb5c1aaebab7b888c9d2f53cb85c2))
+* **amazonq:** sanitize MCP tool schemas for Ajv draft-07 compatibility ([#2638](https://github.com/aws/language-servers/issues/2638)) ([69b275f](https://github.com/aws/language-servers/commit/69b275f001b964d024ac88d4c5bef70b83bac0e7))
+* support stripped indexing folder in bundled LSP and also update indexing bundle to AWSVectorConsolasLocalWorkspaceIndexing `d6762f8b` ([#2629](https://github.com/aws/language-servers/issues/2629)) ([a005b29](https://github.com/aws/language-servers/commit/a005b29d66d88abacd41d55954110d92c7e7a616))
+* toBase64() encoder which only accepts string ([#2636](https://github.com/aws/language-servers/issues/2636)) ([#2637](https://github.com/aws/language-servers/issues/2637)) ([5e4fda8](https://github.com/aws/language-servers/commit/5e4fda89499ac9266fa56e290c0805febffa7f81))
+
 ## [0.0.107](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.106...lsp-codewhisperer/v0.0.107) (2026-02-20)
 
 

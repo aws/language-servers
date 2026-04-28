@@ -326,27 +326,6 @@ describe('AdditionalContextProvider', () => {
             assert.strictEqual(triggerContext.cursorState, undefined)
         })
 
-        it('should set hasWorkspace flag when @workspace is present', async () => {
-            const mockWorkspaceFolder = {
-                uri: URI.file('/workspace').toString(),
-                name: 'test',
-            }
-            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-            const triggerContext: TriggerContext = {
-                workspaceFolder: mockWorkspaceFolder,
-            }
-
-            const workspaceContext = [{ id: '@workspace', command: 'Workspace', label: 'folder' }]
-            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(workspaceContext)
-
-            fsExistsStub.resolves(false)
-            getContextCommandPromptStub.resolves([])
-
-            await provider.getAdditionalContext(triggerContext, 'tab1')
-
-            assert.strictEqual(triggerContext.hasWorkspace, true)
-        })
-
         it('should count context types correctly', async () => {
             const mockWorkspaceFolder = {
                 uri: URI.file('/workspace').toString(),
@@ -788,6 +767,166 @@ describe('AdditionalContextProvider', () => {
                 assert.strictEqual(content.includes('Follow this rule'), true)
                 assert.strictEqual(content.includes('File content'), true)
             })
+        })
+    })
+
+    describe('filesystem fallback for rules', () => {
+        it('should use filesystem fallback when LocalProjectContextController fails', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            // Mock fs.exists to return true for rules directory and the rule file
+            fsExistsStub.callsFake((pathStr: string) => {
+                if (
+                    pathStr.includes(path.join('.amazonq', 'rules')) ||
+                    pathStr === path.join('/workspace', '.amazonq', 'rules', 'my-rule.md')
+                ) {
+                    return Promise.resolve(true)
+                }
+                return Promise.resolve(false)
+            })
+            fsReadDirStub.resolves([{ name: 'my-rule.md', isFile: () => true, isDirectory: () => false }])
+
+            // Make LocalProjectContextController fail (simulating vecLib not available)
+            localProjectContextControllerInstanceStub.restore()
+            sinon.stub(LocalProjectContextController, 'getInstance').rejects(new Error('vecLib not available'))
+
+            // Mock readFile to return rule content
+            const fsReadFileStub = sinon.stub()
+            fsReadFileStub.resolves('Always use TypeScript strict mode')
+            testFeatures.workspace.fs.readFile = fsReadFileStub
+
+            const result = await provider.getAdditionalContext(triggerContext, '')
+
+            // The filesystem fallback should have loaded the rule
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].type, 'rule')
+            assert.strictEqual(result[0].innerContext, 'Always use TypeScript strict mode')
+            assert.strictEqual(result[0].name, 'my-rule')
+        })
+
+        it('should use filesystem fallback when getContextCommandPrompt returns empty', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            // Mock fs.exists to return true for rules directory and the rule file
+            fsExistsStub.callsFake((pathStr: string) => {
+                if (
+                    pathStr.includes(path.join('.amazonq', 'rules')) ||
+                    pathStr === path.join('/workspace', '.amazonq', 'rules', 'rule1.md')
+                ) {
+                    return Promise.resolve(true)
+                }
+                return Promise.resolve(false)
+            })
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
+
+            // LocalProjectContextController is available but returns empty results
+            // (simulating vecLib initialized but not functioning for context prompts)
+            getContextCommandPromptStub.resolves([])
+
+            // Mock readFile to return rule content via filesystem fallback
+            const fsReadFileStub = sinon.stub()
+            fsReadFileStub.resolves('Follow coding standards')
+            testFeatures.workspace.fs.readFile = fsReadFileStub
+
+            const result = await provider.getAdditionalContext(triggerContext, '')
+
+            // The filesystem fallback should have loaded the rule
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].type, 'rule')
+            assert.strictEqual(result[0].innerContext, 'Follow coding standards')
+        })
+
+        it('should NOT use filesystem fallback when getContextCommandPrompt returns results', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            fsExistsStub.callsFake((pathStr: string) => {
+                if (pathStr.includes(path.join('.amazonq', 'rules'))) {
+                    return Promise.resolve(true)
+                }
+                return Promise.resolve(false)
+            })
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
+
+            // LocalProjectContextController returns valid results (normal path)
+            getContextCommandPromptStub
+                .onFirstCall()
+                .resolves([])
+                .onSecondCall()
+                .resolves([
+                    {
+                        name: 'Test Rule',
+                        description: 'Test Description',
+                        content: 'Content from indexing library',
+                        filePath: '/workspace/.amazonq/rules/rule1.md',
+                        relativePath: '.amazonq/rules/rule1.md',
+                        startLine: 1,
+                        endLine: 10,
+                    },
+                ])
+
+            // Mock readFile - should NOT be called since indexing library works
+            const fsReadFileStub = sinon.stub()
+            fsReadFileStub.resolves('Content from filesystem')
+            testFeatures.workspace.fs.readFile = fsReadFileStub
+
+            const result = await provider.getAdditionalContext(triggerContext, '')
+
+            assert.strictEqual(result.length, 1)
+            // Should use content from the indexing library, not filesystem
+            assert.strictEqual(result[0].innerContext, 'Content from indexing library')
+        })
+
+        it('should handle filesystem read errors gracefully in fallback', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            fsExistsStub.callsFake((pathStr: string) => {
+                if (pathStr.includes(path.join('.amazonq', 'rules'))) {
+                    return Promise.resolve(true)
+                }
+                return Promise.resolve(false)
+            })
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
+
+            // Make LocalProjectContextController fail
+            localProjectContextControllerInstanceStub.restore()
+            sinon.stub(LocalProjectContextController, 'getInstance').rejects(new Error('vecLib not available'))
+
+            // Make readFile fail too
+            const fsReadFileStub = sinon.stub()
+            fsReadFileStub.rejects(new Error('Permission denied'))
+            testFeatures.workspace.fs.readFile = fsReadFileStub
+
+            // Should not throw, just return empty results
+            const result = await provider.getAdditionalContext(triggerContext, '')
+            assert.strictEqual(result.length, 0)
         })
     })
 

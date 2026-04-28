@@ -36,6 +36,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    FilterContextCommandsResult,
     ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
@@ -100,6 +101,7 @@ export interface InboundChatApi {
     addSelectedFilesToContext(params: OpenFileDialogParams): void
     sendPinnedContext(params: PinnedContextParams): void
     listAvailableModels(params: ListAvailableModelsResult): void
+    filterContextCommandsResponse(params: FilterContextCommandsResult): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -321,6 +323,7 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
+    let lastFilterTabId: string | undefined
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -808,6 +811,14 @@ export const createMynahUi = (
         },
         defaults: {
             store: tabFactory.createTab(false),
+        },
+        onContextCommandFilter: (tabId, searchTerm) => {
+            // Always forward to the server. Server pulls fresh items from
+            // the indexer on every request (no client-side cache), so the
+            // empty-term case (@ press) returns a fresh capped list and
+            // non-empty terms return the scored top matches.
+            lastFilterTabId = tabId
+            messager.onFilterContextCommands({ tabId, searchTerm: searchTerm ?? '' })
         },
         config: {
             maxTabs: 10,
@@ -1432,20 +1443,45 @@ ${params.message}`,
             commands: toContextCommands(group.commands),
         }))
 
+        const commandsWithHighlight = [
+            ...(contextCommandGroups || []),
+            ...(featureConfig?.get('highlightCommand')
+                ? [
+                      {
+                          groupName: 'Additional commands',
+                          commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                      },
+                  ]
+                : []),
+        ]
+
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
             mynahUi.updateStore(tabId, {
-                contextCommands: [
-                    ...(contextCommandGroups || []),
-                    ...(featureConfig?.get('highlightCommand')
-                        ? [
-                              {
-                                  groupName: 'Additional commands',
-                                  commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
-                              },
-                          ]
-                        : []),
-                ],
+                contextCommands: commandsWithHighlight,
             })
+        })
+    }
+
+    const filterContextCommandsResponse = (params: FilterContextCommandsResult) => {
+        if (!lastFilterTabId) return
+
+        const filtered = params.contextCommandGroups.map(group => ({
+            ...group,
+            commands: toContextCommands(group.commands),
+        }))
+
+        mynahUi.updateStore(lastFilterTabId, {
+            contextCommands: [
+                ...filtered,
+                ...(featureConfig?.get('highlightCommand')
+                    ? [
+                          {
+                              groupName: 'Additional commands',
+                              commands: [toMynahContextCommand(featureConfig.get('highlightCommand'))],
+                          },
+                      ]
+                    : []),
+            ],
         })
     }
 
@@ -1605,6 +1641,7 @@ ${params.message}`,
         ruleClicked: ruleClicked,
         listAvailableModels: listAvailableModels,
         addSelectedFilesToContext: addSelectedFilesToContext,
+        filterContextCommandsResponse: filterContextCommandsResponse,
     }
 
     return [mynahUi, api]
