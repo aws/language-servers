@@ -1935,7 +1935,7 @@ export class ATXTransformHandler {
     }
 
     async uploadCustomPlan(request: AtxUploadCustomPlanRequest): Promise<AtxUploadCustomPlanResponse> {
-        this.logging.log('ATX: Starting upload custom plan')
+        this.logging.log('ATX: Starting upload file')
 
         try {
             if (!this.atxClient && !(await this.initializeAtxClient())) {
@@ -1945,7 +1945,22 @@ export class ATXTransformHandler {
             const fileName = path.basename(request.FilePath)
             const artifactStorePath = request.ArtifactStorePath
                 ? `${request.ArtifactStorePath.replace(/\/+$/, '')}/${fileName}`
-                : `Custom Plan/${fileName}`
+                : fileName
+
+            const ext = path.extname(request.FilePath).toLowerCase()
+            const fileTypeMap: Record<string, string> = {
+                '.json': 'JSON',
+                '.zip': 'ZIP',
+                '.pdf': 'PDF',
+                '.html': 'HTML',
+                '.htm': 'HTML',
+                '.txt': 'TXT',
+                '.md': 'MARKDOWN',
+                '.csv': 'CSV',
+                '.pptx': 'PPTX',
+                '.xlsx': 'XLSX',
+            }
+            const fileType = (fileTypeMap[ext] || 'OTHER') as FileType
 
             const sha256 = await Utils.getSha256Async(request.FilePath)
 
@@ -1956,7 +1971,7 @@ export class ATXTransformHandler {
                 artifactReference: {
                     artifactType: {
                         categoryType: CategoryType.CUSTOMER_INPUT,
-                        fileType: FileType.MARKDOWN,
+                        fileType: fileType,
                     },
                 },
                 fileMetadata: {
@@ -1993,7 +2008,7 @@ export class ATXTransformHandler {
                 throw new Error('Failed to complete artifact upload')
             }
 
-            this.logging.log(`ATX: Custom plan uploaded successfully - artifactId: ${result.artifactId}`)
+            this.logging.log(`ATX: File uploaded successfully - artifactId: ${result.artifactId}`)
             return { Success: true, ArtifactId: result.artifactId }
         } catch (error) {
             this.logging.error(`ATX: UploadCustomPlan error: ${String(error)}`)
