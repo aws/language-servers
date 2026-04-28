@@ -142,8 +142,18 @@ export const WorkspaceContextServer = (): Server => features => {
 
     const updateConfiguration = async () => {
         try {
+            // Guard: workspaceFolderManager may not be initialized yet if didChangeConfiguration
+            // fires before onInitialized completes (race condition observed in V2160933004)
+            if (!workspaceFolderManager) {
+                logging.log(`updateConfiguration called before workspaceFolderManager initialized, skipping`)
+                return
+            }
+
             const clientInitializParams = safeGet(lsp.getClientInitializeParams())
             const extensionName = clientInitializParams.initializationOptions?.aws?.clientInfo?.extension.name
+            logging.log(
+                `updateConfiguration: extensionName=${extensionName}, isSupportedExtension=${isSupportedExtension}`
+            )
             if (extensionName === 'AmazonQ-For-VSCode') {
                 const amazonQSettings = (await lsp.workspace.getConfiguration('amazonQ'))?.['server-sideContext']
                 isOptedIn = amazonQSettings || false
@@ -165,6 +175,9 @@ export const WorkspaceContextServer = (): Server => features => {
             logging.log(`Workspace context server opt-in flag is: ${isOptedIn}`)
 
             if (!isOptedIn) {
+                logging.log(
+                    `User opted out, clearing workspace resources. isWorkflowInitialized=${isWorkflowInitialized}`
+                )
                 isWorkflowInitialized = false
                 fileUploadJobManager?.dispose()
                 dependencyEventBundler?.dispose()

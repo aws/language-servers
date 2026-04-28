@@ -8,7 +8,6 @@ import type {
     ContextCommandItem,
     InlineProjectContext,
     QueryInlineProjectContextRequestV2,
-    QueryRequest,
     UpdateMode,
     VectorLibAPI,
 } from 'local-indexing'
@@ -41,17 +40,11 @@ export interface LocalProjectContextInitializationOptions {
     includeSymlinks?: boolean
     maxFileSizeMB?: number
     maxIndexSizeMB?: number
-    indexCacheDirPath?: string
-    enableGpuAcceleration?: boolean
-    indexWorkerThreads?: number
-    enableIndexing?: boolean
 }
 
 export class LocalProjectContextController {
     // Event handler for context items updated
     public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => Promise<void>) | undefined
-    // Event handler for when index is being built
-    public onIndexingInProgressChanged: ((enabled: boolean) => void) | undefined
     private static instance: LocalProjectContextController | undefined
 
     private workspaceFolders: WorkspaceFolder[]
@@ -59,14 +52,12 @@ export class LocalProjectContextController {
     private _contextCommandSymbolsUpdated = false
     private readonly clientName: string
     private readonly log: Logging
-    private _isIndexingEnabled: boolean = false
     private _isIndexingInProgress: boolean = false
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
     private maxFileSizeMB?: number
     private maxIndexSizeMB?: number
     private respectUserGitIgnores?: boolean
-    private indexCacheDirPath: string = path.join(homedir(), '.aws', 'amazonq', 'cache')
 
     private readonly fileExtensions: string[] = Object.keys(languageByExtension)
     private readonly DEFAULT_MAX_INDEX_SIZE_MB = 2048
@@ -108,10 +99,6 @@ export class LocalProjectContextController {
         includeSymlinks = false,
         maxFileSizeMB = this.DEFAULT_MAX_FILE_SIZE_MB,
         maxIndexSizeMB = this.DEFAULT_MAX_INDEX_SIZE_MB,
-        indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
-        enableGpuAcceleration = false,
-        indexWorkerThreads = 0,
-        enableIndexing = false,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
             // update states according to configuration
@@ -120,64 +107,37 @@ export class LocalProjectContextController {
             this.maxIndexSizeMB = maxIndexSizeMB
             this.respectUserGitIgnores = respectUserGitIgnores
             this.ignoreFilePatterns = ignoreFilePatterns
-            if (indexCacheDirPath?.length > 0 && path.parse(indexCacheDirPath)) {
-                this.indexCacheDirPath = indexCacheDirPath
-            }
 
-            if (enableGpuAcceleration) {
-                process.env.Q_ENABLE_GPU = 'true'
-            } else {
-                delete process.env.Q_ENABLE_GPU
-            }
-            if (indexWorkerThreads && indexWorkerThreads > 0 && indexWorkerThreads < 100) {
-                process.env.Q_WORKER_THREADS = indexWorkerThreads.toString()
-            } else {
-                delete process.env.Q_WORKER_THREADS
-            }
-            this.log.info(
-                `Vector library initializing with GPU acceleration: ${enableGpuAcceleration}, ` +
-                    `index worker thread count: ${indexWorkerThreads}`
-            )
+            this.log.info('Initializing local project context')
 
-            // build index if vecLib was initialized but indexing was not enabled before
+            // skip re-init if vecLib already loaded
             if (this._vecLib) {
-                // if indexing is turned being on, build index with 'all' that supports vector indexing
-                if (enableIndexing && !this._isIndexingEnabled) {
-                    this.buildIndex('all').catch(e => {
-                        this.log.error(`Error building index with indexing enabled: ${e}`)
-                    })
-                }
-                // if indexing is turned being off, build index with 'default' that  does not support vector indexing
-                if (!enableIndexing && this._isIndexingEnabled) {
-                    this.buildIndex('default').catch(e => {
-                        this.log.error(`Error building index with indexing disabled: ${e}`)
-                    })
-                }
-                this._isIndexingEnabled = enableIndexing
                 return
             }
 
-            // initialize vecLib and index if needed
+            // initialize vecLib and index
             const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
-                this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
-                if (enableIndexing) {
-                    this.buildIndex('all').catch(e => {
-                        this.log.error(`Error building index on init with indexing enabled: ${e}`)
-                    })
-                } else {
-                    this.buildIndex('default').catch(e => {
-                        this.log.error(`Error building index on init with indexing disabled: ${e}`)
+                try {
+                    this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName)
+                } catch (startError) {
+                    this.log.warn(`Vector library start() failed (native modules may be missing): ${startError}`)
+                    this.log.warn('Context commands will be unavailable')
+                }
+                if (this._vecLib) {
+                    this.buildIndex().catch(e => {
+                        this.log.error(`Error building index on init: ${e}`)
                     })
                 }
                 LocalProjectContextController.instance = this
-                this._isIndexingEnabled = enableIndexing
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
+                LocalProjectContextController.instance = this
             }
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
+            LocalProjectContextController.instance = this
         }
     }
 
@@ -210,13 +170,12 @@ export class LocalProjectContextController {
     }
 
     // public for test
-    async buildIndex(indexingType: string): Promise<void> {
+    async buildIndex(): Promise<void> {
         if (this._isIndexingInProgress) {
             return
         }
         try {
             this._isIndexingInProgress = true
-            this.onIndexingInProgressChanged?.(this._isIndexingInProgress)
             if (this._vecLib) {
                 if (!this.workspaceFolders.length) {
                     this.log.info('skip building index because no workspace folder found')
@@ -230,14 +189,13 @@ export class LocalProjectContextController {
                 )
 
                 const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
-                await this._vecLib?.buildIndex(sourceFiles, projectRoot, indexingType)
+                await this._vecLib?.buildIndex(sourceFiles, projectRoot, 'default')
                 this.log.info('Context index built successfully')
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
         } finally {
             this._isIndexingInProgress = false
-            this.onIndexingInProgressChanged?.(this._isIndexingInProgress)
         }
     }
 
@@ -276,26 +234,11 @@ export class LocalProjectContextController {
     public async queryInlineProjectContext(
         request: QueryInlineProjectContextRequestV2
     ): Promise<InlineProjectContext[]> {
-        // inline project context is available for all users regardless of local indexing enabled or disabled
         try {
             const resp = await this._vecLib?.queryInlineProjectContext(request.query, request.filePath, request.target)
             return resp ?? []
         } catch (error) {
             this.log.error(`Error in queryInlineProjectContext: ${error}`)
-            return []
-        }
-    }
-
-    public async queryVectorIndex(request: QueryRequest): Promise<Chunk[]> {
-        if (!this.isIndexingEnabled()) {
-            return []
-        }
-
-        try {
-            const resp = await this._vecLib?.queryVectorIndex(request.query)
-            return resp ?? []
-        } catch (error) {
-            this.log.error(`Error in queryVectorIndex: ${error}`)
             return []
         }
     }
@@ -386,10 +329,6 @@ export class LocalProjectContextController {
             this.log.error(`Error in getContextCommandPrompt: ${error}`)
             return []
         }
-    }
-
-    public isIndexingEnabled(): boolean {
-        return this._vecLib !== undefined && this._isIndexingEnabled
     }
 
     async processWorkspaceFolders(

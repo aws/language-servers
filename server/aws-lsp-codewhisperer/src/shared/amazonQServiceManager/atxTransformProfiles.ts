@@ -84,9 +84,8 @@ async function fetchAtxProfilesFromRegion(
     let numberOfPages = 0
 
     try {
-        const { ElasticGumbyFrontendClient, ListAvailableProfilesCommand } = await import(
-            '@amazon/elastic-gumby-frontend-client'
-        )
+        const { ElasticGumbyFrontendClient, ListAvailableProfilesCommand } =
+            await import('@amazon/elastic-gumby-frontend-client')
 
         const atxClient = new ElasticGumbyFrontendClient({
             region: region,

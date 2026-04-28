@@ -54,10 +54,21 @@ type ContextCommandInfo = ContextCommand & { pinned: boolean }
 export class AdditionalContextProvider {
     private totalRulesCount: number = 0
 
+    /**
+     * Callback to retrieve resource paths from the agent configuration (default.json).
+     * Injected via constructor to avoid a direct import of McpManager, which would pull
+     * Node.js-only dependencies (node:process, node:stream via @modelcontextprotocol/sdk)
+     * into the webworker webpack bundle and break packaging.
+     */
+    private readonly getResources: () => string[]
+
     constructor(
         private readonly features: Features,
-        private readonly chatDb: ChatDatabase
-    ) {}
+        private readonly chatDb: ChatDatabase,
+        getResources?: () => string[]
+    ) {
+        this.getResources = getResources ?? (() => [])
+    }
 
     /**
      * Recursively collects markdown files from a directory and its subdirectories
@@ -68,7 +79,8 @@ export class AdditionalContextProvider {
     private async collectMarkdownFilesRecursively(
         workspaceFolder: string,
         dirPath: string,
-        rulesFiles: ContextCommandItem[]
+        rulesFiles: ContextCommandItem[],
+        seenIds?: Set<string>
     ): Promise<void> {
         const entries = await this.features.workspace.fs.readdir(dirPath)
 
@@ -77,8 +89,13 @@ export class AdditionalContextProvider {
 
             if (entry.isDirectory()) {
                 // Recursively search subdirectories
-                await this.collectMarkdownFilesRecursively(workspaceFolder, fullPath, rulesFiles)
+                await this.collectMarkdownFilesRecursively(workspaceFolder, fullPath, rulesFiles, seenIds)
             } else if (entry.isFile() && entry.name.endsWith(promptFileExtension)) {
+                // Skip duplicate rules (same file resolved from multiple workspace folders)
+                if (seenIds?.has(fullPath)) {
+                    continue
+                }
+                seenIds?.add(fullPath)
                 // Add markdown file to the list
                 const relativePath = path.relative(workspaceFolder, fullPath)
                 rulesFiles.push({
@@ -90,49 +107,158 @@ export class AdditionalContextProvider {
             }
         }
     }
+    /**
+     * Filesystem fallback for reading context command prompts when the local indexing library
+     * (vecLib) is not available. Reads file contents directly from the filesystem.
+     *
+     * This ensures that rules in .amazonq/rules, README.md, AmazonQ.md, and other context files
+     * are still loaded even when the indexing library fails to initialize (e.g., in certain
+     * remote development environments like Red Hat OpenShift Dev Spaces).
+     *
+     * @param contextCommandItems The context command items to read content for
+     * @returns Array of AdditionalContextPrompt with file contents read from disk
+     */
+    private async readContextCommandPromptsFromFilesystem(
+        contextCommandItems: ContextCommandItem[]
+    ): Promise<AdditionalContextPrompt[]> {
+        const prompts: AdditionalContextPrompt[] = []
+
+        for (const item of contextCommandItems) {
+            try {
+                // The item.id contains the full file path for workspace rules
+                const filePath = item.id
+                if (!filePath) {
+                    continue
+                }
+
+                const fileExists = await this.features.workspace.fs.exists(filePath)
+                if (!fileExists) {
+                    continue
+                }
+
+                const content = await this.features.workspace.fs.readFile(filePath, { encoding: 'utf-8' })
+                const fileName = path.basename(filePath, promptFileExtension)
+
+                prompts.push({
+                    filePath: filePath,
+                    relativePath: item.relativePath,
+                    content: content,
+                    name: fileName,
+                    description: '',
+                    startLine: -1,
+                    endLine: -1,
+                })
+            } catch (error) {
+                this.features.logging.warn(`Failed to read context file from filesystem: ${item.id}: ${error}`)
+            }
+        }
+
+        if (prompts.length > 0) {
+            this.features.logging.info(
+                `Filesystem fallback: successfully loaded ${prompts.length} context file(s) directly from disk`
+            )
+        }
+
+        return prompts
+    }
 
     /**
-     * Internal method to collect workspace rules without tab filtering
+     * Resolves a resource URI (file://relative or file:///absolute) against a workspace folder.
+     * Returns the absolute fs path, or undefined if the resource is not a file:// URI.
+     */
+    private resolveResourcePath(resource: string, workspaceFolder: string): string | undefined {
+        if (!resource.startsWith('file://')) {
+            return undefined
+        }
+        const withoutScheme = resource.slice('file://'.length)
+        // Absolute path: file:///abs/path or file://C:/... on Windows
+        if (withoutScheme.startsWith('/') || /^[a-zA-Z]:/.test(withoutScheme)) {
+            return path.normalize(withoutScheme)
+        }
+        // Relative path: file://relative/path
+        return path.join(workspaceFolder, withoutScheme)
+    }
+
+    /**
+     * Internal method to collect workspace rules without tab filtering.
+     * Resolves paths from agentConfig.resources when available, falling back to hardcoded defaults.
      */
     private async collectWorkspaceRulesInternal(): Promise<ContextCommandItem[]> {
         const rulesFiles: ContextCommandItem[] = []
+        // Track seen rule IDs (resolved absolute paths) to avoid duplicates when
+        // multiple workspace folders resolve to the same file (e.g. absolute-path resources)
+        const seenIds = new Set<string>()
         let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
 
         if (!workspaceFolders.length) {
             return rulesFiles
         }
 
+        // Get resources from agentConfig via injected callback
+        let resources: string[]
+        try {
+            resources = this.getResources()
+        } catch {
+            resources = []
+        }
+
+        // Fall back to default resources if none configured
+        if (resources.length === 0) {
+            resources = ['file://AmazonQ.md', 'file://README.md', 'file://.amazonq/rules/**/*.md']
+        }
+
         for (const workspaceFolder of workspaceFolders) {
-            // Check for rules in .amazonq/rules directory and its subdirectories
-            const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
-            const folderExists = await this.features.workspace.fs.exists(rulesPath)
+            for (const resource of resources) {
+                const resolved = this.resolveResourcePath(resource, workspaceFolder)
+                if (!resolved) {
+                    continue
+                }
 
-            if (folderExists) {
-                await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles)
-            }
+                // Handle glob pattern for rules directory
+                if (resolved.endsWith(path.join('.amazonq', 'rules', '**', '*.md'))) {
+                    const rulesPath = path.join(workspaceFolder, '.amazonq', 'rules')
+                    const folderExists = await this.features.workspace.fs.exists(rulesPath)
+                    if (folderExists) {
+                        await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles, seenIds)
+                    }
+                    continue
+                }
 
-            // Check for README.md in workspace root
-            const readmePath = path.join(workspaceFolder, 'README.md')
-            const readmeExists = await this.features.workspace.fs.exists(readmePath)
-            if (readmeExists) {
-                rulesFiles.push({
-                    workspaceFolder: workspaceFolder,
-                    type: 'file',
-                    relativePath: 'README.md',
-                    id: readmePath,
-                })
-            }
+                // Handle absolute paths (custom resources outside workspace)
+                const isAbsolute = path.isAbsolute(
+                    resource.startsWith('file://') ? resource.slice('file://'.length) : resource
+                )
+                if (isAbsolute) {
+                    if (seenIds.has(resolved)) {
+                        continue
+                    }
+                    const exists = await this.features.workspace.fs.exists(resolved)
+                    if (exists) {
+                        seenIds.add(resolved)
+                        rulesFiles.push({
+                            workspaceFolder: path.dirname(resolved),
+                            type: 'file',
+                            relativePath: path.basename(resolved),
+                            id: resolved,
+                        })
+                    }
+                    continue
+                }
 
-            // Check for AmazonQ.md in workspace root
-            const amazonQPath = path.join(workspaceFolder, 'AmazonQ.md')
-            const amazonQExists = await this.features.workspace.fs.exists(amazonQPath)
-            if (amazonQExists) {
-                rulesFiles.push({
-                    workspaceFolder: workspaceFolder,
-                    type: 'file',
-                    relativePath: 'AmazonQ.md',
-                    id: amazonQPath,
-                })
+                // Handle workspace-relative file
+                if (seenIds.has(resolved)) {
+                    continue
+                }
+                const exists = await this.features.workspace.fs.exists(resolved)
+                if (exists) {
+                    seenIds.add(resolved)
+                    rulesFiles.push({
+                        workspaceFolder,
+                        type: 'file',
+                        relativePath: path.relative(workspaceFolder, resolved),
+                        id: resolved,
+                    })
+                }
             }
         }
 
@@ -208,6 +334,20 @@ export class AdditionalContextProvider {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
                 return 'prompt'
+            }
+            // Custom resources from agentConfig.resources (absolute paths outside workspace)
+            try {
+                const resources = this.getResources()
+                if (
+                    resources.some(
+                        (r: string) =>
+                            r.startsWith('file:///') && prompt.filePath === path.normalize(r.slice('file://'.length))
+                    )
+                ) {
+                    return 'rule'
+                }
+            } catch {
+                // ignore
             }
         }
         return 'file'
@@ -296,9 +436,6 @@ export class AdditionalContextProvider {
             contextInfo = contextInfo.filter(item => item.id !== ACTIVE_EDITOR_CONTEXT_ID)
         }
 
-        if (contextInfo.some(item => item.id === '@workspace')) {
-            triggerContext.hasWorkspace = true
-        }
         // Handle code symbol ID mismatches between indexing sessions
         // When a workspace is re-indexed, code symbols receive new IDs
         // If a pinned symbol's ID is no longer found in the current index:
@@ -398,7 +535,19 @@ export class AdditionalContextProvider {
             promptContextPrompts = await localProjectContextController.getContextCommandPrompt(promptContextCommands)
             pinnedContextPrompts = await localProjectContextController.getContextCommandPrompt(pinnedContextCommands)
         } catch (error) {
-            // do nothing
+            this.features.logging.info(
+                `LocalProjectContextController unavailable, using filesystem fallback for context: ${error}`
+            )
+        }
+
+        // Filesystem fallback: if LocalProjectContextController returned empty results but we have
+        // context commands to process, read the file contents directly from the filesystem.
+        // This handles environments where the local indexing library (vecLib) is not available.
+        if (promptContextPrompts.length === 0 && promptContextCommands.length > 0) {
+            promptContextPrompts = await this.readContextCommandPromptsFromFilesystem(promptContextCommands)
+        }
+        if (pinnedContextPrompts.length === 0 && pinnedContextCommands.length > 0) {
+            pinnedContextPrompts = await this.readContextCommandPromptsFromFilesystem(pinnedContextCommands)
         }
 
         const contextEntry: AdditionalContentEntryAddition[] = []
@@ -457,8 +606,19 @@ export class AdditionalContextProvider {
                 const image = imageMap.get(item.description)
                 if (image) ordered.push(image)
             } else {
-                const doc = item.route ? docMap.get(path.join(...item.route)) : undefined
-                if (doc) ordered.push(doc)
+                const itemPath = item.route ? path.join(...item.route) : undefined
+                if (itemPath) {
+                    const doc = docMap.get(itemPath)
+                    if (doc) {
+                        ordered.push(doc)
+                    } else if (item.label === 'folder') {
+                        // Folder expands into multiple file entries — match all children
+                        const children = docEntries.filter(
+                            entry => !entry.pinned && entry.path.startsWith(itemPath + path.sep)
+                        )
+                        ordered.push(...children)
+                    }
+                }
             }
         }
         // Append pinned context entries (docs and images)
@@ -600,13 +760,22 @@ export class AdditionalContextProvider {
                         continue
                     }
                     if ('content' in context && context.content) {
-                        imageBlocks.push({
-                            format: format as ImageFormat,
-                            source: {
-                                bytes: new Uint8Array(Object.values(context.content)),
-                            },
-                        })
-                        continue
+                        // Validate content has actual byte data before creating Uint8Array
+                        // After JSON deserialization, Uint8Array becomes plain object with numeric keys
+                        const values = Object.values(context.content)
+                        if (values.length > 0 && values.every((v): v is number => typeof v === 'number')) {
+                            imageBlocks.push({
+                                format: format as ImageFormat,
+                                source: {
+                                    bytes: new Uint8Array(values),
+                                },
+                            })
+                            continue
+                        }
+                        // Invalid content data, fall through to read from file
+                        this.features.logging.warn(
+                            `Invalid image content data for ${imagePath}, attempting to read from file`
+                        )
                     }
                     const fileContent = await this.features.workspace.fs.readFile(imagePath, {
                         encoding: 'binary',
