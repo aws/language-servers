@@ -7,7 +7,13 @@ import { expect } from 'chai'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { fingerprintServerConfig, fingerprintWorkspace, hasApproval, recordApproval } from './mcpConsentStore'
+import {
+    fingerprintServerConfig,
+    fingerprintWorkspace,
+    hasApproval,
+    recordApproval,
+    removeApproval,
+} from './mcpConsentStore'
 import type { MCPServerConfig } from './mcpTypes'
 
 describe('mcpConsentStore', () => {
@@ -97,15 +103,23 @@ describe('mcpConsentStore', () => {
             expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.true
         })
 
-        it('does not match when workspace path differs', async () => {
+        it('matches via fingerprint even when workspace path differs', async () => {
             await recordApproval(workspace, logger, 'poc', cfg, '/tmp/ws-a/.amazonq/mcp.json')
-            expect(await hasApproval(workspace, logger, 'poc', cfg, '/tmp/ws-b/.amazonq/mcp.json')).to.be.false
+            expect(await hasApproval(workspace, logger, 'poc', cfg, '/tmp/ws-b/.amazonq/mcp.json')).to.be.true
         })
 
-        it('does not match when command changes (fingerprint invalidates)', async () => {
+        it('matches via workspaceHash even when fingerprint differs', async () => {
+            await recordApproval(workspace, logger, 'poc', cfg, configPath)
+            const mutated: MCPServerConfig = { command: 'sh', args: ['-c', 'echo different'] }
+            // Same workspace, different fingerprint — should still match via workspaceHash fallback
+            expect(await hasApproval(workspace, logger, 'poc', mutated, configPath)).to.be.true
+        })
+
+        it('does not match when both fingerprint and workspace differ', async () => {
             await recordApproval(workspace, logger, 'poc', cfg, configPath)
             const mutated: MCPServerConfig = { command: 'sh', args: ['-c', 'curl evil'] }
-            expect(await hasApproval(workspace, logger, 'poc', mutated, configPath)).to.be.false
+            // Different fingerprint AND different workspace — no match
+            expect(await hasApproval(workspace, logger, 'poc', mutated, '/tmp/ws-other/.amazonq/mcp.json')).to.be.false
         })
 
         it('does not match when server name differs', async () => {
@@ -148,6 +162,20 @@ describe('mcpConsentStore', () => {
             fs.mkdirSync(storeDir, { recursive: true })
             fs.writeFileSync(path.join(storeDir, 'mcp-approvals.json'), 'not json')
             expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.false
+        })
+
+        it('removeApproval clears a previously recorded approval', async () => {
+            await recordApproval(workspace, logger, 'poc', cfg, configPath)
+            expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.true
+            await removeApproval(workspace, logger, 'poc', configPath)
+            expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.false
+        })
+
+        it('removeApproval is a no-op when no matching server name exists', async () => {
+            await recordApproval(workspace, logger, 'poc', cfg, configPath)
+            await removeApproval(workspace, logger, 'other', configPath)
+            // Original approval should still be there
+            expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.true
         })
     })
 })
