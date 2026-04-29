@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.113](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.112...lsp-codewhisperer/v0.0.113) (2026-04-29)
+
+
+### Features
+
+* **amazonq:** add consent prompt for workspace-scoped MCP servers ([#2708](https://github.com/aws/language-servers/issues/2708)) ([7b8595a](https://github.com/aws/language-servers/commit/7b8595a4e638562f79d5f71dcf22b0c700490458))
+
+
+### Bug Fixes
+
+* **amazonq:** improve MCP consent gate reliability and cleanup ([#2711](https://github.com/aws/language-servers/issues/2711)) ([f5aa1a3](https://github.com/aws/language-servers/commit/f5aa1a3b25aa38bfe8dd0e830b5839e1cea1d410))
+* deprecate [@workspace](https://github.com/workspace) vector search + fix [@folder](https://github.com/folder) files not appearing in context ([#2698](https://github.com/aws/language-servers/issues/2698)) ([ae7d3fc](https://github.com/aws/language-servers/commit/ae7d3fcd26f57d6cc5d3d26dd5ec79983c4103df))
+* guard workspaceFolderManager null reference in updateConfiguration ([#2695](https://github.com/aws/language-servers/issues/2695)) ([dcd7829](https://github.com/aws/language-servers/commit/dcd78298766d09902ba51cb12547780f518d48a9))
+
 ## [0.0.112](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.111...lsp-codewhisperer/v0.0.112) (2026-04-07)
 
 
