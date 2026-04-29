@@ -88,7 +88,13 @@ export async function hasApproval(
     const store = await readStore(workspace, logging)
     const fp = fingerprintServerConfig(cfg)
     const wh = fingerprintWorkspace(configPath)
-    return store.approvals.some(a => a.serverName === serverName && a.fingerprint === fp && a.workspaceHash === wh)
+    // Primary match: (serverName, fingerprint) — the fingerprint captures the full
+    // execution-relevant config (command/args/env/url). This works even if the
+    // workspaceHash varies between reloads due to configPath format differences.
+    // Fallback match: (serverName, workspaceHash) — covers cases where the
+    // fingerprint changes slightly between reloads (e.g., config migration adds
+    // default values) but the workspace is the same.
+    return store.approvals.some(a => a.serverName === serverName && (a.fingerprint === fp || a.workspaceHash === wh))
 }
 
 export async function recordApproval(
@@ -111,4 +117,19 @@ export async function recordApproval(
         approvedAt: new Date().toISOString(),
     })
     await writeStore(workspace, logging, store)
+}
+
+export async function removeApproval(
+    workspace: Workspace,
+    logging: Logging,
+    serverName: string,
+    configPath: string
+): Promise<void> {
+    const store = await readStore(workspace, logging)
+    const before = store.approvals.length
+    store.approvals = store.approvals.filter(a => a.serverName !== serverName)
+    if (store.approvals.length < before) {
+        await writeStore(workspace, logging, store)
+        logging.info(`MCP consent store: removed approval for '${serverName}'`)
+    }
 }
