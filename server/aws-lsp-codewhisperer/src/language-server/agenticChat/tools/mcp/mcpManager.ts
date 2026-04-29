@@ -34,6 +34,7 @@ import {
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
     getGlobalPersonaConfigPath,
+    normalizePathFromUri,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
@@ -41,7 +42,7 @@ import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
 import { MessageType } from '@aws/language-server-runtimes/protocol'
-import { hasApproval, recordApproval, fingerprintServerConfig } from './mcpConsentStore'
+import { hasApproval, recordApproval, removeApproval, fingerprintServerConfig } from './mcpConsentStore'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
@@ -417,6 +418,8 @@ export class McpManager {
         // Global configs (~/.aws/amazonq/...) are user-authored and trusted implicitly.
         const home = this.features.workspace.fs.getUserHomeDir()
         const configPath = cfg.__configPath__
+            ? normalizePathFromUri(cfg.__configPath__, this.features.logging)
+            : undefined
         const globalMcp = getGlobalMcpConfigPath(home)
         const globalAgent = getGlobalAgentConfigPath(home)
         const globalPersona = getGlobalPersonaConfigPath(home)
@@ -1137,6 +1140,12 @@ export class McpManager {
         }
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServerStates.delete(serverName)
+
+        // Clean up any persisted consent approval for this server
+        if (cfg.__configPath__) {
+            const normalizedPath = normalizePathFromUri(cfg.__configPath__, this.features.logging)
+            await removeApproval(this.features.workspace, this.features.logging, serverName, normalizedPath)
+        }
 
         // Check if this is a legacy MCP server (from MCP config file)
         const isLegacyMcpServer = cfg.__configPath__?.endsWith('mcp.json')
