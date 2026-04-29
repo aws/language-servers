@@ -191,6 +191,8 @@ describe('ATX .NET Transform Integration Tests', () => {
             buildStartTransformRequest('IntegTest-BobsBookstore-' + Date.now(), sourceFiles)
         )
 
+        console.log('StartTransform raw response:', JSON.stringify(result))
+
         transformationJobId = result?.TransformationJobId
         expect(transformationJobId).to.exist
         console.log('TransformationJobId:', transformationJobId)
