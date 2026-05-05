@@ -128,6 +128,7 @@ export interface AtxGetTransformInfoResponse {
     ErrorString?: string | null
     StepInformation?: AtxStepInformation | null
     HitlTag?: string | null
+    HitlTaskId?: string | null
     MissingPackageJsonPath?: string | null
 }
 
@@ -244,6 +245,20 @@ export interface AtxDownloadArtifactRequest extends ExecuteCommandParams {
 export interface AtxDownloadArtifactResponse {
     Success: boolean
     FilePath?: string
+    Error?: string
+}
+
+// ATX Complete Local Build HITL request/response
+export interface AtxCompleteLocalBuildHitlRequest extends ExecuteCommandParams {
+    WorkspaceId: string
+    TransformationJobId: string
+    TaskId: string
+    BuildResultJson: string
+    SolutionRootPath: string
+}
+
+export interface AtxCompleteLocalBuildHitlResponse {
+    Success: boolean
     Error?: string
 }
 

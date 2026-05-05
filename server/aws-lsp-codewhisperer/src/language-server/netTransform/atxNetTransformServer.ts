@@ -18,6 +18,7 @@ import {
     AtxUploadPackagesRequest,
     AtxListArtifactsRequest,
     AtxDownloadArtifactRequest,
+    AtxCompleteLocalBuildHitlRequest,
     AtxGetJobDashboardRequest,
     AtxGetJobReportRequest,
     AtxUploadCustomPlanRequest,
@@ -187,13 +188,22 @@ export const AtxNetTransformServerToken =
                         )
                     }
                     case AtxCompleteLocalBuildHitlCommand: {
-                        const { WorkspaceId, TransformationJobId, TaskId, BuildOutput, SolutionRootPath } =
-                            params as any
+                        const { WorkspaceId, TransformationJobId, TaskId, BuildResultJson, SolutionRootPath } =
+                            params as AtxCompleteLocalBuildHitlRequest
+
+                        if (typeof BuildResultJson !== 'string' || BuildResultJson.length === 0) {
+                            throw new Error('BuildResultJson is required for completeLocalBuildHitl')
+                        }
+
+                        logging.log(
+                            `ATX: completeLocalBuildHitl received — jobId=${TransformationJobId} taskId=${TaskId} bodyLen=${BuildResultJson.length}`
+                        )
+
                         return await atxTransformHandler.completeHitlWithBuildResults(
                             WorkspaceId,
                             TransformationJobId,
                             TaskId,
-                            BuildOutput,
+                            BuildResultJson,
                             SolutionRootPath
                         )
                     }
@@ -266,6 +276,7 @@ export const AtxNetTransformServerToken =
         }
 
         const onInitializedHandler = () => {
+            logging.log('ATXTransformServer initialized (local-build-verification support enabled)')
             atxTokenServiceManager = AtxTokenServiceManager.getInstance()
             atxTransformHandler = new ATXTransformHandler(atxTokenServiceManager, workspace, logging, runtime)
         }
