@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.114](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.113...lsp-codewhisperer/v0.0.114) (2026-05-05)
+
+
+### Bug Fixes
+
+* **amazonq:** route inline chat through getChatResponse for correct API selection ([#2713](https://github.com/aws/language-servers/issues/2713)) ([#2714](https://github.com/aws/language-servers/issues/2714)) ([b6226e7](https://github.com/aws/language-servers/commit/b6226e758d52d8db85c844cab82e6b604566e2ef))
+
 ## [0.0.113](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.112...lsp-codewhisperer/v0.0.113) (2026-04-29)
 
 
