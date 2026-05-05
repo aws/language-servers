@@ -37,12 +37,7 @@ import {
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
 } from './constants/toolConstants'
-import {
-    SendMessageCommandInput,
-    SendMessageCommandOutput,
-    ChatCommandInput,
-    ChatCommandOutput,
-} from '../../shared/streamingClientService'
+import { SendMessageCommandInput, ChatCommandInput, ChatCommandOutput } from '../../shared/streamingClientService'
 import {
     Button,
     Status,
@@ -3775,8 +3770,8 @@ export class AgenticChatController implements ChatHandlers {
                 throw new Error('amazonQServiceManager is not initialized')
             }
 
-            const client = this.#serviceManager.getStreamingClient()
-            response = await client.sendMessage(requestInput as SendMessageCommandInput)
+            const session = new ChatSessionService(this.#serviceManager, this.#features.lsp, this.#features.logging)
+            response = await session.getChatResponse(requestInput)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
@@ -4696,14 +4691,21 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async #processSendMessageResponseForInlineChat(
-        response: SendMessageCommandOutput,
+        response: ChatCommandOutput,
         metric: Metric<AddMessageEvent>,
         partialResultToken?: string | number
     ): Promise<Result<ChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new ChatEventParser(requestId, metric)
 
-        for await (const chatEvent of response.sendMessageResponse!) {
+        let chatEventStream = undefined
+        if ('generateAssistantResponseResponse' in response) {
+            chatEventStream = response.generateAssistantResponseResponse
+        } else if ('sendMessageResponse' in response) {
+            chatEventStream = response.sendMessageResponse
+        }
+
+        for await (const chatEvent of chatEventStream!) {
             const result = chatEventParser.processPartialEvent(chatEvent)
 
             // terminate early when there is an error

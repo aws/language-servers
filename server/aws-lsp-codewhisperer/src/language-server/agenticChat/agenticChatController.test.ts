@@ -2218,8 +2218,8 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(chatResult, expectedCompleteInlineChatResult)
         })
 
-        it('returns a ResponseError if sendMessage returns an error', async () => {
-            sendMessageStub.callsFake(() => {
+        it('returns a ResponseError if generateAssistantResponse returns an error', async () => {
+            generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
 
@@ -2231,8 +2231,8 @@ describe('AgenticChatController', () => {
             assert.ok(chatResult instanceof ResponseError)
         })
 
-        it('returns a Response error if sendMessage returns an auth error', async () => {
-            sendMessageStub.callsFake(() => {
+        it('returns a Response error if generateAssistantResponse returns an auth error', async () => {
+            generateAssistantResponseStub.callsFake(() => {
                 throw new Error('Error')
             })
 
@@ -2248,12 +2248,12 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {
-            sendMessageStub.callsFake(() => {
+            generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
                         requestId: mockMessageId,
                     },
-                    sendMessageResponse: createIterableResponse([
+                    generateAssistantResponseResponse: createIterableResponse([
                         // ["Hello ", "World"]
                         ...mockChatResponseList.slice(1, 3),
                         { error: { message: 'some error' } },
@@ -2272,12 +2272,12 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
-            sendMessageStub.callsFake(() => {
+            generateAssistantResponseStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
                         requestId: mockMessageId,
                     },
-                    sendMessageResponse: createIterableResponse([
+                    generateAssistantResponseResponse: createIterableResponse([
                         // ["Hello ", "World"]
                         ...mockChatResponseList.slice(1, 3),
                         { invalidStateEvent: { message: 'invalid state' } },
@@ -2338,7 +2338,8 @@ describe('AgenticChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
@@ -2363,7 +2364,8 @@ describe('AgenticChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
 
                 assert.strictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
@@ -2389,7 +2391,8 @@ describe('AgenticChatController', () => {
                     mockCancellationToken
                 )
 
-                const calledRequestInput: SendMessageCommandInput = sendMessageStub.firstCall.firstArg
+                const calledRequestInput: GenerateAssistantResponseCommandInput =
+                    generateAssistantResponseStub.firstCall.firstArg
 
                 assert.deepStrictEqual(
                     calledRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
