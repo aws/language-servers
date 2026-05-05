@@ -63,6 +63,7 @@ export class ChatTelemetryController {
     #tabTelemetryInfoByTabId: { [tabId: string]: ConversationTriggerInfo }
     #currentTriggerByTabId: { [tabId: string]: TriggerType } = {}
     #customizationInfoByTabAndMessageId: { [tabId: string]: { [messageId: string]: string } }
+    #programmingLanguageByTabId: { [tabId: string]: CodewhispererLanguage } = {}
     #credentialsProvider: CredentialsProvider
     #telemetry: Telemetry
     #logging: Logging
@@ -73,6 +74,7 @@ export class ChatTelemetryController {
         this.#tabTelemetryInfoByTabId = {}
         this.#currentTriggerByTabId = {}
         this.#customizationInfoByTabAndMessageId = {}
+        this.#programmingLanguageByTabId = {}
         this.#telemetry = features.telemetry
         this.#logging = features.logging
         this.#credentialsProvider = features.credentialsProvider
@@ -101,6 +103,10 @@ export class ChatTelemetryController {
 
     public getCustomizationId(tabId: string, messageId: string) {
         return tabId && messageId && this.#customizationInfoByTabAndMessageId[tabId]?.[messageId]
+    }
+
+    public getProgrammingLanguage(tabId: string) {
+        return this.#programmingLanguageByTabId[tabId]
     }
 
     public removeConversation(tabId: string) {
@@ -309,6 +315,10 @@ export class ChatTelemetryController {
                 ...this.#customizationInfoByTabAndMessageId[tabId],
                 [metric.cwsprChatMessageId]: metric.codewhispererCustomizationArn,
             }
+        }
+        // Store the programming language for this tab
+        if (metric.cwsprChatProgrammingLanguage) {
+            this.#programmingLanguageByTabId[tabId] = metric.cwsprChatProgrammingLanguage as CodewhispererLanguage
         }
         return this.#telemetryService.emitChatAddMessage(
             {
@@ -560,6 +570,7 @@ export class ChatTelemetryController {
                         }
                         await this.#telemetryService.emitChatInteractWithMessage(voteData, {
                             conversationId: this.getConversationId(params.tabId),
+                            programmingLanguage: this.getProgrammingLanguage(params.tabId),
                         })
                         break
                     case ChatUIEventName.InsertToCursorPosition:
@@ -586,6 +597,7 @@ export class ChatTelemetryController {
                                 params.name === ChatUIEventName.InsertToCursorPosition
                                     ? params.code?.split('\n').length
                                     : undefined,
+                            programmingLanguage: this.getProgrammingLanguage(params.tabId),
                         })
                         break
                     case ChatUIEventName.LinkClick:
