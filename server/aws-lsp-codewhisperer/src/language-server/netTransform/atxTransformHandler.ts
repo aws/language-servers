@@ -32,7 +32,12 @@ import {
     SubmitCriticalHitlTaskResponse,
 } from '@amazon/elastic-gumby-frontend-client'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
-import { DEFAULT_ATX_FES_REGION, ATX_FES_REGION_ENV_VAR, getAtxEndPointByRegion } from '../../shared/constants'
+import {
+    DEFAULT_ATX_FES_REGION,
+    ATX_FES_REGION_ENV_VAR,
+    getAtxEndPointByRegion,
+    getAtxOrchestratorAgent,
+} from '../../shared/constants'
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListOrCreateWorkspaceResponse,
@@ -460,13 +465,19 @@ export class ATXTransformHandler {
                 interactive_mode: interactiveModeValue,
             }
 
+            const orchestratorAgent = getAtxOrchestratorAgent()
+            if (process.env.ATX_ORCHESTRATOR_AGENT) {
+                this.logging.log(
+                    `ATX: CreateJob using override orchestratorAgent='${orchestratorAgent}' (from ATX_ORCHESTRATOR_AGENT env var)`
+                )
+            }
             this.logging.log(`ATX: CreateJob objective: ${JSON.stringify(objective)}`)
 
             const command = new CreateJobCommand({
                 workspaceId: request.workspaceId,
                 objective: JSON.stringify(objective),
                 // jobType: 'DOTNET_IDE' as any,
-                orchestratorAgent: 'dotnet-chatty-agent',
+                orchestratorAgent: orchestratorAgent,
                 jobName: request.jobName || `transform-job-${Date.now()}`,
                 intent: 'LANGUAGE_UPGRADE',
                 idempotencyToken: uuidv4(),
@@ -911,12 +922,16 @@ export class ATXTransformHandler {
             const buildResultsPath = path.join(tempDir, 'build-results.txt')
             fs.writeFileSync(buildResultsPath, buildOutput)
 
-            // Upload as artifact
+            // Upload as artifact. The artifact must be categorized as HITL_FROM_USER
+            // so the platform associates it with the HITL task; the subsequent submit
+            // call will fail with ResourceNotFoundException if any other category is
+            // used. The existing upload flows (plan, packages, generic completion)
+            // all follow this pattern.
             const uploadResponse = await this.createArtifactUploadUrl(
                 workspaceId,
                 jobId,
                 buildResultsPath,
-                CategoryType.CUSTOMER_INPUT,
+                CategoryType.HITL_FROM_USER,
                 FileType.OTHER
             )
 
@@ -941,11 +956,15 @@ export class ATXTransformHandler {
                 return { Success: false, Error: 'Failed to complete artifact upload' }
             }
 
-            // Complete the HITL task with the artifact
-            const hitlResult = await this.updateHitl(workspaceId, jobId, taskId, uploadResponse.uploadId)
+            // Submit the HITL with the uploaded artifact via SubmitCriticalHitlTaskCommand.
+            // The backend creates the local-build-verification HITL with severity=CRITICAL
+            // (matching the missing-packages HITL flow), so the Critical submit path
+            // routes correctly and transitions the task directly to SUBMITTED — no
+            // intermediate updateHitl call is required.
+            const submitResult = await this.submitHitl(workspaceId, jobId, taskId, uploadResponse.uploadId)
 
-            if (!hitlResult) {
-                return { Success: false, Error: 'Failed to update HITL task' }
+            if (!submitResult) {
+                return { Success: false, Error: 'Failed to submit HITL task' }
             }
 
             this.logging.log('ATX: HITL completed with build results successfully')
@@ -1240,6 +1259,36 @@ export class ATXTransformHandler {
                     this.populateCheckpointsOnPlan(plan, request.TransformationJobId, request.SolutionRootPath)
                 }
 
+                // HITLs can be raised at task level while the job-level status remains
+                // EXECUTING (the local-build-verification flow being the primary case).
+                // Probe listHitls here so the IDE is notified of pending human input
+                // without waiting for the job-level status to transition.
+                const execHitls = await this.listHitls(request.WorkspaceId, request.TransformationJobId)
+                const hitlTagSummary =
+                    execHitls && execHitls.length > 0 ? execHitls.map(h => String(h.tag)).join(', ') : '<none>'
+                this.logging.log(
+                    `ATX: EXECUTING HITL probe for job ${request.TransformationJobId}: ${execHitls ? execHitls.length : 0} task(s) [${hitlTagSummary}]`
+                )
+                if (execHitls && execHitls.length > 0) {
+                    const execHitl =
+                        execHitls.find(h => h.tag === 'local-build-verification') ||
+                        execHitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
+                        execHitls[0]
+                    this.logging.log(
+                        `ATX: EXECUTING job has pending HITL — tag=${execHitl.tag} taskId=${execHitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                    )
+                    return {
+                        TransformationJob: {
+                            WorkspaceId: request.WorkspaceId,
+                            JobId: request.TransformationJobId,
+                            Status: 'AWAITING_HUMAN_INPUT',
+                        } as AtxTransformationJob,
+                        HitlTag: execHitl.tag,
+                        HitlTaskId: execHitl.taskId,
+                        TransformationPlan: plan,
+                    } as AtxGetTransformInfoResponse
+                }
+
                 return {
                     TransformationJob: {
                         WorkspaceId: request.WorkspaceId,
@@ -1294,6 +1343,7 @@ export class ATXTransformHandler {
                                 Status: 'AWAITING_HUMAN_INPUT',
                             } as AtxTransformationJob,
                             HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
                             MissingPackageJsonPath: missingPkgPath,
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
@@ -2525,8 +2575,15 @@ export class ATXTransformHandler {
         // Build tree from flat list
         root.Children = this.buildTreeFromFlatList(allSteps)
 
+        // Log step labels including sub-steps for diagnostic visibility
+        // during the build/fix loop polling cycle.
+        const allLabels = allSteps.map((s: any) => s.stepLabel || s.stepName || s.stepId || '?')
+        const errorFixRounds = allLabels.filter((l: string) => l.includes('error-fix-round'))
         this.logging.log(
-            `ATX: fetchPlanTree completed - Built tree with ${root.Children.length} root steps from ${allSteps.length} total steps`
+            `ATX: fetchPlanTree completed - Built tree with ${root.Children.length} root steps from ${allSteps.length} total steps` +
+                (errorFixRounds.length > 0
+                    ? ` (includes ${errorFixRounds.length} error-fix-round sub-steps: ${errorFixRounds.join(', ')})`
+                    : '')
         )
         return { Root: root }
     }
