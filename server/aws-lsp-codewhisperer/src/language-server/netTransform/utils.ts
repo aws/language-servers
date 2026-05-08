@@ -120,14 +120,21 @@ export class Utils {
                     worklogData[stepId].push(entry)
                 }
 
-                fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
+                // Write to temp file and rename for atomic update (avoids file lock conflicts with toolkit reader)
+                const tempPath = worklogPath + '.tmp'
+                fs.writeFileSync(tempPath, JSON.stringify(worklogData, null, 2))
+                fs.renameSync(tempPath, worklogPath)
                 return
             } catch (err: any) {
-                if (err.code === 'EBUSY' && attempt < maxRetries - 1) {
+                if ((err.code === 'EBUSY' || err.code === 'EPERM') && attempt < maxRetries - 1) {
                     await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)))
                     continue
                 }
-                throw err
+                // Don't throw - worklogs are non-critical, will retry on next poll
+                console.error(
+                    `ATX: Failed to write worklogs after ${maxRetries} attempts: ${err.code} - ${err.message}`
+                )
+                return
             }
         }
     }
