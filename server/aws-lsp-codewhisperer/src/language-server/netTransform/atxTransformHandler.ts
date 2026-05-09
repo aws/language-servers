@@ -80,6 +80,7 @@ export class ATXTransformHandler {
     private cachedHitl: string | null = null
     private cachedStepHitl: string | null = null
     private cachedInteractiveMode: InteractiveMode | null = null
+    private _applyingCheckpoints = false
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -2354,6 +2355,13 @@ export class ATXTransformHandler {
         solutionRootPath: string,
         plan: AtxTransformationPlan
     ): Promise<void> {
+        // Prevent concurrent execution
+        if (this._applyingCheckpoints) {
+            this.logging.log('ATX: downloadCompletedStepArtifacts already in progress, skipping')
+            return
+        }
+        this._applyingCheckpoints = true
+
         try {
             const completedSteps = this.findCompletedSteps(plan.Root)
 
@@ -2408,6 +2416,8 @@ export class ATXTransformHandler {
             }
         } catch (error) {
             this.logging.error(`ATX: downloadCompletedStepArtifacts error: ${String(error)}`)
+        } finally {
+            this._applyingCheckpoints = false
         }
     }
 
