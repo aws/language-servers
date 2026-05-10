@@ -130,6 +130,8 @@ export interface AtxGetTransformInfoResponse {
     HitlTag?: string | null
     HitlTaskId?: string | null
     MissingPackageJsonPath?: string | null
+    DiffApplyFailed?: boolean
+    DiffApplyFailedStepIds?: string[]
 }
 
 /**

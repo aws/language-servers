@@ -68,6 +68,14 @@ import { request } from 'http'
 import { Utils, workspaceFolderName } from './utils'
 
 /**
+ * Context object for tracking diff apply failures within a single getTransformInfo call.
+ */
+interface DiffApplyContext {
+    failed: boolean
+    failedStepIds: string[]
+}
+
+/**
  * ATX Transform Handler - Business logic for ATX FES Transform operations
  * Parallel to RTS TransformHandler but uses AtxTokenServiceManager and ATX FES APIs
  */
@@ -81,6 +89,7 @@ export class ATXTransformHandler {
     private cachedStepHitl: string | null = null
     private cachedInteractiveMode: InteractiveMode | null = null
     private _applyingCheckpoints = false
+    private _currentDiffContext: DiffApplyContext | null = null
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -1161,6 +1170,24 @@ export class ATXTransformHandler {
      * Get transform info
      */
     async getTransformInfo(request: AtxGetTransformInfoRequest): Promise<AtxGetTransformInfoResponse | null> {
+        const diffContext: DiffApplyContext = { failed: false, failedStepIds: [] }
+        this._currentDiffContext = diffContext
+        try {
+            const result = await this._getTransformInfoInternal(request, diffContext)
+            if (result && diffContext.failed) {
+                result.DiffApplyFailed = true
+                result.DiffApplyFailedStepIds = diffContext.failedStepIds
+            }
+            return result
+        } finally {
+            this._currentDiffContext = null
+        }
+    }
+
+    private async _getTransformInfoInternal(
+        request: AtxGetTransformInfoRequest,
+        _diffContext: DiffApplyContext
+    ): Promise<AtxGetTransformInfoResponse | null> {
         try {
             this.logging.log(`ATX: Getting transform info for job: ${request.TransformationJobId}`)
 
@@ -1636,9 +1663,16 @@ export class ATXTransformHandler {
                 )
             }
 
+            const diffApplyFailed = !!(artifactJson.diffArtifactId && diffArtifactPath === '')
+            if (diffApplyFailed && this._currentDiffContext) {
+                this._currentDiffContext.failed = true
+                this._currentDiffContext.failedStepIds.push(stepId)
+            }
+
             return {
                 StepId: stepId,
                 DiffArtifactPath: diffArtifactPath,
+                DiffApplyFailed: diffApplyFailed,
                 // Use retryInstruction if available, otherwise fall back to originalInstruction
                 RetryInstruction: artifactJson.retryInstruction || artifactJson.originalInstruction,
                 ...(artifactJson.isInvalid !== undefined && { IsInvalid: artifactJson.isInvalid }),
@@ -1654,6 +1688,7 @@ export class ATXTransformHandler {
 
     /**
      * Downloads and extracts the diff artifact ZIP, then immediately applies changes.
+     * Retries up to 3 times on failure before giving up.
      */
     private async downloadDiffArtifact(
         workspaceId: string,
@@ -1662,50 +1697,64 @@ export class ATXTransformHandler {
         solutionRootPath: string,
         stepId: string
     ): Promise<string> {
-        try {
-            this.logging.log(`ATX: Downloading diff artifact: ${diffArtifactId}`)
+        const maxRetries = 3
 
-            const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, diffArtifactId)
-            if (!downloadInfo) {
-                throw new Error('Failed to get download URL for diff artifact')
-            }
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                this.logging.log(`ATX: Downloading diff artifact: ${diffArtifactId} (attempt ${attempt}/${maxRetries})`)
 
-            const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints', stepId)
-
-            await Utils.downloadAndExtractArchive(
-                downloadInfo.s3PresignedUrl,
-                downloadInfo.requestHeaders,
-                pathToDownload,
-                `${stepId}.zip`,
-                this.logging
-            )
-
-            this.logging.log(`ATX: Diff artifact extracted to: ${pathToDownload}`)
-
-            // Immediately apply changes after extraction
-            const result = await this.applyChanges(pathToDownload, solutionRootPath)
-            if (result.success) {
-                this.logging.log(`ATX: Changes applied immediately for step: ${stepId}`)
-
-                // Update source files manifest with newly added files
-                if (result.addedFiles && result.addedFiles.length > 0) {
-                    this.updateSourceFilesManifest(solutionRootPath, jobId, result.addedFiles)
+                const downloadInfo = await this.createArtifactDownloadUrl(workspaceId, jobId, diffArtifactId)
+                if (!downloadInfo) {
+                    throw new Error('Failed to get download URL for diff artifact')
                 }
 
-                // Mark this step as applied
-                this.saveAppliedCheckpoint(solutionRootPath, jobId, stepId)
+                const pathToDownload = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints', stepId)
 
-                // Save timestamp after changes are applied for tracking user modifications
-                this.saveLastAppliedTimestamp(solutionRootPath, jobId, stepId)
-            } else {
-                this.logging.error(`ATX: Failed to apply changes for step ${stepId}: ${result.error}`)
+                await Utils.downloadAndExtractArchive(
+                    downloadInfo.s3PresignedUrl,
+                    downloadInfo.requestHeaders,
+                    pathToDownload,
+                    `${stepId}.zip`,
+                    this.logging
+                )
+
+                this.logging.log(`ATX: Diff artifact extracted to: ${pathToDownload}`)
+
+                // Immediately apply changes after extraction
+                const result = await this.applyChanges(pathToDownload, solutionRootPath)
+                if (result.success) {
+                    this.logging.log(`ATX: Changes applied immediately for step: ${stepId}`)
+
+                    // Update source files manifest with newly added files
+                    if (result.addedFiles && result.addedFiles.length > 0) {
+                        this.updateSourceFilesManifest(solutionRootPath, jobId, result.addedFiles!)
+                    }
+
+                    // Mark this step as applied
+                    this.saveAppliedCheckpoint(solutionRootPath, jobId, stepId)
+
+                    // Save timestamp after changes are applied for tracking user modifications
+                    this.saveLastAppliedTimestamp(solutionRootPath, jobId, stepId)
+
+                    return pathToDownload
+                } else {
+                    throw new Error(`Failed to apply changes: ${result.error}`)
+                }
+            } catch (error) {
+                this.logging.error(
+                    `ATX: downloadDiffArtifact attempt ${attempt}/${maxRetries} failed: ${String(error)}`
+                )
+                if (attempt < maxRetries) {
+                    const delayMs = Utils.getExpDelayForApiRetryMs(attempt)
+                    this.logging.log(`ATX: Retrying in ${delayMs}ms...`)
+                    await Utils.sleep(delayMs)
+                }
             }
-
-            return pathToDownload
-        } catch (error) {
-            this.logging.error(`ATX: downloadDiffArtifact error: ${String(error)}`)
-            return ''
         }
+
+        // All retries exhausted
+        this.logging.error(`ATX: downloadDiffArtifact failed after ${maxRetries} attempts for step ${stepId}`)
+        return ''
     }
 
     /**
@@ -2335,7 +2384,10 @@ export class ATXTransformHandler {
             })
 
             // Download completed step artifacts if not already present (all modes)
-            await this.downloadCompletedStepArtifacts(workspaceId, jobId, solutionRootPath, plan)
+            const anyFailed = await this.downloadCompletedStepArtifacts(workspaceId, jobId, solutionRootPath, plan)
+            if (anyFailed && this._currentDiffContext) {
+                this._currentDiffContext.failed = true
+            }
 
             this.logging.log(`ATX: Successfully built plan tree with ${plan.Root.Children.length} root steps`)
             return plan
@@ -2354,11 +2406,12 @@ export class ATXTransformHandler {
         jobId: string,
         solutionRootPath: string,
         plan: AtxTransformationPlan
-    ): Promise<void> {
+    ): Promise<boolean> {
+        let anyFailed = false
         // Prevent concurrent execution
         if (this._applyingCheckpoints) {
             this.logging.log('ATX: downloadCompletedStepArtifacts already in progress, skipping')
-            return
+            return false
         }
         this._applyingCheckpoints = true
 
@@ -2404,11 +2457,19 @@ export class ATXTransformHandler {
                             }
                         } else {
                             this.logging.error(`ATX: Failed to apply changes for step ${step.StepId}: ${result.error}`)
+                            anyFailed = true
+                            if (this._currentDiffContext) {
+                                this._currentDiffContext.failedStepIds.push(step.StepId)
+                            }
                         }
                     } else {
-                        this.logging.log(
+                        this.logging.error(
                             `ATX: Checkpoint folder not available for step: ${step.StepId}, skipping apply`
                         )
+                        anyFailed = true
+                        if (this._currentDiffContext) {
+                            this._currentDiffContext.failedStepIds.push(step.StepId)
+                        }
                     }
                 } else {
                     this.logging.log(`ATX: Changes already applied for step: ${step.StepId}`)
@@ -2416,9 +2477,11 @@ export class ATXTransformHandler {
             }
         } catch (error) {
             this.logging.error(`ATX: downloadCompletedStepArtifacts error: ${String(error)}`)
+            anyFailed = true
         } finally {
             this._applyingCheckpoints = false
         }
+        return anyFailed
     }
 
     /**
