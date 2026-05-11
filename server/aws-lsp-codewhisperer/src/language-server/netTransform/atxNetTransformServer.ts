@@ -71,19 +71,14 @@ export const AtxNetTransformServerToken =
                     case AtxStartTransformCommand: {
                         const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest, useOrchestratorAgent } =
                             params as AtxStartTransformRequest
-                        atxTransformHandler.useOrchestratorAgent = useOrchestratorAgent === true
-                        logging.log(`ATX Server: useOrchestratorAgent=${atxTransformHandler.useOrchestratorAgent}`)
+                        const useNew = useOrchestratorAgent === true
 
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        const handler = atxTransformHandler.useOrchestratorAgent
-                            ? atxTransformHandler
-                            : atxTransformHandlerLegacy
-                        logging.log(
-                            `ATX Server: Routing startTransform -> ${atxTransformHandler.useOrchestratorAgent ? 'NEW' : 'LEGACY'} handler`
-                        )
+                        logging.log(`ATX Server: Routing startTransform -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        const handler = useNew ? atxTransformHandler : atxTransformHandlerLegacy
                         const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
@@ -105,24 +100,19 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxGetTransformInfoCommand: {
                         const request = params as AtxGetTransformInfoRequest
-
-                        logging.log(
-                            `ATX Server: Routing getTransformInfo -> ${atxTransformHandler.useOrchestratorAgent ? 'NEW' : 'LEGACY'} handler`
-                        )
-                        if (atxTransformHandler.useOrchestratorAgent) {
-                            return await atxTransformHandler.getTransformInfo(request)
-                        }
-                        return await atxTransformHandlerLegacy.getTransformInfo(request)
+                        const useNew = request.useOrchestratorAgent === true
+                        logging.log(`ATX Server: Routing getTransformInfo -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        return useNew
+                            ? await atxTransformHandler.getTransformInfo(request)
+                            : await atxTransformHandlerLegacy.getTransformInfo(request)
                     }
                     case AtxUploadPlanCommand: {
                         const request = params as AtxUploadPlanRequest
-                        logging.log(
-                            `ATX Server: Routing uploadPlan -> ${atxTransformHandler.useOrchestratorAgent ? 'NEW' : 'LEGACY'} handler`
-                        )
-                        if (atxTransformHandler.useOrchestratorAgent) {
-                            return await atxTransformHandler.uploadPlan(request)
-                        }
-                        return await atxTransformHandlerLegacy.uploadPlan(request)
+                        const useNew = request.useOrchestratorAgent === true
+                        logging.log(`ATX Server: Routing uploadPlan -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        return useNew
+                            ? await atxTransformHandler.uploadPlan(request)
+                            : await atxTransformHandlerLegacy.uploadPlan(request)
                     }
                     case AtxStopJobCommand: {
                         const { WorkspaceId, JobId } = params as AtxStopJobRequest

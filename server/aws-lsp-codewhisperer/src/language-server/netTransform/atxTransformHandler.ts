@@ -72,7 +72,6 @@ import { Utils, workspaceFolderName } from './utils'
  * Parallel to RTS TransformHandler but uses AtxTokenServiceManager and ATX FES APIs
  */
 export class ATXTransformHandler {
-    public useOrchestratorAgent: boolean = false
     private serviceManager: AtxTokenServiceManager
     private workspace: Workspace
     private logging: Logging

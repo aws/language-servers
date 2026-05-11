@@ -117,6 +117,7 @@ export interface AtxGetTransformInfoRequest extends ExecuteCommandParams {
     WorkspaceId: string
     SolutionRootPath: string
     GetCheckpoints?: boolean
+    useOrchestratorAgent?: boolean
 }
 
 export interface AtxGetTransformInfoResponse {
@@ -155,6 +156,7 @@ export interface AtxUploadPlanRequest extends ExecuteCommandParams {
     TransformationJobId: string
     WorkspaceId: string
     PlanPath: string
+    useOrchestratorAgent?: boolean
 }
 
 export interface AtxUploadPlanResponse {
