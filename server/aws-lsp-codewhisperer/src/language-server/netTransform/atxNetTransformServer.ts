@@ -6,6 +6,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
+import { AtxTransformHandlerLegacy } from './atxTransformHandlerLegacy'
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListJobsRequest,
@@ -49,6 +50,7 @@ export const AtxNetTransformServerToken =
     ({ workspace, logging, lsp, telemetry, runtime }) => {
         let atxTokenServiceManager: AtxTokenServiceManager
         let atxTransformHandler: ATXTransformHandler
+        let atxTransformHandlerLegacy: AtxTransformHandlerLegacy
 
         const runAtxTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
@@ -67,14 +69,22 @@ export const AtxNetTransformServerToken =
                         return result
                     }
                     case AtxStartTransformCommand: {
-                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest } =
+                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest, useOrchestratorAgent } =
                             params as AtxStartTransformRequest
+                        atxTransformHandler.useOrchestratorAgent = useOrchestratorAgent === true
+                        logging.log(`ATX Server: useOrchestratorAgent=${atxTransformHandler.useOrchestratorAgent}`)
 
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        const result = await atxTransformHandler.startTransform({
+                        const handler = atxTransformHandler.useOrchestratorAgent
+                            ? atxTransformHandler
+                            : atxTransformHandlerLegacy
+                        logging.log(
+                            `ATX Server: Routing startTransform -> ${atxTransformHandler.useOrchestratorAgent ? 'NEW' : 'LEGACY'} handler`
+                        )
+                        const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
                             interactiveMode: InteractiveMode,
@@ -96,11 +106,23 @@ export const AtxNetTransformServerToken =
                     case AtxGetTransformInfoCommand: {
                         const request = params as AtxGetTransformInfoRequest
 
-                        return await atxTransformHandler.getTransformInfo(request)
+                        logging.log(
+                            `ATX Server: Routing getTransformInfo -> ${atxTransformHandler.useOrchestratorAgent ? 'NEW' : 'LEGACY'} handler`
+                        )
+                        if (atxTransformHandler.useOrchestratorAgent) {
+                            return await atxTransformHandler.getTransformInfo(request)
+                        }
+                        return await atxTransformHandlerLegacy.getTransformInfo(request)
                     }
                     case AtxUploadPlanCommand: {
                         const request = params as AtxUploadPlanRequest
-                        return await atxTransformHandler.uploadPlan(request)
+                        logging.log(
+                            `ATX Server: Routing uploadPlan -> ${atxTransformHandler.useOrchestratorAgent ? 'NEW' : 'LEGACY'} handler`
+                        )
+                        if (atxTransformHandler.useOrchestratorAgent) {
+                            return await atxTransformHandler.uploadPlan(request)
+                        }
+                        return await atxTransformHandlerLegacy.uploadPlan(request)
                     }
                     case AtxStopJobCommand: {
                         const { WorkspaceId, JobId } = params as AtxStopJobRequest
@@ -279,6 +301,12 @@ export const AtxNetTransformServerToken =
             logging.log('ATXTransformServer initialized (local-build-verification support enabled)')
             atxTokenServiceManager = AtxTokenServiceManager.getInstance()
             atxTransformHandler = new ATXTransformHandler(atxTokenServiceManager, workspace, logging, runtime)
+            atxTransformHandlerLegacy = new AtxTransformHandlerLegacy(
+                atxTokenServiceManager,
+                workspace,
+                logging,
+                runtime
+            )
         }
 
         lsp.addInitializer(onInitializeHandler)

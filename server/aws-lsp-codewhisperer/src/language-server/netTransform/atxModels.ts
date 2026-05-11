@@ -102,6 +102,7 @@ export interface AtxStartTransformRequest extends ExecuteCommandParams {
     JobName?: string
     InteractiveMode?: InteractiveMode
     StartTransformRequest: object // Original RTS-style request for ZIP creation
+    useOrchestratorAgent?: boolean
 }
 
 export interface AtxStartTransformResponse {
