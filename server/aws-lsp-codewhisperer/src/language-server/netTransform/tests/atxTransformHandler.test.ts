@@ -1991,3 +1991,384 @@ describe('ATXTransformHandler - workspace, job, artifact, HITL helpers', () => {
         })
     })
 })
+
+describe('ATXTransformHandler - upload flows, polling, and small wrappers', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: any
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let sendStub: sinon.SinonStub
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        serviceManager.getActiveApplicationUrl = sinon.stub().returns('https://app.example.com')
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sendStub = sinon.stub()
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        sinon.stub(handler as any, 'addAuthToCommand').resolves()
+        ;(handler as any).atxClient = { send: sendStub }
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    describe('uploadCustomPlan', () => {
+        it('should return Success=false when send returns missing fields', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({
+                /* no artifactId / s3PreSignedUrl */
+            })
+
+            const result = await handler.uploadCustomPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                FilePath: 'C:/plan.json',
+                Description: 'desc',
+            } as any)
+
+            expect(result.Success).to.be.false
+        })
+
+        it('should return Success=false when uploadArtifact fails', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({ artifactId: 'a', s3PreSignedUrl: 'u', requestHeaders: {} })
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(false)
+
+            const result = await handler.uploadCustomPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                FilePath: 'C:/plan.json',
+            } as any)
+
+            expect(result.Success).to.be.false
+        })
+
+        it('should return Success=true with ArtifactId on full happy path', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({ artifactId: 'art-1', s3PreSignedUrl: 'u', requestHeaders: {} })
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+
+            const result = await handler.uploadCustomPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                FilePath: 'C:/plan.json',
+            } as any)
+
+            expect(result.Success).to.be.true
+            expect(result.ArtifactId).to.equal('art-1')
+        })
+
+        it('should map common file extensions to FileType', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({ artifactId: 'a', s3PreSignedUrl: 'u', requestHeaders: {} })
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+
+            await handler.uploadCustomPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                FilePath: 'C:/plan.csv',
+            } as any)
+
+            const command = sendStub.firstCall.args[0]
+            expect(command.input.artifactReference.artifactType.fileType).to.equal('CSV')
+        })
+    })
+
+    describe('uploadPlan', () => {
+        it('should return null when no cachedHitl', async () => {
+            ;(handler as any).cachedHitl = null
+
+            const result = await handler.uploadPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PlanPath: 'C:/sln/plan.md',
+            } as any)
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should return null when createArtifactUploadUrl fails', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'zipFile').resolves(undefined)
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves(null)
+
+            const result = await handler.uploadPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PlanPath: 'C:/sln/plan.md',
+            } as any)
+
+            expect(result).to.be.null
+        })
+
+        it('should return VerificationStatus=true on validation success', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'zipFile').resolves(undefined)
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'up-1',
+                requestHeaders: {},
+            } as any)
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'submitHitl').resolves({ status: 'SUBMITTED' } as any)
+            sinon.stub(handler, 'pollHitlTask').resolves('Validation Success!')
+
+            const result = await handler.uploadPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PlanPath: 'C:/sln/plan.md',
+            } as any)
+
+            expect(result?.VerificationStatus).to.equal(true)
+            expect(result?.Message).to.equal('Validation Success!')
+        })
+
+        it('should return VerificationStatus=false with retry artifact paths on validation failure', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'zipFile').resolves(undefined)
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'up-1',
+                requestHeaders: {},
+            } as any)
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'submitHitl').resolves({ status: 'SUBMITTED' } as any)
+            sinon
+                .stub(handler, 'pollHitlTask')
+                .resolves('Submitted plan did not pass validation, please check the plan for details....')
+            sinon.stub(handler, 'getHitlAgentArtifact').resolves({
+                PlanPath: '/p',
+                ReportPath: '/r',
+            } as any)
+
+            const result = await handler.uploadPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PlanPath: 'C:/sln/plan.md',
+            } as any)
+
+            expect(result?.VerificationStatus).to.equal(false)
+            expect(result?.PlanPath).to.equal('/p')
+            expect(result?.ReportPath).to.equal('/r')
+        })
+
+        it('should return null when submitHitl fails', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'zipFile').resolves(undefined)
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'up-1',
+                requestHeaders: {},
+            } as any)
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'submitHitl').resolves(null)
+
+            const result = await handler.uploadPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PlanPath: 'C:/sln/plan.md',
+            } as any)
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('uploadPackages', () => {
+        it('should return Success=false when no cachedHitl', async () => {
+            ;(handler as any).cachedHitl = null
+
+            const result = await handler.uploadPackages({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PackagesZipPath: 'C:/pkg.zip',
+            } as any)
+
+            expect(result?.Success).to.be.false
+            expect(result?.Message).to.equal('No cached HITL task')
+        })
+
+        it('should return Success=false when no PackagesZipPath provided', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+
+            const result = await handler.uploadPackages({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+            } as any)
+
+            expect(result?.Success).to.be.false
+            expect(result?.Message).to.match(/No Package/i)
+        })
+
+        it('should return Success=true on full happy path', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            sinon.stub(handler as any, 'uploadArtifactAndComplete').resolves('artifact-1')
+            sinon.stub(handler, 'submitHitl').resolves({ status: 'SUBMITTED' } as any)
+
+            const result = await handler.uploadPackages({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PackagesZipPath: 'C:/pkg.zip',
+            } as any)
+
+            expect(result?.Success).to.be.true
+        })
+
+        it('should return Success=false when uploadArtifactAndComplete fails', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            sinon.stub(handler as any, 'uploadArtifactAndComplete').resolves(null)
+
+            const result = await handler.uploadPackages({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PackagesZipPath: 'C:/pkg.zip',
+            } as any)
+
+            expect(result?.Success).to.be.false
+            expect(result?.Message).to.equal('Failed to upload packages')
+        })
+
+        it('should return Success=false when submitHitl fails after upload', async () => {
+            ;(handler as any).cachedHitl = 'task-1'
+            sinon.stub(handler as any, 'uploadArtifactAndComplete').resolves('artifact-1')
+            sinon.stub(handler, 'submitHitl').resolves(null)
+
+            const result = await handler.uploadPackages({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                PackagesZipPath: 'C:/pkg.zip',
+            } as any)
+
+            expect(result?.Success).to.be.false
+        })
+    })
+
+    describe('pollHitlTask', () => {
+        it('should return success message when task transitions to CLOSED', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'sleep').resolves(undefined)
+            sinon.stub(handler, 'getHitl').resolves({ status: 'CLOSED' })
+
+            const result = await handler.pollHitlTask('ws-1', 'job-1', 't1')
+
+            expect(result).to.equal('Validation Success!')
+        })
+
+        it('should return validation-failed message on CLOSED_PENDING_NEXT_TASK', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'sleep').resolves(undefined)
+            sinon.stub(handler, 'getHitl').resolves({ status: 'CLOSED_PENDING_NEXT_TASK' })
+
+            const result = await handler.pollHitlTask('ws-1', 'job-1', 't1')
+
+            expect(result).to.equal('Submitted plan did not pass validation, please check the plan for details....')
+        })
+
+        it('should return timeout message on CANCELLED', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'sleep').resolves(undefined)
+            sinon.stub(handler, 'getHitl').resolves({ status: 'CANCELLED' })
+
+            const result = await handler.pollHitlTask('ws-1', 'job-1', 't1')
+
+            expect(result).to.equal('Timeout occured during planning, proceeding with default plan....')
+        })
+
+        it('should poll multiple times before transitioning to CLOSED', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'sleep').resolves(undefined)
+            const getHitlStub = sinon.stub(handler, 'getHitl')
+            getHitlStub.onFirstCall().resolves({ status: 'AWAITING_HUMAN_INPUT' })
+            getHitlStub.onSecondCall().resolves({ status: 'IN_PROGRESS' })
+            getHitlStub.onThirdCall().resolves({ status: 'CLOSED' })
+
+            const result = await handler.pollHitlTask('ws-1', 'job-1', 't1')
+
+            expect(result).to.equal('Validation Success!')
+            expect(getHitlStub.callCount).to.equal(3)
+        })
+    })
+
+    describe('listArtifactsForDownload', () => {
+        it('should map artifacts with fileMetadata.path to download shape', async () => {
+            sinon.stub(handler as any, 'listArtifacts').resolves([
+                {
+                    artifactId: 'a1',
+                    fileMetadata: { path: 'reports/r1.xlsx', description: 'Report' },
+                    sizeInBytes: 1024,
+                    artifactCreatedTimestamp: 12345,
+                },
+                {
+                    artifactId: 'a2',
+                    /* no fileMetadata - should be filtered out */
+                },
+            ])
+
+            const result = await handler.listArtifactsForDownload('ws-1', 'job-1')
+
+            expect(result.Artifacts).to.have.lengthOf(1)
+            expect(result.Artifacts[0]).to.deep.include({
+                ArtifactId: 'a1',
+                Name: 'reports/r1.xlsx',
+                Description: 'Report',
+                SizeInBytes: 1024,
+                CreatedTimestamp: 12345,
+            })
+        })
+
+        it('should return error when listArtifacts returns null', async () => {
+            sinon.stub(handler as any, 'listArtifacts').resolves(null)
+
+            const result = await handler.listArtifactsForDownload('ws-1', 'job-1')
+
+            expect(result.Artifacts).to.deep.equal([])
+            expect(result.Error).to.equal('Failed to list artifacts')
+        })
+    })
+
+    describe('downloadArtifactToPath', () => {
+        it('should return Success=false when createArtifactDownloadUrl fails', async () => {
+            sinon.stub(handler, 'createArtifactDownloadUrl').resolves(null)
+
+            const result = await handler.downloadArtifactToPath('ws-1', 'job-1', 'art-1', 'C:/save')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to get download URL')
+        })
+    })
+
+    describe('getJobReport', () => {
+        it('should return null when no artifactId provided', async () => {
+            const result = await handler.getJobReport('ws-1', 'job-1', '')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when createArtifactDownloadUrl fails', async () => {
+            sinon.stub(handler, 'createArtifactDownloadUrl').resolves(null)
+
+            const result = await handler.getJobReport('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.be.null
+        })
+    })
+})
