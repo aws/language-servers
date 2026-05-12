@@ -2771,3 +2771,354 @@ describe('ATXTransformHandler - HITL state branches and fs helpers', () => {
         })
     })
 })
+
+describe('ATXTransformHandler - final coverage push', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: any
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let sendStub: sinon.SinonStub
+    let tmpRoot: string
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        serviceManager.getActiveApplicationUrl = sinon.stub().returns('https://app.example.com')
+        serviceManager.getBearerToken = sinon.stub().resolves('token')
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sendStub = sinon.stub()
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        sinon.stub(handler as any, 'addAuthToCommand').resolves()
+        ;(handler as any).atxClient = { send: sendStub }
+
+        tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atx-final-'))
+    })
+
+    afterEach(() => {
+        sinon.restore()
+        try {
+            fs.rmSync(tmpRoot, { recursive: true, force: true })
+        } catch {
+            // best effort
+        }
+    })
+
+    describe('listArtifacts (private)', () => {
+        it('should return artifacts array on success', async () => {
+            sendStub.resolves({ artifacts: [{ artifactId: 'a1' }, { artifactId: 'a2' }] })
+            const result = await (handler as any).listArtifacts('ws-1', 'job-1')
+            expect(result).to.have.lengthOf(2)
+        })
+
+        it('should return empty array when artifacts missing', async () => {
+            sendStub.resolves({})
+            const result = await (handler as any).listArtifacts('ws-1', 'job-1')
+            expect(result).to.deep.equal([])
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            const result = await (handler as any).listArtifacts('ws-1', 'job-1')
+            expect(result).to.be.null
+        })
+    })
+
+    describe('listArtifactsForStep (private)', () => {
+        it('should return artifacts array on success', async () => {
+            sendStub.resolves({ artifacts: [{ artifactId: 'step-art-1' }] })
+            const result = await (handler as any).listArtifactsForStep('ws-1', 'job-1', 'step-1')
+            expect(result).to.have.lengthOf(1)
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            const result = await (handler as any).listArtifactsForStep('ws-1', 'job-1', 'step-1')
+            expect(result).to.be.null
+        })
+    })
+
+    describe('fetchAllSteps (private)', () => {
+        it('should paginate when nextToken is returned', async () => {
+            sendStub.onFirstCall().resolves({ steps: [{ stepId: 's1' }], nextToken: 'page-2' })
+            sendStub.onSecondCall().resolves({ steps: [{ stepId: 's2' }] })
+
+            const result = await (handler as any).fetchAllSteps('ws-1', 'job-1')
+
+            expect(result).to.have.lengthOf(2)
+            expect(sendStub.callCount).to.equal(2)
+        })
+
+        it('should return empty array on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            const result = await (handler as any).fetchAllSteps('ws-1', 'job-1')
+            expect(result).to.deep.equal([])
+        })
+    })
+
+    describe('fetchPlanTree (private)', () => {
+        it('should return empty plan when fetchAllSteps returns empty', async () => {
+            sinon.stub(handler as any, 'fetchAllSteps').resolves([])
+            const result = await (handler as any).fetchPlanTree('ws-1', 'job-1')
+            expect(result.Root.Children).to.deep.equal([])
+        })
+
+        it('should build tree from fetched steps', async () => {
+            sinon.stub(handler as any, 'fetchAllSteps').resolves([
+                { stepId: 'a', parentStepId: 'root', stepName: 'A' },
+                { stepId: 'b', parentStepId: 'a', stepName: 'B' },
+            ])
+
+            const result = await (handler as any).fetchPlanTree('ws-1', 'job-1')
+
+            expect(result.Root.Children).to.have.lengthOf(1)
+            expect(result.Root.Children[0].StepId).to.equal('a')
+            expect(result.Root.Children[0].Children[0].StepId).to.equal('b')
+        })
+    })
+
+    describe('downloadCompletedStepArtifacts (private)', () => {
+        const buildPlan = (g1Status = 'SUCCEEDED'): any => ({
+            Root: {
+                StepId: 'root',
+                Status: 'NOT_STARTED',
+                Children: [
+                    {
+                        StepId: 'lvl1',
+                        Status: 'NOT_STARTED',
+                        Children: [{ StepId: 'g1', Status: g1Status, Children: [], score: 1 }],
+                    },
+                ],
+            },
+        })
+
+        it('should skip when _applyingCheckpoints is already true', async () => {
+            ;(handler as any)._applyingCheckpoints = true
+            const result = await (handler as any).downloadCompletedStepArtifacts('ws-1', 'job-1', tmpRoot, buildPlan())
+            expect(result).to.be.false
+        })
+
+        it('should return false when no completed steps at depth 2', async () => {
+            const result = await (handler as any).downloadCompletedStepArtifacts(
+                'ws-1',
+                'job-1',
+                tmpRoot,
+                buildPlan('IN_PROGRESS')
+            )
+            expect(result).to.be.false
+            expect((handler as any)._applyingCheckpoints).to.be.false
+        })
+
+        it('should report failure when checkpoint folder is missing after download attempt', async () => {
+            sinon.stub(handler as any, 'downloadCompletedStepArtifact').resolves(undefined)
+
+            const result = await (handler as any).downloadCompletedStepArtifacts('ws-1', 'job-1', tmpRoot, buildPlan())
+
+            expect(result).to.be.true
+        })
+
+        it('should skip already-applied steps', async () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'checkpoints-applied.json'), JSON.stringify({ appliedSteps: ['g1'] }))
+
+            const result = await (handler as any).downloadCompletedStepArtifacts('ws-1', 'job-1', tmpRoot, buildPlan())
+
+            expect(result).to.be.false
+        })
+
+        it('should record failure into diff context', async () => {
+            ;(handler as any)._currentDiffContext = { failed: false, failedStepIds: [] }
+            sinon.stub(handler as any, 'downloadCompletedStepArtifact').resolves(undefined)
+
+            await (handler as any).downloadCompletedStepArtifacts('ws-1', 'job-1', tmpRoot, buildPlan())
+
+            expect((handler as any)._currentDiffContext.failedStepIds).to.deep.equal(['g1'])
+        })
+    })
+
+    describe('createUpdateWorkspaceZip (private)', () => {
+        it('should create zip at expected path with empty modifiedFiles list', async function () {
+            this.timeout(15000)
+            const zipPath = await (handler as any).createUpdateWorkspaceZip(tmpRoot, 'job-1', [])
+
+            expect(zipPath).to.include('update-workspace.zip')
+            expect(fs.existsSync(zipPath)).to.be.true
+        })
+    })
+
+    describe('getModifiedFilesSinceCheckpoint (private)', () => {
+        it('should return empty when manifest is missing', () => {
+            const result = (handler as any).getModifiedFilesSinceCheckpoint(tmpRoot, 'job-1')
+            expect(result).to.deep.equal([])
+        })
+
+        it('should return empty when no lastAppliedTimestamp', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'source-files.json'), JSON.stringify({ sourceFiles: ['/a.cs'] }))
+
+            const result = (handler as any).getModifiedFilesSinceCheckpoint(tmpRoot, 'job-1')
+            expect(result).to.deep.equal([])
+        })
+
+        it('should return files modified after lastAppliedTimestamp', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            const trackedFile = path.join(tmpRoot, 'tracked.cs')
+            fs.writeFileSync(trackedFile, 'content')
+
+            const oldTimestamp = Date.now() - 60_000
+            fs.writeFileSync(
+                path.join(dir, 'source-files.json'),
+                JSON.stringify({ sourceFiles: [trackedFile], lastAppliedTimestamp: oldTimestamp })
+            )
+
+            const result = (handler as any).getModifiedFilesSinceCheckpoint(tmpRoot, 'job-1')
+            expect(result).to.include(trackedFile)
+        })
+
+        it('should skip files that no longer exist on disk', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(
+                path.join(dir, 'source-files.json'),
+                JSON.stringify({
+                    sourceFiles: ['C:/totally-missing-file.cs'],
+                    lastAppliedTimestamp: 1,
+                })
+            )
+
+            const result = (handler as any).getModifiedFilesSinceCheckpoint(tmpRoot, 'job-1')
+            expect(result).to.deep.equal([])
+        })
+    })
+
+    describe('saveLastAppliedTimestamp (private)', () => {
+        it('should be no-op when manifest does not exist', () => {
+            expect(() => (handler as any).saveLastAppliedTimestamp(tmpRoot, 'job-1', 's1')).to.not.throw()
+        })
+
+        it('should set lastAppliedTimestamp and lastAppliedStepId on existing manifest', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            const manifestPath = path.join(dir, 'source-files.json')
+            fs.writeFileSync(manifestPath, JSON.stringify({ sourceFiles: [] }))
+            ;(handler as any).saveLastAppliedTimestamp(tmpRoot, 'job-1', 'step-x')
+
+            const data = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+            expect(data.lastAppliedTimestamp).to.be.a('number')
+            expect(data.lastAppliedStepId).to.equal('step-x')
+        })
+    })
+
+    describe('submitStandardHitl (private)', () => {
+        it('should return result on success', async () => {
+            sendStub.resolves({ status: 'SUBMITTED' })
+            const result = await (handler as any).submitStandardHitl('ws-1', 'job-1', 't1', 'art-1')
+            expect(result?.status).to.equal('SUBMITTED')
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            const result = await (handler as any).submitStandardHitl('ws-1', 'job-1', 't1', 'art-1')
+            expect(result).to.be.null
+        })
+    })
+
+    describe('uploadArtifactAndComplete (private)', () => {
+        it('should return uploadId on full happy path', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'art-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+
+            const result = await (handler as any).uploadArtifactAndComplete('ws-1', 'job-1', 'C:/file.zip')
+
+            expect(result).to.equal('art-1')
+        })
+
+        it('should return null when createArtifactUploadUrl returns null', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves(null)
+            const result = await (handler as any).uploadArtifactAndComplete('ws-1', 'job-1', 'C:/file.zip')
+            expect(result).to.be.null
+        })
+
+        it('should return null when uploadArtifact fails', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'art-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(false)
+
+            const result = await (handler as any).uploadArtifactAndComplete('ws-1', 'job-1', 'C:/file.zip')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when completeArtifactUpload fails', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'art-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves(null)
+
+            const result = await (handler as any).uploadArtifactAndComplete('ws-1', 'job-1', 'C:/file.zip')
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('downloadCompletedStepArtifact (private)', () => {
+        it('should return early when no artifacts found for step', async () => {
+            sinon.stub(handler as any, 'listArtifactsForStep').resolves([])
+            const dlSpy = sinon.stub(handler as any, 'downloadDiffArtifact').resolves('')
+
+            await (handler as any).downloadCompletedStepArtifact('ws-1', 'job-1', 's1', tmpRoot)
+
+            expect(dlSpy.called).to.be.false
+        })
+
+        it('should call downloadDiffArtifact when artifact is found', async () => {
+            sinon.stub(handler as any, 'listArtifactsForStep').resolves([{ artifactId: 'art-1' }])
+            const dlSpy = sinon.stub(handler as any, 'downloadDiffArtifact').resolves('')
+
+            await (handler as any).downloadCompletedStepArtifact('ws-1', 'job-1', 's1', tmpRoot)
+
+            expect(dlSpy.calledOnce).to.be.true
+        })
+
+        it('should swallow errors and not throw', async () => {
+            sinon.stub(handler as any, 'listArtifactsForStep').rejects(new Error('boom'))
+
+            await (handler as any).downloadCompletedStepArtifact('ws-1', 'job-1', 's1', tmpRoot)
+
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+    })
+
+    describe('clearJobCache (private)', () => {
+        it('should null-out all cached HITL state', () => {
+            ;(handler as any).cachedHitl = 'h'
+            ;(handler as any).cachedStepHitl = 's'
+            ;(handler as any).cachedInteractiveMode = 'Interactive'
+            ;(handler as any).clearJobCache()
+
+            expect((handler as any).cachedHitl).to.be.null
+            expect((handler as any).cachedStepHitl).to.be.null
+            expect((handler as any).cachedInteractiveMode).to.be.null
+        })
+    })
+})
