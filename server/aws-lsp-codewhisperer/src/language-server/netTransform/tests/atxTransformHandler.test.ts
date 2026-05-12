@@ -2372,3 +2372,402 @@ describe('ATXTransformHandler - upload flows, polling, and small wrappers', () =
         })
     })
 })
+
+describe('ATXTransformHandler - HITL state branches and fs helpers', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: any
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let sendStub: sinon.SinonStub
+    let tmpRoot: string
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        serviceManager.getActiveApplicationUrl = sinon.stub().returns('https://app.example.com')
+        serviceManager.getBearerToken = sinon.stub().resolves('token')
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sendStub = sinon.stub()
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        sinon.stub(handler as any, 'addAuthToCommand').resolves()
+        ;(handler as any).atxClient = { send: sendStub }
+
+        tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atx-statebranch-'))
+    })
+
+    afterEach(() => {
+        sinon.restore()
+        try {
+            fs.rmSync(tmpRoot, { recursive: true, force: true })
+        } catch {
+            // best effort
+        }
+    })
+
+    describe('handleAwaitingHumanInput (via getTransformInfo)', () => {
+        const baseRequest = {
+            TransformationJobId: 'job-1',
+            WorkspaceId: 'ws-1',
+            SolutionRootPath: 'C:/sln',
+        }
+
+        it('should route AWAITING_HUMAN_INPUT + local-build-verification HITL straight back', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'AWAITING_HUMAN_INPUT' },
+            } as any)
+            sinon.stub(handler, 'getHitlAgentArtifact').resolves({
+                HitlTag: 'local-build-verification',
+                TaskId: 'lbv-task',
+            } as any)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: { Children: [] },
+            } as any)
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.HitlTag).to.equal('local-build-verification')
+            expect(result?.HitlTaskId).to.equal('lbv-task')
+            expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        })
+
+        it('should route to handlePlanningPhaseHitl when no plan yet', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'AWAITING_HUMAN_INPUT' },
+            } as any)
+            const getHitlStub = sinon.stub(handler, 'getHitlAgentArtifact')
+            getHitlStub.onFirstCall().resolves(null) // no local-build-verification
+            getHitlStub.onSecondCall().resolves({
+                PlanPath: '/p',
+                ReportPath: '/r',
+                HitlTag: 'plan-review',
+                TaskId: 'task-1',
+            } as any)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: { Children: [] }, // empty plan -> planning phase
+            } as any)
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.PlanPath).to.equal('/p')
+            expect(result?.ReportPath).to.equal('/r')
+            expect(result?.HitlTag).to.equal('plan-review')
+        })
+
+        it('should route to handleExecutionPhaseHitl when plan exists', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'AWAITING_HUMAN_INPUT' },
+            } as any)
+            sinon.stub(handler, 'getHitlAgentArtifact').resolves(null)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: {
+                    StepId: 'root',
+                    Children: [
+                        {
+                            StepId: 'lvl1',
+                            Status: 'IN_PROGRESS',
+                            Children: [{ StepId: 'g1', Status: 'PENDING_HUMAN_INPUT', Children: [] }],
+                        },
+                    ],
+                },
+            } as any)
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves({
+                taskId: 'step-task',
+                agentArtifact: { artifactId: 'art-1' },
+            })
+            sinon
+                .stub(handler as any, 'downloadAndParseStepHitlArtifact')
+                .resolves({ StepId: 'g1', DiffArtifactPath: '/d' })
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+            expect(result?.StepInformation?.StepId).to.equal('g1')
+        })
+
+        it('should return plan only when no pending step found in execution phase', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'AWAITING_HUMAN_INPUT' },
+            } as any)
+            sinon.stub(handler, 'getHitlAgentArtifact').resolves(null)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: {
+                    StepId: 'root',
+                    Children: [
+                        {
+                            StepId: 'lvl1',
+                            Status: 'SUCCEEDED',
+                            Children: [{ StepId: 'g1', Status: 'SUCCEEDED', Children: [] }],
+                        },
+                    ],
+                },
+            } as any)
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+            expect(result?.StepInformation).to.be.undefined
+        })
+    })
+
+    describe('findPendingHumanInputStep', () => {
+        it('should find a deeply nested PENDING_HUMAN_INPUT step', () => {
+            const root = {
+                StepId: 'root',
+                Status: 'NOT_STARTED',
+                Children: [
+                    {
+                        StepId: 'a',
+                        Status: 'NOT_STARTED',
+                        Children: [
+                            {
+                                StepId: 'a-b',
+                                Status: 'PENDING_HUMAN_INPUT',
+                                Children: [],
+                            },
+                        ],
+                    },
+                ],
+            } as any
+
+            const found = (handler as any).findPendingHumanInputStep(root)
+            expect(found?.StepId).to.equal('a-b')
+        })
+
+        it('should return null when no pending step exists', () => {
+            const root = {
+                StepId: 'root',
+                Status: 'NOT_STARTED',
+                Children: [{ StepId: 'a', Status: 'SUCCEEDED', Children: [] }],
+            } as any
+
+            expect((handler as any).findPendingHumanInputStep(root)).to.be.null
+        })
+    })
+
+    describe('findStepLevelHitl', () => {
+        it('should return first task and cache its taskId', async () => {
+            sendStub.resolves({ hitlTasks: [{ taskId: 'step-task-1' }] })
+
+            const result = await (handler as any).findStepLevelHitl('ws-1', 'job-1', 'step-1')
+
+            expect(result?.taskId).to.equal('step-task-1')
+            expect((handler as any).cachedStepHitl).to.equal('step-task-1')
+        })
+
+        it('should return null when no tasks present', async () => {
+            sendStub.resolves({ hitlTasks: [] })
+            expect(await (handler as any).findStepLevelHitl('ws-1', 'job-1', 'step-1')).to.be.null
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            expect(await (handler as any).findStepLevelHitl('ws-1', 'job-1', 'step-1')).to.be.null
+        })
+    })
+
+    describe('findCheckpointSettingsHitl', () => {
+        it('should return first task on success', async () => {
+            sendStub.resolves({ hitlTasks: [{ taskId: 'cs-1' }] })
+
+            const result = await (handler as any).findCheckpointSettingsHitl('ws-1', 'job-1')
+            expect(result?.taskId).to.equal('cs-1')
+        })
+
+        it('should return null when no tasks', async () => {
+            sendStub.resolves({ hitlTasks: [] })
+            expect(await (handler as any).findCheckpointSettingsHitl('ws-1', 'job-1')).to.be.null
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            expect(await (handler as any).findCheckpointSettingsHitl('ws-1', 'job-1')).to.be.null
+        })
+    })
+
+    describe('loadAppliedCheckpoints', () => {
+        it('should return empty array when checkpoints-applied.json missing', () => {
+            const result = (handler as any).loadAppliedCheckpoints(tmpRoot, 'job-1')
+            expect(result).to.deep.equal([])
+        })
+
+        it('should return appliedSteps from disk', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'checkpoints-applied.json'), JSON.stringify({ appliedSteps: ['s1', 's2'] }))
+
+            const result = (handler as any).loadAppliedCheckpoints(tmpRoot, 'job-1')
+
+            expect(result).to.deep.equal(['s1', 's2'])
+        })
+
+        it('should return empty array on parse error', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'checkpoints-applied.json'), '{not json')
+
+            const result = (handler as any).loadAppliedCheckpoints(tmpRoot, 'job-1')
+
+            expect(result).to.deep.equal([])
+        })
+    })
+
+    describe('saveAppliedCheckpoint', () => {
+        it('should create checkpoints-applied.json with the step and ensure dir exists', () => {
+            ;(handler as any).saveAppliedCheckpoint(tmpRoot, 'job-1', 's1')
+
+            const filePath = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints', 'checkpoints-applied.json')
+            expect(fs.existsSync(filePath)).to.be.true
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+            expect(data.appliedSteps).to.deep.equal(['s1'])
+        })
+
+        it('should append step when file already exists', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'checkpoints-applied.json'), JSON.stringify({ appliedSteps: ['s1'] }))
+            ;(handler as any).saveAppliedCheckpoint(tmpRoot, 'job-1', 's2')
+
+            const data = JSON.parse(fs.readFileSync(path.join(dir, 'checkpoints-applied.json'), 'utf-8'))
+            expect(data.appliedSteps).to.deep.equal(['s1', 's2'])
+        })
+
+        it('should not duplicate already-recorded steps', () => {
+            ;(handler as any).saveAppliedCheckpoint(tmpRoot, 'job-1', 's1')
+            ;(handler as any).saveAppliedCheckpoint(tmpRoot, 'job-1', 's1')
+
+            const filePath = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints', 'checkpoints-applied.json')
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+            expect(data.appliedSteps).to.deep.equal(['s1'])
+        })
+    })
+
+    describe('populateCheckpointsOnPlan', () => {
+        it('should default HasCheckpoint=true for every step when no settings file', () => {
+            const plan = {
+                Root: {
+                    StepId: 'root',
+                    Children: [
+                        {
+                            StepId: 's1',
+                            Status: 'NOT_STARTED',
+                            Children: [{ StepId: 's2', Status: 'NOT_STARTED', Children: [] }],
+                        },
+                    ],
+                },
+            } as any
+
+            ;(handler as any).populateCheckpointsOnPlan(plan, 'job-1', tmpRoot)
+
+            expect(plan.Root.HasCheckpoint).to.be.undefined // root skipped
+            expect(plan.Root.Children[0].HasCheckpoint).to.equal(true)
+            expect(plan.Root.Children[0].Children[0].HasCheckpoint).to.equal(true)
+        })
+
+        it('should apply settings from checkpoint-settings.json', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'checkpoint-settings.json'), JSON.stringify({ s1: false, s2: true }))
+
+            const plan = {
+                Root: {
+                    StepId: 'root',
+                    Children: [
+                        { StepId: 's1', Status: 'NOT_STARTED', Children: [] },
+                        { StepId: 's2', Status: 'NOT_STARTED', Children: [] },
+                        { StepId: 's3', Status: 'NOT_STARTED', Children: [] }, // not in settings -> default true
+                    ],
+                },
+            } as any
+
+            ;(handler as any).populateCheckpointsOnPlan(plan, 'job-1', tmpRoot)
+
+            expect(plan.Root.Children[0].HasCheckpoint).to.equal(false)
+            expect(plan.Root.Children[1].HasCheckpoint).to.equal(true)
+            expect(plan.Root.Children[2].HasCheckpoint).to.equal(true)
+        })
+
+        it('should handle malformed checkpoint-settings.json gracefully', () => {
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(path.join(dir, 'checkpoint-settings.json'), '{not json')
+
+            const plan = {
+                Root: {
+                    StepId: 'root',
+                    Children: [{ StepId: 's1', Status: 'NOT_STARTED', Children: [] }],
+                },
+            } as any
+
+            expect(() => (handler as any).populateCheckpointsOnPlan(plan, 'job-1', tmpRoot)).to.not.throw()
+            expect(plan.Root.Children[0].HasCheckpoint).to.equal(true)
+        })
+    })
+
+    describe('writeSourceFilesManifest & updateSourceFilesManifest', () => {
+        it('should write source-files.json with project paths', () => {
+            ;(handler as any).writeSourceFilesManifest(tmpRoot, 'job-1', {
+                ProjectMetadata: [
+                    {
+                        SourceCodeFilePaths: ['C:/sln/A.cs', 'C:/sln/B.cs'],
+                        ProjectPath: 'C:/sln/Proj.csproj',
+                    },
+                ],
+                SolutionFilePath: 'C:/sln/Proj.sln',
+                SolutionConfigPaths: ['C:/sln/Directory.Build.props'],
+            })
+
+            const filePath = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints', 'source-files.json')
+            expect(fs.existsSync(filePath)).to.be.true
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+            expect(data.sourceFiles).to.include.members([
+                'C:/sln/A.cs',
+                'C:/sln/B.cs',
+                'C:/sln/Proj.csproj',
+                'C:/sln/Proj.sln',
+                'C:/sln/Directory.Build.props',
+            ])
+        })
+
+        it('should append new files to existing manifest', () => {
+            ;(handler as any).writeSourceFilesManifest(tmpRoot, 'job-1', {
+                ProjectMetadata: [{ SourceCodeFilePaths: ['C:/sln/A.cs'] }],
+            })
+            ;(handler as any).updateSourceFilesManifest(tmpRoot, 'job-1', ['NewFile.cs'])
+
+            const filePath = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints', 'source-files.json')
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+            expect(data.sourceFiles).to.have.lengthOf(2)
+            expect(data.lastUpdated).to.be.a('string')
+        })
+
+        it('should be a no-op when manifest does not exist (updateSourceFilesManifest)', () => {
+            expect(() => (handler as any).updateSourceFilesManifest(tmpRoot, 'job-1', ['NewFile.cs'])).to.not.throw()
+        })
+
+        it('should be a no-op when newFiles is empty', () => {
+            expect(() => (handler as any).updateSourceFilesManifest(tmpRoot, 'job-1', [])).to.not.throw()
+        })
+    })
+
+    describe('verifySession', () => {
+        it('should return true when init + bearer token + applicationUrl all succeed', async () => {
+            const result = await (handler as any).verifySession()
+            expect(result).to.be.true
+        })
+
+        it('should return false when initializeAtxClient returns false', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+
+            const result = await (handler as any).verifySession()
+
+            expect(result).to.be.false
+        })
+    })
+})
