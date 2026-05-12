@@ -263,7 +263,7 @@ describe('ATXTransformHandler - getTransformInfo', () => {
     let downloadFinalArtifactStub: sinon.SinonStub
     let getHitlAgentArtifactStub: sinon.SinonStub
 
-    const baseRequest = {
+    const baseRequest: any = {
         TransformationJobId: 'job-123',
         WorkspaceId: 'ws-123',
         SolutionRootPath: 'C:/sln',
@@ -2409,7 +2409,7 @@ describe('ATXTransformHandler - HITL state branches and fs helpers', () => {
     })
 
     describe('handleAwaitingHumanInput (via getTransformInfo)', () => {
-        const baseRequest = {
+        const baseRequest: any = {
             TransformationJobId: 'job-1',
             WorkspaceId: 'ws-1',
             SolutionRootPath: 'C:/sln',
@@ -3123,7 +3123,7 @@ describe('ATXTransformHandler - final coverage push', () => {
     })
 
     describe('getTransformInfo - PLANNING + missing-packages HITL', () => {
-        const baseRequest = {
+        const baseRequest: any = {
             TransformationJobId: 'job-1',
             WorkspaceId: 'ws-1',
             SolutionRootPath: 'C:/sln',
