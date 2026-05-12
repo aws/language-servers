@@ -4,6 +4,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { ATXTransformHandler } from '../atxTransformHandler'
+import { workspaceFolderName } from '../utils'
 import { AtxTokenServiceManager } from '../../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 
@@ -919,6 +920,263 @@ describe('ATXTransformHandler - updateWorkspace & applyChanges', () => {
 
             expect(result.success).to.be.false
             expect(result.error).to.be.a('string')
+        })
+    })
+})
+
+describe('ATXTransformHandler - setCheckpoints, getHitlAgentArtifact, getJobDashboard', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let tmpRoot: string
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        ;(handler as any).atxClient = { send: sinon.stub() }
+
+        tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atx-batch-'))
+    })
+
+    afterEach(() => {
+        sinon.restore()
+        try {
+            fs.rmSync(tmpRoot, { recursive: true, force: true })
+        } catch {
+            // best effort
+        }
+    })
+
+    describe('setCheckpoints', () => {
+        it('should return error when no checkpoint-settings HITL is found', async () => {
+            sinon.stub(handler as any, 'findCheckpointSettingsHitl').resolves(null)
+
+            const result = await handler.setCheckpoints('ws-1', 'job-1', tmpRoot, {})
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('No HITL task found with checkpoint-settings tag')
+        })
+
+        it('should return error when client cannot be initialized', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+            ;(handler as any).atxClient = null
+
+            const result = await handler.setCheckpoints('ws-1', 'job-1', tmpRoot, {})
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('ATX FES client not initialized')
+        })
+
+        it('should write checkpoint-settings.json with mapped interactive_mode and succeed', async () => {
+            sinon.stub(handler as any, 'findCheckpointSettingsHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves({ ok: true })
+
+            const result = await handler.setCheckpoints(
+                'ws-1',
+                'job-1',
+                tmpRoot,
+                { 'step-a': true, 'step-b': false },
+                'Interactive'
+            )
+
+            expect(result.Success).to.be.true
+            const settingsPath = path.join(
+                tmpRoot,
+                workspaceFolderName,
+                'job-1',
+                'checkpoints',
+                'checkpoint-settings.json'
+            )
+            expect(fs.existsSync(settingsPath)).to.be.true
+            const written = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+            expect(written['step-a']).to.equal(true)
+            expect(written.interactive_mode).to.equal('interactive')
+        })
+
+        it('should map Autonomous mode to "auto"', async () => {
+            sinon.stub(handler as any, 'findCheckpointSettingsHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves({ ok: true })
+
+            await handler.setCheckpoints('ws-1', 'job-1', tmpRoot, {}, 'Autonomous')
+
+            const settingsPath = path.join(
+                tmpRoot,
+                workspaceFolderName,
+                'job-1',
+                'checkpoints',
+                'checkpoint-settings.json'
+            )
+            const written = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+            expect(written.interactive_mode).to.equal('auto')
+        })
+
+        it('should return error when uploadArtifact fails', async () => {
+            sinon.stub(handler as any, 'findCheckpointSettingsHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(false)
+
+            const result = await handler.setCheckpoints('ws-1', 'job-1', tmpRoot, {})
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to upload checkpoints artifact to S3')
+        })
+
+        it('should return error when updateHitl fails', async () => {
+            sinon.stub(handler as any, 'findCheckpointSettingsHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves(null)
+
+            const result = await handler.setCheckpoints('ws-1', 'job-1', tmpRoot, {})
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to update HITL task with checkpoints artifact')
+        })
+    })
+
+    describe('getHitlAgentArtifact', () => {
+        it('should return null when listHitls returns empty', async () => {
+            sinon.stub(handler, 'listHitls').resolves([])
+
+            const result = await handler.getHitlAgentArtifact('ws-1', 'job-1', tmpRoot)
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when listHitls returns null', async () => {
+            sinon.stub(handler, 'listHitls').resolves(null)
+
+            const result = await handler.getHitlAgentArtifact('ws-1', 'job-1', tmpRoot)
+
+            expect(result).to.be.null
+        })
+
+        it('should return tag and taskId early for local-build-verification HITL (no download)', async () => {
+            sinon.stub(handler, 'listHitls').resolves([{ tag: 'local-build-verification', taskId: 'task-lbv' }])
+            const downloadStub = sinon.stub(handler, 'createArtifactDownloadUrl')
+
+            const result = await handler.getHitlAgentArtifact('ws-1', 'job-1', tmpRoot)
+
+            expect(result).to.deep.equal({ HitlTag: 'local-build-verification', TaskId: 'task-lbv' })
+            expect(downloadStub.called).to.be.false
+            expect((handler as any).cachedHitl).to.equal('task-lbv')
+        })
+
+        it('should return tag and taskId when HITL has no agentArtifact', async () => {
+            sinon.stub(handler, 'listHitls').resolves([{ tag: 'some-tag', taskId: 'task-1' /* no agentArtifact */ }])
+
+            const result = await handler.getHitlAgentArtifact('ws-1', 'job-1', tmpRoot)
+
+            expect(result?.HitlTag).to.equal('some-tag')
+            expect(result?.TaskId).to.equal('task-1')
+        })
+
+        it('should pick local-build-verification over other HITL tags when both present', async () => {
+            sinon.stub(handler, 'listHitls').resolves([
+                { tag: 'missing-packages', taskId: 'task-mp' },
+                { tag: 'local-build-verification', taskId: 'task-lbv' },
+            ])
+
+            const result = await handler.getHitlAgentArtifact('ws-1', 'job-1', tmpRoot)
+
+            expect(result?.HitlTag).to.equal('local-build-verification')
+            expect(result?.TaskId).to.equal('task-lbv')
+        })
+
+        it('should return guardrail tag/taskId when download URL fails', async () => {
+            sinon.stub(handler, 'listHitls').resolves([
+                {
+                    tag: 'plan-review',
+                    taskId: 'task-1',
+                    agentArtifact: { artifactId: 'art-1' },
+                },
+            ])
+            sinon.stub(handler, 'createArtifactDownloadUrl').resolves(null)
+
+            const result = await handler.getHitlAgentArtifact('ws-1', 'job-1', tmpRoot)
+
+            expect(result?.HitlTag).to.equal('plan-review')
+            expect(result?.TaskId).to.equal('task-1')
+        })
+    })
+
+    describe('getJobDashboard', () => {
+        it('should throw and return null when client cannot initialize', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+            ;(handler as any).atxClient = null
+
+            const result = await handler.getJobDashboard('ws-1', 'job-1')
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should return null when no DASHBOARD HITL task exists', async () => {
+            const sendStub = (handler as any).atxClient.send as sinon.SinonStub
+            sendStub.resolves({ hitlTasks: [] })
+
+            const result = await handler.getJobDashboard('ws-1', 'job-1')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when DASHBOARD task has no agent artifact', async () => {
+            const sendStub = (handler as any).atxClient.send as sinon.SinonStub
+            sendStub.resolves({ hitlTasks: [{ taskId: 't1' /* no agentArtifact */ }] })
+
+            const result = await handler.getJobDashboard('ws-1', 'job-1')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null on send error (caught and logged)', async () => {
+            const sendStub = (handler as any).atxClient.send as sinon.SinonStub
+            sendStub.rejects(new Error('AWS SDK failure'))
+
+            const result = await handler.getJobDashboard('ws-1', 'job-1')
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
         })
     })
 })
