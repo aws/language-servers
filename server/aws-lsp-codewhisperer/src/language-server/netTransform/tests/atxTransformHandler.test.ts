@@ -441,3 +441,217 @@ describe('ATXTransformHandler - getTransformInfo', () => {
         expect((logging.error as sinon.SinonStub).called).to.be.true
     })
 })
+
+describe('ATXTransformHandler - getTransformationPlan & helpers', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        ;(handler as any).atxClient = { send: sinon.stub() }
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    describe('getTransformationPlan', () => {
+        it('should return plan from fetchPlanTree on happy path', async () => {
+            const plan = { Root: { StepId: 'root', Children: [{ StepId: 's1', Children: [] }] } } as any
+            sinon.stub(handler as any, 'fetchPlanTree').resolves(plan)
+            sinon.stub(handler as any, 'fetchWorklogs').resolves(undefined)
+            sinon.stub(handler as any, 'downloadCompletedStepArtifacts').resolves(false)
+
+            const result = await handler.getTransformationPlan('ws-1', 'job-1', 'C:/sln')
+
+            expect(result.Root.Children).to.have.lengthOf(1)
+            expect(result.Root.Children[0].StepId).to.equal('s1')
+        })
+
+        it('should return empty root when fetchPlanTree throws', async () => {
+            sinon.stub(handler as any, 'fetchPlanTree').rejects(new Error('boom'))
+            sinon.stub(handler as any, 'fetchWorklogs').resolves(undefined)
+
+            const result = await handler.getTransformationPlan('ws-1', 'job-1', 'C:/sln')
+
+            expect(result.Root.StepId).to.equal('root')
+            expect(result.Root.Children).to.have.lengthOf(0)
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should mark diff context as failed when downloadCompletedStepArtifacts reports failure', async () => {
+            const plan = { Root: { StepId: 'root', Children: [] } } as any
+            sinon.stub(handler as any, 'fetchPlanTree').resolves(plan)
+            sinon.stub(handler as any, 'fetchWorklogs').resolves(undefined)
+            sinon.stub(handler as any, 'downloadCompletedStepArtifacts').resolves(true)
+            ;(handler as any)._currentDiffContext = { failed: false, failedStepIds: [] }
+
+            await handler.getTransformationPlan('ws-1', 'job-1', 'C:/sln')
+
+            expect((handler as any)._currentDiffContext.failed).to.equal(true)
+        })
+
+        it('should not throw when fetchWorklogs rejects (fire-and-forget)', async () => {
+            const plan = { Root: { StepId: 'root', Children: [] } } as any
+            sinon.stub(handler as any, 'fetchPlanTree').resolves(plan)
+            sinon.stub(handler as any, 'fetchWorklogs').rejects(new Error('worklog network'))
+            sinon.stub(handler as any, 'downloadCompletedStepArtifacts').resolves(false)
+
+            const result = await handler.getTransformationPlan('ws-1', 'job-1', 'C:/sln')
+
+            expect(result.Root).to.exist
+        })
+    })
+
+    describe('buildTreeFromFlatList', () => {
+        it('should build a parent-child tree from flat list', () => {
+            const flat = [
+                { stepId: 'a', parentStepId: 'root', stepName: 'A', score: 1 },
+                { stepId: 'b', parentStepId: 'a', stepName: 'B', score: 2 },
+                { stepId: 'c', parentStepId: 'a', stepName: 'C', score: 3 },
+            ]
+
+            const tree = (handler as any).buildTreeFromFlatList(flat)
+
+            expect(tree).to.have.lengthOf(1)
+            expect(tree[0].StepId).to.equal('a')
+            expect(tree[0].Children).to.have.lengthOf(2)
+            expect(tree[0].Children.map((c: any) => c.StepId)).to.deep.equal(['b', 'c'])
+        })
+
+        it('should treat orphan steps (parent not in list) as root-level', () => {
+            const flat = [
+                { stepId: 'a', parentStepId: 'missing-parent', stepName: 'A' },
+                { stepId: 'b', parentStepId: 'root', stepName: 'B' },
+            ]
+
+            const tree = (handler as any).buildTreeFromFlatList(flat)
+
+            expect(tree).to.have.lengthOf(2)
+            const ids = tree.map((s: any) => s.StepId).sort()
+            expect(ids).to.deep.equal(['a', 'b'])
+        })
+
+        it('should sort children by score ascending', () => {
+            const flat = [
+                { stepId: 'p', parentStepId: 'root', stepName: 'P', score: 0 },
+                { stepId: 'b', parentStepId: 'p', stepName: 'B', score: 30 },
+                { stepId: 'a', parentStepId: 'p', stepName: 'A', score: 10 },
+                { stepId: 'c', parentStepId: 'p', stepName: 'C', score: 20 },
+            ]
+
+            const tree = (handler as any).buildTreeFromFlatList(flat)
+
+            expect(tree[0].Children.map((c: any) => c.StepId)).to.deep.equal(['a', 'c', 'b'])
+        })
+
+        it('should return empty array for empty input', () => {
+            const tree = (handler as any).buildTreeFromFlatList([])
+            expect(tree).to.deep.equal([])
+        })
+    })
+
+    describe('mapApiStepToNode', () => {
+        it('should map camelCase API fields to PascalCase node fields', () => {
+            const node = (handler as any).mapApiStepToNode({
+                stepId: 's1',
+                parentStepId: 'p1',
+                stepName: 'Name',
+                description: 'Desc',
+                status: 'SUCCEEDED',
+                score: 5,
+            })
+
+            expect(node).to.deep.include({
+                StepId: 's1',
+                ParentStepId: 'p1',
+                StepName: 'Name',
+                Description: 'Desc',
+                Status: 'SUCCEEDED',
+                score: 5,
+            })
+            expect(node.Children).to.deep.equal([])
+        })
+
+        it('should convert parentStepId="root" to null', () => {
+            const node = (handler as any).mapApiStepToNode({
+                stepId: 's1',
+                parentStepId: 'root',
+                status: 'NOT_STARTED',
+            })
+
+            expect(node.ParentStepId).to.be.null
+        })
+
+        it('should default missing fields to safe values', () => {
+            const node = (handler as any).mapApiStepToNode({})
+
+            expect(node.StepId).to.equal('')
+            expect(node.ParentStepId).to.be.null
+            expect(node.Status).to.equal('NOT_STARTED')
+            expect(node.score).to.equal(0)
+        })
+    })
+
+    describe('findCompletedSteps', () => {
+        it('should return only SUCCEEDED steps at depth 2', () => {
+            // depth 0 = root, depth 1 = root's children, depth 2 = grandchildren
+            const root = {
+                StepId: 'root',
+                Status: 'SUCCEEDED', // depth 0, must be ignored
+                Children: [
+                    {
+                        StepId: 'lvl1',
+                        Status: 'SUCCEEDED', // depth 1, must be ignored
+                        Children: [
+                            { StepId: 'g1', Status: 'SUCCEEDED', Children: [] },
+                            { StepId: 'g2', Status: 'IN_PROGRESS', Children: [] },
+                            { StepId: 'g3', Status: 'SUCCEEDED', Children: [] },
+                        ],
+                    },
+                ],
+            } as any
+
+            const completed = (handler as any).findCompletedSteps(root)
+
+            expect(completed.map((s: any) => s.StepId)).to.deep.equal(['g1', 'g3'])
+        })
+
+        it('should return empty when no SUCCEEDED at depth 2', () => {
+            const root = {
+                StepId: 'root',
+                Status: 'NOT_STARTED',
+                Children: [
+                    {
+                        StepId: 'lvl1',
+                        Status: 'IN_PROGRESS',
+                        Children: [{ StepId: 'g1', Status: 'IN_PROGRESS', Children: [] }],
+                    },
+                ],
+            } as any
+
+            const completed = (handler as any).findCompletedSteps(root)
+            expect(completed).to.deep.equal([])
+        })
+    })
+
+    describe('mapApiStatus', () => {
+        it('should pass through valid statuses', () => {
+            expect((handler as any).mapApiStatus('SUCCEEDED')).to.equal('SUCCEEDED')
+            expect((handler as any).mapApiStatus('IN_PROGRESS')).to.equal('IN_PROGRESS')
+        })
+
+        it('should default to NOT_STARTED when status missing', () => {
+            expect((handler as any).mapApiStatus(undefined)).to.equal('NOT_STARTED')
+        })
+    })
+})
