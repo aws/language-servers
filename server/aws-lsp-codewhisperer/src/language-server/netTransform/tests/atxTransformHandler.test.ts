@@ -1,5 +1,8 @@
 import { expect } from 'chai'
 import * as sinon from 'sinon'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
 import { ATXTransformHandler } from '../atxTransformHandler'
 import { AtxTokenServiceManager } from '../../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
@@ -652,6 +655,270 @@ describe('ATXTransformHandler - getTransformationPlan & helpers', () => {
 
         it('should default to NOT_STARTED when status missing', () => {
             expect((handler as any).mapApiStatus(undefined)).to.equal('NOT_STARTED')
+        })
+    })
+})
+
+describe('ATXTransformHandler - updateWorkspace & applyChanges', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        ;(handler as any).atxClient = { send: sinon.stub() }
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    describe('updateWorkspace', () => {
+        it('should return error when no active step HITL is found', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves(null)
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('No active step HITL found')
+        })
+
+        it('should return error when createUpdateWorkspaceZip returns empty path', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('')
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to create update workspace zip')
+        })
+
+        it('should return error when createArtifactUploadUrl fails', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves(null)
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to create artifact upload URL')
+        })
+
+        it('should return success and clear cachedStepHitl on full happy path', async () => {
+            ;(handler as any).cachedStepHitl = 'cached-task-id'
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'https://s3/upload',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves({ ok: true })
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.true
+            expect((handler as any).cachedStepHitl).to.be.null
+        })
+
+        it('should return error when uploadArtifact fails', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'https://s3/upload',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(false)
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to upload update workspace zip to S3')
+        })
+
+        it('should return error when completeArtifactUpload fails', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: false } as any)
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to complete artifact upload')
+        })
+
+        it('should return error when updateHitl returns null', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves({ taskId: 't1' })
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves(null)
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to update workspace HITL')
+        })
+
+        it('should return error when client cannot be initialized', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+            ;(handler as any).atxClient = null
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('ATX FES client not initialized')
+        })
+    })
+
+    describe('applyChanges', () => {
+        let tmpRoot: string
+        let checkpointFolder: string
+        let solutionRoot: string
+
+        beforeEach(() => {
+            // Create a fresh temp working tree for each test
+            tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atx-applychanges-'))
+            checkpointFolder = path.join(tmpRoot, 'checkpoint')
+            solutionRoot = path.join(tmpRoot, 'sln')
+            fs.mkdirSync(path.join(checkpointFolder, 'after'), { recursive: true })
+            fs.mkdirSync(solutionRoot, { recursive: true })
+        })
+
+        afterEach(() => {
+            try {
+                fs.rmSync(tmpRoot, { recursive: true, force: true })
+            } catch {
+                // best effort
+            }
+        })
+
+        const writeMetadata = (data: any) => {
+            fs.writeFileSync(path.join(checkpointFolder, 'metadata.json'), JSON.stringify(data))
+        }
+
+        it('should fail when metadata.json is missing', async () => {
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.false
+            expect(result.error).to.include('metadata.json not found')
+        })
+
+        it('should add files from after/ directory', async () => {
+            const relPath = 'src/Added.cs'
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'src'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// added')
+            writeMetadata({ filesAdded: [relPath] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesAdded).to.equal(1)
+            expect(result.addedFiles).to.deep.equal([relPath])
+            expect(fs.existsSync(path.join(solutionRoot, relPath))).to.be.true
+        })
+
+        it('should remove files listed in filesRemoved', async () => {
+            const relPath = 'OldFile.cs'
+            fs.writeFileSync(path.join(solutionRoot, relPath), '// old')
+            writeMetadata({ filesRemoved: [relPath] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesRemoved).to.equal(1)
+            expect(fs.existsSync(path.join(solutionRoot, relPath))).to.be.false
+        })
+
+        it('should update files from after/ directory', async () => {
+            const relPath = 'Existing.cs'
+            fs.writeFileSync(path.join(solutionRoot, relPath), '// old content')
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// new content')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(fs.readFileSync(path.join(solutionRoot, relPath), 'utf-8')).to.equal('// new content')
+        })
+
+        it('should move files according to movedFilesMap', async () => {
+            fs.writeFileSync(path.join(solutionRoot, 'before.cs'), '// content')
+            writeMetadata({
+                movedFilesMap: [{ before: 'before.cs', after: 'newdir/after.cs' }],
+            })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesMoved).to.equal(1)
+            expect(fs.existsSync(path.join(solutionRoot, 'before.cs'))).to.be.false
+            expect(fs.existsSync(path.join(solutionRoot, 'newdir/after.cs'))).to.be.true
+        })
+
+        it('should succeed with zero counts when metadata is empty', async () => {
+            writeMetadata({})
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesAdded).to.equal(0)
+            expect(result.filesRemoved).to.equal(0)
+            expect(result.filesUpdated).to.equal(0)
+            expect(result.filesMoved).to.equal(0)
+        })
+
+        it('should skip removal when target file does not exist', async () => {
+            writeMetadata({ filesRemoved: ['NotThere.cs'] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesRemoved).to.equal(0)
+        })
+
+        it('should fail gracefully when metadata.json is invalid JSON', async () => {
+            fs.writeFileSync(path.join(checkpointFolder, 'metadata.json'), '{not json')
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.false
+            expect(result.error).to.be.a('string')
         })
     })
 })
