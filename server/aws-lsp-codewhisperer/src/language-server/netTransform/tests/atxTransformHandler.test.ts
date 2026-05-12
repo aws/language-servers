@@ -1180,3 +1180,341 @@ describe('ATXTransformHandler - setCheckpoints, getHitlAgentArtifact, getJobDash
         })
     })
 })
+
+describe('ATXTransformHandler - lifecycle (startTransform & helpers)', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let sendStub: sinon.SinonStub
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sendStub = sinon.stub()
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        sinon.stub(handler as any, 'addAuthToCommand').resolves()
+        ;(handler as any).atxClient = { send: sendStub }
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    describe('createJob', () => {
+        it('should return jobId/status on success', async () => {
+            sendStub.resolves({ jobId: 'job-123', status: 'CREATED' })
+
+            const result = await handler.createJob({ workspaceId: 'ws-1' })
+
+            expect(result).to.deep.equal({ jobId: 'job-123', status: 'CREATED' })
+        })
+
+        it('should return null when response missing jobId', async () => {
+            sendStub.resolves({ status: 'CREATED' /* no jobId */ })
+
+            const result = await handler.createJob({ workspaceId: 'ws-1' })
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should return null and log error when send rejects', async () => {
+            sendStub.rejects(new Error('AWS down'))
+
+            const result = await handler.createJob({ workspaceId: 'ws-1' })
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should map Interactive interactive_mode to "interactive" in objective', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1', interactiveMode: 'Interactive' })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective.interactive_mode).to.equal('interactive')
+        })
+
+        it('should default interactive_mode to "auto" when mode not specified', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1' })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective.interactive_mode).to.equal('auto')
+        })
+    })
+
+    describe('createArtifactUploadUrl', () => {
+        it('should return uploadId/uploadUrl on success', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('abc-sha256')
+            sendStub.resolves({
+                artifactId: 'art-1',
+                s3PreSignedUrl: 'https://s3/upload',
+                requestHeaders: { 'x-foo': 'bar' },
+            })
+
+            const result = await handler.createArtifactUploadUrl(
+                'ws-1',
+                'job-1',
+                'C:/file.zip',
+                'CUSTOMER_INPUT' as any,
+                'ZIP' as any
+            )
+
+            expect(result?.uploadId).to.equal('art-1')
+            expect(result?.uploadUrl).to.equal('https://s3/upload')
+            expect(result?.requestHeaders).to.deep.equal({ 'x-foo': 'bar' })
+        })
+
+        it('should return null when response missing required fields', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({ artifactId: 'art-1' /* no s3PreSignedUrl */ })
+
+            const result = await handler.createArtifactUploadUrl(
+                'ws-1',
+                'job-1',
+                'C:/file.zip',
+                'CUSTOMER_INPUT' as any,
+                'ZIP' as any
+            )
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should return null and log on send error', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.createArtifactUploadUrl(
+                'ws-1',
+                'job-1',
+                'C:/file.zip',
+                'CUSTOMER_INPUT' as any,
+                'ZIP' as any
+            )
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('completeArtifactUpload', () => {
+        it('should return success=true on resolve', async () => {
+            sendStub.resolves({
+                /* server response */
+            })
+
+            const result = await handler.completeArtifactUpload('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.deep.equal({ success: true })
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.completeArtifactUpload('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+    })
+
+    describe('startJob', () => {
+        it('should return success=true on resolve', async () => {
+            sendStub.resolves({
+                /* aws ack */
+            })
+
+            const result = await handler.startJob('ws-1', 'job-1')
+
+            expect(result).to.deep.equal({ success: true })
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.startJob('ws-1', 'job-1')
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+    })
+
+    describe('startTransform', () => {
+        it('should return null when createJob returns null', async () => {
+            sinon.stub(handler, 'createJob').resolves(null)
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: { TargetFramework: 'net8.0' },
+            })
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when createZip throws', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').rejects(new Error('zip fail'))
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+
+        it('should return null when createArtifactUploadUrl returns null', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves(null)
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when uploadArtifact returns false', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadId: 'u',
+                uploadUrl: 'https://s3',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(false)
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when completeArtifactUpload returns null', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadId: 'u',
+                uploadUrl: 'https://s3',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves(null)
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when startJob returns null', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadId: 'u',
+                uploadUrl: 'https://s3',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'startJob').resolves(null)
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect(result).to.be.null
+        })
+
+        it('should return TransformationJobId on full happy path', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadId: 'upload-1',
+                uploadUrl: 'https://s3',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'startJob').resolves({ success: true })
+
+            const result = await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect(result?.TransformationJobId).to.equal('job-1')
+            expect(result?.ArtifactPath).to.equal('C:/zip.zip')
+            expect(result?.UploadId).to.equal('upload-1')
+        })
+
+        it('should cache interactive mode from request', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadId: 'u',
+                uploadUrl: 'https://s3',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'startJob').resolves({ success: true })
+
+            await handler.startTransform({
+                workspaceId: 'ws-1',
+                interactiveMode: 'Interactive',
+                startTransformRequest: {},
+            })
+
+            expect((handler as any).cachedInteractiveMode).to.equal('Interactive')
+        })
+
+        it('should default cached interactive mode to Autonomous when not specified', async () => {
+            sinon.stub(handler, 'createJob').resolves({ jobId: 'job-1', status: 'CREATED' })
+            sinon.stub(handler, 'createZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadId: 'u',
+                uploadUrl: 'https://s3',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'startJob').resolves({ success: true })
+
+            await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {},
+            })
+
+            expect((handler as any).cachedInteractiveMode).to.equal('Autonomous')
+        })
+    })
+})
