@@ -3121,4 +3121,255 @@ describe('ATXTransformHandler - final coverage push', () => {
             expect((handler as any).cachedInteractiveMode).to.be.null
         })
     })
+
+    describe('getTransformInfo - PLANNING + missing-packages HITL', () => {
+        const baseRequest = {
+            TransformationJobId: 'job-1',
+            WorkspaceId: 'ws-1',
+            SolutionRootPath: 'C:/sln',
+        }
+
+        it('should surface AWAITING_HUMAN_INPUT for missing-packages HITL with no artifact', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'PLANNING' },
+            } as any)
+            sinon.stub(handler as any, 'listWorklogs').resolves(undefined)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: { Children: [] },
+            } as any)
+            sinon.stub(handler, 'listHitls').resolves([{ tag: 'missing-packages', taskId: 'mp-task' }])
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+            expect(result?.HitlTag).to.equal('missing-packages')
+            expect(result?.HitlTaskId).to.equal('mp-task')
+            expect((handler as any).cachedHitl).to.equal('mp-task')
+        })
+
+        it('should surface MissingPackageJsonPath when artifact is present', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'PLANNING' },
+            } as any)
+            sinon.stub(handler as any, 'listWorklogs').resolves(undefined)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: { Children: [] },
+            } as any)
+            sinon.stub(handler, 'listHitls').resolves([
+                {
+                    tag: 'handle_missing_packages_hitl',
+                    taskId: 'mp-task',
+                    agentArtifact: { artifactId: 'art-1' },
+                },
+            ])
+            sinon.stub(handler as any, 'handlePlanningPhaseHitl').resolves({
+                MissingPackageJsonPath: 'C:/missing.json',
+            })
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.MissingPackageJsonPath).to.equal('C:/missing.json')
+            expect(result?.HitlTag).to.equal('handle_missing_packages_hitl')
+        })
+
+        it('should ignore missing-packages download failures and still surface HITL', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'PLANNING' },
+            } as any)
+            sinon.stub(handler as any, 'listWorklogs').resolves(undefined)
+            sinon.stub(handler, 'getTransformationPlan').resolves({
+                Root: { Children: [] },
+            } as any)
+            sinon.stub(handler, 'listHitls').resolves([
+                {
+                    tag: 'missing-packages',
+                    taskId: 'mp-task',
+                    agentArtifact: { artifactId: 'art-1' },
+                },
+            ])
+            sinon.stub(handler as any, 'handlePlanningPhaseHitl').rejects(new Error('download failed'))
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+            expect(result?.MissingPackageJsonPath).to.be.undefined
+        })
+
+        it('should swallow getTransformationPlan errors in fallthrough branch', async () => {
+            sinon.stub(handler, 'getJob').resolves({
+                statusDetails: { status: 'PLANNING' },
+            } as any)
+            sinon.stub(handler as any, 'listWorklogs').resolves(undefined)
+            sinon.stub(handler, 'getTransformationPlan').rejects(new Error('plan not ready'))
+            sinon.stub(handler, 'listHitls').resolves([])
+
+            const result = await handler.getTransformInfo(baseRequest as any)
+
+            expect(result?.TransformationJob.Status).to.equal('PLANNING')
+            expect(result?.TransformationPlan).to.be.undefined
+        })
+    })
+
+    describe('createModifiedFilesZip (private)', () => {
+        it('should return empty string when modifiedFiles is empty', async () => {
+            const result = await (handler as any).createModifiedFilesZip(tmpRoot, 'job-1', [])
+            expect(result).to.equal('')
+        })
+
+        it('should create zip when files are provided', async function () {
+            this.timeout(15000)
+            const dir = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints')
+            fs.mkdirSync(dir, { recursive: true })
+            const file1 = path.join(tmpRoot, 'a.cs')
+            fs.writeFileSync(file1, 'content')
+
+            const result = await (handler as any).createModifiedFilesZip(tmpRoot, 'job-1', [file1])
+
+            expect(result).to.include('user-modifications.zip')
+            expect(fs.existsSync(result)).to.be.true
+        })
+    })
+
+    describe('writeSourceFilesManifest edge cases', () => {
+        it('should produce empty sourceFiles when request has no metadata', () => {
+            ;(handler as any).writeSourceFilesManifest(tmpRoot, 'job-1', {})
+
+            const filePath = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints', 'source-files.json')
+            expect(fs.existsSync(filePath)).to.be.true
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+            expect(data.sourceFiles).to.deep.equal([])
+        })
+
+        it('should skip falsy file paths in SourceCodeFilePaths', () => {
+            ;(handler as any).writeSourceFilesManifest(tmpRoot, 'job-1', {
+                ProjectMetadata: [{ SourceCodeFilePaths: ['', null, 'C:/real.cs'] }],
+            })
+
+            const filePath = path.join(tmpRoot, workspaceFolderName, 'job-1', 'checkpoints', 'source-files.json')
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+            expect(data.sourceFiles).to.deep.equal(['C:/real.cs'])
+        })
+    })
+
+    describe('listOrCreateWorkspace - createWorkspace returns null', () => {
+        it('should still return AvailableWorkspaces even when createWorkspace fails', async () => {
+            sinon.stub(handler as any, 'verifySession').resolves(true)
+            sinon.stub(handler, 'listWorkspaces').resolves({
+                workspaces: [{ Id: 'ws-1', Name: 'Existing' }],
+                applicationUrl: 'u',
+            })
+            sinon.stub(handler, 'createWorkspace').resolves(null)
+
+            const result = await handler.listOrCreateWorkspace({
+                CreateWorkspaceName: 'fail-me',
+            } as any)
+
+            expect(result?.AvailableWorkspaces).to.have.lengthOf(1)
+            expect(result?.CreatedWorkspace).to.be.undefined
+        })
+    })
+
+    describe('listJobs - empty page handling', () => {
+        it('should return empty Jobs array when first page has no jobList', async () => {
+            sendStub.resolves({})
+
+            const result = await handler.listJobs('ws-1')
+
+            expect(result?.Jobs).to.deep.equal([])
+        })
+    })
+
+    describe('createWorkspace - bare-name input', () => {
+        it('should call API with auto-generated description for null name', async () => {
+            sendStub.resolves({ workspace: { id: 'ws-9', name: 'Auto' } })
+
+            await handler.createWorkspace(null)
+
+            const command = sendStub.firstCall.args[0]
+            expect(command.input.description).to.equal('Auto-generated workspace')
+        })
+    })
+
+    describe('uploadCustomPlan - more file extension and path branches', () => {
+        it('should default to OTHER for unknown extension', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({ artifactId: 'a', s3PreSignedUrl: 'u', requestHeaders: {} })
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+
+            await handler.uploadCustomPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                FilePath: 'C:/random.xyz',
+            } as any)
+
+            const command = sendStub.firstCall.args[0]
+            expect(command.input.artifactReference.artifactType.fileType).to.equal('OTHER')
+        })
+
+        it('should respect ArtifactStorePath prefix', async () => {
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'getSha256Async').resolves('sha')
+            sendStub.resolves({ artifactId: 'a', s3PreSignedUrl: 'u', requestHeaders: {} })
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+
+            await handler.uploadCustomPlan({
+                WorkspaceId: 'ws-1',
+                TransformationJobId: 'job-1',
+                FilePath: 'C:/plan.json',
+                ArtifactStorePath: 'subdir/',
+            } as any)
+
+            const command = sendStub.firstCall.args[0]
+            expect(command.input.fileMetadata.path).to.equal('subdir/plan.json')
+        })
+    })
+
+    describe('client init failure paths', () => {
+        it('startJob should return null when client cannot init', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+
+            const result = await handler.startJob('ws-1', 'job-1')
+
+            expect(result).to.be.null
+        })
+
+        it('createArtifactDownloadUrl should return null when client cannot init', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+
+            const result = await handler.createArtifactDownloadUrl('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.be.null
+        })
+
+        it('createJob should return null when client cannot init', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+
+            const result = await handler.createJob({ workspaceId: 'ws-1' })
+
+            expect(result).to.be.null
+        })
+
+        it('completeArtifactUpload should return null when client cannot init', async () => {
+            sinon.restore()
+            logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+            handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+            sinon.stub(handler as any, 'initializeAtxClient').resolves(false)
+
+            const result = await handler.completeArtifactUpload('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.be.null
+        })
+    })
 })
