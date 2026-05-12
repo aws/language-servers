@@ -102,6 +102,7 @@ export interface AtxStartTransformRequest extends ExecuteCommandParams {
     JobName?: string
     InteractiveMode?: InteractiveMode
     StartTransformRequest: object // Original RTS-style request for ZIP creation
+    useOrchestratorAgent?: boolean
 }
 
 export interface AtxStartTransformResponse {
@@ -116,6 +117,7 @@ export interface AtxGetTransformInfoRequest extends ExecuteCommandParams {
     WorkspaceId: string
     SolutionRootPath: string
     GetCheckpoints?: boolean
+    useOrchestratorAgent?: boolean
 }
 
 export interface AtxGetTransformInfoResponse {
@@ -156,6 +158,7 @@ export interface AtxUploadPlanRequest extends ExecuteCommandParams {
     TransformationJobId: string
     WorkspaceId: string
     PlanPath: string
+    useOrchestratorAgent?: boolean
 }
 
 export interface AtxUploadPlanResponse {

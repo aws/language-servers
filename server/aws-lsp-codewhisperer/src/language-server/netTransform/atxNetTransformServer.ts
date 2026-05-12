@@ -6,6 +6,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
+import { AtxTransformHandlerLegacy } from './atxTransformHandlerLegacy'
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListJobsRequest,
@@ -49,6 +50,7 @@ export const AtxNetTransformServerToken =
     ({ workspace, logging, lsp, telemetry, runtime }) => {
         let atxTokenServiceManager: AtxTokenServiceManager
         let atxTransformHandler: ATXTransformHandler
+        let atxTransformHandlerLegacy: AtxTransformHandlerLegacy
 
         const runAtxTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
@@ -67,14 +69,17 @@ export const AtxNetTransformServerToken =
                         return result
                     }
                     case AtxStartTransformCommand: {
-                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest } =
+                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest, useOrchestratorAgent } =
                             params as AtxStartTransformRequest
+                        const useNew = useOrchestratorAgent === true
 
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        const result = await atxTransformHandler.startTransform({
+                        logging.log(`ATX Server: Routing startTransform -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        const handler = useNew ? atxTransformHandler : atxTransformHandlerLegacy
+                        const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
                             interactiveMode: InteractiveMode,
@@ -95,12 +100,19 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxGetTransformInfoCommand: {
                         const request = params as AtxGetTransformInfoRequest
-
-                        return await atxTransformHandler.getTransformInfo(request)
+                        const useNew = request.useOrchestratorAgent === true
+                        logging.log(`ATX Server: Routing getTransformInfo -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        return useNew
+                            ? await atxTransformHandler.getTransformInfo(request)
+                            : await atxTransformHandlerLegacy.getTransformInfo(request)
                     }
                     case AtxUploadPlanCommand: {
                         const request = params as AtxUploadPlanRequest
-                        return await atxTransformHandler.uploadPlan(request)
+                        const useNew = request.useOrchestratorAgent === true
+                        logging.log(`ATX Server: Routing uploadPlan -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        return useNew
+                            ? await atxTransformHandler.uploadPlan(request)
+                            : await atxTransformHandlerLegacy.uploadPlan(request)
                     }
                     case AtxStopJobCommand: {
                         const { WorkspaceId, JobId } = params as AtxStopJobRequest
@@ -279,6 +291,12 @@ export const AtxNetTransformServerToken =
             logging.log('ATXTransformServer initialized (local-build-verification support enabled)')
             atxTokenServiceManager = AtxTokenServiceManager.getInstance()
             atxTransformHandler = new ATXTransformHandler(atxTokenServiceManager, workspace, logging, runtime)
+            atxTransformHandlerLegacy = new AtxTransformHandlerLegacy(
+                atxTokenServiceManager,
+                workspace,
+                logging,
+                runtime
+            )
         }
 
         lsp.addInitializer(onInitializeHandler)
