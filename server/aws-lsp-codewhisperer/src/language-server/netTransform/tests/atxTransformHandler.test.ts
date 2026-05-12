@@ -1518,3 +1518,476 @@ describe('ATXTransformHandler - lifecycle (startTransform & helpers)', () => {
         })
     })
 })
+
+describe('ATXTransformHandler - workspace, job, artifact, HITL helpers', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: any
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let sendStub: sinon.SinonStub
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        // Stub the methods getActiveTransformProfileApplicationUrl etc. depend on
+        serviceManager.getActiveApplicationUrl = sinon.stub().returns('https://app.example.com')
+        serviceManager.getBearerToken = sinon.stub().resolves('token')
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sendStub = sinon.stub()
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        sinon.stub(handler as any, 'addAuthToCommand').resolves()
+        ;(handler as any).atxClient = { send: sendStub }
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    describe('getActiveTransformProfileApplicationUrl', () => {
+        it('should return the cached application URL', async () => {
+            const result = await handler.getActiveTransformProfileApplicationUrl()
+            expect(result).to.equal('https://app.example.com')
+        })
+
+        it('should return null and log error when no URL cached', async () => {
+            serviceManager.getActiveApplicationUrl = sinon.stub().returns(null)
+
+            const result = await handler.getActiveTransformProfileApplicationUrl()
+
+            expect(result).to.be.null
+            expect((logging.error as sinon.SinonStub).called).to.be.true
+        })
+    })
+
+    describe('onProfileUpdate', () => {
+        it('should null-out the cached atxClient', () => {
+            ;(handler as any).atxClient = { send: () => null }
+            handler.onProfileUpdate()
+            expect((handler as any).atxClient).to.be.null
+        })
+    })
+
+    describe('listWorkspaces', () => {
+        it('should map workspace items to PascalCase response shape', async () => {
+            sendStub.resolves({
+                items: [
+                    { id: 'ws-1', name: 'One', description: 'first' },
+                    { id: 'ws-2', name: 'Two', description: 'second' },
+                ],
+            })
+
+            const result = await handler.listWorkspaces()
+
+            expect(result.workspaces).to.have.lengthOf(2)
+            expect(result.workspaces[0]).to.include({ Id: 'ws-1', Name: 'One', Description: 'first' })
+            expect(result.applicationUrl).to.equal('https://app.example.com')
+        })
+
+        it('should return empty workspaces and null URL on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.listWorkspaces()
+
+            expect(result.workspaces).to.deep.equal([])
+            expect(result.applicationUrl).to.be.null
+        })
+
+        it('should handle missing items array gracefully', async () => {
+            sendStub.resolves({
+                /* no items */
+            })
+
+            const result = await handler.listWorkspaces()
+
+            expect(result.workspaces).to.deep.equal([])
+        })
+    })
+
+    describe('createWorkspace', () => {
+        it('should return workspace info on success', async () => {
+            sendStub.resolves({ workspace: { id: 'ws-9', name: 'New' } })
+
+            const result = await handler.createWorkspace('New', 'desc')
+
+            expect(result).to.deep.equal({ workspaceId: 'ws-9', workspaceName: 'New' })
+        })
+
+        it('should return null when response missing workspace fields', async () => {
+            sendStub.resolves({ workspace: { id: 'ws-9' /* no name */ } })
+
+            const result = await handler.createWorkspace('New')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.createWorkspace(null)
+
+            expect(result).to.be.null
+        })
+
+        it('should auto-generate description when name is provided without description', async () => {
+            sendStub.resolves({ workspace: { id: 'ws-9', name: 'New' } })
+
+            await handler.createWorkspace('MyWorkspace')
+
+            const command = sendStub.firstCall.args[0]
+            expect(command.input.description).to.include('MyWorkspace')
+        })
+    })
+
+    describe('listJobs', () => {
+        it('should paginate and aggregate jobs from multiple pages', async () => {
+            sendStub.onFirstCall().resolves({
+                jobList: [{ jobInfo: { jobId: 'j1', statusDetails: { status: 'COMPLETED' } } }],
+                nextToken: 'page-2',
+            })
+            sendStub.onSecondCall().resolves({
+                jobList: [{ jobInfo: { jobId: 'j2', statusDetails: { status: 'EXECUTING' } } }],
+                nextToken: undefined,
+            })
+
+            const result = await handler.listJobs('ws-1')
+
+            expect(result?.Jobs).to.have.lengthOf(2)
+            expect(result?.Jobs[0].JobId).to.equal('j1')
+            expect(result?.Jobs[1].Status).to.equal('EXECUTING')
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.listJobs('ws-1')
+
+            expect(result).to.be.null
+        })
+
+        it('should default Status to UNKNOWN when missing in response', async () => {
+            sendStub.resolves({
+                jobList: [{ jobInfo: { jobId: 'j1' /* no statusDetails */ } }],
+            })
+
+            const result = await handler.listJobs('ws-1')
+
+            expect(result?.Jobs[0].Status).to.equal('UNKNOWN')
+        })
+    })
+
+    describe('listOrCreateWorkspace', () => {
+        it('should return AvailableWorkspaces when CreateWorkspaceName not provided', async () => {
+            sinon.stub(handler, 'listWorkspaces').resolves({
+                workspaces: [{ Id: 'ws-1', Name: 'One' }],
+                applicationUrl: 'u',
+            })
+            const createStub = sinon.stub(handler, 'createWorkspace')
+
+            const result = await handler.listOrCreateWorkspace({} as any)
+
+            expect(result?.AvailableWorkspaces).to.have.lengthOf(1)
+            expect(result?.CreatedWorkspace).to.be.undefined
+            expect(createStub.called).to.be.false
+        })
+
+        it('should create workspace and append it to AvailableWorkspaces when name is provided', async () => {
+            sinon.stub(handler, 'listWorkspaces').resolves({
+                workspaces: [],
+                applicationUrl: 'u',
+            })
+            sinon.stub(handler, 'createWorkspace').resolves({
+                workspaceId: 'ws-new',
+                workspaceName: 'Brand New',
+            })
+
+            const result = await handler.listOrCreateWorkspace({
+                CreateWorkspaceName: 'Brand New',
+                CreateWorkspaceDescription: 'desc',
+            } as any)
+
+            expect(result?.CreatedWorkspace).to.deep.equal({
+                WorkspaceId: 'ws-new',
+                WorkspaceName: 'Brand New',
+            })
+            expect(result?.AvailableWorkspaces).to.have.lengthOf(1)
+            expect(result?.AvailableWorkspaces[0].Id).to.equal('ws-new')
+        })
+
+        it('should return null when verifySession fails', async () => {
+            sinon.stub(handler as any, 'verifySession').resolves(false)
+
+            const result = await handler.listOrCreateWorkspace({} as any)
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('getJob', () => {
+        it('should return the job from response on success', async () => {
+            sendStub.resolves({ job: { statusDetails: { status: 'COMPLETED' } } })
+
+            const result = await handler.getJob('ws-1', 'job-1')
+
+            expect(result?.statusDetails?.status).to.equal('COMPLETED')
+        })
+
+        it('should return null when response has no job', async () => {
+            sendStub.resolves({})
+
+            const result = await handler.getJob('ws-1', 'job-1')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.getJob('ws-1', 'job-1')
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('createArtifactDownloadUrl', () => {
+        it('should return s3PresignedUrl and normalized headers on success', async () => {
+            sendStub.resolves({
+                s3PreSignedUrl: 'https://s3/dl',
+                requestHeaders: { 'x-foo': ['bar'], 'x-baz': 'qux' },
+            })
+
+            const result = await handler.createArtifactDownloadUrl('ws-1', 'job-1', 'art-1')
+
+            expect(result?.s3PresignedUrl).to.equal('https://s3/dl')
+            expect(result?.requestHeaders).to.deep.equal({ 'x-foo': 'bar', 'x-baz': 'qux' })
+        })
+
+        it('should return null when s3PreSignedUrl missing', async () => {
+            sendStub.resolves({
+                /* no s3PreSignedUrl */
+            })
+
+            const result = await handler.createArtifactDownloadUrl('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.createArtifactDownloadUrl('ws-1', 'job-1', 'art-1')
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('listHitls', () => {
+        it('should return hitlTasks array on success', async () => {
+            sendStub.resolves({ hitlTasks: [{ taskId: 't1' }] })
+
+            const result = await handler.listHitls('ws-1', 'job-1')
+
+            expect(result).to.have.lengthOf(1)
+            expect(result?.[0].taskId).to.equal('t1')
+        })
+
+        it('should return empty array when hitlTasks is missing', async () => {
+            sendStub.resolves({})
+
+            const result = await handler.listHitls('ws-1', 'job-1')
+
+            expect(result).to.deep.equal([])
+        })
+
+        it('should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.listHitls('ws-1', 'job-1')
+
+            expect(result).to.be.null
+        })
+    })
+
+    describe('submitHitl & updateHitl & getHitl', () => {
+        it('submitHitl should return result on success', async () => {
+            sendStub.resolves({ status: 'SUBMITTED' })
+            const result = await handler.submitHitl('ws-1', 'job-1', 't1', 'art-1')
+            expect(result?.status).to.equal('SUBMITTED')
+        })
+
+        it('submitHitl should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            expect(await handler.submitHitl('ws-1', 'job-1', 't1', 'art-1')).to.be.null
+        })
+
+        it('updateHitl should return result on success', async () => {
+            sendStub.resolves({ status: 'UPDATED' })
+            const result = await handler.updateHitl('ws-1', 'job-1', 't1', 'art-1')
+            expect(result?.status).to.equal('UPDATED')
+        })
+
+        it('updateHitl should return null on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+            expect(await handler.updateHitl('ws-1', 'job-1', 't1', 'art-1')).to.be.null
+        })
+
+        it('getHitl should return task object on success', async () => {
+            sendStub.resolves({ task: { status: 'CLOSED' } })
+            const result = await handler.getHitl('ws-1', 'job-1', 't1')
+            expect(result?.status).to.equal('CLOSED')
+        })
+
+        it('getHitl should return null when no task in response', async () => {
+            sendStub.resolves({})
+            expect(await handler.getHitl('ws-1', 'job-1', 't1')).to.be.null
+        })
+    })
+
+    describe('stopJob', () => {
+        it('should return status on success and clear job cache', async () => {
+            sendStub.resolves({ status: 'STOPPING' })
+            ;(handler as any).cachedHitl = 'h1'
+
+            const result = await handler.stopJob('ws-1', 'job-1')
+
+            expect(result).to.equal('STOPPING')
+            expect((handler as any).cachedHitl).to.be.null
+        })
+
+        it('should return "FAILED" on send error', async () => {
+            sendStub.rejects(new Error('boom'))
+
+            const result = await handler.stopJob('ws-1', 'job-1')
+
+            expect(result).to.equal('FAILED')
+        })
+
+        it('should default to "STOPPED" when response status is missing', async () => {
+            sendStub.resolves({
+                /* no status */
+            })
+
+            const result = await handler.stopJob('ws-1', 'job-1')
+
+            expect(result).to.equal('STOPPED')
+        })
+    })
+
+    describe('downloadFinalArtifact', () => {
+        it('should return null when no artifacts available', async () => {
+            sinon.stub(handler as any, 'listArtifacts').resolves([])
+
+            const result = await handler.downloadFinalArtifact('ws-1', 'job-1', 'C:/sln')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when listArtifacts returns null', async () => {
+            sinon.stub(handler as any, 'listArtifacts').resolves(null)
+
+            const result = await handler.downloadFinalArtifact('ws-1', 'job-1', 'C:/sln')
+
+            expect(result).to.be.null
+        })
+
+        it('should return null when createArtifactDownloadUrl fails', async () => {
+            sinon.stub(handler as any, 'listArtifacts').resolves([{ artifactId: 'art-1' }])
+            sinon.stub(handler, 'createArtifactDownloadUrl').resolves(null)
+
+            const result = await handler.downloadFinalArtifact('ws-1', 'job-1', 'C:/sln')
+
+            expect(result).to.be.null
+        })
+
+        it('should return download path on full happy flow', async () => {
+            sinon.stub(handler as any, 'listArtifacts').resolves([{ artifactId: 'art-1' }])
+            sinon.stub(handler, 'createArtifactDownloadUrl').resolves({
+                s3PresignedUrl: 'https://s3/dl',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'downloadAndExtractArchive').resolves(undefined)
+
+            const result = await handler.downloadFinalArtifact('ws-1', 'job-1', 'C:/sln')
+
+            expect(result).to.be.a('string')
+            expect(result).to.include('job-1')
+        })
+    })
+
+    describe('completeHitlWithBuildResults', () => {
+        let tmpRoot: string
+
+        beforeEach(() => {
+            tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atx-hitlbuild-'))
+        })
+
+        afterEach(() => {
+            try {
+                fs.rmSync(tmpRoot, { recursive: true, force: true })
+            } catch {
+                // best effort
+            }
+        })
+
+        it('should return error when createArtifactUploadUrl fails', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves(null)
+
+            const result = await handler.completeHitlWithBuildResults('ws-1', 'job-1', 't1', 'BUILD OK', tmpRoot)
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to create artifact upload URL')
+        })
+
+        it('should return error when uploadArtifact fails', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(false)
+
+            const result = await handler.completeHitlWithBuildResults('ws-1', 'job-1', 't1', 'BUILD OK', tmpRoot)
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to upload build results')
+        })
+
+        it('should return success on full happy path', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'submitHitl').resolves({ status: 'SUBMITTED' } as any)
+
+            const result = await handler.completeHitlWithBuildResults('ws-1', 'job-1', 't1', 'BUILD OK', tmpRoot)
+
+            expect(result.Success).to.be.true
+        })
+
+        it('should return error when submitHitl returns null', async () => {
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'u',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true })
+            sinon.stub(handler, 'submitHitl').resolves(null)
+
+            const result = await handler.completeHitlWithBuildResults('ws-1', 'job-1', 't1', 'BUILD OK', tmpRoot)
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('Failed to submit HITL task')
+        })
+    })
+})
