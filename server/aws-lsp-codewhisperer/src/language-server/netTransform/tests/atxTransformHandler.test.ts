@@ -245,3 +245,199 @@ describe('ATXTransformHandler - Chat APIs', () => {
         })
     })
 })
+
+describe('ATXTransformHandler - getTransformInfo', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let getJobStub: sinon.SinonStub
+    let getTransformationPlanStub: sinon.SinonStub
+    let listHitlsStub: sinon.SinonStub
+    let listWorklogsStub: sinon.SinonStub
+    let downloadFinalArtifactStub: sinon.SinonStub
+    let getHitlAgentArtifactStub: sinon.SinonStub
+
+    const baseRequest = {
+        TransformationJobId: 'job-123',
+        WorkspaceId: 'ws-123',
+        SolutionRootPath: 'C:/sln',
+    }
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+        sinon.stub(handler as any, 'initializeAtxClient').resolves(true)
+        ;(handler as any).atxClient = { send: sinon.stub() }
+
+        getJobStub = sinon.stub(handler, 'getJob')
+        getTransformationPlanStub = sinon.stub(handler, 'getTransformationPlan')
+        listHitlsStub = sinon.stub(handler, 'listHitls')
+        listWorklogsStub = sinon.stub(handler as any, 'listWorklogs').resolves(undefined)
+        downloadFinalArtifactStub = sinon.stub(handler, 'downloadFinalArtifact')
+        getHitlAgentArtifactStub = sinon.stub(handler, 'getHitlAgentArtifact')
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    it('should return JOB_NOT_FOUND when getJob returns null', async () => {
+        getJobStub.resolves(null)
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.ErrorString).to.equal('JOB_NOT_FOUND')
+        expect((logging.error as sinon.SinonStub).called).to.be.true
+    })
+
+    it('should return COMPLETED with artifact path and plan', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'COMPLETED' } })
+        downloadFinalArtifactStub.resolves('C:/sln/artifact.zip')
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('COMPLETED')
+        expect(result?.ArtifactPath).to.equal('C:/sln/artifact.zip')
+        expect(result?.TransformationPlan).to.deep.equal({ Root: { Children: [] } })
+    })
+
+    it('should return FAILED with failureReason', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'FAILED', failureReason: 'compile error' },
+        })
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('FAILED')
+        expect((result?.TransformationJob as any).FailureReason).to.equal('compile error')
+        expect(result?.ErrorString).to.equal('Transformation job failed')
+    })
+
+    it('should return STOPPED with error string', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'STOPPED' } })
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('STOPPED')
+        expect(result?.ErrorString).to.equal('Transformation job stopped')
+    })
+
+    it('should return EXECUTING with plan when no HITLs pending', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'EXECUTING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [{ StepId: 's1', Children: [] }] } })
+        listHitlsStub.resolves([])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('EXECUTING')
+        expect(result?.TransformationPlan?.Root.Children).to.have.lengthOf(1)
+    })
+
+    it('should surface AWAITING_HUMAN_INPUT when EXECUTING with pending HITL', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'EXECUTING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([{ tag: 'local-build-verification', taskId: 'task-1' }])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result?.HitlTag).to.equal('local-build-verification')
+        expect(result?.HitlTaskId).to.equal('task-1')
+    })
+
+    it('should prefer local-build-verification over other HITL tags', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'EXECUTING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([
+            { tag: 'missing-packages', taskId: 'task-mp' },
+            { tag: 'local-build-verification', taskId: 'task-lbv' },
+            { tag: 'other', taskId: 'task-other' },
+        ])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.HitlTag).to.equal('local-build-verification')
+        expect(result?.HitlTaskId).to.equal('task-lbv')
+    })
+
+    it('should default to PLANNING-like fallthrough for unknown statuses', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'PLANNING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('PLANNING')
+        expect(listWorklogsStub.calledOnce).to.be.true
+    })
+
+    it('should set DiffApplyFailed flag when diff context records failures', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'EXECUTING' } })
+        getTransformationPlanStub.callsFake(async () => {
+            const ctx = (handler as any)._currentDiffContext
+            if (ctx) {
+                ctx.failed = true
+                ctx.failedStepIds.push('step-x')
+            }
+            return { Root: { Children: [] } }
+        })
+        listHitlsStub.resolves([])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.DiffApplyFailed).to.equal(true)
+        expect(result?.DiffApplyFailedStepIds).to.deep.equal(['step-x'])
+    })
+
+    it('should clear diff context after the call (no leak across calls)', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'COMPLETED' } })
+        downloadFinalArtifactStub.resolves('path')
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        await handler.getTransformInfo(baseRequest)
+
+        expect((handler as any)._currentDiffContext).to.be.null
+    })
+
+    it('should parse interactive_mode from job objective on first call', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+            objective: '{"interactive_mode":"interactive"}',
+        })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([])
+
+        await handler.getTransformInfo(baseRequest)
+
+        expect((handler as any).cachedInteractiveMode).to.equal('Interactive')
+    })
+
+    it('should default cachedInteractiveMode to Autonomous when objective is unparseable', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+            objective: 'not-json',
+        })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([])
+
+        await handler.getTransformInfo(baseRequest)
+
+        expect((handler as any).cachedInteractiveMode).to.equal('Autonomous')
+    })
+
+    it('should return null when getJob throws', async () => {
+        getJobStub.rejects(new Error('network'))
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result).to.be.null
+        expect((logging.error as sinon.SinonStub).called).to.be.true
+    })
+})
