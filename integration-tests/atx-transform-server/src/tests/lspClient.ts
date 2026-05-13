@@ -28,6 +28,22 @@ export class LspClient {
         this.process.stderr.on('data', (data: Buffer) => {
             console.error(`[LSP stderr] ${data.toString()}`)
         })
+
+        this.process.on('exit', (code, signal) => {
+            console.error(`[LSP] Process exited with code ${code}, signal ${signal}`)
+            for (const [id, { reject }] of this.pendingRequests) {
+                reject(new Error(`LSP server exited unexpectedly (code: ${code}, signal: ${signal})`))
+            }
+            this.pendingRequests.clear()
+        })
+
+        this.process.on('error', (err) => {
+            console.error(`[LSP] Process error: ${err.message}`)
+            for (const [id, { reject }] of this.pendingRequests) {
+                reject(new Error(`LSP server error: ${err.message}`))
+            }
+            this.pendingRequests.clear()
+        })
     }
 
     private processBuffer(): void {
