@@ -48,6 +48,19 @@ export const AWS_Q_ENDPOINT_URL_ENV_VAR = 'AWS_Q_ENDPOINT_URL'
 export const ATX_FES_REGION_ENV_VAR = 'ATX_FES_REGION'
 export const ATX_FES_ENDPOINT_URL_ENV_VAR = 'ATX_FES_ENDPOINT_URL'
 
+/**
+ * Name of the orchestrator agent the .NET transform job runs against.
+ * The default routes to the public production orchestrator. Override
+ * via the ``ATX_ORCHESTRATOR_AGENT`` environment variable — e.g. set it
+ * to ``dotnet-chatty-agent-internal`` for internal/dev-stage testing.
+ */
+export const DEFAULT_ATX_ORCHESTRATOR_AGENT = 'dotnet-chatty-agent'
+export const ATX_ORCHESTRATOR_AGENT_ENV_VAR = 'ATX_ORCHESTRATOR_AGENT'
+
+export function getAtxOrchestratorAgent(): string {
+    return process.env[ATX_ORCHESTRATOR_AGENT_ENV_VAR] || DEFAULT_ATX_ORCHESTRATOR_AGENT
+}
+
 export const IDE = 'IDE'
 
 export const Q_CONFIGURATION_SECTION = 'aws.q'
