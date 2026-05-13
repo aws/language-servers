@@ -85,37 +85,58 @@ export class Utils {
         jobId: string,
         stepId: string | null,
         description: string,
-        solutionRootPath: string
+        solutionRootPath: string,
+        timestamp?: Date
     ): Promise<void> {
         const worklogDir = path.join(solutionRootPath, workspaceFolderName, jobId)
         const worklogPath = path.join(worklogDir, 'worklogs.json')
 
         await Utils.directoryExists(worklogDir)
 
-        let worklogData: Record<string, string[]> = {}
+        const maxRetries = 3
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                let worklogData: Record<string, any[]> = {}
 
-        // Read existing worklog if it exists
-        if (fs.existsSync(worklogPath)) {
-            const existingData = fs.readFileSync(worklogPath, 'utf8')
-            worklogData = JSON.parse(existingData)
+                // Read existing worklog if it exists
+                if (fs.existsSync(worklogPath)) {
+                    const existingData = fs.readFileSync(worklogPath, 'utf8')
+                    worklogData = JSON.parse(existingData)
+                }
+
+                if (stepId == null) {
+                    stepId = 'Progress'
+                }
+
+                if (!worklogData[stepId]) {
+                    worklogData[stepId] = []
+                }
+
+                const entry = {
+                    timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+                    text: description,
+                }
+                if (!worklogData[stepId].some((e: any) => (typeof e === 'string' ? e : e.text) === description)) {
+                    worklogData[stepId].push(entry)
+                }
+
+                // Write to temp file and rename for atomic update (avoids file lock conflicts with toolkit reader)
+                const tempPath = worklogPath + '.tmp'
+                fs.writeFileSync(tempPath, JSON.stringify(worklogData, null, 2))
+                fs.renameSync(tempPath, worklogPath)
+                return
+            } catch (err: any) {
+                if ((err.code === 'EBUSY' || err.code === 'EPERM') && attempt < maxRetries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)))
+                    continue
+                }
+                // Don't throw - worklogs are non-critical, will retry on next poll
+                console.error(
+                    `ATX: Failed to write worklogs after ${maxRetries} attempts: ${err.code} - ${err.message}`
+                )
+                return
+            }
         }
-
-        if (stepId == null) {
-            stepId = 'Progress'
-        }
-
-        // Initialize array if stepId doesn't exist
-        if (!worklogData[stepId]) {
-            worklogData[stepId] = []
-        }
-
-        // Add description if not already present
-        if (!worklogData[stepId].includes(description)) {
-            worklogData[stepId].push(description)
-        }
-
-        // Write back to file
-        fs.writeFileSync(worklogPath, JSON.stringify(worklogData, null, 2))
     }
 
     /**
