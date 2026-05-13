@@ -1297,11 +1297,18 @@ export class ATXTransformHandler {
                 this.logging.log(
                     `ATX: EXECUTING HITL probe for job ${request.TransformationJobId}: ${execHitls ? execHitls.length : 0} task(s) [${hitlTagSummary}]`
                 )
-                if (execHitls && execHitls.length > 0) {
+
+                // Filter out the mode-selection checkpoint HITL — it's always present and
+                // doesn't require user action. Only surface truly blocking HITLs.
+                const blockingHitls = execHitls ? execHitls.filter(h => !String(h.tag).endsWith('-checkpoint')) : []
+
+                if (blockingHitls.length > 0) {
                     const execHitl =
-                        execHitls.find(h => h.tag === 'local-build-verification') ||
-                        execHitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
-                        execHitls[0]
+                        blockingHitls.find(h => h.tag === 'local-build-verification') ||
+                        blockingHitls.find(
+                            h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl'
+                        ) ||
+                        blockingHitls[0]
                     this.logging.log(
                         `ATX: EXECUTING job has pending HITL — tag=${execHitl.tag} taskId=${execHitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
                     )
