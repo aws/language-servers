@@ -236,3 +236,175 @@ describe('ATXTransformHandler - DiffApplyFailed propagation', () => {
         expect((handler as any)._currentDiffContext).to.be.null
     })
 })
+
+describe('ATXTransformHandler - EXECUTING HITL probe filtering', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let getJobStub: sinon.SinonStub
+    let listHitlsStub: sinon.SinonStub
+    let getTransformationPlanStub: sinon.SinonStub
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+
+        getJobStub = sinon.stub(handler as any, 'getJob')
+        listHitlsStub = sinon.stub(handler as any, 'listHitls')
+        getTransformationPlanStub = sinon.stub(handler as any, 'getTransformationPlan')
+        sinon.stub(handler as any, 'listWorklogs').resolves()
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    it('should not override status when only checkpoint HITL is present', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+        })
+        listHitlsStub.resolves([{ tag: 'job123-checkpoint', taskId: 'task-1' }])
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo({
+            TransformationJobId: 'job-123',
+            WorkspaceId: 'ws-123',
+            SolutionRootPath: '/root',
+        } as any)
+
+        expect(result).to.not.be.null
+        expect(result!.TransformationJob.Status).to.equal('EXECUTING')
+    })
+
+    it('should override status when a blocking HITL is present', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+        })
+        listHitlsStub.resolves([
+            { tag: 'job123-checkpoint', taskId: 'task-1' },
+            { tag: 'local-build-verification', taskId: 'task-2' },
+        ])
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo({
+            TransformationJobId: 'job-123',
+            WorkspaceId: 'ws-123',
+            SolutionRootPath: '/root',
+        } as any)
+
+        expect(result).to.not.be.null
+        expect(result!.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result!.HitlTag).to.equal('local-build-verification')
+    })
+
+    it('should override status for review HITLs', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+        })
+        listHitlsStub.resolves([
+            { tag: 'job123-checkpoint', taskId: 'task-1' },
+            { tag: 'step001-review', taskId: 'task-2' },
+        ])
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo({
+            TransformationJobId: 'job-123',
+            WorkspaceId: 'ws-123',
+            SolutionRootPath: '/root',
+        } as any)
+
+        expect(result).to.not.be.null
+        expect(result!.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result!.HitlTag).to.equal('step001-review')
+    })
+
+    it('should pass through EXECUTING status when no HITLs exist', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+        })
+        listHitlsStub.resolves([])
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo({
+            TransformationJobId: 'job-123',
+            WorkspaceId: 'ws-123',
+            SolutionRootPath: '/root',
+        } as any)
+
+        expect(result).to.not.be.null
+        expect(result!.TransformationJob.Status).to.equal('EXECUTING')
+    })
+
+    it('should override status for missing-packages HITL', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+        })
+        listHitlsStub.resolves([
+            { tag: 'job123-checkpoint', taskId: 'task-1' },
+            { tag: 'missing-packages', taskId: 'task-2' },
+        ])
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo({
+            TransformationJobId: 'job-123',
+            WorkspaceId: 'ws-123',
+            SolutionRootPath: '/root',
+        } as any)
+
+        expect(result).to.not.be.null
+        expect(result!.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result!.HitlTag).to.equal('missing-packages')
+    })
+})
+
+describe('ATXTransformHandler - EXECUTING HITL probe null handling', () => {
+    let handler: ATXTransformHandler
+    let serviceManager: AtxTokenServiceManager
+    let workspace: Workspace
+    let logging: Logging
+    let runtime: Runtime
+    let getJobStub: sinon.SinonStub
+    let listHitlsStub: sinon.SinonStub
+    let getTransformationPlanStub: sinon.SinonStub
+
+    beforeEach(() => {
+        serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
+        workspace = {} as Workspace
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        runtime = {} as Runtime
+
+        handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
+
+        getJobStub = sinon.stub(handler as any, 'getJob')
+        listHitlsStub = sinon.stub(handler as any, 'listHitls')
+        getTransformationPlanStub = sinon.stub(handler as any, 'getTransformationPlan')
+        sinon.stub(handler as any, 'listWorklogs').resolves()
+    })
+
+    afterEach(() => {
+        sinon.restore()
+    })
+
+    it('should pass through EXECUTING status when listHitls returns null', async () => {
+        getJobStub.resolves({
+            statusDetails: { status: 'EXECUTING' },
+        })
+        listHitlsStub.resolves(null)
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+
+        const result = await handler.getTransformInfo({
+            TransformationJobId: 'job-123',
+            WorkspaceId: 'ws-123',
+            SolutionRootPath: '/root',
+        } as any)
+
+        expect(result).to.not.be.null
+        expect(result!.TransformationJob.Status).to.equal('EXECUTING')
+    })
+})
