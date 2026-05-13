@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.115](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.114...lsp-codewhisperer/v0.0.115) (2026-05-13)
+
+
+### Features
+
+* chatty-agent transformation flow ([927bd03](https://github.com/aws/language-servers/commit/927bd03d1b7f72acbc7d9e1748759598251cd8ed))
+
 ## [0.0.114](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.113...lsp-codewhisperer/v0.0.114) (2026-05-05)
 
 
