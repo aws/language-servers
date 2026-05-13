@@ -6,28 +6,51 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
+import { AtxTransformHandlerLegacy } from './atxTransformHandlerLegacy'
 import {
     AtxListOrCreateWorkspaceRequest,
+    AtxListJobsRequest,
     AtxStartTransformRequest,
     AtxGetTransformInfoRequest,
     AtxStopJobRequest,
     AtxUploadPlanRequest,
+    AtxSetCheckpointsRequest,
+    AtxUpdateWorkspaceRequest,
     AtxUploadPackagesRequest,
+    AtxListArtifactsRequest,
+    AtxDownloadArtifactRequest,
+    AtxCompleteLocalBuildHitlRequest,
+    AtxGetJobDashboardRequest,
+    AtxGetJobReportRequest,
+    AtxUploadCustomPlanRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
 const AtxListOrCreateWorkspaceCommand = 'aws/atxTransform/listOrCreateWorkspace'
+const AtxListJobsCommand = 'aws/atxTransform/listJobs'
 const AtxStartTransformCommand = 'aws/atxTransform/startTransform'
 const AtxGetTransformInfoCommand = 'aws/atxTransform/getTransformInfo'
 const AtxStopJobCommand = 'aws/atxTransform/stopJob'
 const AtxUploadPlanCommand = 'aws/atxTransform/uploadPlan'
+const AtxSetCheckpointsCommand = 'aws/atxTransform/setCheckpoints'
+const AtxUpdateWorkspaceCommand = 'aws/atxTransform/updateWorkspace'
 const AtxUploadPackagesCommand = 'aws/atxTransform/uploadPackages'
+const AtxSendMessageCommand = 'aws/atxTransform/sendMessage'
+const AtxListMessagesCommand = 'aws/atxTransform/listMessages'
+const AtxBatchGetMessagesCommand = 'aws/atxTransform/batchGetMessages'
+const AtxListArtifactsCommand = 'aws/atxTransform/listArtifacts'
+const AtxDownloadArtifactCommand = 'aws/atxTransform/downloadArtifact'
+const AtxCompleteLocalBuildHitlCommand = 'aws/atxTransform/completeLocalBuildHitl'
+const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
+const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
+const AtxUploadCustomPlanCommand = 'aws/atxTransform/uploadCustomPlan'
 
 export const AtxNetTransformServerToken =
     (): Server =>
     ({ workspace, logging, lsp, telemetry, runtime }) => {
         let atxTokenServiceManager: AtxTokenServiceManager
         let atxTransformHandler: ATXTransformHandler
+        let atxTransformHandlerLegacy: AtxTransformHandlerLegacy
 
         const runAtxTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
@@ -37,16 +60,29 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.listOrCreateWorkspace(request)
                         return result
                     }
+                    case AtxListJobsCommand: {
+                        const { WorkspaceId } = params as AtxListJobsRequest
+                        if (!WorkspaceId) {
+                            throw new Error('WorkspaceId is required for listJobs')
+                        }
+                        const result = await atxTransformHandler.listJobs(WorkspaceId)
+                        return result
+                    }
                     case AtxStartTransformCommand: {
-                        const { WorkspaceId, JobName, StartTransformRequest } = params as AtxStartTransformRequest
+                        const { WorkspaceId, JobName, InteractiveMode, StartTransformRequest, useOrchestratorAgent } =
+                            params as AtxStartTransformRequest
+                        const useNew = useOrchestratorAgent === true
 
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        const result = await atxTransformHandler.startTransform({
+                        logging.log(`ATX Server: Routing startTransform -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        const handler = useNew ? atxTransformHandler : atxTransformHandlerLegacy
+                        const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
+                            interactiveMode: InteractiveMode,
                             startTransformRequest: StartTransformRequest,
                         })
 
@@ -64,12 +100,19 @@ export const AtxNetTransformServerToken =
                     }
                     case AtxGetTransformInfoCommand: {
                         const request = params as AtxGetTransformInfoRequest
-
-                        return await atxTransformHandler.getTransformInfo(request)
+                        const useNew = request.useOrchestratorAgent === true
+                        logging.log(`ATX Server: Routing getTransformInfo -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        return useNew
+                            ? await atxTransformHandler.getTransformInfo(request)
+                            : await atxTransformHandlerLegacy.getTransformInfo(request)
                     }
                     case AtxUploadPlanCommand: {
                         const request = params as AtxUploadPlanRequest
-                        return await atxTransformHandler.uploadPlan(request)
+                        const useNew = request.useOrchestratorAgent === true
+                        logging.log(`ATX Server: Routing uploadPlan -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
+                        return useNew
+                            ? await atxTransformHandler.uploadPlan(request)
+                            : await atxTransformHandlerLegacy.uploadPlan(request)
                     }
                     case AtxStopJobCommand: {
                         const { WorkspaceId, JobId } = params as AtxStopJobRequest
@@ -81,9 +124,122 @@ export const AtxNetTransformServerToken =
                         const result = await atxTransformHandler.stopJob(WorkspaceId, JobId)
                         return { Status: result }
                     }
+                    case AtxSetCheckpointsCommand: {
+                        const { WorkspaceId, TransformationJobId, SolutionRootPath, Checkpoints, InteractiveMode } =
+                            params as AtxSetCheckpointsRequest
+
+                        logging.info(
+                            `ATX: setCheckpoints params - InteractiveMode=${InteractiveMode}, Checkpoints=${JSON.stringify(Checkpoints)}`
+                        )
+
+                        return await atxTransformHandler.setCheckpoints(
+                            WorkspaceId,
+                            TransformationJobId,
+                            SolutionRootPath,
+                            Checkpoints || {},
+                            InteractiveMode
+                        )
+                    }
+                    case AtxUpdateWorkspaceCommand: {
+                        const { WorkspaceId, TransformationJobId, StepId, SolutionRootPath } =
+                            params as AtxUpdateWorkspaceRequest
+
+                        return await atxTransformHandler.updateWorkspace(
+                            WorkspaceId,
+                            TransformationJobId,
+                            SolutionRootPath,
+                            StepId
+                        )
+                    }
                     case AtxUploadPackagesCommand: {
                         const request = params as AtxUploadPackagesRequest
                         return await atxTransformHandler.uploadPackages(request)
+                    }
+                    case AtxSendMessageCommand: {
+                        const { workspaceId, jobId, text, skipPolling } = params as any
+                        return await atxTransformHandler.sendMessage({
+                            workspaceId,
+                            jobId,
+                            text,
+                            skipPolling,
+                        })
+                    }
+                    case AtxListMessagesCommand: {
+                        const { workspaceId, jobId, maxResults, nextToken, startTimestamp } = params as any
+                        return await atxTransformHandler.listMessages({
+                            workspaceId,
+                            jobId,
+                            maxResults,
+                            nextToken,
+                            startTimestamp: startTimestamp ? new Date(startTimestamp) : undefined,
+                        })
+                    }
+                    case AtxBatchGetMessagesCommand: {
+                        const { workspaceId, messageIds } = params as any
+                        return await atxTransformHandler.batchGetMessages({
+                            workspaceId,
+                            messageIds,
+                        })
+                    }
+                    case AtxListArtifactsCommand: {
+                        const { WorkspaceId, TransformationJobId } = params as AtxListArtifactsRequest
+                        logging.log(
+                            `ATX: ListArtifacts command received - WorkspaceId: ${WorkspaceId}, JobId: ${TransformationJobId}`
+                        )
+                        return await atxTransformHandler.listArtifactsForDownload(WorkspaceId, TransformationJobId)
+                    }
+                    case AtxDownloadArtifactCommand: {
+                        const { WorkspaceId, TransformationJobId, ArtifactId, ArtifactName, SavePath } =
+                            params as AtxDownloadArtifactRequest
+                        return await atxTransformHandler.downloadArtifactToPath(
+                            WorkspaceId,
+                            TransformationJobId,
+                            ArtifactId,
+                            SavePath,
+                            ArtifactName
+                        )
+                    }
+                    case AtxCompleteLocalBuildHitlCommand: {
+                        const { WorkspaceId, TransformationJobId, TaskId, BuildResultJson, SolutionRootPath } =
+                            params as AtxCompleteLocalBuildHitlRequest
+
+                        if (typeof BuildResultJson !== 'string' || BuildResultJson.length === 0) {
+                            throw new Error('BuildResultJson is required for completeLocalBuildHitl')
+                        }
+
+                        logging.log(
+                            `ATX: completeLocalBuildHitl received — jobId=${TransformationJobId} taskId=${TaskId} bodyLen=${BuildResultJson.length}`
+                        )
+
+                        return await atxTransformHandler.completeHitlWithBuildResults(
+                            WorkspaceId,
+                            TransformationJobId,
+                            TaskId,
+                            BuildResultJson,
+                            SolutionRootPath
+                        )
+                    }
+                    case AtxGetJobDashboardCommand: {
+                        const { WorkspaceId, JobId } = params as AtxGetJobDashboardRequest
+
+                        if (!WorkspaceId || !JobId) {
+                            throw new Error('WorkspaceId and JobId are required for getJobDashboard')
+                        }
+
+                        return await atxTransformHandler.getJobDashboard(WorkspaceId, JobId)
+                    }
+                    case AtxGetJobReportCommand: {
+                        const { WorkspaceId, JobId, ArtifactId } = params as AtxGetJobReportRequest
+
+                        if (!WorkspaceId || !JobId || !ArtifactId) {
+                            throw new Error('WorkspaceId, JobId and ArtifactId are required for getJobReport')
+                        }
+
+                        return await atxTransformHandler.getJobReport(WorkspaceId, JobId, ArtifactId)
+                    }
+                    case AtxUploadCustomPlanCommand: {
+                        const request = params as AtxUploadCustomPlanRequest
+                        return await atxTransformHandler.uploadCustomPlan(request)
                     }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
@@ -108,11 +264,23 @@ export const AtxNetTransformServerToken =
                     executeCommandProvider: {
                         commands: [
                             AtxListOrCreateWorkspaceCommand,
+                            AtxListJobsCommand,
                             AtxStartTransformCommand,
                             AtxGetTransformInfoCommand,
                             AtxUploadPlanCommand,
                             AtxStopJobCommand,
+                            AtxSetCheckpointsCommand,
+                            AtxUpdateWorkspaceCommand,
                             AtxUploadPackagesCommand,
+                            AtxSendMessageCommand,
+                            AtxListMessagesCommand,
+                            AtxBatchGetMessagesCommand,
+                            AtxListArtifactsCommand,
+                            AtxDownloadArtifactCommand,
+                            AtxCompleteLocalBuildHitlCommand,
+                            AtxGetJobDashboardCommand,
+                            AtxGetJobReportCommand,
+                            AtxUploadCustomPlanCommand,
                         ],
                     },
                 },
@@ -120,8 +288,15 @@ export const AtxNetTransformServerToken =
         }
 
         const onInitializedHandler = () => {
+            logging.log('ATXTransformServer initialized (local-build-verification support enabled)')
             atxTokenServiceManager = AtxTokenServiceManager.getInstance()
             atxTransformHandler = new ATXTransformHandler(atxTokenServiceManager, workspace, logging, runtime)
+            atxTransformHandlerLegacy = new AtxTransformHandlerLegacy(
+                atxTokenServiceManager,
+                workspace,
+                logging,
+                runtime
+            )
         }
 
         lsp.addInitializer(onInitializeHandler)
