@@ -31,6 +31,7 @@ describe('Chat', () => {
     const initialTabId = 'tab-1'
     let mynahUi: MynahUI
     let clientApi: { postMessage: sinon.SinonStub }
+    let messageHandler: ((event: MessageEvent) => void) | undefined
 
     before(() => {
         // Mock global observers for test environment
@@ -51,12 +52,24 @@ describe('Chat', () => {
             postMessage: sandbox.stub(),
         }
 
+        const originalAddEventListener = window.addEventListener.bind(window)
+        sandbox.stub(window, 'addEventListener').callsFake((type: string, handler: any, ...rest: any[]) => {
+            if (type === 'message') {
+                messageHandler = handler
+            }
+            return originalAddEventListener(type, handler, ...rest)
+        })
+
         mynahUi = createChat(clientApi, {
             agenticMode: true,
         })
     })
 
     afterEach(() => {
+        if (messageHandler) {
+            window.removeEventListener('message', messageHandler as EventListener)
+            messageHandler = undefined
+        }
         sandbox.restore()
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
