@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.116](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.115...lsp-codewhisperer/v0.0.116) (2026-05-18)
+
+
+### Bug Fixes
+
+* **amazonq:** prevent file link click from crashing language server ([#2718](https://github.com/aws/language-servers/issues/2718)) ([#2730](https://github.com/aws/language-servers/issues/2730)) ([51e1849](https://github.com/aws/language-servers/commit/51e184948387714bccd5b9c5e50e07d47d771fb1))
+
 ## [0.0.115](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.114...lsp-codewhisperer/v0.0.115) (2026-05-13)
 
 
