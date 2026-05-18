@@ -50,7 +50,7 @@ export function toMynahFileList(fileList: ChatMessage['fileList']): ChatItemCont
                         filePath.split('/').filter(Boolean).pop() || filePath.split('/').slice(-2, -1)[0] || filePath,
                     clickable: true,
                     data: {
-                        fullPath: fileDetails.fullPath || '',
+                        fullPath: fileDetails.fullPath || fileDetails.description || '',
                     },
                 },
             ])
@@ -111,7 +111,7 @@ export function contextListToHeader(contextList?: ChatResult['contextList']): Ch
                         description: fileDetails.description,
                         clickable: true,
                         data: {
-                            fullPath: fileDetails.fullPath || '',
+                            fullPath: fileDetails.fullPath || fileDetails.description || '',
                         },
                     },
                 ])
