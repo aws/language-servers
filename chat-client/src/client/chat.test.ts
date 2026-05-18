@@ -31,6 +31,7 @@ describe('Chat', () => {
     const initialTabId = 'tab-1'
     let mynahUi: MynahUI
     let clientApi: { postMessage: sinon.SinonStub }
+    let messageHandler: ((event: MessageEvent) => void) | undefined
 
     before(() => {
         // Mock global observers for test environment
@@ -51,12 +52,24 @@ describe('Chat', () => {
             postMessage: sandbox.stub(),
         }
 
+        const originalAddEventListener = window.addEventListener.bind(window)
+        sandbox.stub(window, 'addEventListener').callsFake((type: string, handler: any, ...rest: any[]) => {
+            if (type === 'message') {
+                messageHandler = handler
+            }
+            return originalAddEventListener(type, handler, ...rest)
+        })
+
         mynahUi = createChat(clientApi, {
             agenticMode: true,
         })
     })
 
     afterEach(() => {
+        if (messageHandler) {
+            window.removeEventListener('message', messageHandler as EventListener)
+            messageHandler = undefined
+        }
         sandbox.restore()
 
         Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
@@ -127,6 +140,21 @@ describe('Chat', () => {
                 ...eventParams.params,
             },
         })
+    })
+
+    it('rejects inbound messages from a foreign origin (P389799154)', () => {
+        // Simulates a cross-origin postMessage from an attacker page. The
+        // handleInboundMessage same-origin check should drop the event before
+        // any command is dispatched.
+        clientApi.postMessage.resetHistory()
+
+        const foreignEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: 'pwn' } },
+            origin: 'https://attacker.example.com',
+        })
+        window.dispatchEvent(foreignEvent)
+
+        assert.notCalled(clientApi.postMessage)
     })
 
     it('publishes tab added event, when UI tab is added', () => {
@@ -568,9 +596,15 @@ describe('Chat', () => {
     })
 
     function createInboundEvent(params: any) {
-        const event = new CustomEvent('message') as any
-        event.data = params
-        return event
+        // Use MessageEvent (not CustomEvent) and set origin to window.location.origin
+        // so that handleInboundMessage's same-origin check accepts it. See
+        // chat.ts handleInboundMessage origin validation (P389799154).
+        // window.MessageEvent is the jsdom event class; using the global Node
+        // MessageEvent fails dispatchEvent's instanceof check.
+        return new window.MessageEvent('message', {
+            data: params,
+            origin: window.location.origin,
+        })
     }
 
     describe('with client adapter', () => {
