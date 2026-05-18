@@ -170,9 +170,29 @@ export const createChat = (
      * 2. Messages without a 'sender' property are processed by the standard
      *    command-based router, which dispatches based on the 'command' field.
      *
+     * Security: rejects messages whose origin does not match the chat iframe's
+     * own origin. The chat iframe is loaded same-origin with its host page in
+     * every supported integration:
+     *   - VS Code / JetBrains / Visual Studio webviews: the host webview iframe
+     *     forwards messages to the inner content iframe with the parent's own
+     *     origin (e.g. `vscode-webview://...`). The inner iframe shares that
+     *     origin via the `allow-same-origin` sandbox flag.
+     *   - SageMaker JupyterLab: the parent calls
+     *     `chatFrame.contentWindow.postMessage(payload, window.location.origin)`
+     *     and loads the iframe `src` from the same SageMaker domain.
+     * Cross-origin postMessage events can only come from an attacker page, so
+     * we drop them. Mitigates DOM XSS via untrusted senders.
+     * See Bug Bounty ticket P389799154.
+     *
      * @param event - The message event containing data from the IDE
      */
     const handleInboundMessage = (event: MessageEvent): void => {
+        if (event.origin !== window.location.origin) {
+            // Log so any unexpected host environment surfaces in logs rather
+            // than silently breaking the chat.
+            console.warn('Chat client rejected message from untrusted origin:', event.origin)
+            return
+        }
         if (event.data === undefined) {
             return
         }
