@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.52](https://github.com/aws/language-servers/compare/chat-client/v0.1.51...chat-client/v0.1.52) (2026-05-18)
+
+
+### Bug Fixes
+
+* add postMessage origin check to prevent cross-origin XSS ([#2732](https://github.com/aws/language-servers/issues/2732)) ([0dabdea](https://github.com/aws/language-servers/commit/0dabdeab4b046a7c52f161afb37482f9ca0a210e))
+* **amazonq:** prevent file link click from crashing language server ([#2718](https://github.com/aws/language-servers/issues/2718)) ([#2730](https://github.com/aws/language-servers/issues/2730)) ([51e1849](https://github.com/aws/language-servers/commit/51e184948387714bccd5b9c5e50e07d47d771fb1))
+
 ## [0.1.51](https://github.com/aws/language-servers/compare/chat-client/v0.1.50...chat-client/v0.1.51) (2026-04-07)
 
 
