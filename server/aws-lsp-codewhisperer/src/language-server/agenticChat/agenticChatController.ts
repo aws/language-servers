@@ -3913,21 +3913,25 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = params.messageId
         const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
-        if (toolUse?.name === FS_WRITE || toolUse?.name === FS_REPLACE) {
-            const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
-            this.#features.lsp.workspace.openFileDiff({
-                originalFileUri: input.path,
-                originalFileContent: toolUse.fileChange?.before,
-                isDeleted: false,
-                fileContent: toolUse.fileChange?.after,
-            })
-        } else if (toolUse?.name === FS_READ) {
-            await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
-        } else {
-            const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
-            if (absolutePath) {
-                await this.#features.lsp.window.showDocument({ uri: URI.file(absolutePath).toString() })
+        try {
+            if (toolUse?.name === FS_WRITE || toolUse?.name === FS_REPLACE) {
+                const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                this.#features.lsp.workspace.openFileDiff({
+                    originalFileUri: input.path,
+                    originalFileContent: toolUse.fileChange?.before,
+                    isDeleted: false,
+                    fileContent: toolUse.fileChange?.after,
+                })
+            } else if (toolUse?.name === FS_READ) {
+                await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
+            } else {
+                const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
+                if (absolutePath) {
+                    await this.#features.lsp.window.showDocument({ uri: URI.file(absolutePath).toString() })
+                }
             }
+        } catch (e: any) {
+            this.#features.logging.error(`Error opening file: ${e.message}`)
         }
     }
 
@@ -4112,7 +4116,10 @@ export class AgenticChatController implements ChatHandlers {
 
             // handle prompt file outside of workspace
             if (relativePath.endsWith(promptFileExtension)) {
-                return path.join(getUserPromptsDirectory(), relativePath)
+                const promptPath = path.join(getUserPromptsDirectory(), relativePath)
+                if (await this.#features.workspace.fs.exists(promptPath)) {
+                    return promptPath
+                }
             }
 
             this.#features.logging.error(`File not found: ${relativePath}`)
