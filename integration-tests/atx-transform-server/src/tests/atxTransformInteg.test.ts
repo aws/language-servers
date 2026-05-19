@@ -78,6 +78,7 @@ describe('ATX .NET Transform Integration Tests', () => {
             command: 'aws/atxTransform/startTransform',
             WorkspaceId: workspaceId,
             JobName: jobName,
+            InteractiveMode: 'Interactive',
             useOrchestratorAgent: true,
             StartTransformRequest: {
                 SolutionRootPath: testFixturePath,
