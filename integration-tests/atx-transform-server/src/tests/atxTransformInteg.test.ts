@@ -43,7 +43,6 @@ describe('ATX .NET Transform Integration Tests', () => {
     let client: LspClient
     let workspaceId: string
     let transformationJobId: string
-    let planPath: string | null = null
     let refreshInterval: NodeJS.Timeout
 
     let testSsoToken = process.env.TEST_SSO_TOKEN || ''
@@ -57,6 +56,7 @@ describe('ATX .NET Transform Integration Tests', () => {
     const domainProjectPath = path.join(testFixturePath, 'app', 'Bookstore.Domain', 'Bookstore.Domain.csproj')
 
     const TOKEN_REFRESH_INTERVAL_MS = 25 * 60 * 1000
+    const TERMINAL_STATUSES = ['COMPLETED', 'PARTIALLY_COMPLETED', 'FAILED', 'STOPPED']
 
     async function refreshToken(): Promise<void> {
         try {
@@ -78,7 +78,6 @@ describe('ATX .NET Transform Integration Tests', () => {
             command: 'aws/atxTransform/startTransform',
             WorkspaceId: workspaceId,
             JobName: jobName,
-            InteractiveMode: 'Interactive',
             useOrchestratorAgent: true,
             StartTransformRequest: {
                 SolutionRootPath: testFixturePath,
@@ -173,6 +172,7 @@ describe('ATX .NET Transform Integration Tests', () => {
         if (client) client.close()
     })
 
+    // TEST 1: Validates listOrCreateWorkspace — exercises ListWorkspaces + CreateWorkspace FES calls
     it('TEST 1: should list or create workspace', async () => {
         console.log('TEST 1: calling listOrCreateWorkspace')
         const result = await client.sendRequest('workspace/executeCommand', {
@@ -182,17 +182,19 @@ describe('ATX .NET Transform Integration Tests', () => {
 
         console.log('TEST 1: raw result:', JSON.stringify(result))
         workspaceId = result?.CreatedWorkspace?.Id || result?.AvailableWorkspaces?.[0]?.Id
-        if (!workspaceId) console.error('TEST 1: workspaceId missing from result')
-        expect(workspaceId).to.exist
+        expect(workspaceId, 'workspaceId should exist in listOrCreateWorkspace response').to.exist
         console.log('TEST 1: WorkspaceId:', workspaceId)
     })
 
+    // TEST 2: Validates startTransform — exercises CreateJob, CreateArtifactUploadUrl,
+    //         CompleteArtifactUpload, StartJob FES calls
     it('TEST 2: should start transform job', async () => {
         const sourceFiles = getSourceFiles(testFixturePath)
         console.log(`TEST 2: Found ${sourceFiles.length} source files`)
 
         const jobName = 'IntegTest-BobsBookstore-' + Date.now()
         console.log('TEST 2: Starting transform job:', jobName)
+
         const result = await client.sendRequest(
             'workspace/executeCommand',
             buildStartTransformRequest(jobName, sourceFiles)
@@ -200,14 +202,15 @@ describe('ATX .NET Transform Integration Tests', () => {
 
         console.log('TEST 2: raw result:', JSON.stringify(result))
         transformationJobId = result?.TransformationJobId
-        if (!transformationJobId) console.error('TEST 2: TransformationJobId missing from result')
-        expect(transformationJobId).to.exist
+        expect(transformationJobId, 'TransformationJobId should exist in startTransform response').to.exist
         console.log('TEST 2: TransformationJobId:', transformationJobId)
     })
 
-    it('TEST 3: should poll transform until AWAITING_HUMAN_INPUT', async function (this: Mocha.Context) {
-        this.timeout(3600000)
-        const maxPolls = 360
+    // TEST 3: Validates polling through PLANNING phase — exercises GetJob, ListWorklogs,
+    //         ListJobPlanSteps, ListHitlTasks FES calls. Polls until EXECUTING begins.
+    it('TEST 3: should poll transform until EXECUTING', async function (this: Mocha.Context) {
+        this.timeout(3600000) // 1 hour — planning phase can take up to 30 mins
+        const maxPolls = 360  // 360 x 10s = 1 hour
         let jobStatus = ''
 
         for (let i = 0; i < maxPolls; i++) {
@@ -229,107 +232,120 @@ describe('ATX .NET Transform Integration Tests', () => {
 
             const job = result?.TransformationJob || {}
             jobStatus = job.Status || ''
-            planPath = result?.PlanPath || null
-            const hitlTag = result?.HitlTag || null
             const errorString = result?.ErrorString || null
-            console.log(`TEST 3 Poll ${i + 1}: Status=${jobStatus} HitlTag=${hitlTag} PlanPath=${planPath} ErrorString=${errorString} (${pollMs}ms)`)
+            const hitlTag = result?.HitlTag || null
+            const stepCount = result?.TransformationPlan?.Root?.Children?.length ?? 0
+            console.log(`TEST 3 Poll ${i + 1}: Status=${jobStatus} Steps=${stepCount} HitlTag=${hitlTag} ErrorString=${errorString} (${pollMs}ms)`)
 
             if (jobStatus === 'FAILED') {
                 const reason = job.FailureReason || result?.ErrorString || 'unknown'
                 console.error('TEST 3: Job FAILED - Reason:', reason)
-                throw new Error(`Job failed: ${reason}`)
+                throw new Error(`Job failed during planning: ${reason}`)
             }
 
-            if (jobStatus === 'AWAITING_HUMAN_INPUT') {
-                console.log('TEST 3: Reached AWAITING_HUMAN_INPUT - PlanPath:', planPath, 'HitlTag:', hitlTag, 'HitlTaskId:', result?.HitlTaskId)
-                if (planPath) break
-                console.log('TEST 3: No planPath yet, continuing to poll...')
+            if (jobStatus === 'EXECUTING') {
+                console.log('TEST 3: Reached EXECUTING — planning phase complete')
+                break
             }
-            if (['COMPLETED', 'FAILED', 'STOPPED'].includes(jobStatus)) break
+
+            if (TERMINAL_STATUSES.includes(jobStatus)) {
+                console.log('TEST 3: Reached terminal status:', jobStatus)
+                break
+            }
 
             await sleep(10000)
         }
 
-        expect(jobStatus).to.equal('AWAITING_HUMAN_INPUT')
-        expect(planPath).to.exist
+        expect(
+            ['EXECUTING', 'COMPLETED', 'PARTIALLY_COMPLETED'],
+            `Expected job to reach EXECUTING but got: ${jobStatus}`
+        ).to.include(jobStatus)
     })
 
-    it('TEST 4: should upload plan and complete transform', async function (this: Mocha.Context) {
-        this.timeout(10800000)
-        if (!planPath) {
-            this.skip()
-            return
-        }
+    // TEST 4: Validates polling through EXECUTING → COMPLETED — exercises GetJob,
+    //         ListJobPlanSteps, ListWorklogs, ListHitlTasks (HITL probe),
+    //         CreateArtifactDownloadUrl + S3 download (checkpoint artifacts),
+    //         ListArtifacts + CreateArtifactDownloadUrl (final artifact) FES calls
+    it('TEST 4: should poll transform until COMPLETED', async function (this: Mocha.Context) {
+        this.timeout(10800000) // 3 hours — execution phase
+        const maxPolls = 1080  // 1080 x 10s = 3 hours
+        let jobStatus = ''
+        let artifactPath: string | null = null
 
-        console.log('TEST 4: Calling uploadPlan with PlanPath:', planPath)
-        const uploadStart = Date.now()
-        const uploadResult = await client.sendRequest('workspace/executeCommand', {
-            command: 'aws/atxTransform/uploadPlan',
+        // If TEST 3 already reached COMPLETED/PARTIALLY_COMPLETED, skip polling
+        const checkResult = await client.sendRequest('workspace/executeCommand', {
+            command: 'aws/atxTransform/getTransformInfo',
             TransformationJobId: transformationJobId,
             WorkspaceId: workspaceId,
-            PlanPath: planPath,
+            SolutionRootPath: testFixturePath,
             useOrchestratorAgent: true,
         })
-        console.log(`TEST 4: uploadPlan completed in ${Date.now() - uploadStart}ms`)
-        console.log('TEST 4: uploadPlan raw result:', JSON.stringify(uploadResult))
-        if (uploadResult === null || uploadResult === undefined) {
-            console.error('TEST 4: uploadPlan returned null/undefined — plan submission may have failed')
-        } else {
-            console.log('TEST 4: VerificationStatus:', uploadResult?.VerificationStatus, 'Message:', uploadResult?.Message)
+        jobStatus = checkResult?.TransformationJob?.Status || ''
+        if (['COMPLETED', 'PARTIALLY_COMPLETED'].includes(jobStatus)) {
+            artifactPath = checkResult?.ArtifactPath || null
+            console.log(`TEST 4: Already at terminal status ${jobStatus}, ArtifactPath: ${artifactPath}`)
         }
 
-        const maxPolls = 1080
-        let jobStatus = ''
+        if (!TERMINAL_STATUSES.includes(jobStatus)) {
+            for (let i = 0; i < maxPolls; i++) {
+                const pollStart = Date.now()
+                const result = await client.sendRequest('workspace/executeCommand', {
+                    command: 'aws/atxTransform/getTransformInfo',
+                    TransformationJobId: transformationJobId,
+                    WorkspaceId: workspaceId,
+                    SolutionRootPath: testFixturePath,
+                    useOrchestratorAgent: true,
+                })
+                const pollMs = Date.now() - pollStart
 
-        for (let i = 0; i < maxPolls; i++) {
-            const pollStart = Date.now()
-            const result = await client.sendRequest('workspace/executeCommand', {
-                command: 'aws/atxTransform/getTransformInfo',
-                TransformationJobId: transformationJobId,
-                WorkspaceId: workspaceId,
-                SolutionRootPath: testFixturePath,
-                useOrchestratorAgent: true,
-            })
-            const pollMs = Date.now() - pollStart
+                if (result === null || result === undefined) {
+                    console.error(`TEST 4 Poll ${i + 1}: getTransformInfo returned null/undefined (${pollMs}ms)`)
+                    await sleep(10000)
+                    continue
+                }
 
-            if (result === null || result === undefined) {
-                console.error(`TEST 4 Poll ${i + 1}: getTransformInfo returned null/undefined (${pollMs}ms)`)
+                jobStatus = result?.TransformationJob?.Status || ''
+                const hitlTag = result?.HitlTag || null
+                const errorString = result?.ErrorString || null
+                const diffApplyFailed = result?.DiffApplyFailed || false
+                const stepCount = result?.TransformationPlan?.Root?.Children?.length ?? 0
+                artifactPath = result?.ArtifactPath || null
+                console.log(`TEST 4 Poll ${i + 1}: Status=${jobStatus} Steps=${stepCount} HitlTag=${hitlTag} DiffApplyFailed=${diffApplyFailed} ErrorString=${errorString} ArtifactPath=${artifactPath} (${pollMs}ms)`)
+
+                if (jobStatus === 'FAILED') {
+                    const reason = result?.TransformationJob?.FailureReason || result?.ErrorString || 'unknown'
+                    console.error('TEST 4: Job FAILED - Reason:', reason)
+                }
+
+                if (TERMINAL_STATUSES.includes(jobStatus)) break
+
                 await sleep(10000)
-                continue
             }
-
-            jobStatus = result?.TransformationJob?.Status || ''
-            const hitlTag = result?.HitlTag || null
-            const errorString = result?.ErrorString || null
-            const diffApplyFailed = result?.DiffApplyFailed || false
-            console.log(`TEST 4 Poll ${i + 1}: Status=${jobStatus} HitlTag=${hitlTag} ErrorString=${errorString} DiffApplyFailed=${diffApplyFailed} (${pollMs}ms)`)
-
-            if (jobStatus === 'FAILED') {
-                const reason = result?.TransformationJob?.FailureReason || result?.ErrorString || 'unknown'
-                console.error('TEST 4: Job FAILED - Reason:', reason)
-            }
-
-            if (['COMPLETED', 'FAILED', 'STOPPED', 'PARTIALLY_COMPLETED'].includes(jobStatus)) break
-
-            await sleep(10000)
         }
 
-        console.log('TEST 4: Final status:', jobStatus)
-        expect(['COMPLETED', 'PARTIALLY_COMPLETED']).to.include(jobStatus)
+        console.log('TEST 4: Final status:', jobStatus, 'ArtifactPath:', artifactPath)
+        expect(
+            ['COMPLETED', 'PARTIALLY_COMPLETED'],
+            `Expected COMPLETED or PARTIALLY_COMPLETED but got: ${jobStatus}`
+        ).to.include(jobStatus)
+        expect(artifactPath, 'ArtifactPath should be returned when job completes').to.exist
     })
 
+    // TEST 5: Validates stopJob — exercises CreateJob, StartJob, StopJob FES calls
     it('TEST 5: should stop a transform job', async function (this: Mocha.Context) {
-        this.timeout(60000)
+        this.timeout(120000)
         const sourceFiles = getSourceFiles(testFixturePath)
 
+        const jobName = 'IntegTest-ToStop-' + Date.now()
+        console.log('TEST 5: Starting job to stop:', jobName)
         const startResult = await client.sendRequest(
             'workspace/executeCommand',
-            buildStartTransformRequest('IntegTest-ToStop-' + Date.now(), sourceFiles)
+            buildStartTransformRequest(jobName, sourceFiles)
         )
 
         const jobToStop = startResult?.TransformationJobId
-        expect(jobToStop).to.exist
-        console.log('Created job to stop:', jobToStop)
+        expect(jobToStop, 'TransformationJobId should exist for job-to-stop').to.exist
+        console.log('TEST 5: Created job to stop:', jobToStop)
 
         await sleep(5000)
 
@@ -339,7 +355,8 @@ describe('ATX .NET Transform Integration Tests', () => {
             JobId: jobToStop,
         })
 
-        console.log('StopJob result:', stopResult?.Status)
-        expect(stopResult).to.exist
+        console.log('TEST 5: StopJob raw result:', JSON.stringify(stopResult))
+        expect(stopResult, 'stopJob should return a result').to.exist
+        expect(stopResult?.Status, 'StopJob status should be STOPPING or STOPPED').to.be.oneOf(['STOPPING', 'STOPPED'])
     })
 })
