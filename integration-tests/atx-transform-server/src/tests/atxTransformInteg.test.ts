@@ -173,28 +173,35 @@ describe('ATX .NET Transform Integration Tests', () => {
     })
 
     it('TEST 1: should list or create workspace', async () => {
+        console.log('TEST 1: calling listOrCreateWorkspace')
         const result = await client.sendRequest('workspace/executeCommand', {
             command: 'aws/atxTransform/listOrCreateWorkspace',
             arguments: [],
         })
 
+        console.log('TEST 1: raw result:', JSON.stringify(result))
         workspaceId = result?.CreatedWorkspace?.Id || result?.AvailableWorkspaces?.[0]?.Id
+        if (!workspaceId) console.error('TEST 1: workspaceId missing from result')
         expect(workspaceId).to.exist
-        console.log('WorkspaceId:', workspaceId)
+        console.log('TEST 1: WorkspaceId:', workspaceId)
     })
 
     it('TEST 2: should start transform job', async () => {
         const sourceFiles = getSourceFiles(testFixturePath)
-        console.log(`Found ${sourceFiles.length} source files`)
+        console.log(`TEST 2: Found ${sourceFiles.length} source files`)
 
+        const jobName = 'IntegTest-BobsBookstore-' + Date.now()
+        console.log('TEST 2: Starting transform job:', jobName)
         const result = await client.sendRequest(
             'workspace/executeCommand',
-            buildStartTransformRequest('IntegTest-BobsBookstore-' + Date.now(), sourceFiles)
+            buildStartTransformRequest(jobName, sourceFiles)
         )
 
+        console.log('TEST 2: raw result:', JSON.stringify(result))
         transformationJobId = result?.TransformationJobId
+        if (!transformationJobId) console.error('TEST 2: TransformationJobId missing from result')
         expect(transformationJobId).to.exist
-        console.log('TransformationJobId:', transformationJobId)
+        console.log('TEST 2: TransformationJobId:', transformationJobId)
     })
 
     it('TEST 3: should poll transform until AWAITING_HUMAN_INPUT', async function (this: Mocha.Context) {
@@ -203,6 +210,7 @@ describe('ATX .NET Transform Integration Tests', () => {
         let jobStatus = ''
 
         for (let i = 0; i < maxPolls; i++) {
+            const pollStart = Date.now()
             const result = await client.sendRequest('workspace/executeCommand', {
                 command: 'aws/atxTransform/getTransformInfo',
                 TransformationJobId: transformationJobId,
@@ -210,19 +218,32 @@ describe('ATX .NET Transform Integration Tests', () => {
                 SolutionRootPath: testFixturePath,
                 useOrchestratorAgent: true,
             })
+            const pollMs = Date.now() - pollStart
+
+            if (result === null || result === undefined) {
+                console.error(`TEST 3 Poll ${i + 1}: getTransformInfo returned null/undefined (${pollMs}ms)`)
+                await sleep(10000)
+                continue
+            }
 
             const job = result?.TransformationJob || {}
             jobStatus = job.Status || ''
             planPath = result?.PlanPath || null
-            console.log(`Poll ${i + 1}: Status = ${jobStatus}`)
+            const hitlTag = result?.HitlTag || null
+            const errorString = result?.ErrorString || null
+            console.log(`TEST 3 Poll ${i + 1}: Status=${jobStatus} HitlTag=${hitlTag} PlanPath=${planPath} ErrorString=${errorString} (${pollMs}ms)`)
 
             if (jobStatus === 'FAILED') {
                 const reason = job.FailureReason || result?.ErrorString || 'unknown'
-                console.log('FAILED - Reason:', reason)
+                console.error('TEST 3: Job FAILED - Reason:', reason)
                 throw new Error(`Job failed: ${reason}`)
             }
 
-            if (jobStatus === 'AWAITING_HUMAN_INPUT' && planPath) break
+            if (jobStatus === 'AWAITING_HUMAN_INPUT') {
+                console.log('TEST 3: Reached AWAITING_HUMAN_INPUT - PlanPath:', planPath, 'HitlTag:', hitlTag, 'HitlTaskId:', result?.HitlTaskId)
+                if (planPath) break
+                console.log('TEST 3: No planPath yet, continuing to poll...')
+            }
             if (['COMPLETED', 'FAILED', 'STOPPED'].includes(jobStatus)) break
 
             await sleep(10000)
@@ -239,6 +260,8 @@ describe('ATX .NET Transform Integration Tests', () => {
             return
         }
 
+        console.log('TEST 4: Calling uploadPlan with PlanPath:', planPath)
+        const uploadStart = Date.now()
         const uploadResult = await client.sendRequest('workspace/executeCommand', {
             command: 'aws/atxTransform/uploadPlan',
             TransformationJobId: transformationJobId,
@@ -246,12 +269,19 @@ describe('ATX .NET Transform Integration Tests', () => {
             PlanPath: planPath,
             useOrchestratorAgent: true,
         })
-        console.log('UploadPlan result:', uploadResult?.VerificationStatus)
+        console.log(`TEST 4: uploadPlan completed in ${Date.now() - uploadStart}ms`)
+        console.log('TEST 4: uploadPlan raw result:', JSON.stringify(uploadResult))
+        if (uploadResult === null || uploadResult === undefined) {
+            console.error('TEST 4: uploadPlan returned null/undefined — plan submission may have failed')
+        } else {
+            console.log('TEST 4: VerificationStatus:', uploadResult?.VerificationStatus, 'Message:', uploadResult?.Message)
+        }
 
         const maxPolls = 1080
         let jobStatus = ''
 
         for (let i = 0; i < maxPolls; i++) {
+            const pollStart = Date.now()
             const result = await client.sendRequest('workspace/executeCommand', {
                 command: 'aws/atxTransform/getTransformInfo',
                 TransformationJobId: transformationJobId,
@@ -259,15 +289,31 @@ describe('ATX .NET Transform Integration Tests', () => {
                 SolutionRootPath: testFixturePath,
                 useOrchestratorAgent: true,
             })
+            const pollMs = Date.now() - pollStart
+
+            if (result === null || result === undefined) {
+                console.error(`TEST 4 Poll ${i + 1}: getTransformInfo returned null/undefined (${pollMs}ms)`)
+                await sleep(10000)
+                continue
+            }
 
             jobStatus = result?.TransformationJob?.Status || ''
-            console.log(`Poll ${i + 1}: Status = ${jobStatus}`)
+            const hitlTag = result?.HitlTag || null
+            const errorString = result?.ErrorString || null
+            const diffApplyFailed = result?.DiffApplyFailed || false
+            console.log(`TEST 4 Poll ${i + 1}: Status=${jobStatus} HitlTag=${hitlTag} ErrorString=${errorString} DiffApplyFailed=${diffApplyFailed} (${pollMs}ms)`)
+
+            if (jobStatus === 'FAILED') {
+                const reason = result?.TransformationJob?.FailureReason || result?.ErrorString || 'unknown'
+                console.error('TEST 4: Job FAILED - Reason:', reason)
+            }
 
             if (['COMPLETED', 'FAILED', 'STOPPED', 'PARTIALLY_COMPLETED'].includes(jobStatus)) break
 
             await sleep(10000)
         }
 
+        console.log('TEST 4: Final status:', jobStatus)
         expect(['COMPLETED', 'PARTIALLY_COMPLETED']).to.include(jobStatus)
     })
 
