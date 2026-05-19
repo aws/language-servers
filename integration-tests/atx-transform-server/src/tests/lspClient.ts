@@ -59,6 +59,11 @@ export class LspClient {
                     continue
                 }
 
+                if (message.method === 'window/logMessage') {
+                    console.error(`[LSP] ${message.params?.message ?? JSON.stringify(message.params)}`)
+                    continue
+                }
+
                 if (message.id !== undefined && this.pendingRequests.has(message.id)) {
                     const { resolve, reject } = this.pendingRequests.get(message.id)!
                     this.pendingRequests.delete(message.id)
