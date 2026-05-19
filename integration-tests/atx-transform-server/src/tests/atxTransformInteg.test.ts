@@ -78,6 +78,7 @@ describe('ATX .NET Transform Integration Tests', () => {
             command: 'aws/atxTransform/startTransform',
             WorkspaceId: workspaceId,
             JobName: jobName,
+            useOrchestratorAgent: true,
             StartTransformRequest: {
                 SolutionRootPath: testFixturePath,
                 SolutionFilePath: solutionFilePath,
@@ -207,6 +208,7 @@ describe('ATX .NET Transform Integration Tests', () => {
                 TransformationJobId: transformationJobId,
                 WorkspaceId: workspaceId,
                 SolutionRootPath: testFixturePath,
+                useOrchestratorAgent: true,
             })
 
             const job = result?.TransformationJob || {}
@@ -242,6 +244,7 @@ describe('ATX .NET Transform Integration Tests', () => {
             TransformationJobId: transformationJobId,
             WorkspaceId: workspaceId,
             PlanPath: planPath,
+            useOrchestratorAgent: true,
         })
         console.log('UploadPlan result:', uploadResult?.VerificationStatus)
 
@@ -254,6 +257,7 @@ describe('ATX .NET Transform Integration Tests', () => {
                 TransformationJobId: transformationJobId,
                 WorkspaceId: workspaceId,
                 SolutionRootPath: testFixturePath,
+                useOrchestratorAgent: true,
             })
 
             jobStatus = result?.TransformationJob?.Status || ''
