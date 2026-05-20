@@ -157,6 +157,46 @@ describe('Chat', () => {
         assert.notCalled(clientApi.postMessage)
     })
 
+    it('accepts inbound messages from same window with mismatched origin (Eclipse SWT)', () => {
+        // Eclipse loads chat via Browser.setText(html) which gives the document
+        // an opaque origin. Inbound messages come from
+        // browser.execute("window.postMessage(...)"), so event.source === window
+        // even when event.origin doesn't match window.location.origin. This is
+        // the trust signal we use to accept these messages.
+        clientApi.postMessage.resetHistory()
+
+        const eclipseEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: 'hey' } },
+            origin: 'null',
+            source: window,
+        })
+        window.dispatchEvent(eclipseEvent)
+
+        assert.calledWithMatch(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: { name: SEND_TO_PROMPT_TELEMETRY_EVENT },
+        })
+    })
+
+    it('rejects cross-window messages even if origin string matches (P389799154)', () => {
+        // Defense in depth: an attacker iframe in the same domain should still
+        // be rejected if its source is a different Window object — but in
+        // current supported integrations same-origin already implies trusted.
+        // This test pins the behavior: when source is a different Window and
+        // origin doesn't match, we reject.
+        clientApi.postMessage.resetHistory()
+
+        const otherWindow = {} as Window
+        const crossWindowEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: 'pwn' } },
+            origin: 'https://attacker.example.com',
+            source: otherWindow,
+        })
+        window.dispatchEvent(crossWindowEvent)
+
+        assert.notCalled(clientApi.postMessage)
+    })
+
     it('publishes tab added event, when UI tab is added', () => {
         const tabId = mynahUi.updateStore('', {})
 

@@ -170,24 +170,36 @@ export const createChat = (
      * 2. Messages without a 'sender' property are processed by the standard
      *    command-based router, which dispatches based on the 'command' field.
      *
-     * Security: rejects messages whose origin does not match the chat iframe's
-     * own origin. The chat iframe is loaded same-origin with its host page in
-     * every supported integration:
-     *   - VS Code / JetBrains / Visual Studio webviews: the host webview iframe
-     *     forwards messages to the inner content iframe with the parent's own
-     *     origin (e.g. `vscode-webview://...`). The inner iframe shares that
-     *     origin via the `allow-same-origin` sandbox flag.
-     *   - SageMaker JupyterLab: the parent calls
-     *     `chatFrame.contentWindow.postMessage(payload, window.location.origin)`
-     *     and loads the iframe `src` from the same SageMaker domain.
-     * Cross-origin postMessage events can only come from an attacker page, so
-     * we drop them. Mitigates DOM XSS via untrusted senders.
+     * Security: drops cross-origin postMessage events from untrusted senders to
+     * mitigate DOM XSS. Two independent trust signals are accepted:
+     *
+     *   1. Same-origin (event.origin === window.location.origin):
+     *      - VS Code / JetBrains / Visual Studio webviews forward messages from
+     *        the host webview iframe to the inner content iframe. The inner
+     *        iframe shares the parent's origin (e.g. `vscode-webview://...`)
+     *        via the `allow-same-origin` sandbox flag.
+     *      - SageMaker JupyterLab loads the chat iframe `src` from the same
+     *        SageMaker domain and posts to it with the same origin.
+     *
+     *   2. Same-window source (event.source === window):
+     *      - Eclipse SWT Browser loads the chat via `Browser.setText(html)`,
+     *        which gives the document an opaque origin that serializes
+     *        inconsistently across SWT backends (WebKit on macOS/Linux, Edge
+     *        WebView2 on Windows) — `event.origin` and `window.location.origin`
+     *        cannot be relied on to match. Eclipse delivers inbound messages by
+     *        calling `browser.execute("window.postMessage(...)")`, so the
+     *        receiver sees `event.source === window`. A cross-origin attacker
+     *        page lives in a different Window object and cannot forge this.
+     *
+     * Cross-origin postMessage events from a different Window are dropped.
      * See Bug Bounty ticket P389799154.
      *
      * @param event - The message event containing data from the IDE
      */
     const handleInboundMessage = (event: MessageEvent): void => {
-        if (event.origin !== window.location.origin) {
+        const isSameOrigin = event.origin === window.location.origin
+        const isSameWindow = event.source === window
+        if (!isSameOrigin && !isSameWindow) {
             // Log so any unexpected host environment surfaces in logs rather
             // than silently breaking the chat.
             console.warn('Chat client rejected message from untrusted origin:', event.origin)
