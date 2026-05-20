@@ -178,9 +178,10 @@ export const handleChatPrompt = (
     let userPrompt = prompt.escapedPrompt
 
     // Hide the welcome splash (tabHeaderDetails) once the user starts a
-    // conversation so it does not sit above their messages. mynah-ui treats
-    // a null tabHeaderDetails as "no header"; setting it more than once is a
-    // no-op so we do not need to guard for the first prompt explicitly.
+    // conversation so it does not sit above their messages. The guard is
+    // important: mynah-ui's chat-wrapper re-runs a 750ms tab-mode-switch
+    // animation on every tabHeaderDetails write, so writing null again on
+    // every prompt would re-trigger that animation.
     if (mynahUi.getTabData(tabId)?.getStore()?.tabHeaderDetails != null) {
         mynahUi.updateStore(tabId, { tabHeaderDetails: null })
     }
@@ -1404,9 +1405,13 @@ ${params.message}`,
             if (tabId) {
                 mynahUi.updateStore(tabId, {
                     chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
-                    // When restoring a tab with prior messages, suppress the
-                    // welcome splash so it does not sit above the conversation.
-                    ...(messages ? { tabHeaderDetails: null } : {}),
+                    // onTabAdd suppresses the welcome splash whenever
+                    // openTabKey is true (which createTabId(true) sets), so
+                    // re-establish it here for the no-messages case so a
+                    // server-initiated "open a fresh tab" still shows the
+                    // splash. When messages are provided we keep the splash
+                    // hidden so it does not sit above the conversation.
+                    tabHeaderDetails: messages ? null : getWelcomeTabHeader(),
                 })
                 messager.onOpenTab(requestId, { tabId })
             } else {
