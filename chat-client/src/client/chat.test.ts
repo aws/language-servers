@@ -157,6 +157,46 @@ describe('Chat', () => {
         assert.notCalled(clientApi.postMessage)
     })
 
+    it('accepts inbound messages with empty origin (Eclipse SWT Browser)', () => {
+        // Eclipse SWT Browser loads content via file:// protocol, so
+        // postMessage events arrive with an empty string origin.
+        clientApi.postMessage.resetHistory()
+
+        const eclipseEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            origin: '',
+        })
+        window.dispatchEvent(eclipseEvent)
+
+        assert.called(clientApi.postMessage)
+    })
+
+    it('accepts inbound messages with "null" origin (sandboxed iframes)', () => {
+        // Sandboxed iframes without allow-same-origin report origin as
+        // the string "null".
+        clientApi.postMessage.resetHistory()
+
+        const nullOriginEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            origin: 'null',
+        })
+        window.dispatchEvent(nullOriginEvent)
+
+        assert.called(clientApi.postMessage)
+    })
+
+    it('accepts inbound messages with non-HTTP origin (file:// protocol)', () => {
+        clientApi.postMessage.resetHistory()
+
+        const fileEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            origin: 'file://',
+        })
+        window.dispatchEvent(fileEvent)
+
+        assert.called(clientApi.postMessage)
+    })
+
     it('publishes tab added event, when UI tab is added', () => {
         const tabId = mynahUi.updateStore('', {})
 
