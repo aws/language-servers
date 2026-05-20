@@ -170,30 +170,27 @@ export const createChat = (
      * 2. Messages without a 'sender' property are processed by the standard
      *    command-based router, which dispatches based on the 'command' field.
      *
-     * Security: rejects messages whose origin does not match the chat iframe's
-     * own origin. The chat iframe is loaded same-origin with its host page in
-     * every supported integration:
-     *   - VS Code / JetBrains / Visual Studio webviews: the host webview iframe
-     *     forwards messages to the inner content iframe with the parent's own
-     *     origin (e.g. `vscode-webview://...`). The inner iframe shares that
-     *     origin via the `allow-same-origin` sandbox flag.
-     *   - SageMaker JupyterLab: the parent calls
-     *     `chatFrame.contentWindow.postMessage(payload, window.location.origin)`
-     *     and loads the iframe `src` from the same SageMaker domain.
-     *   - Eclipse SWT Browser: loads content via file:// protocol, so
-     *     postMessage events arrive with an empty string or "null" origin.
-     * Cross-origin postMessage events from a real HTTP(S) origin that does not
-     * match our own can only come from an attacker page, so we drop them.
-     * Mitigates DOM XSS via untrusted senders.
+     * Security: rejects messages from cross-origin HTTP(S) pages to prevent
+     * DOM XSS via untrusted postMessage senders.
+     *
+     * Legitimate host environments deliver messages in different ways:
+     *   - VS Code / JetBrains / Visual Studio webviews: same-origin via
+     *     `allow-same-origin` sandbox flag.
+     *   - SageMaker JupyterLab: same-origin (iframe loaded from same domain).
+     *   - Eclipse SWT Browser: non-HTTP origin (file:// protocol or similar).
+     *
+     * Only a real HTTP(S) cross-origin postMessage can come from an attacker
+     * page, so we reject those and allow everything else through.
      * See Bug Bounty ticket P389799154.
      *
      * @param event - The message event containing data from the IDE
      */
     const handleInboundMessage = (event: MessageEvent): void => {
-        if (event.origin !== window.location.origin && event.origin !== '' && event.origin !== 'null') {
+        const origin = event.origin
+        if (origin && origin !== 'null' && origin.startsWith('http') && origin !== window.location.origin) {
             // Log so any unexpected host environment surfaces in logs rather
             // than silently breaking the chat.
-            console.warn('Chat client rejected message from untrusted origin:', event.origin)
+            console.warn('Chat client rejected message from untrusted origin:', origin)
             return
         }
         if (event.data === undefined) {

@@ -185,6 +185,18 @@ describe('Chat', () => {
         assert.called(clientApi.postMessage)
     })
 
+    it('accepts inbound messages with non-HTTP origin (file:// protocol)', () => {
+        clientApi.postMessage.resetHistory()
+
+        const fileEvent = new window.MessageEvent('message', {
+            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            origin: 'file://',
+        })
+        window.dispatchEvent(fileEvent)
+
+        assert.called(clientApi.postMessage)
+    })
+
     it('publishes tab added event, when UI tab is added', () => {
         const tabId = mynahUi.updateStore('', {})
 
