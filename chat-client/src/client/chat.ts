@@ -180,14 +180,17 @@ export const createChat = (
      *   - SageMaker JupyterLab: the parent calls
      *     `chatFrame.contentWindow.postMessage(payload, window.location.origin)`
      *     and loads the iframe `src` from the same SageMaker domain.
-     * Cross-origin postMessage events can only come from an attacker page, so
-     * we drop them. Mitigates DOM XSS via untrusted senders.
+     *   - Eclipse SWT Browser: loads content via file:// protocol, so
+     *     postMessage events arrive with an empty string or "null" origin.
+     * Cross-origin postMessage events from a real HTTP(S) origin that does not
+     * match our own can only come from an attacker page, so we drop them.
+     * Mitigates DOM XSS via untrusted senders.
      * See Bug Bounty ticket P389799154.
      *
      * @param event - The message event containing data from the IDE
      */
     const handleInboundMessage = (event: MessageEvent): void => {
-        if (event.origin !== window.location.origin) {
+        if (event.origin !== window.location.origin && event.origin !== '' && event.origin !== 'null') {
             // Log so any unexpected host environment surfaces in logs rather
             // than silently breaking the chat.
             console.warn('Chat client rejected message from untrusted origin:', event.origin)
