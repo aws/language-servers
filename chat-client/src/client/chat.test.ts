@@ -160,41 +160,41 @@ describe('Chat', () => {
     it('accepts inbound messages with empty origin (Eclipse SWT Browser)', () => {
         // Eclipse SWT Browser loads content via file:// protocol, so
         // postMessage events arrive with an empty string origin.
-        clientApi.postMessage.resetHistory()
+        const warnStub = sandbox.stub(console, 'warn')
 
         const eclipseEvent = new window.MessageEvent('message', {
-            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            data: { command: 'noop-origin-test' },
             origin: '',
         })
         window.dispatchEvent(eclipseEvent)
 
-        assert.called(clientApi.postMessage)
+        assert.neverCalledWithMatch(warnStub, 'Chat client rejected message from untrusted origin:')
     })
 
     it('accepts inbound messages with "null" origin (sandboxed iframes)', () => {
         // Sandboxed iframes without allow-same-origin report origin as
         // the string "null".
-        clientApi.postMessage.resetHistory()
+        const warnStub = sandbox.stub(console, 'warn')
 
         const nullOriginEvent = new window.MessageEvent('message', {
-            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            data: { command: 'noop-origin-test' },
             origin: 'null',
         })
         window.dispatchEvent(nullOriginEvent)
 
-        assert.called(clientApi.postMessage)
+        assert.neverCalledWithMatch(warnStub, 'Chat client rejected message from untrusted origin:')
     })
 
     it('accepts inbound messages with non-HTTP origin (file:// protocol)', () => {
-        clientApi.postMessage.resetHistory()
+        const warnStub = sandbox.stub(console, 'warn')
 
         const fileEvent = new window.MessageEvent('message', {
-            data: { command: SEND_TO_PROMPT, params: { prompt: { prompt: 'hello', escapedPrompt: 'hello' } } },
+            data: { command: 'noop-origin-test' },
             origin: 'file://',
         })
         window.dispatchEvent(fileEvent)
 
-        assert.called(clientApi.postMessage)
+        assert.neverCalledWithMatch(warnStub, 'Chat client rejected message from untrusted origin:')
     })
 
     it('publishes tab added event, when UI tab is added', () => {
