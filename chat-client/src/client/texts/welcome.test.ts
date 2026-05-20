@@ -31,10 +31,7 @@ describe('welcome', () => {
             ])
             for (let i = 0; i < 20; i++) {
                 const body = getWelcomeTabHeader().tip?.body ?? ''
-                assert.ok(
-                    expectedTips.has(body),
-                    `tip body "${body}" is not from the curated tip pool`
-                )
+                assert.ok(expectedTips.has(body), `tip body "${body}" is not from the curated tip pool`)
             }
         })
 
@@ -59,10 +56,7 @@ describe('welcome', () => {
             const entityLike = /&[a-zA-Z]+;|&#\d+;|&#x[0-9a-fA-F]+;/
             for (const [name, value] of fields) {
                 assert.ok(!tagLike.test(value), `welcome field "${name}" contains an HTML tag: "${value}"`)
-                assert.ok(
-                    !entityLike.test(value),
-                    `welcome field "${name}" contains an HTML entity: "${value}"`
-                )
+                assert.ok(!entityLike.test(value), `welcome field "${name}" contains an HTML entity: "${value}"`)
             }
         })
     })
