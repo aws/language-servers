@@ -72,6 +72,7 @@ import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
 import { getModelSelectionChatItem, modelUnavailableBanner, modelThrottledBanner } from './texts/modelSelection'
+import { getWelcomeTabHeader } from './texts/welcome'
 import {
     freeTierLimitSticky,
     upgradeSuccessSticky,
@@ -175,6 +176,14 @@ export const handleChatPrompt = (
     tabFactory?: TabFactory
 ) => {
     let userPrompt = prompt.escapedPrompt
+
+    // Hide the welcome splash (tabHeaderDetails) once the user starts a
+    // conversation so it does not sit above their messages. mynah-ui treats
+    // a null tabHeaderDetails as "no header"; setting it more than once is a
+    // no-op so we do not need to guard for the first prompt explicitly.
+    if (mynahUi.getTabData(tabId)?.getStore()?.tabHeaderDetails != null) {
+        mynahUi.updateStore(tabId, { tabHeaderDetails: null })
+    }
 
     // Check if there's an ongoing request
     const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
@@ -425,6 +434,14 @@ export const createMynahUi = (
             // since this indicates we're loading a previous chat session rather than starting a new one.
             if (!tabStore?.tabMetadata || !tabStore.tabMetadata.openTabKey) {
                 defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, [])
+                // Roll a fresh "Did you know?" tip for every new tab. The
+                // mynah-ui defaults.store is built once at startup, so without
+                // this override every new tab would inherit the same cached tip.
+                defaultTabConfig.tabHeaderDetails = getWelcomeTabHeader()
+            } else {
+                // Restoring a previous chat session: hide the welcome splash so
+                // it does not appear above historical messages.
+                defaultTabConfig.tabHeaderDetails = null
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
             messager.onTabAdd(tabId, undefined, tabStore?.tabMetadata?.openTabKey === true)
@@ -1387,6 +1404,9 @@ ${params.message}`,
             if (tabId) {
                 mynahUi.updateStore(tabId, {
                     chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
+                    // When restoring a tab with prior messages, suppress the
+                    // welcome splash so it does not sit above the conversation.
+                    ...(messages ? { tabHeaderDetails: null } : {}),
                 })
                 messager.onOpenTab(requestId, { tabId })
             } else {
