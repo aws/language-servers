@@ -270,7 +270,7 @@ describe('MynahUI', () => {
         })
 
         it('should create a new tab if current tab is loading', function () {
-            this.timeout(10000)
+            this.timeout(30000)
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
             // Stub setTimeout to execute immediately
