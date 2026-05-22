@@ -829,5 +829,66 @@ describe('toolShared', () => {
                 'In-workspace .env.local file should not require acceptance'
             )
         })
+
+        // ====================================================================
+        // Path canonicalization through the filesystem: when a workspace path
+        // is a symlink whose target is outside the workspace, the resolved
+        // canonical path must be evaluated against the workspace boundary.
+        // ====================================================================
+        describe('symlink resolution (real filesystem)', () => {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const fs = require('fs')
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const os = require('os')
+            let tmpRoot: string
+            let workspaceDir: string
+            let outsideTarget: string
+            let symlinkInWorkspace: string
+
+            beforeEach(function (this: Context) {
+                if (process.platform === 'win32') {
+                    this.skip()
+                    return
+                }
+                tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sym-traversal-'))
+                workspaceDir = path.join(tmpRoot, 'workspace')
+                fs.mkdirSync(workspaceDir)
+                outsideTarget = path.join(tmpRoot, 'outside_target.txt')
+                fs.writeFileSync(outsideTarget, 'ORIGINAL')
+                symlinkInWorkspace = path.join(workspaceDir, 'project_settings')
+                fs.symlinkSync(outsideTarget, symlinkInWorkspace)
+
+                getWorkspaceFolderPathsStub.returns([workspaceDir])
+                isInWorkspaceStub.callsFake((folders: string[], p: string) =>
+                    folders.some(f => p === f || p.startsWith(f + path.sep))
+                )
+            })
+
+            afterEach(() => {
+                if (tmpRoot) {
+                    fs.rmSync(tmpRoot, { recursive: true, force: true })
+                }
+            })
+
+            it('should canonicalize through the filesystem when the path is a symlink targeting outside the workspace', async function (this: Context) {
+                if (process.platform === 'win32') {
+                    this.skip()
+                    return
+                }
+
+                const result = await requiresPathAcceptance(
+                    symlinkInWorkspace,
+                    'testTool',
+                    mockWorkspace,
+                    mockLogging as unknown as Features['logging']
+                )
+
+                assert.strictEqual(
+                    result.requiresAcceptance,
+                    true,
+                    'A symlink whose canonical target is outside the workspace should require acceptance'
+                )
+            })
+        })
     })
 })
