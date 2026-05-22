@@ -11,6 +11,7 @@ import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
 import { modelSelection } from '../texts/modelSelection'
+import { getWelcomeTabHeader } from '../texts/welcome'
 import { chatMessageToChatItem } from '../utils'
 
 export type DefaultTabData = MynahUIDataModel
@@ -55,6 +56,7 @@ export class TabFactory {
                 ? [pairProgrammingPromptInput, ...(this.modelSelectionEnabled ? [modelSelection] : [])]
                 : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
+            tabHeaderDetails: getWelcomeTabHeader(),
         }
         return tabData
     }
@@ -67,24 +69,9 @@ export class TabFactory {
         return [
             ...(this.bannerMessage ? [this.getBannerMessage() as ChatItem] : []),
             ...(needWelcomeMessages
-                ? [
-                      ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
-                      {
-                          type: ChatItemType.ANSWER,
-                          body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 200px 0 20px 0;">
-
-<div style="font-size: 24px; margin-bottom: 12px;"><strong>Amazon Q</strong></div>
-<div style="background: rgba(128, 128, 128, 0.15); border: 1px solid rgba(128, 128, 128, 0.25); border-radius: 8px; padding: 8px; margin: 4px 0; text-align: center;">
-<div style="font-size: 14px; margin-bottom: 4px;"><strong>Did you know?</strong></div>
-<div>${this.getRandomTip()}</div>
-</div>
-
-Select code & ask me to explain, debug or optimize it, or type \`/\` for quick actions
-
-</div>`,
-                          canBeVoted: false,
-                      },
-                  ]
+                ? this.agenticMode && pairProgrammingCardActive
+                    ? [programmerModeCard]
+                    : []
                 : chatMessages
                   ? chatMessages.map(msg => chatMessageToChatItem(msg, this.agenticMode))
                   : []),
@@ -165,20 +152,6 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
             } as ChatItem
         }
         return undefined
-    }
-
-    private getRandomTip(): string {
-        const hints = [
-            'You can now see logs with 1-Click!',
-            'MCP is available in Amazon Q!',
-            'Pinned context is always included in future chat messages',
-            'Create and add Saved Prompts using the @ context menu',
-            'Compact your conversation with /compact',
-            'Ask Q to review your code and see results in the code issues panel!',
-        ]
-
-        const randomIndex = Math.floor(Math.random() * hints.length)
-        return hints[randomIndex]
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
