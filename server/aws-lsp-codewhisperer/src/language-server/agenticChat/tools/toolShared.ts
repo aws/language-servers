@@ -1,6 +1,7 @@
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+import * as fs from 'fs'
 import * as path from 'path'
 import { CommandCategory } from './executeBash'
 
@@ -125,9 +126,28 @@ export async function requiresPathAcceptance(
     approvedPaths?: Map<string, Set<string>>
 ): Promise<CommandValidation> {
     try {
-        // Canonicalize the path first to resolve any ".." traversal sequences.
-        // This prevents bypasses like "/workspace/../../etc" appearing to be in-workspace.
-        const canonicalPath = path.resolve(inputPath)
+        // Canonicalize the path through the filesystem so symlinks are resolved
+        // before the workspace-boundary check. path.resolve is string-only and
+        // would treat a symlink as in-workspace based on its name alone, even
+        // when its target lies outside the workspace. For paths that don't
+        // exist yet (e.g., a new file the agent is about to create), fall back
+        // to realpath of the parent directory joined with the basename.
+        let canonicalPath: string
+        try {
+            canonicalPath = await fs.promises.realpath(inputPath)
+        } catch (err: any) {
+            if (err && err.code === 'ENOENT') {
+                const parent = path.dirname(inputPath)
+                try {
+                    const realParent = await fs.promises.realpath(parent)
+                    canonicalPath = path.join(realParent, path.basename(inputPath))
+                } catch {
+                    canonicalPath = path.resolve(inputPath)
+                }
+            } else {
+                canonicalPath = path.resolve(inputPath)
+            }
+        }
 
         // Then check if the path is already approved for this specific tool
         if (isPathApproved(canonicalPath, toolName, approvedPaths)) {
