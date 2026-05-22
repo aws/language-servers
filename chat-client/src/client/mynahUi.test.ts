@@ -265,7 +265,12 @@ describe('MynahUI', () => {
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
-            sinon.assert.calledThrice(updateStoreSpy)
+            // updateStore is called four times for a brand new tab:
+            //   1. onTabAdd seeds the tab (chatItems + welcome tabHeaderDetails)
+            //   2. handleChatPrompt clears the welcome splash before the first prompt
+            //   3. handleChatPrompt sets loadingChat / cancelButton state
+            //   4. handleChatPrompt resets disabled state once streaming begins
+            sinon.assert.callCount(updateStoreSpy, 4)
             setTimeoutStub.restore()
         })
 
@@ -288,7 +293,8 @@ describe('MynahUI', () => {
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
-            sinon.assert.calledThrice(updateStoreSpy)
+            // See note above on the four updateStore calls.
+            sinon.assert.callCount(updateStoreSpy, 4)
             setTimeoutStub.restore()
         })
 
