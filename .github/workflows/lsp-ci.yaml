@@ -5,6 +5,9 @@ on:
     pull_request:
         branches: [main, dev, feature/*, release/agentic/*]
 
+permissions:
+  contents: read
+
 jobs:
     test:
         name: Test
