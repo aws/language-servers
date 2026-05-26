@@ -37,13 +37,13 @@ export class LspClient {
 
     private startServerAndConnect(): Promise<void> {
         return new Promise((resolve, reject) => {
-            this.server = net.createServer((socket) => {
+            this.server = net.createServer(socket => {
                 this.socket = socket
                 this.socket.on('data', (data: Buffer) => {
                     this.rawBuffer = Buffer.concat([this.rawBuffer, data])
                     this.processBuffer()
                 })
-                this.socket.on('error', (err) => {
+                this.socket.on('error', err => {
                     console.error('Socket error:', err.message)
                 })
                 resolve()
@@ -53,12 +53,12 @@ export class LspClient {
                 this.process = spawn('node', [this.runtimeFile, `--socket=${this.port}`], {
                     stdio: 'ignore',
                 })
-                this.process.on('error', (err) => {
+                this.process.on('error', err => {
                     reject(new Error(`Failed to spawn LSP: ${err.message}`))
                 })
             })
 
-            this.server.on('error', (err) => {
+            this.server.on('error', err => {
                 reject(new Error(`Failed to start TCP server: ${err.message}`))
             })
 

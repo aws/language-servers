@@ -223,7 +223,7 @@ describe('ATX .NET Transform Integration Tests', () => {
     //         ListJobPlanSteps, ListHitlTasks FES calls. Polls until EXECUTING begins.
     it('TEST 3: should poll transform until EXECUTING', async function (this: Mocha.Context) {
         this.timeout(7200000) // 2 hours — planning phase with Claude Opus can take 60-90 mins
-        const maxPolls = 720  // 720 x 10s = 2 hours
+        const maxPolls = 720 // 720 x 10s = 2 hours
         let jobStatus = ''
 
         for (let i = 0; i < maxPolls; i++) {
@@ -247,7 +247,9 @@ describe('ATX .NET Transform Integration Tests', () => {
             const errorString = result?.ErrorString || null
             const hitlTag = result?.HitlTag || null
             const stepCount = result?.TransformationPlan?.Root?.Children?.length ?? 0
-            console.log(`TEST 3 Poll ${i + 1}: Status=${jobStatus} Steps=${stepCount} HitlTag=${hitlTag} ErrorString=${errorString} (${pollMs}ms)`)
+            console.log(
+                `TEST 3 Poll ${i + 1}: Status=${jobStatus} Steps=${stepCount} HitlTag=${hitlTag} ErrorString=${errorString} (${pollMs}ms)`
+            )
 
             if (jobStatus === 'FAILED') {
                 const reason = job.FailureReason || result?.ErrorString || 'unknown'
@@ -280,7 +282,7 @@ describe('ATX .NET Transform Integration Tests', () => {
     //         ListArtifacts + CreateArtifactDownloadUrl (final artifact) FES calls
     it('TEST 4: should poll transform until COMPLETED', async function (this: Mocha.Context) {
         this.timeout(10800000) // 3 hours — execution phase
-        const maxPolls = 1080  // 1080 x 10s = 3 hours
+        const maxPolls = 1080 // 1080 x 10s = 3 hours
         let jobStatus = ''
         let lastLoggedStatus = ''
         let artifactPath: string | null = null
@@ -323,7 +325,9 @@ describe('ATX .NET Transform Integration Tests', () => {
                 const stepCount = result?.TransformationPlan?.Root?.Children?.length ?? 0
                 artifactPath = result?.ArtifactPath || null
                 if (hitlTag || jobStatus !== lastLoggedStatus || i % 10 === 0) {
-                    console.log(`TEST 4 Poll ${i + 1}: Status=${jobStatus} Steps=${stepCount} HitlTag=${hitlTag} DiffApplyFailed=${diffApplyFailed} ErrorString=${errorString} ArtifactPath=${artifactPath} (${pollMs}ms)`)
+                    console.log(
+                        `TEST 4 Poll ${i + 1}: Status=${jobStatus} Steps=${stepCount} HitlTag=${hitlTag} DiffApplyFailed=${diffApplyFailed} ErrorString=${errorString} ArtifactPath=${artifactPath} (${pollMs}ms)`
+                    )
                     lastLoggedStatus = jobStatus
                 }
 
