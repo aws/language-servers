@@ -235,10 +235,14 @@ export class ATXTransformHandler {
     /**
      * Clear cached job state (for terminal job statuses)
      */
-    private clearJobCache(): void {
+    private clearJobCache(jobId?: string): void {
         this.cachedHitl = null
         this.cachedStepHitl = null
         this.cachedInteractiveMode = null
+        if (jobId) {
+            this._worklogNextTokenByJob.delete(jobId)
+            Utils.clearWorklogCacheForJob(jobId)
+        }
         this.logging.log('ATX: Cleared job cache')
     }
 
@@ -1231,7 +1235,7 @@ export class ATXTransformHandler {
 
             if (jobStatus === 'COMPLETED') {
                 // Clear cached state for terminal job status
-                this.clearJobCache()
+                this.clearJobCache(request.TransformationJobId)
 
                 const pathToArtifact = await this.downloadFinalArtifact(
                     request.WorkspaceId,
@@ -1255,7 +1259,7 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
                 // Clear cached state for terminal job status
-                this.clearJobCache()
+                this.clearJobCache(request.TransformationJobId)
 
                 this.logging.error(`ATX: Job failed - Reason: ${job?.statusDetails?.failureReason ?? 'Unknown'}`)
                 return {
@@ -1269,7 +1273,7 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'STOPPING' || jobStatus === 'STOPPED') {
                 // Clear cached state for terminal job status
-                this.clearJobCache()
+                this.clearJobCache(request.TransformationJobId)
 
                 return {
                     TransformationJob: {
@@ -2346,7 +2350,7 @@ export class ATXTransformHandler {
             const response = await this.atxClient!.send(command)
 
             // Clear cached state when user initiates stop
-            this.clearJobCache()
+            this.clearJobCache(jobId)
 
             this.logging.log(`ATX: StopJob SUCCESS - Status: ${response.status}`)
             this.logging.log(`ATX: StopJob RequestId: ${response.$metadata?.requestId}`)
@@ -2839,11 +2843,15 @@ export class ATXTransformHandler {
     /**
      * Lists worklogs for a job and saves them to disk grouped by step ID.
      */
+    private _worklogNextTokenByJob: Map<string, string> = new Map()
+
     private async listWorklogs(
         workspaceId: string,
         jobId: string,
         solutionRootPath: string,
-        stepId?: string
+        stepId?: string,
+        saveLimit?: number,
+        nextToken?: string
     ): Promise<any[] | null> {
         try {
             this.logging.log(`ATX: Starting ListWorklogs for job: ${jobId}`)
@@ -2863,13 +2871,23 @@ export class ATXTransformHandler {
                         },
                     },
                 }),
+                ...(nextToken && { nextToken }),
             })
 
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
+            const outputToken = (result as any).outputToken as string | undefined
+            if (outputToken) {
+                this._worklogNextTokenByJob.set(jobId, outputToken)
+            } else {
+                this._worklogNextTokenByJob.delete(jobId)
+            }
             this.logging.log(`ATX: ListWorklogs completed - Found ${result.worklogs?.length || 0} entries`)
-            for (const value of result.worklogs || []) {
+
+            const worklogs = result.worklogs || []
+            const entriesToSave = saveLimit ? worklogs.slice(0, saveLimit) : worklogs
+            for (const value of entriesToSave) {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
                 await Utils.saveWorklogsToJson(
                     jobId,
@@ -2880,11 +2898,26 @@ export class ATXTransformHandler {
                 )
             }
 
-            return result.worklogs || []
+            return worklogs
         } catch (error) {
             this.logging.error(`ATX: ListWorklogs error: ${String(error)}`)
             return null
         }
+    }
+
+    async loadOlderWorklogs(
+        workspaceId: string,
+        jobId: string,
+        solutionRootPath: string,
+        nextToken?: string
+    ): Promise<{ hasMore: boolean }> {
+        const token = nextToken || this._worklogNextTokenByJob.get(jobId)
+        if (!token) {
+            return { hasMore: false }
+        }
+
+        await this.listWorklogs(workspaceId, jobId, solutionRootPath, undefined, undefined, token)
+        return { hasMore: this._worklogNextTokenByJob.has(jobId) }
     }
 
     /**

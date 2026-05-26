@@ -44,6 +44,7 @@ const AtxCompleteLocalBuildHitlCommand = 'aws/atxTransform/completeLocalBuildHit
 const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
 const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
 const AtxUploadCustomPlanCommand = 'aws/atxTransform/uploadCustomPlan'
+const AtxLoadOlderWorklogsCommand = 'aws/atxTransform/loadOlderWorklogs'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -241,6 +242,15 @@ export const AtxNetTransformServerToken =
                         const request = params as AtxUploadCustomPlanRequest
                         return await atxTransformHandler.uploadCustomPlan(request)
                     }
+                    case AtxLoadOlderWorklogsCommand: {
+                        const { workspaceId, jobId, solutionRootPath, nextToken } = params as any
+                        return await atxTransformHandler.loadOlderWorklogs(
+                            workspaceId,
+                            jobId,
+                            solutionRootPath,
+                            nextToken
+                        )
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -281,6 +291,7 @@ export const AtxNetTransformServerToken =
                             AtxGetJobDashboardCommand,
                             AtxGetJobReportCommand,
                             AtxUploadCustomPlanCommand,
+                            AtxLoadOlderWorklogsCommand,
                         ],
                     },
                 },
