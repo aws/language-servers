@@ -90,6 +90,10 @@ export class ATXTransformHandler {
     private cachedInteractiveMode: InteractiveMode | null = null
     private _applyingCheckpoints = false
     private _currentDiffContext: DiffApplyContext | null = null
+    // Tracks jobs that have surfaced the LBV HITL, so we can distinguish the
+    // pre-job mode-selection -checkpoint (filter) from the post-build -checkpoint
+    // (surface for auto-approve).
+    private jobsPastLocalBuild: Set<string> = new Set()
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -1304,9 +1308,20 @@ export class ATXTransformHandler {
                     `ATX: EXECUTING HITL probe for job ${request.TransformationJobId}: ${execHitls ? execHitls.length : 0} task(s) [${hitlTagSummary}]`
                 )
 
-                // Filter out the mode-selection checkpoint HITL — it's always present and
-                // doesn't require user action. Only surface truly blocking HITLs.
-                const blockingHitls = execHitls ? execHitls.filter(h => !String(h.tag).endsWith('-checkpoint')) : []
+                // Mark the job past-LBV the first time we see the LBV HITL, so subsequent
+                // -checkpoint HITLs on this job get surfaced instead of filtered.
+                const sawLbv = execHitls ? execHitls.some(h => String(h.tag) === 'local-build-verification') : false
+                if (sawLbv && !this.jobsPastLocalBuild.has(request.TransformationJobId)) {
+                    this.jobsPastLocalBuild.add(request.TransformationJobId)
+                    this.logging.log(`ATX: marking job ${request.TransformationJobId} as past-LBV`)
+                }
+                const isPastLbv = this.jobsPastLocalBuild.has(request.TransformationJobId)
+
+                // Pre-LBV: filter -checkpoint (it's the always-present mode-selection HITL).
+                // Post-LBV: surface it so the IDE can auto-approve.
+                const blockingHitls = execHitls
+                    ? execHitls.filter(h => isPastLbv || !String(h.tag).endsWith('-checkpoint'))
+                    : []
 
                 if (blockingHitls.length > 0) {
                     const execHitl =
@@ -1314,6 +1329,7 @@ export class ATXTransformHandler {
                         blockingHitls.find(
                             h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl'
                         ) ||
+                        blockingHitls.find(h => String(h.tag).endsWith('-checkpoint')) ||
                         blockingHitls[0]
                     this.logging.log(
                         `ATX: EXECUTING job has pending HITL — tag=${execHitl.tag} taskId=${execHitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
