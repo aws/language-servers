@@ -1399,6 +1399,64 @@ export class ATXTransformHandler {
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
                     }
+                    if (hitl.tag === 'local-build-verification') {
+                        if (!this.jobsPastLocalBuild.has(request.TransformationJobId)) {
+                            this.jobsPastLocalBuild.add(request.TransformationJobId)
+                        }
+                        this.logging.log(
+                            `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // -checkpoint surfaces only post-LBV; pre-job mode-selection stays filtered.
+                    if (
+                        String(hitl.tag).endsWith('-checkpoint') &&
+                        this.jobsPastLocalBuild.has(request.TransformationJobId)
+                    ) {
+                        this.logging.log(
+                            `ATX: ${jobStatus} job has pending post-build checkpoint HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // surface any other pending HITL so the IDE never silently misses one.
+                    if (
+                        !(
+                            String(hitl.tag).endsWith('-checkpoint') &&
+                            !this.jobsPastLocalBuild.has(request.TransformationJobId)
+                        )
+                    ) {
+                        this.logging.warn(
+                            `ATX: ${jobStatus} job has unhandled HITL tag '${hitl.tag}' taskId=${hitl.taskId}; surfacing as AWAITING_HUMAN_INPUT (defensive)`
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
                 }
 
                 return {
