@@ -124,6 +124,10 @@ export class ATXTransformHandler {
             this.atxClient = new ElasticGumbyFrontendClient({
                 region: region,
                 endpoint: endpoint,
+                requestHandler: new (require('@smithy/node-http-handler').NodeHttpHandler)({
+                    requestTimeout: 30000,
+                    connectionTimeout: 10000,
+                }),
             })
 
             this.logging.log('ATX: Client initialization completed')
@@ -1110,6 +1114,7 @@ export class ATXTransformHandler {
                 const response = await got.get(downloadInfo.s3PresignedUrl, {
                     headers: downloadInfo.requestHeaders || {},
                     responseType: 'buffer',
+                    timeout: { request: 30000 },
                 })
                 const rawPath = path.join(pathToDownload, 'missing-packages.json')
                 fs.writeFileSync(rawPath, response.body)
@@ -1131,6 +1136,7 @@ export class ATXTransformHandler {
                         const response = await got.get(downloadInfo.s3PresignedUrl, {
                             headers: downloadInfo.requestHeaders || {},
                             responseType: 'buffer',
+                            timeout: { request: 30000 },
                         })
                         const rawPath = path.join(pathToDownload, `hitl-artifact-${hitlTag || 'unknown'}`)
                         fs.writeFileSync(rawPath, response.body)
@@ -1653,6 +1659,7 @@ export class ATXTransformHandler {
             const response = await got.get(downloadInfo.s3PresignedUrl, {
                 headers: downloadInfo.requestHeaders || {},
                 responseType: 'text',
+                timeout: { request: 30000 },
             })
 
             const artifactJson = JSON.parse(response.body)
@@ -3525,6 +3532,7 @@ export class ATXTransformHandler {
             const response = await got.get(downloadInfo.s3PresignedUrl, {
                 headers: downloadInfo.requestHeaders || {},
                 responseType: 'buffer',
+                timeout: { request: 30000 },
             })
 
             await Utils.directoryExists(savePath)

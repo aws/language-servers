@@ -152,6 +152,7 @@ export class Utils {
         const response = await got.get(downloadUrl, {
             headers: requestHeaders || {},
             responseType: 'buffer',
+            timeout: { request: 30000 },
         })
 
         const buffer = [Buffer.from(response.body)]
