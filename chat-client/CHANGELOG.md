@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.54](https://github.com/aws/language-servers/compare/chat-client/v0.1.53...chat-client/v0.1.54) (2026-05-22)
+
+
+### Features
+
+* render welcome splash via tabHeaderDetails ([#2739](https://github.com/aws/language-servers/issues/2739)) ([#2748](https://github.com/aws/language-servers/issues/2748)) ([1fd847b](https://github.com/aws/language-servers/commit/1fd847b35dff9a1b27eb29ebb934b1c69990c4f2))
+
 ## [0.1.53](https://github.com/aws/language-servers/compare/chat-client/v0.1.52...chat-client/v0.1.53) (2026-05-20)
 
 
