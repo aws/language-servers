@@ -228,6 +228,28 @@ describe('AtxNetTransformServer - routing', () => {
         })
     })
 
+    describe('loadOlderWorklogs', () => {
+        it('should route loadOlderWorklogs to NEW handler', async () => {
+            const loadOlderWorklogsStub = sinon
+                .stub(ATXTransformHandler.prototype, 'loadOlderWorklogs')
+                .resolves({ hasMore: false })
+
+            await executeCommandHandler(
+                {
+                    command: 'aws/atxTransform/loadOlderWorklogs',
+                    workspaceId: 'ws-1',
+                    jobId: 'job-1',
+                    solutionRootPath: 'C:/sln',
+                    nextToken: 'token-123',
+                } as any,
+                {} as any
+            )
+
+            expect(loadOlderWorklogsStub.calledOnce).to.be.true
+            expect(loadOlderWorklogsStub.firstCall.args).to.deep.equal(['ws-1', 'job-1', 'C:/sln', 'token-123'])
+        })
+    })
+
     describe('routing log messages', () => {
         it('should log NEW handler routing decision for startTransform', async () => {
             await executeCommandHandler(
