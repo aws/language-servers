@@ -248,6 +248,48 @@ describe('ATXTransformHandler - Chat APIs', () => {
             }
         })
     })
+
+    describe('loadOlderWorklogs', () => {
+        it('should return hasMore false when no token stored', async () => {
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            expect(result.hasMore).to.be.false
+            expect(sendStub.called).to.be.false
+        })
+
+        it('should use provided nextToken', async () => {
+            sendStub.resolves({ worklogs: [], outputToken: undefined })
+
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution', 'my-token')
+
+            expect(sendStub.calledOnce).to.be.true
+            expect(result.hasMore).to.be.false
+        })
+
+        it('should return hasMore true when outputToken returned', async () => {
+            sendStub.resolves({
+                worklogs: [{ attributeMap: { STEP_ID: 'step1' }, description: 'entry' }],
+                outputToken: 'next-page',
+            })
+
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution', 'first-token')
+
+            expect(result.hasMore).to.be.true
+        })
+
+        it('should use stored token when no nextToken provided', async () => {
+            // First call stores a token via listWorklogs
+            sendStub.resolves({ worklogs: [], outputToken: 'stored-token' })
+            // Access private method to seed the token
+            ;(handler as any)._worklogNextTokenByJob.set('job-456', 'stored-token')
+
+            sendStub.resolves({ worklogs: [], outputToken: undefined })
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            expect(sendStub.calledOnce).to.be.true
+            expect(result.hasMore).to.be.false
+        })
+    })
 })
 
 describe('ATXTransformHandler - getTransformInfo', () => {

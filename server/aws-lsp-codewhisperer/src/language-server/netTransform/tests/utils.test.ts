@@ -25,6 +25,12 @@ describe('Utils', () => {
 
     afterEach(() => {
         sinon.restore()
+        Utils.clearWorklogCacheForJob('test-job-id')
+        Utils.clearWorklogCacheForJob('cache-test-job')
+        Utils.clearWorklogCacheForJob('cache-step-test')
+        Utils.clearWorklogCacheForJob('seed-test-job')
+        Utils.clearWorklogCacheForJob('clear-cache-test')
+        Utils.clearWorklogCacheForJob('timestamp-test')
         if (fs.existsSync(tempDir)) {
             fs.rmSync(tempDir, { recursive: true, force: true })
         }
@@ -201,7 +207,7 @@ describe('Utils', () => {
             expect(fs.existsSync(worklogPath)).to.be.true
 
             const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
-            expect(content[stepId]).to.include(description)
+            expect(content[stepId][0].text).to.equal(description)
         })
 
         it('should append to existing worklog file', async () => {
@@ -216,8 +222,8 @@ describe('Utils', () => {
             const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
             const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
 
-            expect(content[stepId]).to.include(description1)
-            expect(content[stepId]).to.include(description2)
+            expect(content[stepId].map((e: any) => e.text)).to.include(description1)
+            expect(content[stepId].map((e: any) => e.text)).to.include(description2)
         })
 
         it('should handle null stepId', async () => {
@@ -229,7 +235,7 @@ describe('Utils', () => {
             const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
             const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
 
-            expect(content['Progress']).to.include(description)
+            expect(content['Progress'][0].text).to.equal(description)
         })
 
         it('should not add duplicate descriptions', async () => {
@@ -244,6 +250,100 @@ describe('Utils', () => {
             const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
 
             expect(content[stepId]).to.have.length(1)
+        })
+    })
+
+    describe('saveWorklogsToJson - dedup cache', () => {
+        it('should skip duplicate entries without disk I/O', async () => {
+            const jobId = 'cache-test-job'
+            const stepId = 'step1'
+            const description = 'Cached entry'
+
+            await Utils.saveWorklogsToJson(jobId, stepId, description, tempDir)
+            const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
+
+            const statBefore = fs.statSync(worklogPath)
+            await Utils.saveWorklogsToJson(jobId, stepId, description, tempDir)
+            const statAfter = fs.statSync(worklogPath)
+
+            expect(statAfter.mtimeMs).to.equal(statBefore.mtimeMs)
+        })
+
+        it('should allow same description in different steps', async () => {
+            const jobId = 'cache-step-test'
+            const description = 'Same description'
+
+            await Utils.saveWorklogsToJson(jobId, 'step1', description, tempDir)
+            await Utils.saveWorklogsToJson(jobId, 'step2', description, tempDir)
+
+            const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
+            const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
+
+            expect(content['step1']).to.have.length(1)
+            expect(content['step2']).to.have.length(1)
+        })
+
+        it('should seed cache from existing file on first access', async () => {
+            const jobId = 'seed-test-job'
+            const stepId = 'step1'
+            const worklogDir = path.join(tempDir, 'artifactWorkspace', jobId)
+            fs.mkdirSync(worklogDir, { recursive: true })
+            const worklogPath = path.join(worklogDir, 'worklogs.json')
+
+            fs.writeFileSync(
+                worklogPath,
+                JSON.stringify({ step1: [{ text: 'Existing entry', timestamp: new Date().toISOString() }] })
+            )
+
+            Utils.clearWorklogCacheForJob(jobId)
+            await Utils.saveWorklogsToJson(jobId, stepId, 'Existing entry', tempDir)
+
+            const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
+            expect(content[stepId]).to.have.length(1)
+        })
+
+        it('should still dedup after clearWorklogCacheForJob (re-seeds from file)', async () => {
+            const jobId = 'clear-cache-test'
+            const stepId = 'step1'
+            const description = 'Will not be duplicated'
+
+            await Utils.saveWorklogsToJson(jobId, stepId, description, tempDir)
+            Utils.clearWorklogCacheForJob(jobId)
+            await Utils.saveWorklogsToJson(jobId, stepId, description, tempDir)
+
+            const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
+            const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
+
+            expect(content[stepId]).to.have.length(1)
+        })
+
+        it('should allow new entries after clearWorklogCacheForJob', async () => {
+            const jobId = 'clear-cache-test'
+            const stepId = 'step1'
+
+            await Utils.saveWorklogsToJson(jobId, stepId, 'First entry', tempDir)
+            Utils.clearWorklogCacheForJob(jobId)
+            await Utils.saveWorklogsToJson(jobId, stepId, 'New entry after clear', tempDir)
+
+            const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
+            const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
+
+            expect(content[stepId]).to.have.length(2)
+            expect(content[stepId].map((e: any) => e.text)).to.include('New entry after clear')
+        })
+
+        it('should include timestamp in worklog entries', async () => {
+            const jobId = 'timestamp-test'
+            const stepId = 'step1'
+            const timestamp = new Date('2025-01-15T10:30:00.000Z')
+
+            await Utils.saveWorklogsToJson(jobId, stepId, 'Entry with time', tempDir, timestamp)
+
+            const worklogPath = path.join(tempDir, 'artifactWorkspace', jobId, 'worklogs.json')
+            const content = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
+
+            expect(content[stepId][0].timestamp).to.equal(timestamp.toISOString())
+            expect(content[stepId][0].text).to.equal('Entry with time')
         })
     })
 
