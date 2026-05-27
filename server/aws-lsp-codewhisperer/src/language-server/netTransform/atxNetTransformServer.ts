@@ -23,6 +23,7 @@ import {
     AtxGetJobDashboardRequest,
     AtxGetJobReportRequest,
     AtxUploadCustomPlanRequest,
+    AtxLoadOlderWorklogsRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -243,12 +244,17 @@ export const AtxNetTransformServerToken =
                         return await atxTransformHandler.uploadCustomPlan(request)
                     }
                     case AtxLoadOlderWorklogsCommand: {
-                        const { workspaceId, jobId, solutionRootPath, nextToken } = params as any
+                        const request = params as AtxLoadOlderWorklogsRequest
+                        if (!request.workspaceId || !request.jobId || !request.solutionRootPath) {
+                            throw new Error(
+                                'workspaceId, jobId and solutionRootPath are required for loadOlderWorklogs'
+                            )
+                        }
                         return await atxTransformHandler.loadOlderWorklogs(
-                            workspaceId,
-                            jobId,
-                            solutionRootPath,
-                            nextToken
+                            request.workspaceId,
+                            request.jobId,
+                            request.solutionRootPath,
+                            request.nextToken
                         )
                     }
                     default: {

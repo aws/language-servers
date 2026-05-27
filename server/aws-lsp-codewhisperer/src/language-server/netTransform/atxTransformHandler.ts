@@ -2877,6 +2877,7 @@ export class ATXTransformHandler {
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
+            // SDK types don't include outputToken yet — field exists in FES API response
             const outputToken = (result as any).outputToken as string | undefined
             if (nextToken) {
                 // Pagination call (loadOlderWorklogs) — always update token

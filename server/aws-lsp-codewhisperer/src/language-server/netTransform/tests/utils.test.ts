@@ -25,12 +25,7 @@ describe('Utils', () => {
 
     afterEach(() => {
         sinon.restore()
-        Utils.clearWorklogCacheForJob('test-job-id')
-        Utils.clearWorklogCacheForJob('cache-test-job')
-        Utils.clearWorklogCacheForJob('cache-step-test')
-        Utils.clearWorklogCacheForJob('seed-test-job')
-        Utils.clearWorklogCacheForJob('clear-cache-test')
-        Utils.clearWorklogCacheForJob('timestamp-test')
+        Utils.clearAllWorklogCache()
         if (fs.existsSync(tempDir)) {
             fs.rmSync(tempDir, { recursive: true, force: true })
         }

@@ -87,6 +87,10 @@ export class Utils {
         delete Utils._worklogCache[jobId]
     }
 
+    static clearAllWorklogCache(): void {
+        Utils._worklogCache = {}
+    }
+
     static async saveWorklogsToJson(
         jobId: string,
         stepId: string | null,
@@ -130,8 +134,6 @@ export class Utils {
             return
         }
 
-        Utils._worklogCache[jobId][stepId].add(description)
-
         const maxRetries = 3
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -154,7 +156,9 @@ export class Utils {
 
                 const tempPath = worklogPath + '.tmp'
                 fs.writeFileSync(tempPath, JSON.stringify(worklogData, null, 2))
+                // Atomic rename ensures data is on disk before updating cache
                 fs.renameSync(tempPath, worklogPath)
+                Utils._worklogCache[jobId][stepId].add(description)
                 return
             } catch (err: any) {
                 if ((err.code === 'EBUSY' || err.code === 'EPERM') && attempt < maxRetries - 1) {
