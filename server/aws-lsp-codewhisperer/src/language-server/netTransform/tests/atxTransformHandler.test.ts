@@ -289,6 +289,55 @@ describe('ATXTransformHandler - Chat APIs', () => {
             expect(sendStub.calledOnce).to.be.true
             expect(result.hasMore).to.be.false
         })
+
+        it('should not overwrite stored token when polling calls listWorklogs without nextToken', async () => {
+            // Simulate: loadOlderWorklogs stored page-3 token
+            ;(handler as any)._worklogNextTokenByJob.set('job-456', 'page-3-token')
+
+            // Polling calls listWorklogs without nextToken — returns page-1 outputToken
+            sendStub.resolves({ worklogs: [], outputToken: 'page-2-token' })
+            await (handler as any).listWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            // Token should still be page-3 (polling must not overwrite)
+            expect((handler as any)._worklogNextTokenByJob.get('job-456')).to.equal('page-3-token')
+        })
+
+        it('should seed token on first polling call when no token exists', async () => {
+            sendStub.resolves({ worklogs: [], outputToken: 'page-2-token' })
+            await (handler as any).listWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            expect((handler as any)._worklogNextTokenByJob.get('job-456')).to.equal('page-2-token')
+        })
+
+        it('should advance token when loadOlderWorklogs fetches next page', async () => {
+            ;(handler as any)._worklogNextTokenByJob.set('job-456', 'page-2-token')
+
+            sendStub.resolves({ worklogs: [{ description: 'old entry' }], outputToken: 'page-3-token' })
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            expect(result.hasMore).to.be.true
+            expect((handler as any)._worklogNextTokenByJob.get('job-456')).to.equal('page-3-token')
+        })
+
+        it('should delete token when loadOlderWorklogs reaches last page', async () => {
+            ;(handler as any)._worklogNextTokenByJob.set('job-456', 'last-page-token')
+
+            sendStub.resolves({ worklogs: [{ description: 'final entry' }], outputToken: undefined })
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            expect(result.hasMore).to.be.false
+            expect((handler as any)._worklogNextTokenByJob.has('job-456')).to.be.false
+        })
+
+        it('should clear token and return hasMore false on API error', async () => {
+            ;(handler as any)._worklogNextTokenByJob.set('job-456', 'stale-token')
+
+            sendStub.rejects(new Error('InvalidNextTokenException'))
+            const result = await handler.loadOlderWorklogs('ws-123', 'job-456', '/tmp/solution')
+
+            expect(result.hasMore).to.be.false
+            expect((handler as any)._worklogNextTokenByJob.has('job-456')).to.be.false
+        })
     })
 })
 

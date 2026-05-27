@@ -2878,10 +2878,16 @@ export class ATXTransformHandler {
             const result = await this.atxClient!.send(command)
 
             const outputToken = (result as any).outputToken as string | undefined
-            if (outputToken) {
+            if (nextToken) {
+                // Pagination call (loadOlderWorklogs) — always update token
+                if (outputToken) {
+                    this._worklogNextTokenByJob.set(jobId, outputToken)
+                } else {
+                    this._worklogNextTokenByJob.delete(jobId)
+                }
+            } else if (!this._worklogNextTokenByJob.has(jobId) && outputToken) {
+                // First-page call from polling — only seed token if not already set
                 this._worklogNextTokenByJob.set(jobId, outputToken)
-            } else {
-                this._worklogNextTokenByJob.delete(jobId)
             }
             this.logging.log(`ATX: ListWorklogs completed - Found ${result.worklogs?.length || 0} entries`)
 
@@ -2916,7 +2922,11 @@ export class ATXTransformHandler {
             return { hasMore: false }
         }
 
-        await this.listWorklogs(workspaceId, jobId, solutionRootPath, undefined, undefined, token)
+        const result = await this.listWorklogs(workspaceId, jobId, solutionRootPath, undefined, undefined, token)
+        if (result === null) {
+            this._worklogNextTokenByJob.delete(jobId)
+            return { hasMore: false }
+        }
         return { hasMore: this._worklogNextTokenByJob.has(jobId) }
     }
 
