@@ -320,3 +320,11 @@ export interface AtxUploadCustomPlanResponse {
     ArtifactId?: string
     Error?: string
 }
+
+// ATX Load Older Worklogs request
+export interface AtxLoadOlderWorklogsRequest extends ExecuteCommandParams {
+    workspaceId: string
+    jobId: string
+    solutionRootPath: string
+    nextToken?: string
+}
