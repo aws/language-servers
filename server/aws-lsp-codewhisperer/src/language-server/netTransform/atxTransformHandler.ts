@@ -4,6 +4,7 @@ import * as archiver from 'archiver'
 import got from 'got'
 import * as path from 'path'
 import * as crypto from 'crypto'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 import AdmZip = require('adm-zip')
 import { ArtifactManager } from './artifactManager'
 import {
@@ -128,7 +129,7 @@ export class ATXTransformHandler {
             this.atxClient = new ElasticGumbyFrontendClient({
                 region: region,
                 endpoint: endpoint,
-                requestHandler: new (require('@smithy/node-http-handler').NodeHttpHandler)({
+                requestHandler: new NodeHttpHandler({
                     requestTimeout: 30000,
                     connectionTimeout: 10000,
                 }),

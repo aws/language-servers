@@ -270,10 +270,11 @@ describe('ATX .NET Transform Integration Tests', () => {
             await sleep(10000)
         }
 
-        expect(
-            ['EXECUTING', 'COMPLETED', 'PARTIALLY_COMPLETED'],
-            `Expected job to reach EXECUTING but got: ${jobStatus}`
-        ).to.include(jobStatus)
+        expect(jobStatus, `Expected job to reach EXECUTING but got: ${jobStatus}`).to.be.oneOf([
+            'EXECUTING',
+            'COMPLETED',
+            'PARTIALLY_COMPLETED',
+        ])
     })
 
     // TEST 4: Validates polling through EXECUTING → COMPLETED — exercises GetJob,
@@ -379,10 +380,10 @@ describe('ATX .NET Transform Integration Tests', () => {
         }
 
         console.log('TEST 4: Final status:', jobStatus, 'ArtifactPath:', artifactPath)
-        expect(
-            ['COMPLETED', 'PARTIALLY_COMPLETED'],
-            `Expected COMPLETED or PARTIALLY_COMPLETED but got: ${jobStatus}`
-        ).to.include(jobStatus)
+        expect(jobStatus, `Expected COMPLETED or PARTIALLY_COMPLETED but got: ${jobStatus}`).to.be.oneOf([
+            'COMPLETED',
+            'PARTIALLY_COMPLETED',
+        ])
         // ArtifactPath is only returned when SolutionRootPath is provided (downloads final artifact to disk).
         // We omit SolutionRootPath from polls to avoid fetchWorklogs log flooding, so ArtifactPath is null.
     })

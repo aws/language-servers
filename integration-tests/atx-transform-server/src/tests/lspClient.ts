@@ -64,6 +64,8 @@ export class LspClient {
 
             setTimeout(() => {
                 if (!this.socket) {
+                    if (this.process) this.process.kill()
+                    if (this.server) this.server.close()
                     reject(new Error('LSP did not connect within 10 seconds'))
                 }
             }, 10000)
