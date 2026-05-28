@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.118](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.117...lsp-codewhisperer/v0.0.118) (2026-05-28)
+
+
+### Features
+
+* adding worklogs and chat pagination support ([#2752](https://github.com/aws/language-servers/issues/2752)) ([8db1a33](https://github.com/aws/language-servers/commit/8db1a33872895a23db7f5087b3b6a1caf1b81d16))
+
+
+### Bug Fixes
+
+* surface lbv and checkpoint hitls regardless of job status ([#2755](https://github.com/aws/language-servers/issues/2755)) ([0df9444](https://github.com/aws/language-servers/commit/0df9444730116bc6edbf79ae2e1aa9de8f677e16))
+
 ## [0.0.117](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.116...lsp-codewhisperer/v0.0.117) (2026-05-22)
 
 
