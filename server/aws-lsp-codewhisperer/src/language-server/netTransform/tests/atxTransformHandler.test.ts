@@ -363,7 +363,7 @@ describe('ATXTransformHandler - getTransformInfo', () => {
     beforeEach(() => {
         serviceManager = sinon.createStubInstance(AtxTokenServiceManager) as any
         workspace = {} as Workspace
-        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub() } as any
+        logging = { log: sinon.stub(), error: sinon.stub(), info: sinon.stub(), warn: sinon.stub() } as any
         runtime = {} as Runtime
 
         handler = new ATXTransformHandler(serviceManager, workspace, logging, runtime)
@@ -471,6 +471,54 @@ describe('ATXTransformHandler - getTransformInfo', () => {
 
         expect(result?.TransformationJob.Status).to.equal('PLANNING')
         expect(listWorklogsStub.calledOnce).to.be.true
+    })
+
+    it('should surface AWAITING_HUMAN_INPUT for LBV HITL when status is PLANNING', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'PLANNING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([{ tag: 'local-build-verification', taskId: 'task-lbv' }])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result?.HitlTag).to.equal('local-build-verification')
+        expect(result?.HitlTaskId).to.equal('task-lbv')
+        expect((handler as any).jobsPastLocalBuild.has('job-123')).to.be.true
+    })
+
+    it('should filter pre-job mode-selection -checkpoint HITL before LBV has run', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'PLANNING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([{ tag: 'job-123-checkpoint', taskId: 'task-cp' }])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('PLANNING')
+        expect(result?.HitlTag).to.be.undefined
+    })
+
+    it('should surface post-build -checkpoint HITL once LBV has been seen', async () => {
+        ;(handler as any).jobsPastLocalBuild.add('job-123')
+        getJobStub.resolves({ statusDetails: { status: 'PLANNING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([{ tag: 'job-123-checkpoint', taskId: 'task-postcp' }])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result?.HitlTaskId).to.equal('task-postcp')
+    })
+
+    it('should defensively surface unhandled HITL tags when status is PLANNING', async () => {
+        getJobStub.resolves({ statusDetails: { status: 'PLANNING' } })
+        getTransformationPlanStub.resolves({ Root: { Children: [] } })
+        listHitlsStub.resolves([{ tag: 'some-future-tag', taskId: 'task-x' }])
+
+        const result = await handler.getTransformInfo(baseRequest)
+
+        expect(result?.TransformationJob.Status).to.equal('AWAITING_HUMAN_INPUT')
+        expect(result?.HitlTag).to.equal('some-future-tag')
+        expect(result?.HitlTaskId).to.equal('task-x')
     })
 
     it('should set DiffApplyFailed flag when diff context records failures', async () => {
