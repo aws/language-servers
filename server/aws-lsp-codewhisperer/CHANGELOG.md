@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.117](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.116...lsp-codewhisperer/v0.0.117) (2026-05-22)
+
+
+### Bug Fixes
+
+* canonicalize paths through filesystem in requiresPathAcceptance ([#2742](https://github.com/aws/language-servers/issues/2742)) ([6c279b0](https://github.com/aws/language-servers/commit/6c279b083cc192aa5df1f38c2c185576fd5234f5))
+* surface post-build checkpoint hitl after local build verification ([#2737](https://github.com/aws/language-servers/issues/2737)) ([31e3528](https://github.com/aws/language-servers/commit/31e35285256435706e679ec165d663bb6f6e308b))
+
 ## [0.0.116](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.115...lsp-codewhisperer/v0.0.116) (2026-05-18)
 
 
