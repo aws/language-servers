@@ -1438,13 +1438,13 @@ export class ATXTransformHandler {
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
                     }
-                    // surface any other pending HITL so the IDE never silently misses one.
-                    if (
-                        !(
-                            String(hitl.tag).endsWith('-checkpoint') &&
-                            !this.jobsPastLocalBuild.has(request.TransformationJobId)
-                        )
-                    ) {
+                    // Surface any other pending HITL so the IDE never silently misses one.
+                    // The only tag we still filter here is a pre-LBV -checkpoint (the always-present
+                    // mode-selection checkpoint that should not be surfaced before LBV has run).
+                    const isPreLbvCheckpoint =
+                        String(hitl.tag).endsWith('-checkpoint') &&
+                        !this.jobsPastLocalBuild.has(request.TransformationJobId)
+                    if (!isPreLbvCheckpoint) {
                         this.logging.warn(
                             `ATX: ${jobStatus} job has unhandled HITL tag '${hitl.tag}' taskId=${hitl.taskId}; surfacing as AWAITING_HUMAN_INPUT (defensive)`
                         )
