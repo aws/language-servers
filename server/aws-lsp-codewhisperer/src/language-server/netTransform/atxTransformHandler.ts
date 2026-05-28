@@ -1404,9 +1404,7 @@ export class ATXTransformHandler {
                         } as AtxGetTransformInfoResponse
                     }
                     if (hitl.tag === 'local-build-verification') {
-                        if (!this.jobsPastLocalBuild.has(request.TransformationJobId)) {
-                            this.jobsPastLocalBuild.add(request.TransformationJobId)
-                        }
+                        this.jobsPastLocalBuild.add(request.TransformationJobId)
                         this.logging.log(
                             `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
                         )
