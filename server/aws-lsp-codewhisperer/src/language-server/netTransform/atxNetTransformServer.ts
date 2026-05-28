@@ -23,6 +23,7 @@ import {
     AtxGetJobDashboardRequest,
     AtxGetJobReportRequest,
     AtxUploadCustomPlanRequest,
+    AtxLoadOlderWorklogsRequest,
 } from './atxModels'
 
 // ATX FES Commands - Consolidated APIs
@@ -44,6 +45,7 @@ const AtxCompleteLocalBuildHitlCommand = 'aws/atxTransform/completeLocalBuildHit
 const AtxGetJobDashboardCommand = 'aws/atxTransform/getJobDashboard'
 const AtxGetJobReportCommand = 'aws/atxTransform/getJobReport'
 const AtxUploadCustomPlanCommand = 'aws/atxTransform/uploadCustomPlan'
+const AtxLoadOlderWorklogsCommand = 'aws/atxTransform/loadOlderWorklogs'
 
 export const AtxNetTransformServerToken =
     (): Server =>
@@ -241,6 +243,20 @@ export const AtxNetTransformServerToken =
                         const request = params as AtxUploadCustomPlanRequest
                         return await atxTransformHandler.uploadCustomPlan(request)
                     }
+                    case AtxLoadOlderWorklogsCommand: {
+                        const request = params as AtxLoadOlderWorklogsRequest
+                        if (!request.workspaceId || !request.jobId || !request.solutionRootPath) {
+                            throw new Error(
+                                'workspaceId, jobId and solutionRootPath are required for loadOlderWorklogs'
+                            )
+                        }
+                        return await atxTransformHandler.loadOlderWorklogs(
+                            request.workspaceId,
+                            request.jobId,
+                            request.solutionRootPath,
+                            request.nextToken
+                        )
+                    }
                     default: {
                         throw new Error(`Unknown ATX FES command: ${params.command}`)
                     }
@@ -281,6 +297,7 @@ export const AtxNetTransformServerToken =
                             AtxGetJobDashboardCommand,
                             AtxGetJobReportCommand,
                             AtxUploadCustomPlanCommand,
+                            AtxLoadOlderWorklogsCommand,
                         ],
                     },
                 },

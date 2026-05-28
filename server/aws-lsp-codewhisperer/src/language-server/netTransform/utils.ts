@@ -81,6 +81,16 @@ export class Utils {
     /**
      * Saves worklogs to JSON file with stepId as key and description as value
      */
+    private static _worklogCache: Record<string, Record<string, Set<string>>> = {}
+
+    static clearWorklogCacheForJob(jobId: string): void {
+        delete Utils._worklogCache[jobId]
+    }
+
+    static clearAllWorklogCache(): void {
+        Utils._worklogCache = {}
+    }
+
     static async saveWorklogsToJson(
         jobId: string,
         stepId: string | null,
@@ -93,19 +103,45 @@ export class Utils {
 
         await Utils.directoryExists(worklogDir)
 
+        if (stepId == null) {
+            stepId = 'Progress'
+        }
+
+        // In-memory dedup cache per job+step (avoids re-reading file for duplicate check)
+        if (!Utils._worklogCache[jobId]) {
+            Utils._worklogCache[jobId] = {}
+            // Seed cache from existing file
+            if (fs.existsSync(worklogPath)) {
+                try {
+                    const existing = JSON.parse(fs.readFileSync(worklogPath, 'utf8'))
+                    for (const [key, entries] of Object.entries(existing)) {
+                        Utils._worklogCache[jobId][key] = new Set(
+                            (entries as any[]).map((e: any) => (typeof e === 'string' ? e : e.text))
+                        )
+                    }
+                } catch {
+                    /* will rebuild on next write */
+                }
+            }
+        }
+
+        if (!Utils._worklogCache[jobId][stepId]) {
+            Utils._worklogCache[jobId][stepId] = new Set()
+        }
+
+        // Skip if already seen (fast in-memory check)
+        if (Utils._worklogCache[jobId][stepId].has(description)) {
+            return
+        }
+
         const maxRetries = 3
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 let worklogData: Record<string, any[]> = {}
 
-                // Read existing worklog if it exists
                 if (fs.existsSync(worklogPath)) {
                     const existingData = fs.readFileSync(worklogPath, 'utf8')
                     worklogData = JSON.parse(existingData)
-                }
-
-                if (stepId == null) {
-                    stepId = 'Progress'
                 }
 
                 if (!worklogData[stepId]) {
@@ -116,21 +152,19 @@ export class Utils {
                     timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
                     text: description,
                 }
-                if (!worklogData[stepId].some((e: any) => (typeof e === 'string' ? e : e.text) === description)) {
-                    worklogData[stepId].push(entry)
-                }
+                worklogData[stepId].push(entry)
 
-                // Write to temp file and rename for atomic update (avoids file lock conflicts with toolkit reader)
                 const tempPath = worklogPath + '.tmp'
                 fs.writeFileSync(tempPath, JSON.stringify(worklogData, null, 2))
+                // Atomic rename ensures data is on disk before updating cache
                 fs.renameSync(tempPath, worklogPath)
+                Utils._worklogCache[jobId][stepId].add(description)
                 return
             } catch (err: any) {
                 if ((err.code === 'EBUSY' || err.code === 'EPERM') && attempt < maxRetries - 1) {
                     await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)))
                     continue
                 }
-                // Don't throw - worklogs are non-critical, will retry on next poll
                 console.error(
                     `ATX: Failed to write worklogs after ${maxRetries} attempts: ${err.code} - ${err.message}`
                 )
