@@ -745,6 +745,106 @@ describe('MynahUI', () => {
         })
     })
 
+    describe('onTabAdd pinned context reset', () => {
+        it('should ensure new tabs start with empty pinned context via sendPinnedContext', () => {
+            const tabId = 'tab-1'
+
+            // Simulate a tab that has pinned context items
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [
+                    {
+                        commands: [
+                            {
+                                id: 'pinned-folder-1',
+                                command: 'src',
+                                label: 'folder',
+                                route: ['/workspace', 'src'],
+                                icon: 'folder',
+                            },
+                            {
+                                id: 'pinned-file-1',
+                                command: 'file1.ts',
+                                label: 'file',
+                                route: ['/workspace', 'src/file1.ts'],
+                                icon: 'file',
+                            },
+                        ],
+                    },
+                ],
+                showRules: true,
+            })
+
+            // Verify pinned items were set
+            sinon.assert.calledWith(updateStoreSpy, tabId, sinon.match({ promptTopBarTitle: '@' }))
+
+            updateStoreSpy.resetHistory()
+
+            // Simulate what the server sends for a new tab (empty pinned context)
+            // This is what happens after onTabAdd triggers sendPinnedContext on the server
+            inboundChatApi.sendPinnedContext({
+                tabId: 'tab-2',
+                contextCommandGroups: [{ commands: [] }],
+                showRules: true,
+            })
+
+            // Verify the new tab gets empty pinned context, not items from tab-1
+            sinon.assert.calledWith(updateStoreSpy, 'tab-2', {
+                promptTopBarContextItems: [],
+                promptTopBarTitle: '@Pin Context',
+                promptTopBarButton: { id: 'Rules', status: 'clear', text: 'Rules', icon: 'check-list' },
+            })
+        })
+
+        it('should not leak pinned context between tabs when server sends per-tab state', () => {
+            // Pin items on tab-1
+            inboundChatApi.sendPinnedContext({
+                tabId: 'tab-1',
+                contextCommandGroups: [
+                    {
+                        commands: [
+                            {
+                                id: 'pinned-folder-1',
+                                command: 'src',
+                                label: 'folder',
+                                route: ['/workspace', 'src'],
+                                icon: 'folder',
+                            },
+                        ],
+                    },
+                ],
+                showRules: true,
+            })
+
+            updateStoreSpy.resetHistory()
+
+            // Server sends pinned context for tab-2 with only active editor (default for new tabs)
+            inboundChatApi.sendPinnedContext({
+                tabId: 'tab-2',
+                contextCommandGroups: [
+                    {
+                        commands: [
+                            {
+                                id: 'active-editor',
+                                command: 'Active file',
+                                icon: 'file',
+                                description: 'Reference active text file',
+                            },
+                        ],
+                    },
+                ],
+                showRules: true,
+                textDocument: { uri: 'file:///workspace/index.ts' },
+            })
+
+            // Verify tab-2 only has the active editor item, not the folder from tab-1
+            const tab2Call = updateStoreSpy.getCalls().find(call => call.args[0] === 'tab-2')
+            const pinnedItems = tab2Call?.args[1]?.promptTopBarContextItems
+            sinon.assert.match(pinnedItems?.length, 1)
+            sinon.assert.match(pinnedItems?.[0]?.id, 'active-editor')
+        })
+    })
+
     describe('stringOverrides', () => {
         it('should apply string overrides to config texts', () => {
             const stringOverrides = {
