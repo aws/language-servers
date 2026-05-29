@@ -408,6 +408,9 @@ export const createMynahUi = (
                           ]
                         : []),
                 ],
+                // Reset pinned context for new tabs - server will send the correct state via sendPinnedContext
+                promptTopBarContextItems: [],
+                promptTopBarTitle: '@Pin Context',
                 ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             }
 
