@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.54](https://github.com/aws/language-servers/compare/chat-client/v0.1.53...chat-client/v0.1.54) (2026-05-22)
+
+
+### Features
+
+* render welcome splash via tabHeaderDetails ([#2739](https://github.com/aws/language-servers/issues/2739)) ([#2748](https://github.com/aws/language-servers/issues/2748)) ([1fd847b](https://github.com/aws/language-servers/commit/1fd847b35dff9a1b27eb29ebb934b1c69990c4f2))
+
+## [0.1.53](https://github.com/aws/language-servers/compare/chat-client/v0.1.52...chat-client/v0.1.53) (2026-05-20)
+
+
+### Bug Fixes
+
+* allow empty/null origin in postMessage check for Eclipse SWT browser ([#2740](https://github.com/aws/language-servers/issues/2740)) ([200455f](https://github.com/aws/language-servers/commit/200455f801df9d97cff39973ff838fad9c8d1a87))
+* **chat-client:** increase timeout for flaky sendGenericCommand test ([#2746](https://github.com/aws/language-servers/issues/2746)) ([d7d1927](https://github.com/aws/language-servers/commit/d7d1927f405571334b58f48bef57a14eb0891f2a))
+
 ## [0.1.52](https://github.com/aws/language-servers/compare/chat-client/v0.1.51...chat-client/v0.1.52) (2026-05-18)
 
 

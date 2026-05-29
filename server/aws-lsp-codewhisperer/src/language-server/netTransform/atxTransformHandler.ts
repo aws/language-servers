@@ -90,6 +90,10 @@ export class ATXTransformHandler {
     private cachedInteractiveMode: InteractiveMode | null = null
     private _applyingCheckpoints = false
     private _currentDiffContext: DiffApplyContext | null = null
+    // Tracks jobs that have surfaced the LBV HITL, so we can distinguish the
+    // pre-job mode-selection -checkpoint (filter) from the post-build -checkpoint
+    // (surface for auto-approve).
+    private jobsPastLocalBuild: Set<string> = new Set()
 
     constructor(serviceManager: AtxTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
@@ -231,10 +235,14 @@ export class ATXTransformHandler {
     /**
      * Clear cached job state (for terminal job statuses)
      */
-    private clearJobCache(): void {
+    private clearJobCache(jobId?: string): void {
         this.cachedHitl = null
         this.cachedStepHitl = null
         this.cachedInteractiveMode = null
+        if (jobId) {
+            this._worklogNextTokenByJob.delete(jobId)
+            Utils.clearWorklogCacheForJob(jobId)
+        }
         this.logging.log('ATX: Cleared job cache')
     }
 
@@ -1227,7 +1235,7 @@ export class ATXTransformHandler {
 
             if (jobStatus === 'COMPLETED') {
                 // Clear cached state for terminal job status
-                this.clearJobCache()
+                this.clearJobCache(request.TransformationJobId)
 
                 const pathToArtifact = await this.downloadFinalArtifact(
                     request.WorkspaceId,
@@ -1251,7 +1259,7 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'FAILED') {
                 // Clear cached state for terminal job status
-                this.clearJobCache()
+                this.clearJobCache(request.TransformationJobId)
 
                 this.logging.error(`ATX: Job failed - Reason: ${job?.statusDetails?.failureReason ?? 'Unknown'}`)
                 return {
@@ -1265,7 +1273,7 @@ export class ATXTransformHandler {
                 } as AtxGetTransformInfoResponse
             } else if (jobStatus === 'STOPPING' || jobStatus === 'STOPPED') {
                 // Clear cached state for terminal job status
-                this.clearJobCache()
+                this.clearJobCache(request.TransformationJobId)
 
                 return {
                     TransformationJob: {
@@ -1298,9 +1306,20 @@ export class ATXTransformHandler {
                     `ATX: EXECUTING HITL probe for job ${request.TransformationJobId}: ${execHitls ? execHitls.length : 0} task(s) [${hitlTagSummary}]`
                 )
 
-                // Filter out the mode-selection checkpoint HITL — it's always present and
-                // doesn't require user action. Only surface truly blocking HITLs.
-                const blockingHitls = execHitls ? execHitls.filter(h => !String(h.tag).endsWith('-checkpoint')) : []
+                // Mark the job past-LBV the first time we see the LBV HITL, so subsequent
+                // -checkpoint HITLs on this job get surfaced instead of filtered.
+                const sawLbv = execHitls ? execHitls.some(h => String(h.tag) === 'local-build-verification') : false
+                if (sawLbv && !this.jobsPastLocalBuild.has(request.TransformationJobId)) {
+                    this.jobsPastLocalBuild.add(request.TransformationJobId)
+                    this.logging.log(`ATX: marking job ${request.TransformationJobId} as past-LBV`)
+                }
+                const isPastLbv = this.jobsPastLocalBuild.has(request.TransformationJobId)
+
+                // Pre-LBV: filter -checkpoint (it's the always-present mode-selection HITL).
+                // Post-LBV: surface it so the IDE can auto-approve.
+                const blockingHitls = execHitls
+                    ? execHitls.filter(h => isPastLbv || !String(h.tag).endsWith('-checkpoint'))
+                    : []
 
                 if (blockingHitls.length > 0) {
                     const execHitl =
@@ -1308,6 +1327,7 @@ export class ATXTransformHandler {
                         blockingHitls.find(
                             h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl'
                         ) ||
+                        blockingHitls.find(h => String(h.tag).endsWith('-checkpoint')) ||
                         blockingHitls[0]
                     this.logging.log(
                         `ATX: EXECUTING job has pending HITL — tag=${execHitl.tag} taskId=${execHitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
@@ -1380,6 +1400,62 @@ export class ATXTransformHandler {
                             HitlTag: hitl.tag,
                             HitlTaskId: hitl.taskId,
                             MissingPackageJsonPath: missingPkgPath,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    if (hitl.tag === 'local-build-verification') {
+                        this.jobsPastLocalBuild.add(request.TransformationJobId)
+                        this.logging.log(
+                            `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // -checkpoint surfaces only post-LBV; pre-job mode-selection stays filtered.
+                    if (
+                        String(hitl.tag).endsWith('-checkpoint') &&
+                        this.jobsPastLocalBuild.has(request.TransformationJobId)
+                    ) {
+                        this.logging.log(
+                            `ATX: ${jobStatus} job has pending post-build checkpoint HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // Surface any other pending HITL so the IDE never silently misses one.
+                    // The only tag we still filter here is a pre-LBV -checkpoint (the always-present
+                    // mode-selection checkpoint that should not be surfaced before LBV has run).
+                    const isPreLbvCheckpoint =
+                        String(hitl.tag).endsWith('-checkpoint') &&
+                        !this.jobsPastLocalBuild.has(request.TransformationJobId)
+                    if (!isPreLbvCheckpoint) {
+                        this.logging.warn(
+                            `ATX: ${jobStatus} job has unhandled HITL tag '${hitl.tag}' taskId=${hitl.taskId}; surfacing as AWAITING_HUMAN_INPUT (defensive)`
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: 'AWAITING_HUMAN_INPUT',
+                            } as AtxTransformationJob,
+                            HitlTag: hitl.tag,
+                            HitlTaskId: hitl.taskId,
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
                     }
@@ -2330,7 +2406,7 @@ export class ATXTransformHandler {
             const response = await this.atxClient!.send(command)
 
             // Clear cached state when user initiates stop
-            this.clearJobCache()
+            this.clearJobCache(jobId)
 
             this.logging.log(`ATX: StopJob SUCCESS - Status: ${response.status}`)
             this.logging.log(`ATX: StopJob RequestId: ${response.$metadata?.requestId}`)
@@ -2823,11 +2899,15 @@ export class ATXTransformHandler {
     /**
      * Lists worklogs for a job and saves them to disk grouped by step ID.
      */
+    private _worklogNextTokenByJob: Map<string, string> = new Map()
+
     private async listWorklogs(
         workspaceId: string,
         jobId: string,
         solutionRootPath: string,
-        stepId?: string
+        stepId?: string,
+        saveLimit?: number,
+        nextToken?: string
     ): Promise<any[] | null> {
         try {
             this.logging.log(`ATX: Starting ListWorklogs for job: ${jobId}`)
@@ -2847,13 +2927,30 @@ export class ATXTransformHandler {
                         },
                     },
                 }),
+                ...(nextToken && { nextToken }),
             })
 
             await this.addAuthToCommand(command)
             const result = await this.atxClient!.send(command)
 
+            // SDK types don't include outputToken yet — field exists in FES API response
+            const outputToken = (result as any).outputToken as string | undefined
+            if (nextToken) {
+                // Pagination call (loadOlderWorklogs) — always update token
+                if (outputToken) {
+                    this._worklogNextTokenByJob.set(jobId, outputToken)
+                } else {
+                    this._worklogNextTokenByJob.delete(jobId)
+                }
+            } else if (!this._worklogNextTokenByJob.has(jobId) && outputToken) {
+                // First-page call from polling — only seed token if not already set
+                this._worklogNextTokenByJob.set(jobId, outputToken)
+            }
             this.logging.log(`ATX: ListWorklogs completed - Found ${result.worklogs?.length || 0} entries`)
-            for (const value of result.worklogs || []) {
+
+            const worklogs = result.worklogs || []
+            const entriesToSave = saveLimit ? worklogs.slice(0, saveLimit) : worklogs
+            for (const value of entriesToSave) {
                 const currentStepId = value.attributeMap?.STEP_ID || stepId || 'Progress'
                 await Utils.saveWorklogsToJson(
                     jobId,
@@ -2864,11 +2961,30 @@ export class ATXTransformHandler {
                 )
             }
 
-            return result.worklogs || []
+            return worklogs
         } catch (error) {
             this.logging.error(`ATX: ListWorklogs error: ${String(error)}`)
             return null
         }
+    }
+
+    async loadOlderWorklogs(
+        workspaceId: string,
+        jobId: string,
+        solutionRootPath: string,
+        nextToken?: string
+    ): Promise<{ hasMore: boolean }> {
+        const token = nextToken || this._worklogNextTokenByJob.get(jobId)
+        if (!token) {
+            return { hasMore: false }
+        }
+
+        const result = await this.listWorklogs(workspaceId, jobId, solutionRootPath, undefined, undefined, token)
+        if (result === null) {
+            this._worklogNextTokenByJob.delete(jobId)
+            return { hasMore: false }
+        }
+        return { hasMore: this._worklogNextTokenByJob.has(jobId) }
     }
 
     /**
