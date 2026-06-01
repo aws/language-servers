@@ -1,4 +1,5 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
+import { ChildProcess, spawn } from 'child_process'
+import * as net from 'net'
 
 export interface JsonRpcMessage {
     jsonrpc: string
@@ -10,35 +11,76 @@ export interface JsonRpcMessage {
 }
 
 export class LspClient {
-    private process: ChildProcessWithoutNullStreams
+    private process: ChildProcess | null = null
+    private socket: net.Socket | null = null
+    private server: net.Server | null = null
     private requestId = 100
     private pendingRequests: Map<number, { resolve: (value: any) => void; reject: (reason: any) => void }> = new Map()
-    private buffer = ''
+    private rawBuffer: Buffer = Buffer.alloc(0)
+    private port: number
+    private runtimeFile: string
 
     constructor(runtimeFile: string) {
-        this.process = spawn('node', [runtimeFile, '--stdio'], {
-            stdio: ['pipe', 'pipe', 'pipe'],
-        })
+        this.port = 30000 + Math.floor(Math.random() * 10000)
+        this.runtimeFile = runtimeFile
+    }
 
-        this.process.stdout.on('data', (data: Buffer) => {
-            this.buffer += data.toString()
-            this.processBuffer()
+    async initialize(): Promise<any> {
+        await this.startServerAndConnect()
+        return this.sendRequest('initialize', {
+            processId: process.pid,
+            capabilities: {},
+            rootUri: null,
+            initializationOptions: { aws: { awsConfigSectionName: 'aws' } },
         })
+    }
 
-        this.process.stderr.on('data', (data: Buffer) => {
-            console.error(`[LSP stderr] ${data.toString()}`)
+    private startServerAndConnect(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.server = net.createServer(socket => {
+                this.socket = socket
+                this.socket.on('data', (data: Buffer) => {
+                    this.rawBuffer = Buffer.concat([this.rawBuffer, data])
+                    this.processBuffer()
+                })
+                this.socket.on('error', err => {
+                    console.error('Socket error:', err.message)
+                })
+                resolve()
+            })
+
+            this.server.listen(this.port, '127.0.0.1', () => {
+                this.process = spawn('node', [this.runtimeFile, `--socket=${this.port}`], {
+                    stdio: 'ignore',
+                })
+                this.process.on('error', err => {
+                    reject(new Error(`Failed to spawn LSP: ${err.message}`))
+                })
+            })
+
+            this.server.on('error', err => {
+                reject(new Error(`Failed to start TCP server: ${err.message}`))
+            })
+
+            setTimeout(() => {
+                if (!this.socket) {
+                    if (this.process) this.process.kill()
+                    if (this.server) this.server.close()
+                    reject(new Error('LSP did not connect within 10 seconds'))
+                }
+            }, 10000)
         })
     }
 
     private processBuffer(): void {
         while (true) {
-            const headerEnd = this.buffer.indexOf('\r\n\r\n')
+            const headerEnd = this.rawBuffer.indexOf('\r\n\r\n')
             if (headerEnd === -1) break
 
-            const header = this.buffer.substring(0, headerEnd)
+            const header = this.rawBuffer.slice(0, headerEnd).toString('utf8')
             const match = header.match(/Content-Length: (\d+)/)
             if (!match) {
-                this.buffer = this.buffer.substring(headerEnd + 4)
+                this.rawBuffer = this.rawBuffer.slice(headerEnd + 4)
                 continue
             }
 
@@ -46,16 +88,20 @@ export class LspClient {
             const messageStart = headerEnd + 4
             const messageEnd = messageStart + contentLength
 
-            if (this.buffer.length < messageEnd) break
+            if (this.rawBuffer.length < messageEnd) break
 
-            const content = this.buffer.substring(messageStart, messageEnd)
-            this.buffer = this.buffer.substring(messageEnd)
+            const content = this.rawBuffer.slice(messageStart, messageEnd).toString('utf8')
+            this.rawBuffer = this.rawBuffer.slice(messageEnd)
 
             try {
                 const message: JsonRpcMessage = JSON.parse(content)
 
                 if (message.method === 'workspace/configuration' && message.id !== undefined) {
                     this.sendResponse(message.id, [{}])
+                    continue
+                }
+
+                if (message.method === 'window/logMessage') {
                     continue
                 }
 
@@ -75,9 +121,10 @@ export class LspClient {
     }
 
     private send(obj: JsonRpcMessage): void {
+        if (!this.socket) throw new Error('Socket not connected')
         const content = JSON.stringify(obj)
         const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`
-        this.process.stdin.write(header + content)
+        this.socket.write(header + content)
     }
 
     private sendResponse(id: number, result: any): void {
@@ -96,16 +143,15 @@ export class LspClient {
         this.send({ jsonrpc: '2.0', method, params })
     }
 
-    async initialize(): Promise<any> {
-        return this.sendRequest('initialize', {
-            processId: process.pid,
-            capabilities: {},
-            rootUri: null,
-            initializationOptions: { aws: { awsConfigSectionName: 'aws' } },
-        })
-    }
-
     close(): void {
-        this.process.kill()
+        if (this.socket) {
+            this.socket.destroy()
+        }
+        if (this.server) {
+            this.server.close()
+        }
+        if (this.process) {
+            this.process.kill()
+        }
     }
 }
