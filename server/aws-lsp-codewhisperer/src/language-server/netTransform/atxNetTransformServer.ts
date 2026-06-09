@@ -85,7 +85,7 @@ export const AtxNetTransformServerToken =
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        logging.log(`ATX Server: Routing startTransform -> v2 handler`)
+                        logging.log(`ATX Server: Routing startTransform -> NEW handler`)
                         const handler = atxTransformHandler
                         const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
@@ -269,6 +269,7 @@ export const AtxNetTransformServerToken =
                 }
             } catch (e: any) {
                 logging.error(`ATXTransformServer: Error executing command: ${String(e)}`)
+                return { error: true, message: e.message }
             }
         }
 
