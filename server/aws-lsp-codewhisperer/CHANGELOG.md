@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.119](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.118...lsp-codewhisperer/v0.0.119) (2026-06-09)
+
+
+### Features
+
+* **integ:** rewrite ATX integ tests for new chatty-agent handler ([#2751](https://github.com/aws/language-servers/issues/2751)) ([2599bb3](https://github.com/aws/language-servers/commit/2599bb3368bf64d2d9aaf4909b6d0c241969fa45))
+* rejecting atx .ent v1 agent jobs ([#2761](https://github.com/aws/language-servers/issues/2761)) ([7df75d0](https://github.com/aws/language-servers/commit/7df75d094a1ca1dd354906e80d09a13bc2504e76))
+
 ## [0.0.118](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.117...lsp-codewhisperer/v0.0.118) (2026-05-28)
 
 
