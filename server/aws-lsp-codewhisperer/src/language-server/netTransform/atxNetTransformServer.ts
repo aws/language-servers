@@ -75,12 +75,18 @@ export const AtxNetTransformServerToken =
                             params as AtxStartTransformRequest
                         const useNew = useOrchestratorAgent === true
 
+                        if (!useNew) {
+                            throw new Error(
+                                'This version of the AWS Toolkit extension is no longer supported for transformations. Please update to the latest version of the AWS Toolkit extension to continue using AWS Transform.'
+                            )
+                        }
+
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        logging.log(`ATX Server: Routing startTransform -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
-                        const handler = useNew ? atxTransformHandler : atxTransformHandlerLegacy
+                        logging.log(`ATX Server: Routing startTransform -> v2 handler`)
+                        const handler = atxTransformHandler
                         const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
