@@ -65,6 +65,9 @@ describe('AtxNetTransformServer - routing', () => {
             onExecuteCommand: (fn: any) => {
                 executeCommandHandler = fn
             },
+            window: {
+                showMessage: sinon.stub(),
+            },
         }
 
         const features: any = {

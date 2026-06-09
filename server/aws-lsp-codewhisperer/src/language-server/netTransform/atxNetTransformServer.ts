@@ -2,6 +2,7 @@ import {
     CancellationToken,
     ExecuteCommandParams,
     InitializeParams,
+    MessageType,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
@@ -76,9 +77,10 @@ export const AtxNetTransformServerToken =
                         const useNew = useOrchestratorAgent === true
 
                         if (!useNew) {
-                            throw new Error(
+                            const msg =
                                 'This version of the AWS Toolkit extension is no longer supported for transformations. Please update to the latest version of the AWS Toolkit extension to continue using AWS Transform.'
-                            )
+                            lsp.window.showMessage({ type: MessageType.Error, message: msg })
+                            throw new Error(msg)
                         }
 
                         if (!WorkspaceId) {
