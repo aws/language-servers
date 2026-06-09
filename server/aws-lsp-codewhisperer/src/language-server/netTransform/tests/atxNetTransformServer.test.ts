@@ -65,6 +65,9 @@ describe('AtxNetTransformServer - routing', () => {
             onExecuteCommand: (fn: any) => {
                 executeCommandHandler = fn
             },
+            window: {
+                showMessage: sinon.stub(),
+            },
         }
 
         const features: any = {
@@ -103,8 +106,8 @@ describe('AtxNetTransformServer - routing', () => {
             expect(legacyStartTransform.called).to.be.false
         })
 
-        it('should route to LEGACY handler when useOrchestratorAgent=false', async () => {
-            await executeCommandHandler(
+        it('should reject with upgrade message when useOrchestratorAgent=false', async () => {
+            const result = await executeCommandHandler(
                 {
                     command: AtxStartTransformCommand,
                     WorkspaceId: 'ws-1',
@@ -114,12 +117,15 @@ describe('AtxNetTransformServer - routing', () => {
                 {} as any
             )
 
-            expect(legacyStartTransform.calledOnce).to.be.true
+            expect(result.error).to.be.true
+            expect(result.message).to.include('no longer supported')
+            expect(result.message).to.include('update')
             expect(newStartTransform.called).to.be.false
+            expect(legacyStartTransform.called).to.be.false
         })
 
-        it('should route to LEGACY handler when useOrchestratorAgent is omitted (prod IDE)', async () => {
-            await executeCommandHandler(
+        it('should reject with upgrade message when useOrchestratorAgent is omitted (old IDE)', async () => {
+            const result = await executeCommandHandler(
                 {
                     command: AtxStartTransformCommand,
                     WorkspaceId: 'ws-1',
@@ -128,8 +134,11 @@ describe('AtxNetTransformServer - routing', () => {
                 {} as any
             )
 
-            expect(legacyStartTransform.calledOnce).to.be.true
+            expect(result.error).to.be.true
+            expect(result.message).to.include('no longer supported')
+            expect(result.message).to.include('update')
             expect(newStartTransform.called).to.be.false
+            expect(legacyStartTransform.called).to.be.false
         })
     })
 
