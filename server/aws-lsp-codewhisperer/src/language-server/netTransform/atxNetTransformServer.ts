@@ -2,6 +2,7 @@ import {
     CancellationToken,
     ExecuteCommandParams,
     InitializeParams,
+    MessageType,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
@@ -75,12 +76,23 @@ export const AtxNetTransformServerToken =
                             params as AtxStartTransformRequest
                         const useNew = useOrchestratorAgent === true
 
+                        if (!useNew) {
+                            const msg =
+                                'This version of the AWS Toolkit extension is no longer supported for transformations. Please update to the latest version of the AWS Toolkit extension to continue using AWS Transform.'
+                            try {
+                                await lsp.window.showMessage({ type: MessageType.Error, message: msg })
+                            } catch {
+                                // Best-effort notification — proceed with rejection regardless
+                            }
+                            throw new Error(msg)
+                        }
+
                         if (!WorkspaceId) {
                             throw new Error('WorkspaceId is required for startTransform')
                         }
 
-                        logging.log(`ATX Server: Routing startTransform -> ${useNew ? 'NEW' : 'LEGACY'} handler`)
-                        const handler = useNew ? atxTransformHandler : atxTransformHandlerLegacy
+                        logging.log(`ATX Server: Routing startTransform -> NEW handler`)
+                        const handler = atxTransformHandler
                         const result = await handler.startTransform({
                             workspaceId: WorkspaceId,
                             jobName: JobName,
@@ -263,6 +275,7 @@ export const AtxNetTransformServerToken =
                 }
             } catch (e: any) {
                 logging.error(`ATXTransformServer: Error executing command: ${String(e)}`)
+                return { error: true, message: e.message }
             }
         }
 
