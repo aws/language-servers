@@ -79,7 +79,7 @@ export const AtxNetTransformServerToken =
                         if (!useNew) {
                             const msg =
                                 'This version of the AWS Toolkit extension is no longer supported for transformations. Please update to the latest version of the AWS Toolkit extension to continue using AWS Transform.'
-                            void lsp.window.showMessage({ type: MessageType.Error, message: msg })
+                            await lsp.window.showMessage({ type: MessageType.Error, message: msg })
                             throw new Error(msg)
                         }
 
