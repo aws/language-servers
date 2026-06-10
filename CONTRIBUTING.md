@@ -38,6 +38,12 @@ To send us a pull request, please:
 GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
 
+## Chat Client Host Environments
+
+The chat client (`./chat-client`) is rendered inside a webview that is embedded differently by each IDE host (VS Code, JetBrains, Visual Studio, Eclipse, and SageMaker JupyterLab). These hosts use different browser engines, and for Eclipse the engine differs by operating system (Edge WebView2 on Windows, WebKit / WebKitGTK on macOS/Linux). As a result, browser-level behavior — most notably the `event.origin` seen on inbound `window.postMessage` events — is **not** uniform across hosts. For example, Eclipse on Windows injects the chat HTML via `browser.setText()`, which Edge WebView2 treats as an opaque origin (the empty string `""` or the literal `"null"`).
+
+Because of this, any change that affects inbound message handling, origin validation, or the webview message bridge in `chat-client` (for example `chat-client/src/client/chat.ts`) **must be reviewed and validated against every supported host environment — not only the same-origin hosts.** Pay particular attention to Eclipse on Windows, which is the only host that delivers an opaque/empty origin, since a same-origin assumption there can silently drop all inbound messages while the backend still returns HTTP 200. See the JSDoc on `handleInboundMessage` in `chat-client/src/client/chat.ts` for the per-host origin behavior.
+
 ## Finding contributions to work on
 
 Looking at the existing issues is a great way to find something to contribute on. As our projects, by default, use the default GitHub issue labels (enhancement/bug/duplicate/help wanted/invalid/question/wontfix), looking at any 'help wanted' issues is a great place to start.
