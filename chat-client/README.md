@@ -9,6 +9,21 @@ The chat client communicates with the host application (e.g., an IDE extension) 
 - When the host application sends a request, the client processes the message and sends it to the UI
 - When an event is triggered in the UI, the client sends a message through `postMessage` to the host application that rendered the chat client
 
+### Host environments
+
+The webview is embedded by different IDE hosts, which use different browser engines and load the chat assets differently. As a result, the `event.origin` observed on inbound `postMessage` events is **not** uniform across hosts:
+
+| Host | Rendering engine | Asset scheme | `window.location.origin` / inbound `event.origin` | Message-delivery bridge |
+|---|---|---|---|---|
+| VS Code | Chromium webview | `vscode-webview://` | `vscode-webview://<id>` (non-HTTP) | `acquireVsCodeApi().postMessage` |
+| JetBrains | JCEF | `https://toolkitasset` | `https://toolkitasset` (same-origin) | JCEF JS query bridge + `postMessage` |
+| Visual Studio | Edge WebView2 | host-served | host-dependent | `window.chrome.webview.postMessage` |
+| Eclipse (Windows) | Edge WebView2 | HTML injected via `Browser.setText()` | empty `""` or `"null"` (opaque origin) | host-injected `window.postMessage` |
+| Eclipse (macOS / Linux) | WebKit / WebKitGTK | local asset server | HTTP(S) same-origin | host-injected `window.postMessage` |
+| SageMaker JupyterLab | Browser (Chromium / Firefox / Safari) | same-domain iframe | same-origin | `window.postMessage` |
+
+Because the origin is not uniform, the inbound message handler validates it defensively: it rejects only a real HTTP(S) cross-origin message and allows empty, `"null"`, and `file://` origins, which are produced by legitimate hosts (for example Eclipse on Windows, where `Browser.setText()`-injected HTML has an opaque origin). Any change to inbound message handling or origin validation **must be validated against every host environment above** — see the `handleInboundMessage` JSDoc in [`src/client/chat.ts`](./src/client/chat.ts).
+
 ## Usage
 
 To use the chat client, embed it in a webview within your application and handle the `postMessage` communication as needed. Chat client is based on inbound (from a destination to the chat client) and outbound events (from the chat client to a destination). Events consist of `command` and `params`:
