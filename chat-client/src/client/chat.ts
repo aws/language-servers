@@ -173,15 +173,26 @@ export const createChat = (
      * Security: rejects messages from cross-origin HTTP(S) pages to prevent
      * DOM XSS via untrusted postMessage senders.
      *
-     * Legitimate host environments deliver messages in different ways:
-     *   - VS Code / JetBrains / Visual Studio webviews: same-origin via
-     *     `allow-same-origin` sandbox flag.
+     * IMPORTANT: `event.origin` is NOT uniform across the IDE host environments
+     * that embed this chat client. The host browser engine -- and, for Eclipse,
+     * the engine differs by operating system -- determines the origin value:
+     *   - VS Code / JetBrains / Visual Studio webviews: same-origin
+     *     (`event.origin` matches `window.location.origin`).
      *   - SageMaker JupyterLab: same-origin (iframe loaded from same domain).
-     *   - Eclipse SWT Browser: non-HTTP origin (file:// protocol or similar).
+     *   - Eclipse SWT Browser on macOS/Linux (WebKit / WebKitGTK): a normal
+     *     HTTP(S) origin derived from the local asset server.
+     *   - Eclipse SWT Browser on Windows (Edge WebView2): the chat HTML is
+     *     injected via `browser.setText()`, which WebView2 treats as an opaque
+     *     origin, so `event.origin` is the empty string "" or the literal
+     *     "null". A strict same-origin check (origin !== window.location.origin)
+     *     would silently drop EVERY message on this host while the backend still
+     *     returns HTTP 200 and the chat appears to hang.
      *
-     * Only a real HTTP(S) cross-origin postMessage can come from an attacker
-     * page, so we reject those and allow everything else through.
-     * See Bug Bounty ticket P389799154.
+     * Therefore we reject only a real HTTP(S) cross-origin postMessage (the only
+     * case reachable by an attacker page) and allow empty, "null", and file://
+     * origins through. Any change to this check MUST be validated against every
+     * host environment listed above -- especially Eclipse on Windows -- not just
+     * the same-origin hosts. See Bug Bounty ticket P389799154.
      *
      * @param event - The message event containing data from the IDE
      */
