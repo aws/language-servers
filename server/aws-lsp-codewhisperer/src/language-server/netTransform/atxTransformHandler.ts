@@ -3600,6 +3600,13 @@ export class ATXTransformHandler {
             const result = await this.atxClient!.send(command)
 
             this.logging.log(`ATX: BatchGetMessages completed`)
+            const msgs: any[] = result.messages || []
+            for (const m of msgs) {
+                const interactionsCount = (m?.interactions || []).length
+                this.logging.log(
+                    `[PILL-TRACE] step=lsp-batchget-msg id=${m?.messageId} interactionsCount=${interactionsCount}`
+                )
+            }
             return result
         } catch (error) {
             this.logging.error(`ATX: BatchGetMessages error: ${String(error)}`)
