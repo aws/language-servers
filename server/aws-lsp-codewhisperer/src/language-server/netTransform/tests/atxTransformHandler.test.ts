@@ -1187,6 +1187,77 @@ describe('ATXTransformHandler - updateWorkspace & applyChanges', () => {
             expect(result.conflictedFiles).to.include(path.resolve(afterAbs))
         })
 
+        it('filesMoved: skips move when the move SOURCE is user-modified', async () => {
+            const beforeRel = 'ProjA/EditedSource.cs'
+            const afterRel = 'ProjA/Renamed.cs'
+            const beforeAbs = path.join(solutionRoot, beforeRel)
+            const afterAbs = path.join(solutionRoot, afterRel)
+            fs.mkdirSync(path.dirname(beforeAbs), { recursive: true })
+            fs.writeFileSync(beforeAbs, '// USER EDIT at source')
+            writeMetadata({ movedFilesMap: [{ before: beforeRel, after: afterRel }] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([beforeRel], watermark)
+            touchAfter(beforeAbs, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesMoved).to.equal(0)
+            expect(fs.existsSync(beforeAbs)).to.be.true // source preserved
+            expect(fs.readFileSync(beforeAbs, 'utf-8')).to.equal('// USER EDIT at source')
+            expect(fs.existsSync(afterAbs)).to.be.false // move target not created
+            expect(result.conflictedFiles).to.include(path.resolve(beforeAbs))
+            // Backup of customer's source file exists
+            const backupRoot = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints', 'conflict-backups')
+            const backup = path.join(backupRoot, beforeRel)
+            expect(fs.existsSync(backup)).to.be.true
+            expect(fs.readFileSync(backup, 'utf-8')).to.equal('// USER EDIT at source')
+        })
+
+        it('filesRemoved: preserves a customer-edited file instead of deleting it', async () => {
+            const relPath = 'ProjA/Edited.cs'
+            const filePath = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(filePath), { recursive: true })
+            fs.writeFileSync(filePath, '// USER EDIT')
+            writeMetadata({ filesRemoved: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(filePath, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesRemoved).to.equal(0)
+            expect(fs.existsSync(filePath)).to.be.true // file NOT deleted
+            expect(fs.readFileSync(filePath, 'utf-8')).to.equal('// USER EDIT')
+            expect(result.conflictedFiles).to.include(path.resolve(filePath))
+            // Backup of customer's file exists
+            const backupRoot = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints', 'conflict-backups')
+            const backup = path.join(backupRoot, relPath)
+            expect(fs.existsSync(backup)).to.be.true
+            expect(fs.readFileSync(backup, 'utf-8')).to.equal('// USER EDIT')
+        })
+
+        it('filesRemoved: deletes file if user did NOT edit it', async () => {
+            const relPath = 'ProjA/Untouched.cs'
+            const filePath = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(filePath), { recursive: true })
+            fs.writeFileSync(filePath, '// old content')
+            writeMetadata({ filesRemoved: [relPath] })
+
+            // File is NOT in the manifest's sourceFiles, so it's not flagged as modified
+            seedManifest(['ProjA/SomethingElse.cs'], Date.now() - 10_000)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesRemoved).to.equal(1)
+            expect(fs.existsSync(filePath)).to.be.false // file deleted
+            expect(result.conflictedFiles).to.be.undefined
+        })
+
         it('with no jobId / no manifest, overwrites exactly as before (back-compat)', async () => {
             const relPath = 'Existing.cs'
             const dest = path.join(solutionRoot, relPath)

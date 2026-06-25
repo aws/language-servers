@@ -3421,10 +3421,29 @@ export class ATXTransformHandler {
             }
 
             // Handle filesRemoved: Delete file at {solutionRootPath}/{relativePath}
+            // Guard: if the customer edited the file since the last apply, preserve it
+            // and record the conflict rather than silently deleting their work.
             for (const relativePath of filesRemoved) {
                 try {
                     const filePath = path.join(solutionRootPath, relativePath)
                     if (fs.existsSync(filePath)) {
+                        if (
+                            userModifiedFiles.size > 0 &&
+                            userModifiedFiles.has(path.resolve(filePath))
+                        ) {
+                            try {
+                                const backupPath = this.backupConflictedFile(filePath, jobId, solutionRootPath)
+                                this.logging.log(
+                                    `ATX: Preserved customer-modified file from deletion, backed up to ${backupPath}: ${filePath}`
+                                )
+                            } catch (e) {
+                                this.logging.error(
+                                    `ATX: Failed to back up conflicted file ${filePath}: ${String(e)}`
+                                )
+                            }
+                            conflictedFiles.push(path.resolve(filePath))
+                            continue
+                        }
                         fs.unlinkSync(filePath)
                         removedCount++
                         this.logging.log(`ATX: Removed file: ${relativePath}`)
@@ -3495,6 +3514,29 @@ export class ATXTransformHandler {
                                 jobId
                             )
                         ) {
+                            continue
+                        }
+                        // If the customer edited the move SOURCE, preserve it in place —
+                        // the rename would delete their edited file from its original path.
+                        if (
+                            userModifiedFiles.size > 0 &&
+                            userModifiedFiles.has(path.resolve(beforePath))
+                        ) {
+                            try {
+                                const backupPath = this.backupConflictedFile(
+                                    beforePath,
+                                    jobId,
+                                    solutionRootPath
+                                )
+                                this.logging.log(
+                                    `ATX: Preserved customer-modified move source, backed up to ${backupPath}: ${beforePath}`
+                                )
+                            } catch (e) {
+                                this.logging.error(
+                                    `ATX: Failed to back up conflicted file ${beforePath}: ${String(e)}`
+                                )
+                            }
+                            conflictedFiles.push(path.resolve(beforePath))
                             continue
                         }
                         fs.copyFileSync(beforePath, afterPath)
