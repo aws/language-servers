@@ -3163,11 +3163,28 @@ export class ATXTransformHandler {
                 return { Success: false, Error: 'ATX FES client not initialized' }
             }
 
-            // Get the cached step HITL task ID, or query for it if not cached
+            // Get the cached step HITL task ID, or query for it if not cached.
+            // The client-supplied stepId is advisory — it may be a stale substep id that
+            // doesn't match the backend's review HITL tag (which uses the top-level project
+            // step id). When the client id misses, fall back to resolving the real pending
+            // step server-side via the plan tree — the same pattern getTransformInfo uses.
             let taskId: string | null = this.cachedStepHitl
             if (!taskId) {
                 this.logging.log('ATX: No cached step HITL, querying for active step HITL')
-                const stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+                let stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+
+                if (!stepHitl || !stepHitl.taskId) {
+                    this.logging.log(
+                        `ATX: Client stepId ${stepId} did not match a review HITL, resolving pending step from plan`
+                    )
+                    const plan = await this.fetchPlanTree(workspaceId, jobId)
+                    const pendingStep = this.findPendingHumanInputStep(plan.Root)
+                    if (pendingStep?.StepId && pendingStep.StepId !== stepId) {
+                        this.logging.log(`ATX: Resolved pending step ${pendingStep.StepId}, retrying HITL lookup`)
+                        stepHitl = await this.findStepLevelHitl(workspaceId, jobId, pendingStep.StepId)
+                    }
+                }
+
                 if (!stepHitl || !stepHitl.taskId) {
                     return { Success: false, Error: 'No active step HITL found' }
                 }
