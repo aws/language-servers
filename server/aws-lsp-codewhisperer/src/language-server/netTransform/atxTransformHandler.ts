@@ -2520,9 +2520,6 @@ export class ATXTransformHandler {
 
             this.logging.log(`ATX: Found ${completedSteps.length} completed steps to check for artifacts`)
 
-            // Load the list of already applied steps
-            const appliedSteps = this.loadAppliedCheckpoints(solutionRootPath, jobId)
-
             for (const step of completedSteps) {
                 const stepCheckpointPath = path.join(
                     solutionRootPath,
@@ -2537,6 +2534,12 @@ export class ATXTransformHandler {
                     // Download the artifact for this completed step
                     await this.downloadCompletedStepArtifact(workspaceId, jobId, step.StepId, solutionRootPath)
                 }
+
+                // Re-read applied steps each iteration — the diff-artifact path
+                // (downloadDiffArtifact) may have already applied this step earlier
+                // in the same getTransformInfo call, so a stale snapshot would cause
+                // a redundant second apply that bypasses user-edit protection.
+                const appliedSteps = this.loadAppliedCheckpoints(solutionRootPath, jobId)
 
                 // Apply changes if not already applied
                 if (!appliedSteps.includes(step.StepId)) {
