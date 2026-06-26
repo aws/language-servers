@@ -3173,6 +3173,7 @@ export class ATXTransformHandler {
                 this.logging.log('ATX: No cached step HITL, querying for active step HITL')
                 let stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
 
+                // Fallback 1: resolve the real pending step from plan tree
                 if (!stepHitl || !stepHitl.taskId) {
                     this.logging.log(
                         `ATX: Client stepId ${stepId} did not match a review HITL, resolving pending step from plan`
@@ -3182,6 +3183,21 @@ export class ATXTransformHandler {
                     if (pendingStep?.StepId && pendingStep.StepId !== stepId) {
                         this.logging.log(`ATX: Resolved pending step ${pendingStep.StepId}, retrying HITL lookup`)
                         stepHitl = await this.findStepLevelHitl(workspaceId, jobId, pendingStep.StepId)
+                    }
+                }
+
+                // Fallback 2: list all active HITLs and find a -review one directly.
+                // Covers the race where step status already flipped (e.g. to IN_PROGRESS
+                // on retry) but the review HITL is still alive awaiting the workspace sync.
+                if (!stepHitl || !stepHitl.taskId) {
+                    this.logging.log('ATX: Plan-based resolution missed, scanning active HITLs for a review task')
+                    const allHitls = await this.listHitls(workspaceId, jobId)
+                    const reviewHitl = allHitls?.find(h => typeof h.tag === 'string' && h.tag.endsWith('-review'))
+                    if (reviewHitl?.taskId) {
+                        this.logging.log(
+                            `ATX: Found active review HITL via scan: tag=${reviewHitl.tag}, taskId=${reviewHitl.taskId}`
+                        )
+                        stepHitl = reviewHitl
                     }
                 }
 
@@ -3245,6 +3261,11 @@ export class ATXTransformHandler {
 
             // Clear the cached step HITL after successful update
             this.cachedStepHitl = null
+
+            // Reset the watermark so the incoming retry checkpoint isn't treated as a
+            // conflict. The customer's edits have been uploaded — they expect the agent's
+            // retry output to land on disk, not be skipped by edit-protection.
+            this.saveLastAppliedTimestamp(solutionRootPath, jobId, 'updateWorkspace')
 
             this.logging.log(`ATX: updateWorkspace completed successfully`)
             return { Success: true }
