@@ -15,6 +15,10 @@ export enum ChatUIEventName {
     InfoLinkClick = 'infoLinkClick',
     SourceLinkClick = 'sourceLinkClick',
     HistoryButtonClick = 'historyButtonClick',
+    // Client-side chat delivery telemetry. Values MUST match the
+    // CHAT_*_TELEMETRY_EVENT constants in chat-client/src/contracts/telemetry.ts.
+    ChatMessageRendered = 'chatMessageRendered',
+    ChatPostMessageRejected = 'chatPostMessageRejected',
 }
 
 /* Chat client only telemetry - we should import these in the future */
@@ -80,6 +84,23 @@ export type InsertToCursorPositionParams = ServerInterface.InsertToCursorPositio
 
 export type HistoryButtonClickParams = { name: ChatUIEventName.HistoryButtonClick }
 
+// Client-side delivery telemetry. tabId is OPTIONAL (not extending BaseClientTelemetryParams) because
+// the reject branches in handleInboundMessage may fire before a message/tabId is parsed —
+// following the tabId-less HistoryButtonClickParams precedent.
+export type ChatMessageRenderedParams = {
+    name: ChatUIEventName.ChatMessageRendered
+    tabId?: string
+    languageServerVersion?: string
+}
+
+export type ChatPostMessageRejectedParams = {
+    name: ChatUIEventName.ChatPostMessageRejected
+    reason: string
+    command?: string
+    tabId?: string
+    languageServerVersion?: string
+}
+
 export type ClientTelemetryEvent =
     | BaseClientTelemetryParams<ChatUIEventName.EnterFocusChat>
     | BaseClientTelemetryParams<ChatUIEventName.ExitFocusChat>
@@ -93,6 +114,8 @@ export type ClientTelemetryEvent =
     | SourceLinkClickParams
     | InsertToCursorPositionParams
     | HistoryButtonClickParams
+    | ChatMessageRenderedParams
+    | ChatPostMessageRejectedParams
 
 const chatUIEventNameSet = new Set<string>(Object.values(ChatUIEventName))
 
