@@ -55,6 +55,8 @@ import { TelemetryParams } from '../contracts/serverContracts'
 import {
     ADD_MESSAGE_TELEMETRY_EVENT,
     AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT,
+    CHAT_MESSAGE_RENDERED_TELEMETRY_EVENT,
+    CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
     COPY_TO_CLIPBOARD_TELEMETRY_EVENT,
     ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
@@ -150,6 +152,18 @@ export class Messager {
 
     onFocusStateChanged = (focusState: boolean): void => {
         this.chatApi.telemetry({ name: focusState ? ENTER_FOCUS : EXIT_FOCUS })
+    }
+
+    // Positive delivery signal — an inbound message was handed to mynah-ui.
+    onInboundMessageRendered = (tabId?: string): void => {
+        this.chatApi.telemetry({ name: CHAT_MESSAGE_RENDERED_TELEMETRY_EVENT, tabId })
+    }
+
+    // Negative signal — an inbound message was rejected/dropped in
+    // handleInboundMessage. `reason` distinguishes the drop branch; `command` is included
+    // for the unknown-command case.
+    onInboundMessageRejected = (reason: string, command?: string, tabId?: string): void => {
+        this.chatApi.telemetry({ name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT, reason, command, tabId })
     }
 
     onSendToPrompt = (params: SendToPromptParams, tabId: string): void => {
