@@ -71,6 +71,60 @@ describe('TelemetryController', () => {
         })
     })
 
+    // Positive delivery signal.
+    it('handles chatMessageRendered client telemetry', () => {
+        testFeatures.runtime.serverInfo = { version: '1.70.0', name: 'AmazonQ' }
+        const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
+
+        telemetryHandler({
+            name: ChatUIEventName.ChatMessageRendered,
+        })
+
+        sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
+            name: ChatTelemetryEventName.ChatMessageRendered,
+            data: { credentialStartUrl: undefined, result: 'Succeeded', languageServerVersion: '1.70.0' },
+        })
+    })
+
+    // Negative signal, with reason. Note result stays 'Succeeded' (codebase convention).
+    it('handles chatPostMessageRejected client telemetry', () => {
+        testFeatures.runtime.serverInfo = { version: '1.70.0', name: 'AmazonQ' }
+        const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
+
+        telemetryHandler({
+            name: ChatUIEventName.ChatPostMessageRejected,
+            reason: 'unknownCommand',
+            command: 'bogusCommand',
+        })
+
+        sinon.assert.calledOnceWithExactly(testFeatures.telemetry.emitMetric, {
+            name: ChatTelemetryEventName.ChatPostMessageRejected,
+            data: {
+                credentialStartUrl: undefined,
+                result: 'Succeeded',
+                reason: 'unknownCommand',
+                command: 'bogusCommand',
+                languageServerVersion: '1.70.0',
+            },
+        })
+    })
+
+    // Double-emit guard: vscode-jsonrpc registers notification handlers in a Map keyed by
+    // method (last registration wins), so a single telemetry/event must produce exactly ONE emit
+    // even when multiple ChatTelemetryControllers exist. This locks in that behavior.
+    it('emits a metric only once when multiple controllers are constructed', () => {
+        const telemetryServiceStub = <TelemetryService>{}
+        // Construct a second controller against the SAME features (each calls onClientTelemetry).
+        new ChatTelemetryController(testFeatures, telemetryServiceStub)
+        testFeatures.runtime.serverInfo = { version: '1.70.0', name: 'AmazonQ' }
+
+        // Fire via the LAST-registered handler (what the jsonrpc Map.get would dispatch to).
+        const telemetryHandler = testFeatures.telemetry.onClientTelemetry.lastCall.firstArg
+        telemetryHandler({ name: ChatUIEventName.ChatMessageRendered })
+
+        sinon.assert.calledOnce(testFeatures.telemetry.emitMetric)
+    })
+
     it('does not handle unknown client telemetry', () => {
         const telemetryHandler = testFeatures.telemetry.onClientTelemetry.firstCall.firstArg
 
