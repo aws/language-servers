@@ -18,6 +18,8 @@ import { createChat } from './chat'
 import * as sinon from 'sinon'
 import { TELEMETRY } from '../contracts/serverContracts'
 import {
+    CHAT_MESSAGE_RENDERED_TELEMETRY_EVENT,
+    CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     TAB_ADD_TELEMETRY_EVENT,
@@ -145,7 +147,7 @@ describe('Chat', () => {
     it('rejects inbound messages from a foreign origin (P389799154)', () => {
         // Simulates a cross-origin postMessage from an attacker page. The
         // handleInboundMessage same-origin check should drop the event before
-        // any command is dispatched.
+        // any command is dispatched to mynah.
         clientApi.postMessage.resetHistory()
 
         const foreignEvent = new window.MessageEvent('message', {
@@ -154,7 +156,89 @@ describe('Chat', () => {
         })
         window.dispatchEvent(foreignEvent)
 
-        assert.notCalled(clientApi.postMessage)
+        // The attacker command is NOT dispatched to mynah, but the rejection
+        // IS now recorded as telemetry. So postMessage is called exactly once — with the reject
+        // telemetry event, never with a chat-command dispatch. (Outbound telemetry travels a
+        // different direction than the inbound origin check, so the signal escapes even here.)
+        assert.calledOnceWithExactly(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: {
+                name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
+                reason: 'untrustedOrigin',
+                command: undefined,
+                tabId: undefined,
+            },
+        })
+    })
+
+    it('publishes chatMessageRendered telemetry on a terminal (non-partial) chat response', () => {
+        clientApi.postMessage.resetHistory()
+        const event = createInboundEvent({
+            command: CHAT_REQUEST_METHOD,
+            params: { body: 'hello' },
+            tabId: initialTabId,
+            isPartialResult: false,
+        })
+        window.dispatchEvent(event)
+
+        assert.calledWithExactly(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: { name: CHAT_MESSAGE_RENDERED_TELEMETRY_EVENT, tabId: initialTabId },
+        })
+    })
+
+    it('does NOT publish chatMessageRendered telemetry on a partial chat response chunk', () => {
+        clientApi.postMessage.resetHistory()
+        const event = createInboundEvent({
+            command: CHAT_REQUEST_METHOD,
+            params: { body: 'partial…' },
+            tabId: initialTabId,
+            isPartialResult: true,
+        })
+        window.dispatchEvent(event)
+
+        assert.neverCalledWithMatch(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: { name: CHAT_MESSAGE_RENDERED_TELEMETRY_EVENT },
+        })
+    })
+
+    it('publishes chatPostMessageRejected telemetry for an unknown command', () => {
+        clientApi.postMessage.resetHistory()
+        const event = createInboundEvent({ command: 'totally-bogus-command' })
+        window.dispatchEvent(event)
+
+        assert.calledWithExactly(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: {
+                name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
+                reason: 'unknownCommand',
+                command: 'totally-bogus-command',
+                tabId: undefined,
+            },
+        })
+    })
+
+    it('publishes chatPostMessageRejected telemetry when inbound data is undefined', () => {
+        clientApi.postMessage.resetHistory()
+        // NOTE: a dispatched jsdom/browser MessageEvent always coerces `data` to null (never
+        // undefined), so this branch can't be reached via window.dispatchEvent. We invoke the
+        // captured handler directly with a synthetic event to exercise the event.data===undefined
+        // drop branch deterministically.
+        if (!messageHandler) {
+            throw new Error('message handler was not registered')
+        }
+        messageHandler({ origin: window.location.origin, data: undefined } as MessageEvent)
+
+        assert.calledOnceWithExactly(clientApi.postMessage, {
+            command: TELEMETRY,
+            params: {
+                name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
+                reason: 'undefinedData',
+                command: undefined,
+                tabId: undefined,
+            },
+        })
     })
 
     it('accepts inbound messages with empty origin (Eclipse SWT Browser)', () => {
