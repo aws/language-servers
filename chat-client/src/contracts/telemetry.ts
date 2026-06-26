@@ -14,6 +14,12 @@ export const SOURCE_LINK_CLICK_TELEMETRY_EVENT = 'sourceLinkClick'
 export const AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT = 'authFollowupClicked'
 export const HISTORY_BUTTON_CLICK_TELEMETRY_EVENT = 'historyButtonClick'
 
+// Client-side chat delivery telemetry. Values MUST match the
+// ChatUIEventName enum in language-servers/server/.../chat/telemetry/clientTelemetry.ts,
+// or the server's isClientTelemetryEvent allowlist will silently drop them.
+export const CHAT_MESSAGE_RENDERED_TELEMETRY_EVENT = 'chatMessageRendered'
+export const CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT = 'chatPostMessageRejected'
+
 export enum RelevancyVoteType {
     UP = 'upvote',
     DOWN = 'downvote',
