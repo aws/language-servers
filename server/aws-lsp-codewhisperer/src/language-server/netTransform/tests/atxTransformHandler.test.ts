@@ -74,6 +74,11 @@ describe('ATXTransformHandler - Chat APIs', () => {
         })
 
         it('should poll for response when skipPolling is false', async () => {
+            // Instant poll cadence so this runs deterministically instead of sleeping a
+            // real 5s interval (the same wall-clock dependency that made the no-response
+            // test flaky). Keeps the suite fast and side-effect-free in the full run.
+            ;(handler as any)._chatPollIntervalMs = 0
+
             const sendResponse = { message: { messageId: 'msg-123' } }
             const listResponse = { messageIds: ['msg-123', 'msg-456'] }
             const batchResponse = {
@@ -104,8 +109,14 @@ describe('ATXTransformHandler - Chat APIs', () => {
             expect(sendStub.callCount).to.be.greaterThan(1)
         })
 
-        it('should return note when no response within timeout', async function () {
-            this.timeout(20000) // Increase timeout for polling test
+        it('should return note when polling exhausts with no final response', async () => {
+            // Drive the poll cadence to instant + a few attempts so the exhaustion path
+            // runs deterministically. Previously this slept real 5s intervals and relied
+            // on the 20s mocha timeout firing first — which raced the runner's clock and
+            // flaked on slow CI, bailing the whole coverage suite.
+            ;(handler as any)._chatPollIntervalMs = 0
+            ;(handler as any)._chatPollMaxAttempts = 3
+
             const sendResponse = { message: { messageId: 'msg-123' } }
             const listResponse = { messageIds: [] }
 
@@ -1059,6 +1070,496 @@ describe('ATXTransformHandler - updateWorkspace & applyChanges', () => {
 
             expect(result.success).to.be.false
             expect(result.error).to.be.a('string')
+        })
+
+        // --- DealerFx P452432920: preserve customer edits instead of clobbering them ---
+
+        const JOB_ID = 'job-dealerfx'
+
+        // Seed the source-files manifest so getModifiedFilesSinceCheckpoint can flag the
+        // listed dest paths as customer-edited since the last apply.
+        const seedManifest = (relPaths: string[], lastAppliedTimestamp: number) => {
+            const checkpointsDir = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints')
+            fs.mkdirSync(checkpointsDir, { recursive: true })
+            fs.writeFileSync(
+                path.join(checkpointsDir, 'source-files.json'),
+                JSON.stringify({
+                    sourceFiles: relPaths.map(r => path.join(solutionRoot, r)),
+                    lastAppliedTimestamp,
+                })
+            )
+        }
+        // Force a file's mtime to be newer than the watermark (the "customer edited it" signal).
+        const touchAfter = (absPath: string, ts: number) => {
+            const future = new Date(ts + 60_000)
+            fs.utimesSync(absPath, future, future)
+        }
+
+        it('preserves a user-modified updated file and backs it up instead of clobbering', async () => {
+            const relPath = 'ProjA/Edited.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// USER EDIT')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// agent version')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(0)
+            expect(fs.readFileSync(dest, 'utf-8')).to.equal('// USER EDIT')
+            expect(result.conflictedFiles).to.include(path.resolve(dest))
+            // Backup of the user's file exists under the per-job checkpoints tree.
+            const backupRoot = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints', 'conflict-backups')
+            const backup = path.join(backupRoot, relPath)
+            expect(fs.existsSync(backup)).to.be.true
+            expect(fs.readFileSync(backup, 'utf-8')).to.equal('// USER EDIT')
+        })
+
+        it('overwrites an updated file the user did NOT touch', async () => {
+            const relPath = 'ProjA/Untouched.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// old content')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// agent version')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            // Manifest exists, but this file is NOT in sourceFiles -> not flagged as edited.
+            seedManifest(['ProjA/SomethingElse.cs'], Date.now() - 10_000)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(fs.readFileSync(dest, 'utf-8')).to.equal('// agent version')
+            expect(result.conflictedFiles).to.be.undefined
+        })
+
+        it('treats a byte-equal re-apply as no conflict (agent re-emit)', async () => {
+            const relPath = 'ProjA/Same.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// identical')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// identical')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(result.conflictedFiles).to.be.undefined
+            expect(
+                fs.existsSync(path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints', 'conflict-backups'))
+            ).to.be.false
+        })
+
+        it('filesMoved: skips both copy and unlink when the move target is user-modified', async () => {
+            const beforeRel = 'ProjA/Before.cs'
+            const afterRel = 'ProjA/After.cs'
+            const beforeAbs = path.join(solutionRoot, beforeRel)
+            const afterAbs = path.join(solutionRoot, afterRel)
+            fs.mkdirSync(path.dirname(beforeAbs), { recursive: true })
+            fs.writeFileSync(beforeAbs, '// move source')
+            fs.writeFileSync(afterAbs, '// USER EDIT at target')
+            writeMetadata({ movedFilesMap: [{ before: beforeRel, after: afterRel }] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([afterRel], watermark)
+            touchAfter(afterAbs, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesMoved).to.equal(0)
+            expect(fs.existsSync(beforeAbs)).to.be.true // unlink skipped
+            expect(fs.readFileSync(afterAbs, 'utf-8')).to.equal('// USER EDIT at target')
+            expect(result.conflictedFiles).to.include(path.resolve(afterAbs))
+        })
+
+        it('filesMoved: skips move when the move SOURCE is user-modified', async () => {
+            const beforeRel = 'ProjA/EditedSource.cs'
+            const afterRel = 'ProjA/Renamed.cs'
+            const beforeAbs = path.join(solutionRoot, beforeRel)
+            const afterAbs = path.join(solutionRoot, afterRel)
+            fs.mkdirSync(path.dirname(beforeAbs), { recursive: true })
+            fs.writeFileSync(beforeAbs, '// USER EDIT at source')
+            writeMetadata({ movedFilesMap: [{ before: beforeRel, after: afterRel }] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([beforeRel], watermark)
+            touchAfter(beforeAbs, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesMoved).to.equal(0)
+            expect(fs.existsSync(beforeAbs)).to.be.true // source preserved
+            expect(fs.readFileSync(beforeAbs, 'utf-8')).to.equal('// USER EDIT at source')
+            expect(fs.existsSync(afterAbs)).to.be.false // move target not created
+            expect(result.conflictedFiles).to.include(path.resolve(beforeAbs))
+            // Backup of customer's source file exists
+            const backupRoot = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints', 'conflict-backups')
+            const backup = path.join(backupRoot, beforeRel)
+            expect(fs.existsSync(backup)).to.be.true
+            expect(fs.readFileSync(backup, 'utf-8')).to.equal('// USER EDIT at source')
+        })
+
+        it('filesRemoved: preserves a customer-edited file instead of deleting it', async () => {
+            const relPath = 'ProjA/Edited.cs'
+            const filePath = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(filePath), { recursive: true })
+            fs.writeFileSync(filePath, '// USER EDIT')
+            writeMetadata({ filesRemoved: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(filePath, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesRemoved).to.equal(0)
+            expect(fs.existsSync(filePath)).to.be.true // file NOT deleted
+            expect(fs.readFileSync(filePath, 'utf-8')).to.equal('// USER EDIT')
+            expect(result.conflictedFiles).to.include(path.resolve(filePath))
+            // Backup of customer's file exists
+            const backupRoot = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints', 'conflict-backups')
+            const backup = path.join(backupRoot, relPath)
+            expect(fs.existsSync(backup)).to.be.true
+            expect(fs.readFileSync(backup, 'utf-8')).to.equal('// USER EDIT')
+        })
+
+        it('filesRemoved: deletes file if user did NOT edit it', async () => {
+            const relPath = 'ProjA/Untouched.cs'
+            const filePath = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(filePath), { recursive: true })
+            fs.writeFileSync(filePath, '// old content')
+            writeMetadata({ filesRemoved: [relPath] })
+
+            // File is NOT in the manifest's sourceFiles, so it's not flagged as modified
+            seedManifest(['ProjA/SomethingElse.cs'], Date.now() - 10_000)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesRemoved).to.equal(1)
+            expect(fs.existsSync(filePath)).to.be.false // file deleted
+            expect(result.conflictedFiles).to.be.undefined
+        })
+
+        it('with no jobId / no manifest, overwrites exactly as before (back-compat)', async () => {
+            const relPath = 'Existing.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.writeFileSync(dest, '// old content')
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// new content')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            // Called with 2 args, exactly like the legacy call sites.
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(fs.readFileSync(dest, 'utf-8')).to.equal('// new content')
+            expect(result.conflictedFiles).to.be.undefined
+        })
+
+        it('does not round-trip: a conflict backup is not seen as a modified source file', async () => {
+            const relPath = 'ProjA/Edited.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// USER EDIT')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// agent version')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            // The backup lives under checkpoints/, which is never in sourceFiles, so the
+            // uplink scan must not pick it up as a customer edit.
+            const modified: string[] = (handler as any).getModifiedFilesSinceCheckpoint(solutionRoot, JOB_ID)
+            expect(modified.some(p => p.includes('conflict-backups'))).to.be.false
+        })
+
+        it('downloadCompletedStepArtifacts applies a step and stamps the apply watermark (interactive path)', async () => {
+            // The interactive download path must also stamp lastAppliedTimestamp after a
+            // successful apply (the DealerFx co-fix — the diff-artifact path already did).
+            // Drive it end-to-end: stub the per-step download to materialize a checkpoint,
+            // let the real applyChanges run, and assert the step is marked applied AND the
+            // watermark advances. (Kept in this block, which the coverage suite reliably
+            // reaches, rather than a late describe.)
+            const checkpointsDir = path.join(solutionRoot, workspaceFolderName, JOB_ID, 'checkpoints')
+            fs.mkdirSync(checkpointsDir, { recursive: true })
+            // The manifest must pre-exist for the watermark/manifest writes to apply (both
+            // no-op without it), mirroring a job whose manifest was created on an earlier sync.
+            fs.writeFileSync(
+                path.join(checkpointsDir, 'source-files.json'),
+                JSON.stringify({ sourceFiles: [], lastAppliedTimestamp: 1 })
+            )
+            const plan = {
+                Root: {
+                    StepId: 'root',
+                    Status: 'NOT_STARTED',
+                    Children: [
+                        {
+                            StepId: 'lvl1',
+                            Status: 'NOT_STARTED',
+                            Children: [{ StepId: 'g1', Status: 'SUCCEEDED', Children: [], score: 1 }],
+                        },
+                    ],
+                },
+            }
+            const stepDir = path.join(checkpointsDir, 'g1')
+            sinon.stub(handler as any, 'downloadCompletedStepArtifact').callsFake(async () => {
+                fs.mkdirSync(path.join(stepDir, 'after', 'src'), { recursive: true })
+                fs.writeFileSync(path.join(stepDir, 'after', 'src', 'New.cs'), '// added by step')
+                fs.writeFileSync(path.join(stepDir, 'metadata.json'), JSON.stringify({ filesAdded: ['src/New.cs'] }))
+            })
+
+            // Returns `anyFailed`; false means the apply succeeded with no failures.
+            const result = await (handler as any).downloadCompletedStepArtifacts('ws-1', JOB_ID, solutionRoot, plan)
+
+            expect(result).to.be.false
+            expect(fs.existsSync(path.join(solutionRoot, 'src', 'New.cs'))).to.be.true
+            const appliedPath = path.join(checkpointsDir, 'checkpoints-applied.json')
+            expect(JSON.parse(fs.readFileSync(appliedPath, 'utf-8')).appliedSteps).to.include('g1')
+            const manifest = JSON.parse(fs.readFileSync(path.join(checkpointsDir, 'source-files.json'), 'utf-8'))
+            expect(manifest.lastAppliedTimestamp).to.be.greaterThan(1)
+            expect(manifest.sourceFiles).to.include(path.join(solutionRoot, 'src/New.cs'))
+            // (the block's afterEach restores the stub)
+        })
+
+        it('filesAdded: preserves a user-modified file at the add target instead of overwriting', async () => {
+            const relPath = 'ProjA/Added.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// USER EDIT at add target')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// agent add')
+            writeMetadata({ filesAdded: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesAdded).to.equal(0)
+            expect(fs.readFileSync(dest, 'utf-8')).to.equal('// USER EDIT at add target')
+            expect(result.conflictedFiles).to.include(path.resolve(dest))
+        })
+
+        it('overwrites a user-edited file when the incoming size differs (filesEqual size short-circuit)', async () => {
+            // Same-mtime "edited" flag, but content differs in LENGTH — exercises the
+            // size-mismatch arm of filesEqual (returns false fast, so the file is a conflict).
+            const relPath = 'ProjA/Diff.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// short')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// a much longer agent version body')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            // Different size => not equal => preserved as a conflict (not overwritten).
+            expect(result.filesUpdated).to.equal(0)
+            expect(fs.readFileSync(dest, 'utf-8')).to.equal('// short')
+            expect(result.conflictedFiles).to.include(path.resolve(dest))
+        })
+
+        it('still preserves the customer file when the backup copy fails', async () => {
+            // Force backupConflictedFile to throw; the customer edit must still be kept
+            // (the catch logs and falls through to push the conflict + return true).
+            const relPath = 'ProjA/BackupFails.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// USER EDIT')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// agent version')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            const backupStub = sinon.stub(handler as any, 'backupConflictedFile').throws(new Error('disk full'))
+            try {
+                const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+                expect(result.success).to.be.true
+                expect(result.filesUpdated).to.equal(0)
+                expect(fs.readFileSync(dest, 'utf-8')).to.equal('// USER EDIT') // preserved despite backup failure
+                expect(result.conflictedFiles).to.include(path.resolve(dest))
+            } finally {
+                backupStub.restore()
+            }
+        })
+
+        it('creates missing nested destination directories when updating an untouched file', async () => {
+            // Dest dir does not exist yet -> exercises the mkdirSync branch in filesUpdated.
+            const relPath = 'Deep/Nested/New.cs'
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'Deep', 'Nested'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// fresh')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(fs.readFileSync(path.join(solutionRoot, relPath), 'utf-8')).to.equal('// fresh')
+        })
+
+        it('logs and continues when a single updated file errors (per-file catch)', async () => {
+            // One updated file is missing from after/, so its copy throws and is caught;
+            // the sibling file still applies. Exercises the filesUpdated catch arm.
+            const good = 'Good.cs'
+            const bad = 'Bad.cs'
+            fs.writeFileSync(path.join(checkpointFolder, 'after', good), '// good')
+            // 'after/Bad.cs' intentionally NOT created -> copyFileSync throws for it.
+            writeMetadata({ filesUpdated: [bad, good] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(fs.readFileSync(path.join(solutionRoot, good), 'utf-8')).to.equal('// good')
+        })
+
+        it('does NOT preserve a brand-new add target that does not exist yet (guard: dest absent)', async () => {
+            // The modified-set is non-empty (some other file edited), and this added file
+            // is in it, but the dest does not exist on disk yet -> shouldPreserveUserFile
+            // returns false at the existsSync guard and the add proceeds normally.
+            const relPath = 'ProjA/FreshAdd.cs'
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// agent add')
+            writeMetadata({ filesAdded: [relPath] })
+
+            // Manifest lists this path as a "source file", but since it doesn't exist on disk
+            // it can't have an mtime past the watermark -> set stays effectively without it.
+            const watermark = Date.now() - 10_000
+            seedManifest(['ProjA/Other.cs'], watermark)
+            const other = path.join(solutionRoot, 'ProjA/Other.cs')
+            fs.mkdirSync(path.dirname(other), { recursive: true })
+            fs.writeFileSync(other, '// other')
+            touchAfter(other, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesAdded).to.equal(1)
+            expect(fs.readFileSync(path.join(solutionRoot, relPath), 'utf-8')).to.equal('// agent add')
+        })
+
+        it('filesAdded: logs and continues when an add errors (per-file catch)', async () => {
+            const bad = 'NoSource.cs'
+            // 'after/NoSource.cs' intentionally missing -> copyFileSync throws, caught per-file.
+            writeMetadata({ filesAdded: [bad] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesAdded).to.equal(0)
+        })
+
+        it('overwrites when another file was edited but THIS dest is not in the modified set', async () => {
+            // modified-set is non-empty (Other.cs edited), this updated file exists on disk,
+            // but is not itself in the set -> shouldPreserveUserFile returns false at the
+            // `userModifiedFiles.has(dest)` guard and the overwrite proceeds.
+            const relPath = 'ProjA/NotInSet.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, '// old')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), '// new')
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            // Seed + touch a DIFFERENT file so the modified set is non-empty but excludes dest.
+            const other = path.join(solutionRoot, 'ProjA/Other.cs')
+            fs.writeFileSync(other, '// other')
+            seedManifest(['ProjA/Other.cs'], watermark)
+            touchAfter(other, watermark)
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+
+            expect(result.success).to.be.true
+            expect(result.filesUpdated).to.equal(1)
+            expect(fs.readFileSync(dest, 'utf-8')).to.equal('// new')
+            expect(result.conflictedFiles).to.be.undefined
+        })
+
+        it('filesEqual treats a read failure as not-equal (conservative)', async () => {
+            // Two same-size files so the size check passes, but force readFileSync to throw
+            // -> the catch returns false (treated as different => preserved as a conflict).
+            const relPath = 'ProjA/ReadFail.cs'
+            const dest = path.join(solutionRoot, relPath)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.writeFileSync(dest, 'AAAA')
+            fs.mkdirSync(path.join(checkpointFolder, 'after', 'ProjA'), { recursive: true })
+            fs.writeFileSync(path.join(checkpointFolder, 'after', relPath), 'BBBB') // same size, diff bytes
+            writeMetadata({ filesUpdated: [relPath] })
+
+            const watermark = Date.now() - 10_000
+            seedManifest([relPath], watermark)
+            touchAfter(dest, watermark)
+
+            // Throw only when filesEqual reads the conflict file's bytes; pass through for
+            // metadata.json and everything else so the rest of applyChanges works normally.
+            const realRead = fs.readFileSync
+            const readStub = sinon.stub(fs, 'readFileSync').callsFake((p: any, ...rest: any[]) => {
+                if (typeof p === 'string' && p.endsWith(path.join('ProjA', 'ReadFail.cs'))) {
+                    throw new Error('EIO')
+                }
+                return (realRead as any)(p, ...rest)
+            })
+            try {
+                const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot, JOB_ID)
+                expect(result.success).to.be.true
+                // read failed -> filesEqual false -> conflict -> preserved, not overwritten
+                expect(result.filesUpdated).to.equal(0)
+                expect(result.conflictedFiles).to.include(path.resolve(dest))
+            } finally {
+                readStub.restore()
+            }
+        })
+
+        it('filesMoved: logs and continues when a move errors (per-file catch)', async () => {
+            // before exists so we enter the copy branch, but make the copy throw by removing
+            // read perms is unreliable cross-platform; instead point after at an un-creatable
+            // path (a file occupies the parent dir slot) to force copyFileSync to throw.
+            const beforeRel = 'mv-before.cs'
+            fs.writeFileSync(path.join(solutionRoot, beforeRel), '// content')
+            // Create a FILE named 'blocker' so 'blocker/After.cs' cannot be created as a dir.
+            fs.writeFileSync(path.join(solutionRoot, 'blocker'), 'x')
+            writeMetadata({ movedFilesMap: [{ before: beforeRel, after: 'blocker/After.cs' }] })
+
+            const result = await (handler as any).applyChanges(checkpointFolder, solutionRoot)
+
+            expect(result.success).to.be.true
+            expect(result.filesMoved).to.equal(0)
+            // before file is untouched because the move threw before unlink
+            expect(fs.existsSync(path.join(solutionRoot, beforeRel))).to.be.true
         })
     })
 })
