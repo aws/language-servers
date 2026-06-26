@@ -202,9 +202,15 @@ export const createChat = (
             // Log so any unexpected host environment surfaces in logs rather
             // than silently breaking the chat.
             console.warn('Chat client rejected message from untrusted origin:', origin)
+            // Record the drop so a silent client-side delivery failure is observable (the backend
+            // can report success while the response never reaches the UI).
+            messager.onInboundMessageRejected('untrustedOrigin')
             return
         }
         if (event.data === undefined) {
+            // Record the drop so a silent client-side delivery failure is observable (the backend
+            // can report success while the response never reaches the UI).
+            messager.onInboundMessageRejected('undefinedData')
             return
         }
         const message = event.data
@@ -223,6 +229,12 @@ export const createChat = (
                 break
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
+                // Positive delivery signal. Gate on the terminal (non-partial)
+                // chunk only — addChatResponse fires once per streamed chunk, so emitting on every
+                // call would massively inflate volume.
+                if (!message.isPartialResult) {
+                    messager.onInboundMessageRendered(message.tabId)
+                }
                 break
             case CHAT_UPDATE_NOTIFICATION_METHOD: {
                 const messageParams = message.params as ChatUpdateParams
@@ -383,7 +395,9 @@ export const createChat = (
                 break
             }
             default:
-                // TODO: Report error?
+                // An inbound message with an unrecognized command is dropped
+                // here. Record it (with the command) so this silent gap is observable.
+                messager.onInboundMessageRejected('unknownCommand', message?.command)
                 break
         }
     }
