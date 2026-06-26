@@ -212,6 +212,8 @@ export enum ChatTelemetryEventName {
     UiClick = 'ui_click',
     ActiveUser = 'amazonq_activeUser',
     BashCommand = 'amazonq_bashCommand',
+    ChatMessageRendered = 'amazonq_chatMessageRendered',
+    ChatPostMessageRejected = 'amazonq_chatPostMessageRejected',
 }
 
 export interface ChatTelemetryEventMap {
@@ -238,6 +240,8 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.UiClick]: UiClickEvent
     [ChatTelemetryEventName.ActiveUser]: ActiveUserEvent
     [ChatTelemetryEventName.BashCommand]: BashCommandEvent
+    [ChatTelemetryEventName.ChatMessageRendered]: ChatMessageRenderedEvent
+    [ChatTelemetryEventName.ChatPostMessageRejected]: ChatPostMessageRejectedEvent
 }
 
 export type AgencticLoop_InvokeLLMEvent = {
@@ -273,6 +277,27 @@ export type InteractWithAgenticChatEvent = {
 export type ActiveUserEvent = {
     credentialStartUrl?: string
     result: string
+}
+
+// Emitted when the chat client successfully delivers an inbound message to the chat UI (mynah-ui).
+// Used as the positive signal for client-side delivery health: a drop in this rate (per product/os)
+// surfaces a silent delivery failure even when the backend reports success. A strict postMessage
+// origin check can drop inbound messages on some IDE webview hosts while the backend still returns
+// HTTP 200, making the failure invisible server-side. See aws/amazon-q-eclipse#555.
+export type ChatMessageRenderedEvent = {
+    credentialStartUrl?: string
+    languageServerVersion?: string
+}
+
+// Emitted when the chat client rejects/drops an inbound message in handleInboundMessage
+// (e.g. untrusted origin, undefined payload, unrecognized command). `reason` distinguishes the
+// drop branch. Note: result stays 'Succeeded' per the codebase convention (failures are conveyed
+// via a distinct metric name + reason, not result:'Failed').
+export type ChatPostMessageRejectedEvent = {
+    credentialStartUrl?: string
+    reason: string
+    command?: string
+    languageServerVersion?: string
 }
 
 export type BashCommandEvent = {
