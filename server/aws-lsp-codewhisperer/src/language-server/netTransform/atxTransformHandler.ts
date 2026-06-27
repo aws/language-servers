@@ -2045,7 +2045,11 @@ export class ATXTransformHandler {
      * Gets the list of files that have been modified since the last checkpoint was applied.
      * Returns absolute paths of modified files.
      */
-    private getModifiedFilesSinceCheckpoint(solutionRootPath: string, jobId: string): string[] {
+    private getModifiedFilesSinceCheckpoint(
+        solutionRootPath: string,
+        jobId: string,
+        sinceJobStart: boolean = false
+    ): string[] {
         try {
             const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
             const manifestPath = path.join(checkpointsDir, 'source-files.json')
@@ -2058,9 +2062,19 @@ export class ATXTransformHandler {
             const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
             const manifest = JSON.parse(manifestContent)
 
-            const lastAppliedTimestamp = manifest.lastAppliedTimestamp
-            if (!lastAppliedTimestamp) {
-                this.logging.log('ATX: No last applied timestamp found')
+            // For the uplink (updateWorkspace), use createdAt as the baseline so edits to
+            // files in not-yet-transformed projects are detected — their mtime is before
+            // lastAppliedTimestamp (set when an earlier project's checkpoint applied) but
+            // after the job started.
+            let baseline: number | undefined
+            if (sinceJobStart) {
+                baseline = manifest.createdAt ? new Date(manifest.createdAt).getTime() : undefined
+            } else {
+                baseline = manifest.lastAppliedTimestamp
+            }
+
+            if (!baseline) {
+                this.logging.log('ATX: No baseline timestamp found for modified file detection')
                 return []
             }
 
@@ -2071,7 +2085,7 @@ export class ATXTransformHandler {
                 try {
                     if (fs.existsSync(filePath)) {
                         const stats = fs.statSync(filePath)
-                        if (stats.mtimeMs > lastAppliedTimestamp) {
+                        if (stats.mtimeMs > baseline) {
                             modifiedFiles.push(filePath)
                         }
                     }
@@ -2080,7 +2094,9 @@ export class ATXTransformHandler {
                 }
             }
 
-            this.logging.log(`ATX: Found ${modifiedFiles.length} modified files since last checkpoint`)
+            this.logging.log(
+                `ATX: Found ${modifiedFiles.length} modified files since ${sinceJobStart ? 'job start' : 'last checkpoint'}`
+            )
             return modifiedFiles
         } catch (error) {
             this.logging.error(`ATX: Failed to get modified files: ${String(error)}`)
@@ -3209,8 +3225,11 @@ export class ATXTransformHandler {
 
             const validTaskId = taskId as string
 
-            // Check for user-modified files since last checkpoint
-            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId)
+            // Check for user-modified files since job start — not since last checkpoint.
+            // Files in not-yet-transformed projects may have been edited before any checkpoint
+            // applied (mtime < lastAppliedTimestamp) but still need to be uploaded so the agent
+            // sees them when it starts those projects.
+            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId, true)
 
             this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip with metadata`)
 
