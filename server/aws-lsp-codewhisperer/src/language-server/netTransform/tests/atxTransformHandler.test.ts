@@ -833,13 +833,124 @@ describe('ATXTransformHandler - updateWorkspace & applyChanges', () => {
     })
 
     describe('updateWorkspace', () => {
-        it('should return error when no active step HITL is found', async () => {
+        it('should return error when no active step HITL is found and no pending step in plan', async () => {
             sinon.stub(handler as any, 'findStepLevelHitl').resolves(null)
+            sinon.stub(handler as any, 'fetchPlanTree').resolves({
+                Root: { StepId: 'root', Children: [], Status: 'SUCCEEDED' },
+            })
+            sinon.stub(handler, 'listHitls').resolves([])
 
             const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
 
             expect(result.Success).to.be.false
             expect(result.Error).to.equal('No active step HITL found')
+        })
+
+        it('should resolve the real pending step when client stepId misses (C2-a fallback)', async () => {
+            const findHitlStub = sinon.stub(handler as any, 'findStepLevelHitl')
+            // First call with client's stale stepId returns null
+            findHitlStub.withArgs('ws-1', 'job-1', 'stale-substep-id').resolves(null)
+            // Second call with the resolved pending step id succeeds
+            findHitlStub.withArgs('ws-1', 'job-1', 'real-project-step').resolves({ taskId: 'resolved-task' })
+
+            sinon.stub(handler as any, 'fetchPlanTree').resolves({
+                Root: {
+                    StepId: 'root',
+                    Status: 'IN_PROGRESS',
+                    Children: [
+                        {
+                            StepId: 'real-project-step',
+                            Status: 'PENDING_HUMAN_INPUT',
+                            Children: [],
+                        },
+                    ],
+                },
+            })
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'https://s3/upload',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves({ ok: true })
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'stale-substep-id')
+
+            expect(result.Success).to.be.true
+            expect(findHitlStub.calledWith('ws-1', 'job-1', 'real-project-step')).to.be.true
+        })
+
+        it('should not fetch plan when cachedStepHitl is set (no extra round-trip)', async () => {
+            ;(handler as any).cachedStepHitl = 'cached-task-id'
+            const fetchPlanStub = sinon.stub(handler as any, 'fetchPlanTree')
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'https://s3/upload',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves({ ok: true })
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.true
+            expect(fetchPlanStub.called).to.be.false
+        })
+
+        it('should not retry when pending step id equals client stepId', async () => {
+            const findHitlStub = sinon.stub(handler as any, 'findStepLevelHitl').resolves(null)
+            sinon.stub(handler as any, 'fetchPlanTree').resolves({
+                Root: {
+                    StepId: 'root',
+                    Status: 'IN_PROGRESS',
+                    Children: [{ StepId: 'step-1', Status: 'PENDING_HUMAN_INPUT', Children: [] }],
+                },
+            })
+            sinon.stub(handler, 'listHitls').resolves([])
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'step-1')
+
+            expect(result.Success).to.be.false
+            expect(result.Error).to.equal('No active step HITL found')
+            // Should only call findStepLevelHitl once (no retry since pending.StepId === stepId)
+            expect(findHitlStub.callCount).to.equal(1)
+        })
+
+        it('should find review HITL via scan when plan-based resolution misses (race condition)', async () => {
+            sinon.stub(handler as any, 'findStepLevelHitl').resolves(null)
+            // Plan has no PENDING_HUMAN_INPUT step (already flipped to IN_PROGRESS on retry)
+            sinon.stub(handler as any, 'fetchPlanTree').resolves({
+                Root: {
+                    StepId: 'root',
+                    Status: 'IN_PROGRESS',
+                    Children: [{ StepId: 'project-step', Status: 'IN_PROGRESS', Children: [] }],
+                },
+            })
+            // But the review HITL is still alive
+            sinon.stub(handler, 'listHitls').resolves([{ tag: 'project-step-review', taskId: 'review-task-123' }])
+            sinon.stub(handler as any, 'getModifiedFilesSinceCheckpoint').returns([])
+            sinon.stub(handler as any, 'createUpdateWorkspaceZip').resolves('C:/zip.zip')
+            sinon.stub(handler, 'createArtifactUploadUrl').resolves({
+                uploadUrl: 'https://s3/upload',
+                uploadId: 'upload-1',
+                requestHeaders: {},
+            } as any)
+            const utilsModule = require('../utils')
+            sinon.stub(utilsModule.Utils, 'uploadArtifact').resolves(true)
+            sinon.stub(handler, 'completeArtifactUpload').resolves({ success: true } as any)
+            sinon.stub(handler, 'updateHitl').resolves({ ok: true })
+
+            const result = await handler.updateWorkspace('ws-1', 'job-1', 'C:/sln', 'stale-step')
+
+            expect(result.Success).to.be.true
         })
 
         it('should return error when createUpdateWorkspaceZip returns empty path', async () => {
