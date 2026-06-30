@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.120](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.119...lsp-codewhisperer/v0.0.120) (2026-06-30)
+
+
+### Features
+
+* **amazonq:** add client-side chat delivery metrics ([#2766](https://github.com/aws/language-servers/issues/2766)) ([614bbf5](https://github.com/aws/language-servers/commit/614bbf5e122f30c381d7b4dbf9def3679b4d49be))
+* **amazonq:** enable two-way workspace sync for customer edits ([#2769](https://github.com/aws/language-servers/issues/2769)) ([f066772](https://github.com/aws/language-servers/commit/f066772903633db5d9f140c48ab607856adeadce))
+
+
+### Bug Fixes
+
+* **amazonq:** bind MCP consent to workspace+config ([#2767](https://github.com/aws/language-servers/issues/2767)) ([1c84ba6](https://github.com/aws/language-servers/commit/1c84ba6c89a212bbea0f9d650bf54bddd8e5abfa))
+* **amazonq:** preserve customer edits on checkpoint apply (DealerFx netTransform) ([#2765](https://github.com/aws/language-servers/issues/2765)) ([e2118f3](https://github.com/aws/language-servers/commit/e2118f383d1acb2952110275573d82ae16b69d59))
+
 ## [0.0.119](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.118...lsp-codewhisperer/v0.0.119) (2026-06-09)
 
 
