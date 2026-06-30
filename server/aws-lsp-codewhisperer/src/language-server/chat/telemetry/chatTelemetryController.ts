@@ -66,6 +66,7 @@ export class ChatTelemetryController {
     #credentialsProvider: CredentialsProvider
     #telemetry: Telemetry
     #logging: Logging
+    #runtime: Features['runtime']
     #codeDiffTracker: CodeDiffTracker<AcceptedSuggestionChatEntry>
     #telemetryService: TelemetryService
 
@@ -76,6 +77,7 @@ export class ChatTelemetryController {
         this.#telemetry = features.telemetry
         this.#logging = features.logging
         this.#credentialsProvider = features.credentialsProvider
+        this.#runtime = features.runtime
         this.#telemetry.onClientTelemetry(async params => await this.#handleClientTelemetry(params))
         this.#codeDiffTracker = new CodeDiffTracker(features.workspace, features.logging, (entry, percentage) =>
             this.emitModifyCodeMetric(entry, percentage)
@@ -547,6 +549,29 @@ export class ChatTelemetryController {
                         this.emitChatMetric({
                             name: ChatTelemetryEventName.ExitFocusChat,
                             data: {},
+                        })
+                        break
+                    // Positive delivery signal — the chat client handed an
+                    // inbound message to mynah-ui. A drop in this rate per product/os surfaces a
+                    // silent delivery failure. Stateless (does not read controller/tab state).
+                    case ChatUIEventName.ChatMessageRendered:
+                        this.emitChatMetric({
+                            name: ChatTelemetryEventName.ChatMessageRendered,
+                            data: {
+                                languageServerVersion: this.#runtime.serverInfo.version ?? 'unknown',
+                            },
+                        })
+                        break
+                    // Negative signal — the chat client rejected/dropped an
+                    // inbound message in handleInboundMessage. `reason` distinguishes the branch.
+                    case ChatUIEventName.ChatPostMessageRejected:
+                        this.emitChatMetric({
+                            name: ChatTelemetryEventName.ChatPostMessageRejected,
+                            data: {
+                                reason: params.reason,
+                                command: params.command,
+                                languageServerVersion: this.#runtime.serverInfo.version ?? 'unknown',
+                            },
                         })
                         break
                     case ChatUIEventName.Vote:

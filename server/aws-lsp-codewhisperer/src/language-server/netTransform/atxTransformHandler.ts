@@ -91,6 +91,12 @@ export class ATXTransformHandler {
     private cachedInteractiveMode: InteractiveMode | null = null
     private _applyingCheckpoints = false
     private _currentDiffContext: DiffApplyContext | null = null
+    // sendMessage chat-poll cadence. Defaults give a 15-minute ceiling
+    // (180 attempts x 5s). Held as fields rather than inline literals so a test can
+    // drive the no-response path to completion instantly (interval 0, few attempts)
+    // instead of racing the test runner's own wall-clock timeout.
+    private _chatPollIntervalMs = 5000
+    private _chatPollMaxAttempts = 180
     // Tracks jobs that have surfaced the LBV HITL, so we can distinguish the
     // pre-job mode-selection -checkpoint (filter) from the post-build -checkpoint
     // (surface for auto-approve).
@@ -1812,7 +1818,7 @@ export class ATXTransformHandler {
                 this.logging.log(`ATX: Diff artifact extracted to: ${pathToDownload}`)
 
                 // Immediately apply changes after extraction
-                const result = await this.applyChanges(pathToDownload, solutionRootPath)
+                const result = await this.applyChanges(pathToDownload, solutionRootPath, jobId)
                 if (result.success) {
                     this.logging.log(`ATX: Changes applied immediately for step: ${stepId}`)
 
@@ -2039,7 +2045,11 @@ export class ATXTransformHandler {
      * Gets the list of files that have been modified since the last checkpoint was applied.
      * Returns absolute paths of modified files.
      */
-    private getModifiedFilesSinceCheckpoint(solutionRootPath: string, jobId: string): string[] {
+    private getModifiedFilesSinceCheckpoint(
+        solutionRootPath: string,
+        jobId: string,
+        sinceJobStart: boolean = false
+    ): string[] {
         try {
             const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
             const manifestPath = path.join(checkpointsDir, 'source-files.json')
@@ -2052,9 +2062,19 @@ export class ATXTransformHandler {
             const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
             const manifest = JSON.parse(manifestContent)
 
-            const lastAppliedTimestamp = manifest.lastAppliedTimestamp
-            if (!lastAppliedTimestamp) {
-                this.logging.log('ATX: No last applied timestamp found')
+            // For the uplink (updateWorkspace), use createdAt as the baseline so edits to
+            // files in not-yet-transformed projects are detected — their mtime is before
+            // lastAppliedTimestamp (set when an earlier project's checkpoint applied) but
+            // after the job started.
+            let baseline: number | undefined
+            if (sinceJobStart) {
+                baseline = manifest.createdAt ? new Date(manifest.createdAt).getTime() : undefined
+            } else {
+                baseline = manifest.lastAppliedTimestamp
+            }
+
+            if (!baseline) {
+                this.logging.log('ATX: No baseline timestamp found for modified file detection')
                 return []
             }
 
@@ -2065,7 +2085,7 @@ export class ATXTransformHandler {
                 try {
                     if (fs.existsSync(filePath)) {
                         const stats = fs.statSync(filePath)
-                        if (stats.mtimeMs > lastAppliedTimestamp) {
+                        if (stats.mtimeMs > baseline) {
                             modifiedFiles.push(filePath)
                         }
                     }
@@ -2074,7 +2094,9 @@ export class ATXTransformHandler {
                 }
             }
 
-            this.logging.log(`ATX: Found ${modifiedFiles.length} modified files since last checkpoint`)
+            this.logging.log(
+                `ATX: Found ${modifiedFiles.length} modified files since ${sinceJobStart ? 'job start' : 'last checkpoint'}`
+            )
             return modifiedFiles
         } catch (error) {
             this.logging.error(`ATX: Failed to get modified files: ${String(error)}`)
@@ -2514,9 +2536,6 @@ export class ATXTransformHandler {
 
             this.logging.log(`ATX: Found ${completedSteps.length} completed steps to check for artifacts`)
 
-            // Load the list of already applied steps
-            const appliedSteps = this.loadAppliedCheckpoints(solutionRootPath, jobId)
-
             for (const step of completedSteps) {
                 const stepCheckpointPath = path.join(
                     solutionRootPath,
@@ -2532,11 +2551,17 @@ export class ATXTransformHandler {
                     await this.downloadCompletedStepArtifact(workspaceId, jobId, step.StepId, solutionRootPath)
                 }
 
+                // Re-read applied steps each iteration — the diff-artifact path
+                // (downloadDiffArtifact) may have already applied this step earlier
+                // in the same getTransformInfo call, so a stale snapshot would cause
+                // a redundant second apply that bypasses user-edit protection.
+                const appliedSteps = this.loadAppliedCheckpoints(solutionRootPath, jobId)
+
                 // Apply changes if not already applied
                 if (!appliedSteps.includes(step.StepId)) {
                     // Check if checkpoint folder exists after download attempt
                     if (fs.existsSync(stepCheckpointPath)) {
-                        const result = await this.applyChanges(stepCheckpointPath, solutionRootPath)
+                        const result = await this.applyChanges(stepCheckpointPath, solutionRootPath, jobId)
                         if (result.success) {
                             // Mark this step as applied
                             this.saveAppliedCheckpoint(solutionRootPath, jobId, step.StepId)
@@ -2546,6 +2571,15 @@ export class ATXTransformHandler {
                             if (result.addedFiles && result.addedFiles.length > 0) {
                                 this.updateSourceFilesManifest(solutionRootPath, jobId, result.addedFiles)
                             }
+
+                            // Stamp the apply watermark on THIS path too (the diff-artifact
+                            // path at the downloadDiffArtifact call site already does). Without
+                            // it, ``lastAppliedTimestamp`` stays absent here, so the user-edit
+                            // protection in applyChanges sees an empty modified-set and is a
+                            // no-op on the exact interactive path DealerFx lost edits on. The
+                            // per-step re-stamp can't shrink later steps' protection because
+                            // the byte-equal short-circuit ignores the agent's own re-writes.
+                            this.saveLastAppliedTimestamp(solutionRootPath, jobId, step.StepId)
                         } else {
                             this.logging.error(`ATX: Failed to apply changes for step ${step.StepId}: ${result.error}`)
                             anyFailed = true
@@ -3145,11 +3179,44 @@ export class ATXTransformHandler {
                 return { Success: false, Error: 'ATX FES client not initialized' }
             }
 
-            // Get the cached step HITL task ID, or query for it if not cached
+            // Get the cached step HITL task ID, or query for it if not cached.
+            // The client-supplied stepId is advisory — it may be a stale substep id that
+            // doesn't match the backend's review HITL tag (which uses the top-level project
+            // step id). When the client id misses, fall back to resolving the real pending
+            // step server-side via the plan tree — the same pattern getTransformInfo uses.
             let taskId: string | null = this.cachedStepHitl
             if (!taskId) {
                 this.logging.log('ATX: No cached step HITL, querying for active step HITL')
-                const stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+                let stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+
+                // Fallback 1: resolve the real pending step from plan tree
+                if (!stepHitl || !stepHitl.taskId) {
+                    this.logging.log(
+                        `ATX: Client stepId ${stepId} did not match a review HITL, resolving pending step from plan`
+                    )
+                    const plan = await this.fetchPlanTree(workspaceId, jobId)
+                    const pendingStep = this.findPendingHumanInputStep(plan.Root)
+                    if (pendingStep?.StepId && pendingStep.StepId !== stepId) {
+                        this.logging.log(`ATX: Resolved pending step ${pendingStep.StepId}, retrying HITL lookup`)
+                        stepHitl = await this.findStepLevelHitl(workspaceId, jobId, pendingStep.StepId)
+                    }
+                }
+
+                // Fallback 2: list all active HITLs and find a -review one directly.
+                // Covers the race where step status already flipped (e.g. to IN_PROGRESS
+                // on retry) but the review HITL is still alive awaiting the workspace sync.
+                if (!stepHitl || !stepHitl.taskId) {
+                    this.logging.log('ATX: Plan-based resolution missed, scanning active HITLs for a review task')
+                    const allHitls = await this.listHitls(workspaceId, jobId)
+                    const reviewHitl = allHitls?.find(h => typeof h.tag === 'string' && h.tag.endsWith('-review'))
+                    if (reviewHitl?.taskId) {
+                        this.logging.log(
+                            `ATX: Found active review HITL via scan: tag=${reviewHitl.tag}, taskId=${reviewHitl.taskId}`
+                        )
+                        stepHitl = reviewHitl
+                    }
+                }
+
                 if (!stepHitl || !stepHitl.taskId) {
                     return { Success: false, Error: 'No active step HITL found' }
                 }
@@ -3158,8 +3225,11 @@ export class ATXTransformHandler {
 
             const validTaskId = taskId as string
 
-            // Check for user-modified files since last checkpoint
-            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId)
+            // Check for user-modified files since job start — not since last checkpoint.
+            // Files in not-yet-transformed projects may have been edited before any checkpoint
+            // applied (mtime < lastAppliedTimestamp) but still need to be uploaded so the agent
+            // sees them when it starts those projects.
+            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId, true)
 
             this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip with metadata`)
 
@@ -3210,6 +3280,11 @@ export class ATXTransformHandler {
 
             // Clear the cached step HITL after successful update
             this.cachedStepHitl = null
+
+            // Reset the watermark so the incoming retry checkpoint isn't treated as a
+            // conflict. The customer's edits have been uploaded — they expect the agent's
+            // retry output to land on disk, not be skipped by edit-protection.
+            this.saveLastAppliedTimestamp(solutionRootPath, jobId, 'updateWorkspace')
 
             this.logging.log(`ATX: updateWorkspace completed successfully`)
             return { Success: true }
@@ -3318,7 +3393,8 @@ export class ATXTransformHandler {
      */
     private async applyChanges(
         checkpointFolderPath: string,
-        solutionRootPath: string
+        solutionRootPath: string,
+        jobId: string = ''
     ): Promise<{
         success: boolean
         error?: string
@@ -3327,6 +3403,7 @@ export class ATXTransformHandler {
         filesUpdated?: number
         filesMoved?: number
         addedFiles?: string[]
+        conflictedFiles?: string[]
     }> {
         try {
             this.logging.log(`ATX: Starting applyChanges from ${checkpointFolderPath} to ${solutionRootPath}`)
@@ -3351,11 +3428,39 @@ export class ATXTransformHandler {
             let movedCount = 0
             const successfullyAddedFiles: string[] = []
 
+            // Files the customer edited locally since the last checkpoint apply. Applying
+            // the transform's version on top of these silently destroys the customer's
+            // work (DealerFx P452432920 — edits to an already-transformed project clobbered
+            // by a later sync). Compute the protected set ONCE up front (a per-step stamp
+            // would shrink it for later steps in this run) and resolve to absolute paths so
+            // it can be membership-tested against each resolved destination. ``getModified…``
+            // returns absolute paths; an absent watermark (no prior apply) yields [], i.e.
+            // first-apply is unprotected by necessity — no ``before/`` baseline ships, so a
+            // 3-way merge is infeasible and the first write onto a virgin tree cannot conflict.
+            const userModifiedFiles = new Set(
+                (jobId ? this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId) : []).map(p => path.resolve(p))
+            )
+            const conflictedFiles: string[] = []
+
             // Handle filesAdded: Copy from {checkpointFolder}/after/{relativePath} to {solutionRootPath}/{relativePath}
             for (const relativePath of filesAdded) {
                 try {
                     const sourcePath = path.join(checkpointFolderPath, 'after', relativePath)
                     const destPath = path.join(solutionRootPath, relativePath)
+
+                    // Preserve a customer edit rather than clobber it (see userModifiedFiles).
+                    if (
+                        this.shouldPreserveUserFile(
+                            destPath,
+                            sourcePath,
+                            userModifiedFiles,
+                            conflictedFiles,
+                            solutionRootPath,
+                            jobId
+                        )
+                    ) {
+                        continue
+                    }
 
                     // Ensure destination directory exists
                     const destDir = path.dirname(destPath)
@@ -3373,10 +3478,24 @@ export class ATXTransformHandler {
             }
 
             // Handle filesRemoved: Delete file at {solutionRootPath}/{relativePath}
+            // Guard: if the customer edited the file since the last apply, preserve it
+            // and record the conflict rather than silently deleting their work.
             for (const relativePath of filesRemoved) {
                 try {
                     const filePath = path.join(solutionRootPath, relativePath)
                     if (fs.existsSync(filePath)) {
+                        if (userModifiedFiles.size > 0 && userModifiedFiles.has(path.resolve(filePath))) {
+                            try {
+                                const backupPath = this.backupConflictedFile(filePath, jobId, solutionRootPath)
+                                this.logging.log(
+                                    `ATX: Preserved customer-modified file from deletion, backed up to ${backupPath}: ${filePath}`
+                                )
+                            } catch (e) {
+                                this.logging.error(`ATX: Failed to back up conflicted file ${filePath}: ${String(e)}`)
+                            }
+                            conflictedFiles.push(path.resolve(filePath))
+                            continue
+                        }
                         fs.unlinkSync(filePath)
                         removedCount++
                         this.logging.log(`ATX: Removed file: ${relativePath}`)
@@ -3391,6 +3510,21 @@ export class ATXTransformHandler {
                 try {
                     const sourcePath = path.join(checkpointFolderPath, 'after', relativePath)
                     const destPath = path.join(solutionRootPath, relativePath)
+
+                    // The DealerFx clobber: if the customer edited this already-applied file
+                    // since the last sync, preserve their version instead of overwriting it.
+                    if (
+                        this.shouldPreserveUserFile(
+                            destPath,
+                            sourcePath,
+                            userModifiedFiles,
+                            conflictedFiles,
+                            solutionRootPath,
+                            jobId
+                        )
+                    ) {
+                        continue
+                    }
 
                     // Ensure destination directory exists
                     const destDir = path.dirname(destPath)
@@ -3420,6 +3554,34 @@ export class ATXTransformHandler {
 
                     // Copy content from before to after
                     if (fs.existsSync(beforePath)) {
+                        // If the customer edited the move TARGET, preserve it — and skip the
+                        // unlink too, so their edited source is neither clobbered nor deleted.
+                        if (
+                            this.shouldPreserveUserFile(
+                                afterPath,
+                                beforePath,
+                                userModifiedFiles,
+                                conflictedFiles,
+                                solutionRootPath,
+                                jobId
+                            )
+                        ) {
+                            continue
+                        }
+                        // If the customer edited the move SOURCE, preserve it in place —
+                        // the rename would delete their edited file from its original path.
+                        if (userModifiedFiles.size > 0 && userModifiedFiles.has(path.resolve(beforePath))) {
+                            try {
+                                const backupPath = this.backupConflictedFile(beforePath, jobId, solutionRootPath)
+                                this.logging.log(
+                                    `ATX: Preserved customer-modified move source, backed up to ${backupPath}: ${beforePath}`
+                                )
+                            } catch (e) {
+                                this.logging.error(`ATX: Failed to back up conflicted file ${beforePath}: ${String(e)}`)
+                            }
+                            conflictedFiles.push(path.resolve(beforePath))
+                            continue
+                        }
                         fs.copyFileSync(beforePath, afterPath)
                         // Delete the before file
                         fs.unlinkSync(beforePath)
@@ -3432,7 +3594,7 @@ export class ATXTransformHandler {
             }
 
             this.logging.log(
-                `ATX: applyChanges completed - Added: ${addedCount}, Removed: ${removedCount}, Updated: ${updatedCount}, Moved: ${movedCount}`
+                `ATX: applyChanges completed - Added: ${addedCount}, Removed: ${removedCount}, Updated: ${updatedCount}, Moved: ${movedCount}, Preserved (conflicts): ${conflictedFiles.length}`
             )
             return {
                 success: true,
@@ -3441,11 +3603,88 @@ export class ATXTransformHandler {
                 filesUpdated: updatedCount,
                 filesMoved: movedCount,
                 addedFiles: successfullyAddedFiles,
+                ...(conflictedFiles.length > 0 ? { conflictedFiles } : {}),
             }
         } catch (error) {
             this.logging.error(`ATX: applyChanges error: ${String(error)}`)
             return { success: false, error: String(error) }
         }
+    }
+
+    /**
+     * Decide whether a destination file is a customer edit that must be preserved instead
+     * of overwritten by the transform's version, and if so, back it up and record it.
+     *
+     * Returns ``true`` when the caller must SKIP its write (and, for a move, its unlink):
+     * the customer's working file is left untouched and the transform's version stays in
+     * the checkpoint ``after/`` dir, so neither side's content is lost. Returns ``false``
+     * (let the write proceed) when there is no protection set, the destination does not yet
+     * exist, the customer did not edit it since the last apply, or the incoming bytes are
+     * identical (a benign agent re-emit — see ``filesEqual``, which keeps the per-job
+     * watermark from flagging the agent's own re-writes as conflicts).
+     */
+    private shouldPreserveUserFile(
+        destPath: string,
+        sourcePath: string,
+        userModifiedFiles: Set<string>,
+        conflictedFiles: string[],
+        solutionRootPath: string,
+        jobId: string
+    ): boolean {
+        if (userModifiedFiles.size === 0) {
+            return false
+        }
+        if (!fs.existsSync(destPath)) {
+            return false
+        }
+        if (!userModifiedFiles.has(path.resolve(destPath))) {
+            return false
+        }
+        if (this.filesEqual(sourcePath, destPath)) {
+            return false
+        }
+        try {
+            const backupPath = this.backupConflictedFile(destPath, jobId, solutionRootPath)
+            this.logging.log(
+                `ATX: Preserved customer-modified file (transform version kept in checkpoint), backed up to ${backupPath}: ${destPath}`
+            )
+        } catch (e) {
+            // A failed backup must not cause us to fall through and overwrite the edit;
+            // preserving the customer's file is the priority, the backup is a convenience.
+            this.logging.error(`ATX: Failed to back up conflicted file ${destPath}: ${String(e)}`)
+        }
+        conflictedFiles.push(path.resolve(destPath))
+        return true
+    }
+
+    /** Byte-compare two files; treats a read failure as "not equal" (conservative). */
+    private filesEqual(a: string, b: string): boolean {
+        try {
+            const sa = fs.statSync(a)
+            const sb = fs.statSync(b)
+            if (sa.size !== sb.size) {
+                return false
+            }
+            return fs.readFileSync(a).equals(fs.readFileSync(b))
+        } catch {
+            return false
+        }
+    }
+
+    /**
+     * Copy a conflicted destination file into the per-job checkpoints tree so the customer
+     * can recover it. The location is deliberately UNDER ``{workspaceFolderName}/{jobId}/
+     * checkpoints/`` — the manifest's ``sourceFiles`` only ever lists solution source paths,
+     * never anything under that dir, so a backup here cannot be re-detected as a customer
+     * edit and round-tripped back up on the next sync. Returns the backup path.
+     */
+    private backupConflictedFile(destPath: string, jobId: string, solutionRootPath: string): string {
+        const backupRoot = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints', 'conflict-backups')
+        const relForBackup = path.relative(solutionRootPath, destPath)
+        const backupPath = path.join(backupRoot, relForBackup)
+        fs.mkdirSync(path.dirname(backupPath), { recursive: true })
+        fs.copyFileSync(destPath, backupPath)
+        return backupPath
     }
 
     /**
@@ -3485,9 +3724,11 @@ export class ATXTransformHandler {
                 return { success: true, data: sendResult }
             }
 
-            // Poll for response (180 attempts * 5s = 15 minutes max)
-            for (let attempt = 0; attempt < 180; attempt++) {
-                await new Promise(resolve => setTimeout(resolve, 5000))
+            // Poll for response until the configured attempt ceiling (default 180 x 5s
+            // = 15 minutes). Uses Utils.sleep for consistency with the other poll loops
+            // in this file, and the cadence fields so tests stay deterministic.
+            for (let attempt = 0; attempt < this._chatPollMaxAttempts; attempt++) {
+                await Utils.sleep(this._chatPollIntervalMs)
 
                 const listResult = await this.listMessages({
                     workspaceId: request.workspaceId,
