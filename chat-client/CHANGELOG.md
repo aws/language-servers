@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.55](https://github.com/aws/language-servers/compare/chat-client/v0.1.54...chat-client/v0.1.55) (2026-06-30)
+
+
+### Features
+
+* **amazonq:** add client-side chat delivery metrics ([#2766](https://github.com/aws/language-servers/issues/2766)) ([614bbf5](https://github.com/aws/language-servers/commit/614bbf5e122f30c381d7b4dbf9def3679b4d49be))
+
 ## [0.1.54](https://github.com/aws/language-servers/compare/chat-client/v0.1.53...chat-client/v0.1.54) (2026-05-22)
 
 
