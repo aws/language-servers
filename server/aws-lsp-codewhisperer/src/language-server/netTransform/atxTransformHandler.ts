@@ -2045,7 +2045,11 @@ export class ATXTransformHandler {
      * Gets the list of files that have been modified since the last checkpoint was applied.
      * Returns absolute paths of modified files.
      */
-    private getModifiedFilesSinceCheckpoint(solutionRootPath: string, jobId: string): string[] {
+    private getModifiedFilesSinceCheckpoint(
+        solutionRootPath: string,
+        jobId: string,
+        sinceJobStart: boolean = false
+    ): string[] {
         try {
             const checkpointsDir = path.join(solutionRootPath, workspaceFolderName, jobId, 'checkpoints')
             const manifestPath = path.join(checkpointsDir, 'source-files.json')
@@ -2058,9 +2062,19 @@ export class ATXTransformHandler {
             const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
             const manifest = JSON.parse(manifestContent)
 
-            const lastAppliedTimestamp = manifest.lastAppliedTimestamp
-            if (!lastAppliedTimestamp) {
-                this.logging.log('ATX: No last applied timestamp found')
+            // For the uplink (updateWorkspace), use createdAt as the baseline so edits to
+            // files in not-yet-transformed projects are detected — their mtime is before
+            // lastAppliedTimestamp (set when an earlier project's checkpoint applied) but
+            // after the job started.
+            let baseline: number | undefined
+            if (sinceJobStart) {
+                baseline = manifest.createdAt ? new Date(manifest.createdAt).getTime() : undefined
+            } else {
+                baseline = manifest.lastAppliedTimestamp
+            }
+
+            if (!baseline) {
+                this.logging.log('ATX: No baseline timestamp found for modified file detection')
                 return []
             }
 
@@ -2071,7 +2085,7 @@ export class ATXTransformHandler {
                 try {
                     if (fs.existsSync(filePath)) {
                         const stats = fs.statSync(filePath)
-                        if (stats.mtimeMs > lastAppliedTimestamp) {
+                        if (stats.mtimeMs > baseline) {
                             modifiedFiles.push(filePath)
                         }
                     }
@@ -2080,7 +2094,9 @@ export class ATXTransformHandler {
                 }
             }
 
-            this.logging.log(`ATX: Found ${modifiedFiles.length} modified files since last checkpoint`)
+            this.logging.log(
+                `ATX: Found ${modifiedFiles.length} modified files since ${sinceJobStart ? 'job start' : 'last checkpoint'}`
+            )
             return modifiedFiles
         } catch (error) {
             this.logging.error(`ATX: Failed to get modified files: ${String(error)}`)
@@ -3163,11 +3179,44 @@ export class ATXTransformHandler {
                 return { Success: false, Error: 'ATX FES client not initialized' }
             }
 
-            // Get the cached step HITL task ID, or query for it if not cached
+            // Get the cached step HITL task ID, or query for it if not cached.
+            // The client-supplied stepId is advisory — it may be a stale substep id that
+            // doesn't match the backend's review HITL tag (which uses the top-level project
+            // step id). When the client id misses, fall back to resolving the real pending
+            // step server-side via the plan tree — the same pattern getTransformInfo uses.
             let taskId: string | null = this.cachedStepHitl
             if (!taskId) {
                 this.logging.log('ATX: No cached step HITL, querying for active step HITL')
-                const stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+                let stepHitl = await this.findStepLevelHitl(workspaceId, jobId, stepId)
+
+                // Fallback 1: resolve the real pending step from plan tree
+                if (!stepHitl || !stepHitl.taskId) {
+                    this.logging.log(
+                        `ATX: Client stepId ${stepId} did not match a review HITL, resolving pending step from plan`
+                    )
+                    const plan = await this.fetchPlanTree(workspaceId, jobId)
+                    const pendingStep = this.findPendingHumanInputStep(plan.Root)
+                    if (pendingStep?.StepId && pendingStep.StepId !== stepId) {
+                        this.logging.log(`ATX: Resolved pending step ${pendingStep.StepId}, retrying HITL lookup`)
+                        stepHitl = await this.findStepLevelHitl(workspaceId, jobId, pendingStep.StepId)
+                    }
+                }
+
+                // Fallback 2: list all active HITLs and find a -review one directly.
+                // Covers the race where step status already flipped (e.g. to IN_PROGRESS
+                // on retry) but the review HITL is still alive awaiting the workspace sync.
+                if (!stepHitl || !stepHitl.taskId) {
+                    this.logging.log('ATX: Plan-based resolution missed, scanning active HITLs for a review task')
+                    const allHitls = await this.listHitls(workspaceId, jobId)
+                    const reviewHitl = allHitls?.find(h => typeof h.tag === 'string' && h.tag.endsWith('-review'))
+                    if (reviewHitl?.taskId) {
+                        this.logging.log(
+                            `ATX: Found active review HITL via scan: tag=${reviewHitl.tag}, taskId=${reviewHitl.taskId}`
+                        )
+                        stepHitl = reviewHitl
+                    }
+                }
+
                 if (!stepHitl || !stepHitl.taskId) {
                     return { Success: false, Error: 'No active step HITL found' }
                 }
@@ -3176,8 +3225,11 @@ export class ATXTransformHandler {
 
             const validTaskId = taskId as string
 
-            // Check for user-modified files since last checkpoint
-            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId)
+            // Check for user-modified files since job start — not since last checkpoint.
+            // Files in not-yet-transformed projects may have been edited before any checkpoint
+            // applied (mtime < lastAppliedTimestamp) but still need to be uploaded so the agent
+            // sees them when it starts those projects.
+            const modifiedFiles = this.getModifiedFilesSinceCheckpoint(solutionRootPath, jobId, true)
 
             this.logging.log(`ATX: Found ${modifiedFiles.length} user-modified files, creating zip with metadata`)
 
@@ -3228,6 +3280,11 @@ export class ATXTransformHandler {
 
             // Clear the cached step HITL after successful update
             this.cachedStepHitl = null
+
+            // Reset the watermark so the incoming retry checkpoint isn't treated as a
+            // conflict. The customer's edits have been uploaded — they expect the agent's
+            // retry output to land on disk, not be skipped by edit-protection.
+            this.saveLastAppliedTimestamp(solutionRootPath, jobId, 'updateWorkspace')
 
             this.logging.log(`ATX: updateWorkspace completed successfully`)
             return { Success: true }
