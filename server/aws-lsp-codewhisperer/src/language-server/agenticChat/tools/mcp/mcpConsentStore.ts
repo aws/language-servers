@@ -88,13 +88,23 @@ export async function hasApproval(
     const store = await readStore(workspace, logging)
     const fp = fingerprintServerConfig(cfg)
     const wh = fingerprintWorkspace(configPath)
-    // Primary match: (serverName, fingerprint) — the fingerprint captures the full
-    // execution-relevant config (command/args/env/url). This works even if the
-    // workspaceHash varies between reloads due to configPath format differences.
-    // Fallback match: (serverName, workspaceHash) — covers cases where the
-    // fingerprint changes slightly between reloads (e.g., config migration adds
-    // default values) but the workspace is the same.
-    return store.approvals.some(a => a.serverName === serverName && (a.fingerprint === fp || a.workspaceHash === wh))
+    // Consent is bound to the full triple (serverName, fingerprint, workspaceHash)
+    // and ALL three must match for a prior approval to apply:
+    //   - serverName + fingerprint: the exact execution-relevant config
+    //     (command/args/env/url). A mutated config yields a new fingerprint, so a
+    //     config change re-prompts.
+    //   - workspaceHash: the specific workspace folder that requested the server.
+    //     Approvals are not portable across workspaces.
+    // Requiring all three (logical AND) prevents two attacks (CVE-2026-12957):
+    //   1. Cross-workspace reuse — a malicious workspace with an identical config
+    //      (same fingerprint) cannot silently reuse an approval granted in a
+    //      different, trusted workspace, because its workspaceHash differs. The
+    //      server is spawned with cwd set to the requesting workspace, so reusing
+    //      consent across workspaces would execute attacker-controlled files.
+    //   2. Mutation variant — a previously-trusted workspace cannot turn malicious
+    //      via a later config edit without re-prompting, because the edit changes
+    //      the fingerprint even though the workspaceHash is unchanged.
+    return store.approvals.some(a => a.serverName === serverName && a.fingerprint === fp && a.workspaceHash === wh)
 }
 
 export async function recordApproval(
@@ -126,8 +136,12 @@ export async function removeApproval(
     configPath: string
 ): Promise<void> {
     const store = await readStore(workspace, logging)
+    const wh = fingerprintWorkspace(configPath)
     const before = store.approvals.length
-    store.approvals = store.approvals.filter(a => a.serverName !== serverName)
+    // Scope removal to the (serverName, workspace) that requested it, mirroring how
+    // recordApproval keys entries. Removing a server in one workspace must not
+    // revoke consent for an identically-named server in a different workspace.
+    store.approvals = store.approvals.filter(a => !(a.serverName === serverName && a.workspaceHash === wh))
     if (store.approvals.length < before) {
         await writeStore(workspace, logging, store)
         logging.info(`MCP consent store: removed approval for '${serverName}'`)
