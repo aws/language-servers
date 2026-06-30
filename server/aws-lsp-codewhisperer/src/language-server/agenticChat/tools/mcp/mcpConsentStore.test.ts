@@ -103,16 +103,47 @@ describe('mcpConsentStore', () => {
             expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.true
         })
 
-        it('matches via fingerprint even when workspace path differs', async () => {
-            await recordApproval(workspace, logger, 'poc', cfg, '/tmp/ws-a/.amazonq/mcp.json')
-            expect(await hasApproval(workspace, logger, 'poc', cfg, '/tmp/ws-b/.amazonq/mcp.json')).to.be.true
+        // CVE-2026-12957 — cross-workspace reuse. An approval granted in one
+        // workspace MUST NOT be reused in a different workspace, even when the
+        // server config (and thus fingerprint) is byte-for-byte identical. The
+        // server is spawned with cwd set to the requesting workspace, so reusing
+        // consent across workspaces would execute attacker-controlled files
+        // (zero-prompt RCE). This mirrors the reported PoC, in which an identical
+        // config appears in a seed (trusted) workspace and a malicious workspace.
+        it('does NOT match across workspaces when only the fingerprint is identical', async () => {
+            await recordApproval(workspace, logger, 'poc', cfg, '/tmp/seed-workspace/.amazonq/mcp.json')
+            expect(await hasApproval(workspace, logger, 'poc', cfg, '/tmp/malicious-workspace/.amazonq/mcp.json')).to.be
+                .false
         })
 
-        it('matches via workspaceHash even when fingerprint differs', async () => {
+        // CVE-2026-12957 — mutation variant. Within the same workspace, editing the
+        // server config changes the fingerprint and MUST force a re-prompt, so a
+        // previously-trusted workspace cannot turn malicious via a later edit.
+        it('does NOT match in the same workspace when the fingerprint changed', async () => {
             await recordApproval(workspace, logger, 'poc', cfg, configPath)
             const mutated: MCPServerConfig = { command: 'sh', args: ['-c', 'echo different'] }
-            // Same workspace, different fingerprint — should still match via workspaceHash fallback
+            expect(await hasApproval(workspace, logger, 'poc', mutated, configPath)).to.be.false
+        })
+
+        it('treats consent per-workspace: approving one workspace does not grant the other', async () => {
+            const seedPath = '/tmp/seed-workspace/.amazonq/mcp.json'
+            const maliciousPath = '/tmp/malicious-workspace/.amazonq/mcp.json'
+            await recordApproval(workspace, logger, 'poc', cfg, seedPath)
+            // Seed workspace is trusted; malicious workspace with identical config is not.
+            expect(await hasApproval(workspace, logger, 'poc', cfg, seedPath)).to.be.true
+            expect(await hasApproval(workspace, logger, 'poc', cfg, maliciousPath)).to.be.false
+            // Explicitly approving the second workspace grants only that workspace.
+            await recordApproval(workspace, logger, 'poc', cfg, maliciousPath)
+            expect(await hasApproval(workspace, logger, 'poc', cfg, maliciousPath)).to.be.true
+        })
+
+        it('still matches after re-approving a mutated config in the same workspace', async () => {
+            await recordApproval(workspace, logger, 'poc', cfg, configPath)
+            const mutated: MCPServerConfig = { command: 'sh', args: ['-c', 'echo different'] }
+            await recordApproval(workspace, logger, 'poc', mutated, configPath)
             expect(await hasApproval(workspace, logger, 'poc', mutated, configPath)).to.be.true
+            // The original (now stale) config no longer matches.
+            expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.false
         })
 
         it('does not match when both fingerprint and workspace differ', async () => {
@@ -176,6 +207,17 @@ describe('mcpConsentStore', () => {
             await removeApproval(workspace, logger, 'other', configPath)
             // Original approval should still be there
             expect(await hasApproval(workspace, logger, 'poc', cfg, configPath)).to.be.true
+        })
+
+        it('removeApproval is scoped to the workspace it was called for', async () => {
+            const wsA = '/tmp/ws-a/.amazonq/mcp.json'
+            const wsB = '/tmp/ws-b/.amazonq/mcp.json'
+            await recordApproval(workspace, logger, 'poc', cfg, wsA)
+            await recordApproval(workspace, logger, 'poc', cfg, wsB)
+            // Removing the server in workspace A must not revoke workspace B's consent.
+            await removeApproval(workspace, logger, 'poc', wsA)
+            expect(await hasApproval(workspace, logger, 'poc', cfg, wsA)).to.be.false
+            expect(await hasApproval(workspace, logger, 'poc', cfg, wsB)).to.be.true
         })
     })
 })
