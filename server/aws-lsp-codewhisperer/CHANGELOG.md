@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.121](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.120...lsp-codewhisperer/v0.0.121) (2026-07-01)
+
+
+### Bug Fixes
+
+* pass customUserAgent to CodeWhispererServiceToken in QCodeAnalysisServer ([#2772](https://github.com/aws/language-servers/issues/2772)) ([2f6d1ae](https://github.com/aws/language-servers/commit/2f6d1ae5f23acc41896eb76d65750bdf60ecb5a5))
+
 ## [0.0.120](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.119...lsp-codewhisperer/v0.0.120) (2026-06-30)
 
 
