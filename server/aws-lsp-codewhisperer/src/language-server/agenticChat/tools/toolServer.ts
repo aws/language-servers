@@ -25,6 +25,7 @@ import {
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
+import { getUserAgent, makeUserContextObject } from '../../../shared/telemetryUtils'
 import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
 import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
@@ -97,6 +98,7 @@ export const QCodeAnalysisServer: Server = ({
     credentialsProvider,
     logging,
     lsp,
+    runtime,
     sdkInitializator,
     telemetry,
     workspace,
@@ -129,6 +131,12 @@ export const QCodeAnalysisServer: Server = ({
         }
 
         // Create the CodeWhisperer client for review tool based on iam auth check
+        const initializeParams = lsp.getClientInitializeParams()
+        const customUserAgent = initializeParams ? getUserAgent(initializeParams, runtime.serverInfo) : undefined
+        const userContext = initializeParams
+            ? makeUserContextObject(initializeParams, runtime.platform, 'token', runtime.serverInfo)
+            : undefined
+
         const codeWhispererClient = isUsingIAMAuth()
             ? new CodeWhispererServiceIAM(
                   credentialsProvider,
@@ -145,7 +153,8 @@ export const QCodeAnalysisServer: Server = ({
                   process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
                   process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
                   sdkInitializator,
-                  undefined
+                  userContext,
+                  customUserAgent
               )
 
         agent.addTool(
