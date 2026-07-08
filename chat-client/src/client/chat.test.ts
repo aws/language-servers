@@ -2,6 +2,8 @@ import { injectJSDOM } from '../test/jsDomInjector'
 // This needs to be run before all other imports so that mynah ui gets loaded inside of jsdom
 injectJSDOM()
 
+import { JSDOM } from 'jsdom'
+
 import { CHAT_OPTIONS, ERROR_MESSAGE, GENERIC_COMMAND, SEND_TO_PROMPT } from '@aws/chat-client-ui-types'
 import {
     CHAT_REQUEST_METHOD,
@@ -144,33 +146,6 @@ describe('Chat', () => {
         })
     })
 
-    it('rejects inbound messages from a foreign origin (P389799154)', () => {
-        // Simulates a cross-origin postMessage from an attacker page. The
-        // handleInboundMessage same-origin check should drop the event before
-        // any command is dispatched to mynah.
-        clientApi.postMessage.resetHistory()
-
-        const foreignEvent = new window.MessageEvent('message', {
-            data: { command: SEND_TO_PROMPT, params: { prompt: 'pwn' } },
-            origin: 'https://attacker.example.com',
-        })
-        window.dispatchEvent(foreignEvent)
-
-        // The attacker command is NOT dispatched to mynah, but the rejection
-        // IS now recorded as telemetry. So postMessage is called exactly once — with the reject
-        // telemetry event, never with a chat-command dispatch. (Outbound telemetry travels a
-        // different direction than the inbound origin check, so the signal escapes even here.)
-        assert.calledOnceWithExactly(clientApi.postMessage, {
-            command: TELEMETRY,
-            params: {
-                name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
-                reason: 'untrustedOrigin',
-                command: undefined,
-                tabId: undefined,
-            },
-        })
-    })
-
     it('publishes chatMessageRendered telemetry on a terminal (non-partial) chat response', () => {
         clientApi.postMessage.resetHistory()
         const event = createInboundEvent({
@@ -239,46 +214,6 @@ describe('Chat', () => {
                 tabId: undefined,
             },
         })
-    })
-
-    it('accepts inbound messages with empty origin (Eclipse SWT Browser)', () => {
-        // Eclipse SWT Browser loads content via file:// protocol, so
-        // postMessage events arrive with an empty string origin.
-        const warnStub = sandbox.stub(console, 'warn')
-
-        const eclipseEvent = new window.MessageEvent('message', {
-            data: { command: 'noop-test-command' },
-            origin: '',
-        })
-        window.dispatchEvent(eclipseEvent)
-
-        assert.notCalled(warnStub)
-    })
-
-    it('accepts inbound messages with "null" origin (sandboxed iframes)', () => {
-        // Sandboxed iframes without allow-same-origin report origin as
-        // the string "null".
-        const warnStub = sandbox.stub(console, 'warn')
-
-        const nullOriginEvent = new window.MessageEvent('message', {
-            data: { command: 'noop-test-command' },
-            origin: 'null',
-        })
-        window.dispatchEvent(nullOriginEvent)
-
-        assert.notCalled(warnStub)
-    })
-
-    it('accepts inbound messages with non-HTTP origin (file:// protocol)', () => {
-        const warnStub = sandbox.stub(console, 'warn')
-
-        const fileEvent = new window.MessageEvent('message', {
-            data: { command: 'noop-test-command' },
-            origin: 'file://',
-        })
-        window.dispatchEvent(fileEvent)
-
-        assert.notCalled(warnStub)
     })
 
     it('publishes tab added event, when UI tab is added', () => {
@@ -761,6 +696,184 @@ describe('Chat', () => {
 
             assert.calledOnce(handleMessageReceiveStub)
             assert.match(handleMessageReceiveStub.getCall(0).args[0].data, JSON.stringify(chatEvent.data))
+        })
+    })
+})
+
+/**
+ * Origin-validation coverage for `handleInboundMessage` across every supported IDE host.
+ * Extends the Eclipse regression tests from #2740 to the full host matrix so a future
+ * origin-validation change cannot silently break a single host environment (e.g. Eclipse on
+ * Windows, aws/amazon-q-eclipse#555). `HOST_ORIGIN_CASES` is the executable form of the
+ * "Host environments" table in chat-client/README.md; keep the two in lockstep.
+ *
+ * The check accepts a message when `event.origin` is non-HTTP (vscode-webview://, file://,
+ * "", "null") OR is an HTTP origin equal to `window.location.origin`, and rejects it only
+ * when `event.origin` is an HTTP(S) origin *different* from the page. So the accept/reject
+ * outcome is a function of (pageOrigin, eventOrigin) — which is why each case sets both, and
+ * why every case runs in its own JSDOM at that pageOrigin (the shared about:blank harness
+ * reports origin "null", under which the same-origin HTTP hosts would pass without ever
+ * exercising the `origin === window.location.origin` comparison the check hinges on).
+ */
+describe('Chat handleInboundMessage origin validation across host environments', () => {
+    const sandbox = sinon.createSandbox()
+    let savedGlobals: { window: typeof global.window; document: typeof global.document; self: typeof global.self }
+
+    interface HostOriginCase {
+        host: string
+        pageOrigin: string // window.location.origin the chat client renders under
+        eventOrigin: string // event.origin on the inbound postMessage
+        accepted: boolean
+    }
+
+    const HOST_ORIGIN_CASES: HostOriginCase[] = [
+        {
+            host: 'VS Code (vscode-webview://)',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'vscode-webview://abc123',
+            accepted: true,
+        },
+        {
+            host: 'JetBrains (https://toolkitasset)',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'https://toolkitasset',
+            accepted: true,
+        },
+        {
+            host: 'Visual Studio (WebView2, same-origin)',
+            pageOrigin: 'https://visualstudiowebview',
+            eventOrigin: 'https://visualstudiowebview',
+            accepted: true,
+        },
+        {
+            host: 'Eclipse/Windows (WebView2, empty origin)',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: '',
+            accepted: true,
+        },
+        {
+            host: 'Eclipse/Windows (WebView2, "null" origin)',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'null',
+            accepted: true,
+        },
+        {
+            host: 'Eclipse/macOS-Linux (WebKit, same-origin)',
+            pageOrigin: 'http://localhost:8137',
+            eventOrigin: 'http://localhost:8137',
+            accepted: true,
+        },
+        {
+            host: 'SageMaker JupyterLab (same-origin)',
+            pageOrigin: 'https://abc.studio.us-east-1.sagemaker.aws',
+            eventOrigin: 'https://abc.studio.us-east-1.sagemaker.aws',
+            accepted: true,
+        },
+        {
+            host: 'file:// (sandboxed/opaque context)',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'file://',
+            accepted: true,
+        },
+        // The cross-origin check enforcement: a foreign HTTP(S) origin delivered to a legitimate
+        // host page must be rejected (Bug Bounty P389799154). The three rows below are the only
+        // ones that exercise the `origin !== window.location.origin` branch — a different HTTPS
+        // host, a plain-http host, and a same-host-different-subdomain page.
+        {
+            host: 'cross-origin HTTPS attacker page',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'https://attacker.example.com',
+            accepted: false,
+        },
+        {
+            host: 'cross-origin plain-http attacker page',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'http://attacker.example.com',
+            accepted: false,
+        },
+        {
+            host: 'same-host different-origin (subdomain) page',
+            pageOrigin: 'https://toolkitasset',
+            eventOrigin: 'https://evil.toolkitasset',
+            accepted: false,
+        },
+    ]
+
+    // Point the globals the chat client reads at a fresh JSDOM served from `pageOrigin`, so the
+    // message handler createChat registers closes over that origin. Mirrors injectJSDOM()'s setup.
+    function loadHostDom(pageOrigin: string): JSDOM {
+        const dom = new JSDOM('', { url: `${pageOrigin}/`, pretendToBeVisual: true })
+        global.window = dom.window as unknown as Window & typeof globalThis
+        global.document = dom.window.document
+        global.self = dom.window as unknown as Window & typeof globalThis
+        global.CustomEvent = dom.window.CustomEvent
+        global.Image = dom.window.Image
+        global.FileReader = dom.window.FileReader
+        Object.defineProperty(dom.window.Element.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent
+            },
+        })
+        global.structuredClone = val => JSON.parse(JSON.stringify(val))
+        return dom
+    }
+
+    before(() => {
+        // @ts-expect-error: mock implementation for testing
+        global.ResizeObserver = null
+        // @ts-expect-error: mock implementation for testing
+        global.IntersectionObserver = null
+        // @ts-expect-error: mock implementation for testing
+        global.MutationObserver = null
+    })
+
+    beforeEach(() => {
+        savedGlobals = { window: global.window, document: global.document, self: global.self }
+        sandbox.stub(TabFactory, 'generateUniqueId').returns('tab-1')
+        sandbox.stub(TabFactory.prototype, 'enableHistory')
+        sandbox.stub(TabFactory.prototype, 'enableExport')
+    })
+
+    afterEach(() => {
+        sandbox.restore()
+        // Restore the shared globals loadHostDom() swapped out.
+        global.window = savedGlobals.window
+        global.document = savedGlobals.document
+        global.self = savedGlobals.self
+    })
+
+    HOST_ORIGIN_CASES.forEach(({ host, pageOrigin, eventOrigin, accepted }) => {
+        it(`${accepted ? 'accepts' : 'rejects'} messages from ${host}`, () => {
+            const dom = loadHostDom(pageOrigin)
+            const clientApi = { postMessage: sandbox.stub() as sinon.SinonStub }
+            createChat(clientApi as any, { agenticMode: true })
+            clientApi.postMessage.resetHistory() // drop the init messages (ready/tab-add/etc.)
+            const warnStub = sandbox.stub(console, 'warn')
+
+            // Unknown command so the accepted path stays out of mynah-ui DOM code (see #2741).
+            dom.window.dispatchEvent(
+                new dom.window.MessageEvent('message', { data: { command: 'noop-test-command' }, origin: eventOrigin })
+            )
+
+            if (accepted) {
+                assert.notCalled(warnStub)
+                assert.neverCalledWithMatch(clientApi.postMessage, {
+                    command: TELEMETRY,
+                    params: { name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT, reason: 'untrustedOrigin' },
+                })
+            } else {
+                assert.called(warnStub)
+                assert.calledOnceWithExactly(clientApi.postMessage, {
+                    command: TELEMETRY,
+                    params: {
+                        name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
+                        reason: 'untrustedOrigin',
+                        command: undefined,
+                        tabId: undefined,
+                    },
+                })
+            }
         })
     })
 })
