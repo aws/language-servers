@@ -37,12 +37,7 @@ import {
 } from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from './chatEventParser'
-import {
-    createAuthFollowUpResult,
-    getAuthFollowUpType,
-    getDefaultChatResponse,
-    getGovCloudUnsupportedResponse,
-} from './utils'
+import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from './utils'
 import { ChatSessionManagementService } from './chatSessionManagementService'
 import { ChatTelemetryController } from './telemetry/chatTelemetryController'
 import { QuickAction } from './quickActions'
@@ -134,12 +129,6 @@ export class ChatController implements ChatHandlers {
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
-        const clientRegion = this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.region
-        const maybeGovResponse = getGovCloudUnsupportedResponse(clientRegion)
-        if (maybeGovResponse) {
-            return maybeGovResponse
-        }
-
         const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
 
         if (maybeDefaultResponse) {
@@ -281,12 +270,6 @@ export class ChatController implements ChatHandlers {
         params: InlineChatParams,
         token: CancellationToken
     ): Promise<InlineChatResult | ResponseError<InlineChatResult>> {
-        const clientRegion = this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.region
-        const maybeGovResponse = getGovCloudUnsupportedResponse(clientRegion)
-        if (maybeGovResponse) {
-            return maybeGovResponse as InlineChatResult
-        }
-
         // TODO: This metric needs to be removed later, just added for now to be able to create a ChatEventParser object
         const metric = new Metric<AddMessageEvent>({
             cwsprChatConversationType: 'Chat',
