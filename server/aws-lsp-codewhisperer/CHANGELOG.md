@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.122](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.121...lsp-codewhisperer/v0.0.122) (2026-07-09)
+
+
+### Bug Fixes
+
+* show friendly error message for govcloud regions ([#2779](https://github.com/aws/language-servers/issues/2779)) ([9acc756](https://github.com/aws/language-servers/commit/9acc756298427e7ca99f19c0270fe0bff7a17673))
+
 ## [0.0.121](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.120...lsp-codewhisperer/v0.0.121) (2026-07-02)
 
 
