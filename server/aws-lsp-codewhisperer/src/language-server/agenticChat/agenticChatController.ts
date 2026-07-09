@@ -103,7 +103,12 @@ import {
 } from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
-import { createAuthFollowUpResult, getAuthFollowUpType, getDefaultChatResponse } from '../chat/utils'
+import {
+    createAuthFollowUpResult,
+    getAuthFollowUpType,
+    getDefaultChatResponse,
+    getGovCloudUnsupportedResponse,
+} from '../chat/utils'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
@@ -860,6 +865,12 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
+        const clientRegion = this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.region
+        const maybeGovResponse = getGovCloudUnsupportedResponse(clientRegion)
+        if (maybeGovResponse) {
+            return maybeGovResponse
+        }
+
         // Phase 1: Initial Setup - This happens only once
         params.prompt.prompt = sanitizeInput(params.prompt.prompt || '', true)
 
@@ -3746,6 +3757,12 @@ export class AgenticChatController implements ChatHandlers {
         params: InlineChatParams,
         token: CancellationToken
     ): Promise<InlineChatResult | ResponseError<InlineChatResult>> {
+        const clientRegion = this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.region
+        const maybeGovResponse = getGovCloudUnsupportedResponse(clientRegion)
+        if (maybeGovResponse) {
+            return maybeGovResponse as InlineChatResult
+        }
+
         // TODO: This metric needs to be removed later, just added for now to be able to create a ChatEventParser object
         const metric = new Metric<AddMessageEvent>({
             cwsprChatConversationType: 'Chat',

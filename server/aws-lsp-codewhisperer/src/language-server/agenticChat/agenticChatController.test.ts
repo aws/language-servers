@@ -486,6 +486,28 @@ describe('AgenticChatController', () => {
             chatController.onTabAdd({ tabId: mockTabId })
         })
 
+        describe('GovCloud region block', () => {
+            it('short-circuits with an unsupported-region response when client region is us-gov-west-1', async () => {
+                testFeatures.setClientParams({
+                    initializationOptions: {
+                        aws: {
+                            region: 'us-gov-west-1',
+                            awsClientCapabilities: { q: { developerProfiles: false } },
+                        },
+                    },
+                } as any)
+
+                const result = await chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                    mockCancellationToken
+                )
+
+                assert.ok(!(result instanceof ResponseError))
+                assert.ok((result as ChatResult).body?.includes('GovCloud'))
+                assert.ok((result as ChatResult).body?.includes('us-gov-west-1'))
+            })
+        })
+
         describe('Prompt ID', () => {
             let setCurrentPromptIdStub: sinon.SinonStub
 
@@ -2182,6 +2204,28 @@ describe('AgenticChatController', () => {
     })
 
     describe('onInlineChatPrompt', () => {
+        describe('GovCloud region block', () => {
+            it('short-circuits with an unsupported-region response when client region is us-gov-east-1', async () => {
+                testFeatures.setClientParams({
+                    initializationOptions: {
+                        aws: {
+                            region: 'us-gov-east-1',
+                            awsClientCapabilities: { q: { developerProfiles: false } },
+                        },
+                    },
+                } as any)
+
+                const result = await chatController.onInlineChatPrompt(
+                    { prompt: { prompt: 'Hello' } },
+                    mockCancellationToken
+                )
+
+                assert.ok(!(result instanceof ResponseError))
+                assert.ok((result as InlineChatResult).body?.includes('GovCloud'))
+                assert.ok((result as InlineChatResult).body?.includes('us-gov-east-1'))
+            })
+        })
+
         it('read all the response streams and return compiled results', async () => {
             const chatResultPromise = chatController.onInlineChatPrompt(
                 { prompt: { prompt: 'Hello' } },
