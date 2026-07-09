@@ -713,7 +713,13 @@ describe('Chat', () => {
  * outcome is a function of (pageOrigin, eventOrigin) — which is why each case sets both, and
  * why every case runs in its own JSDOM at that pageOrigin (the shared about:blank harness
  * reports origin "null", under which the same-origin HTTP hosts would pass without ever
- * exercising the `origin === window.location.origin` comparison the check hinges on).
+ * exercising the `origin === window.location.origin` comparison the check hinges on). One
+ * reject case deliberately uses an opaque ("null") page origin to model Eclipse/Windows and
+ * prove an attacker is still rejected on the very host the origin fix was written for.
+ *
+ * Each accepted case asserts positively that the message cleared the origin gate and reached
+ * the command router (the unknown-command telemetry fires once), not merely that it was not
+ * rejected — so a regression that silently swallowed messages would still fail.
  */
 describe('Chat handleInboundMessage origin validation across host environments', () => {
     const sandbox = sinon.createSandbox()
@@ -776,19 +782,12 @@ describe('Chat handleInboundMessage origin validation across host environments',
             accepted: true,
         },
         // The cross-origin check enforcement: a foreign HTTP(S) origin delivered to a legitimate
-        // host page must be rejected (Bug Bounty P389799154). The three rows below are the only
-        // ones that exercise the `origin !== window.location.origin` branch — a different HTTPS
-        // host, a plain-http host, and a same-host-different-subdomain page.
+        // host page must be rejected (Bug Bounty P389799154). These are the only rows that
+        // exercise the `origin !== window.location.origin` branch.
         {
-            host: 'cross-origin HTTPS attacker page',
+            host: 'cross-origin HTTP(S) attacker page',
             pageOrigin: 'https://toolkitasset',
             eventOrigin: 'https://attacker.example.com',
-            accepted: false,
-        },
-        {
-            host: 'cross-origin plain-http attacker page',
-            pageOrigin: 'https://toolkitasset',
-            eventOrigin: 'http://attacker.example.com',
             accepted: false,
         },
         {
@@ -797,12 +796,26 @@ describe('Chat handleInboundMessage origin validation across host environments',
             eventOrigin: 'https://evil.toolkitasset',
             accepted: false,
         },
+        // The security dual of the "Eclipse/Windows accepts empty origin" case above, and the one
+        // that guards the incident host itself: when the page origin is opaque ("null"), a real
+        // cross-origin attacker must STILL be rejected. A refactor that only enforced the check on
+        // http(s) pages would silently disable it here (the empty/"null" origins are indistinguishable
+        // from an opaque page unless the attacker's http(s) origin is compared regardless of page).
+        {
+            host: 'cross-origin attacker on an opaque-origin host page (Eclipse/Windows)',
+            pageOrigin: 'null',
+            eventOrigin: 'https://attacker.example.com',
+            accepted: false,
+        },
     ]
 
     // Point the globals the chat client reads at a fresh JSDOM served from `pageOrigin`, so the
     // message handler createChat registers closes over that origin. Mirrors injectJSDOM()'s setup.
+    // A `pageOrigin` of 'null' models an opaque host origin (Eclipse/Windows, whose
+    // Browser.setText()-injected page reports origin "null"); about:blank is the URL that yields it.
     function loadHostDom(pageOrigin: string): JSDOM {
-        const dom = new JSDOM('', { url: `${pageOrigin}/`, pretendToBeVisual: true })
+        const url = pageOrigin === 'null' ? 'about:blank' : `${pageOrigin}/`
+        const dom = new JSDOM('', { url, pretendToBeVisual: true })
         global.window = dom.window as unknown as Window & typeof globalThis
         global.document = dom.window.document
         global.self = dom.window as unknown as Window & typeof globalThis
@@ -851,18 +864,29 @@ describe('Chat handleInboundMessage origin validation across host environments',
             clientApi.postMessage.resetHistory() // drop the init messages (ready/tab-add/etc.)
             const warnStub = sandbox.stub(console, 'warn')
 
-            // Unknown command so the accepted path stays out of mynah-ui DOM code (see #2741).
-            dom.window.dispatchEvent(
-                new dom.window.MessageEvent('message', { data: { command: 'noop-test-command' }, origin: eventOrigin })
-            )
+            // Unknown command so the accepted path stays out of mynah-ui DOM code (see #2741) while
+            // still flowing all the way through the origin gate into the command router.
+            const command = 'noop-test-command'
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { command }, origin: eventOrigin }))
 
             if (accepted) {
+                // Passing the origin gate is asserted positively, not just as an absence: the message
+                // reaches the command router, whose default case reports the unknown command exactly
+                // once. An origin regression that silently swallowed the message (returned without a
+                // warning) would fail this — a bare `neverCalled(untrustedOrigin)` would not.
                 assert.notCalled(warnStub)
-                assert.neverCalledWithMatch(clientApi.postMessage, {
+                assert.calledOnceWithExactly(clientApi.postMessage, {
                     command: TELEMETRY,
-                    params: { name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT, reason: 'untrustedOrigin' },
+                    params: {
+                        name: CHAT_POST_MESSAGE_REJECTED_TELEMETRY_EVENT,
+                        reason: 'unknownCommand',
+                        command,
+                        tabId: undefined,
+                    },
                 })
             } else {
+                // Rejected at the origin gate: the warning fires and the drop is recorded once as an
+                // untrustedOrigin event; the command never reaches the router (reason is not unknownCommand).
                 assert.called(warnStub)
                 assert.calledOnceWithExactly(clientApi.postMessage, {
                     command: TELEMETRY,
