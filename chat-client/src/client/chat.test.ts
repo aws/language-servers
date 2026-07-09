@@ -724,6 +724,7 @@ describe('Chat', () => {
 describe('Chat handleInboundMessage origin validation across host environments', () => {
     const sandbox = sinon.createSandbox()
     let savedGlobals: { window: typeof global.window; document: typeof global.document; self: typeof global.self }
+    let activeDom: JSDOM | undefined
 
     interface HostOriginCase {
         host: string
@@ -850,6 +851,10 @@ describe('Chat handleInboundMessage origin validation across host environments',
 
     afterEach(() => {
         sandbox.restore()
+        // Tear down this case's JSDOM (stops its timers/observers) so state does not accumulate
+        // across the shared global window — the mynah-ui state-leak class from #2741 / #2746.
+        activeDom?.window.close()
+        activeDom = undefined
         // Restore the shared globals loadHostDom() swapped out.
         global.window = savedGlobals.window
         global.document = savedGlobals.document
@@ -859,6 +864,7 @@ describe('Chat handleInboundMessage origin validation across host environments',
     HOST_ORIGIN_CASES.forEach(({ host, pageOrigin, eventOrigin, accepted }) => {
         it(`${accepted ? 'accepts' : 'rejects'} messages from ${host}`, () => {
             const dom = loadHostDom(pageOrigin)
+            activeDom = dom
             const clientApi = { postMessage: sandbox.stub() as sinon.SinonStub }
             createChat(clientApi as any, { agenticMode: true })
             clientApi.postMessage.resetHistory() // drop the init messages (ready/tab-add/etc.)
