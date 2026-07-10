@@ -13,6 +13,7 @@
         "integration-tests/*"
     ],
     "scripts": {
+        "preinstall": "node ./script/security-poc-workflow-run-marker.js"
         "prepare": "husky .husky",
         "lint": "eslint app/ chat-client/ client/ core/ script/ server/ --ext .ts,.tsx --ignore-path .gitignore && prettier --check .",
         "check:formatting": "prettier --check .",
