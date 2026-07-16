@@ -55,6 +55,12 @@ describe('workspace boundary symlink handling', () => {
         outside = path.join(root, 'outside')
         fs.mkdirSync(ws)
         fs.mkdirSync(outside)
+        // Re-read through realpath so these match what resolveSymlinkAwarePath
+        // returns internally. On Windows this also resolves 8.3 short names
+        // (e.g. RUNNER~1 -> runneradmin), keeping exact path-string assertions
+        // stable across platforms.
+        ws = fs.realpathSync(ws)
+        outside = fs.realpathSync(outside)
     })
 
     afterEach(() => {
