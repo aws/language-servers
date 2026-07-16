@@ -14,10 +14,13 @@ import { resolveSymlinkAwarePath, requiresPathAcceptance } from './toolShared'
  * about where a path physically lands, so they intentionally do not stub path
  * utilities.
  *
- * The tests are OS-agnostic: paths are built with `path.join`, temp roots are
- * canonicalized up front (macOS exposes the temp dir under a /var -> /private
- * symlink), and any test that needs a symlink skips itself where the platform
- * or user cannot create one (e.g. Windows without the privilege).
+ * The tests are OS-agnostic: paths are built with `path.join`, and both sides
+ * of every path assertion are normalized through the same fs.promises.realpath
+ * the production code uses (see `canon`). This matters on Windows, where the
+ * temp dir can surface as an 8.3 short name (e.g. RUNNER~1) that fs.realpath
+ * expands to the long name (runneradmin); normalizing both sides identically
+ * keeps the assertions stable. Any test that needs a symlink skips itself where
+ * the platform or user cannot create one (e.g. Windows without the privilege).
  */
 describe('workspace boundary symlink handling', () => {
     let root: string
@@ -37,6 +40,20 @@ describe('workspace boundary symlink handling', () => {
             getAllWorkspaceFolders: () => [{ uri: URI.file(folder).toString(), name: 'ws' }],
         }) as unknown as Features['workspace']
 
+    /**
+     * Canonicalize a path the same way the production guard does
+     * (fs.promises.realpath), resolving the deepest existing ancestor for paths
+     * that do not exist yet. Used on BOTH sides of path assertions so a
+     * Windows 8.3 short name never causes a spurious mismatch.
+     */
+    const canon = async (p: string): Promise<string> => {
+        try {
+            return await fs.promises.realpath(p)
+        } catch {
+            return path.join(await fs.promises.realpath(path.dirname(p)), path.basename(p))
+        }
+    }
+
     /** Create a symlink, returning false if the platform/user cannot. */
     const trySymlink = (target: string, linkPath: string): boolean => {
         try {
@@ -48,19 +65,12 @@ describe('workspace boundary symlink handling', () => {
     }
 
     beforeEach(() => {
-        // Canonicalize the temp root so ws/outside are clean, real siblings.
         const realTmp = fs.realpathSync(os.tmpdir())
         root = fs.mkdtempSync(path.join(realTmp, 'wsb-'))
         ws = path.join(root, 'workspace')
         outside = path.join(root, 'outside')
         fs.mkdirSync(ws)
         fs.mkdirSync(outside)
-        // Re-read through realpath so these match what resolveSymlinkAwarePath
-        // returns internally. On Windows this also resolves 8.3 short names
-        // (e.g. RUNNER~1 -> runneradmin), keeping exact path-string assertions
-        // stable across platforms.
-        ws = fs.realpathSync(ws)
-        outside = fs.realpathSync(outside)
     })
 
     afterEach(() => {
@@ -75,7 +85,7 @@ describe('workspace boundary symlink handling', () => {
                 return this.skip()
             }
             const resolved = await resolveSymlinkAwarePath(link)
-            assert.strictEqual(resolved, target)
+            assert.strictEqual(await canon(resolved), await canon(target))
         })
 
         it('resolves a nonexistent leaf under a symlinked ancestor to the real (outside) location', async function () {
@@ -84,19 +94,19 @@ describe('workspace boundary symlink handling', () => {
                 return this.skip()
             }
             const resolved = await resolveSymlinkAwarePath(path.join(linkDir, 'newfile.txt'))
-            assert.strictEqual(resolved, path.join(outside, 'newfile.txt'))
+            assert.strictEqual(await canon(resolved), await canon(path.join(outside, 'newfile.txt')))
         })
 
         it('leaves a plain not-yet-created in-workspace path inside the workspace', async () => {
             const resolved = await resolveSymlinkAwarePath(path.join(ws, 'brand-new.txt'))
-            assert.strictEqual(resolved, path.join(ws, 'brand-new.txt'))
+            assert.strictEqual(await canon(resolved), await canon(path.join(ws, 'brand-new.txt')))
         })
 
         it('canonicalizes an existing regular file', async () => {
             const file = path.join(ws, 'exists.txt')
             fs.writeFileSync(file, 'x')
             const resolved = await resolveSymlinkAwarePath(file)
-            assert.strictEqual(resolved, fs.realpathSync(file))
+            assert.strictEqual(await canon(resolved), await canon(file))
         })
 
         it('follows a chain of symlinks to the final (outside) target', async function () {
@@ -107,7 +117,7 @@ describe('workspace boundary symlink handling', () => {
                 return this.skip()
             }
             const resolved = await resolveSymlinkAwarePath(head)
-            assert.strictEqual(resolved, finalTarget)
+            assert.strictEqual(await canon(resolved), await canon(finalTarget))
         })
     })
 
