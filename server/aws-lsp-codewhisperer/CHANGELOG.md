@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.123](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.122...lsp-codewhisperer/v0.0.123) (2026-07-23)
+
+
+### Bug Fixes
+
+* canonicalize symlinks (including dangling links) in workspace boundary check ([#2787](https://github.com/aws/language-servers/issues/2787)) ([b15d04e](https://github.com/aws/language-servers/commit/b15d04e05d7248864c72f4209c4a19baee9b7dda))
+
 ## [0.0.122](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.121...lsp-codewhisperer/v0.0.122) (2026-07-09)
 
 
