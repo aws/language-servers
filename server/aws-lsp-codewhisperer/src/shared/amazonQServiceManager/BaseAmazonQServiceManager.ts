@@ -8,6 +8,7 @@ import {
     SDKInitializator,
     UpdateConfigurationParams,
     Workspace,
+    Notification,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import {
@@ -26,6 +27,12 @@ export interface QServiceManagerFeatures {
     sdkInitializator: SDKInitializator
     workspace: Workspace
     atxCredentialsProvider?: CredentialsProvider
+    /**
+     * Optional so that existing constructors of this type (including tests that build a partial
+     * features object) keep compiling unchanged. Servers pass the full runtime `Features`, which always
+     * includes it; when it is absent the features that depend on it simply stay inert.
+     */
+    notification?: Notification
 }
 
 export type AmazonQBaseServiceManager = BaseAmazonQServiceManager<CodeWhispererServiceBase, StreamingClientServiceBase>
