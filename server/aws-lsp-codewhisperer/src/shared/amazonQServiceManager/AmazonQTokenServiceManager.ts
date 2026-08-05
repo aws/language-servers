@@ -10,6 +10,7 @@ import {
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { createQDevAccessBlockedNotifier } from '../qDevAccessBlockedNotifier'
 import {
     AmazonQError,
     AmazonQServiceAlreadyInitializedError,
@@ -596,6 +597,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         service.customizationArn = this.configurationCache.getProperty('customizationArn')
         service.profileArn = this.activeIdcProfile?.arn
+        if (this.features.notification) {
+            service.onAccessBlocked = createQDevAccessBlockedNotifier(this.features.notification, this.features.logging)
+        }
         service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
             'shareCodeWhispererContentWithAWS'
         )
