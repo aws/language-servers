@@ -19,7 +19,7 @@ const LOGGING_PREFIX = '[AMAZON Q SERVER]: '
 
 export const AmazonQServiceServerFactory =
     (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
-    ({ credentialsProvider, lsp, workspace, logging, runtime, sdkInitializator }) => {
+    ({ credentialsProvider, lsp, workspace, logging, runtime, sdkInitializator, notification }) => {
         let amazonQServiceManager: AmazonQBaseServiceManager
 
         const log = (message: string) => {
@@ -39,6 +39,11 @@ export const AmazonQServiceServerFactory =
                 logging,
                 runtime,
                 sdkInitializator,
+                // Required for the service manager to be able to surface anything to the client. It is
+                // optional on QServiceManagerFeatures so that existing constructions (including test
+                // fixtures) keep compiling, which means omitting it here does not fail the build -- it
+                // just silently disables client-facing reporting.
+                notification,
             })
 
             /*
