@@ -6,6 +6,7 @@ import {
     CancellationToken,
     CredentialsType,
     InitializeParams,
+    PartialInitializeResult,
     Server,
     UpdateConfigurationParams,
 } from '@aws/language-server-runtimes/server-interface'
@@ -41,6 +42,24 @@ describe('AmazonQServiceServer', () => {
 
         features.doSendInitializeRequest({} as InitializeParams, {} as CancellationToken)
         sinon.assert.calledOnce(initBaseTestServiceManagerSpy)
+    })
+
+    it('declares serverInfo so the runtime can deliver notifications to the client', async () => {
+        server(features)
+
+        // Invoke the registered initializer directly: doSendInitializeRequest returns void, so the
+        // result is only reachable through the handler the server registered.
+        const initializer = features.lsp.addInitializer.args[0]?.[0]
+        const result = (await initializer({} as InitializeParams, {} as CancellationToken)) as PartialInitializeResult
+
+        // The runtime only builds a notification router for servers that declare serverInfo, and
+        // notification.showNotification() is a silent no-op without one. Dropping this makes every
+        // server-initiated notification disappear with nothing but a debug line to show for it.
+        //
+        // The name is asserted exactly because it is not cosmetic: it is encoded into the id of each
+        // notification the client sends back, so renaming it strands followups for notifications
+        // already on screen.
+        expect(result.serverInfo?.name).to.equal('AWS Language Server for Amazon Q Developer')
     })
 
     it('hooks handleDidChangeConfiguration to didChangeConfiguration and onInitialized handlers', async () => {

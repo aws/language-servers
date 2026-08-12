@@ -76,6 +76,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private region?: string
     private endpoint?: string
     private regionChangeListeners: Array<(region: string) => void> = []
+    private cachedQDevAccessBlockedNotifier?: (error: unknown) => void
 
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
@@ -525,12 +526,34 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.cachedStreamingClient
     }
 
+    /**
+     * One notifier shared by the token and streaming clients, so a blocked identity produces a single
+     * notification regardless of which client observes it first (the notifier dedupes per instance).
+     *
+     * Deliberately scoped to the current service generation and cleared by
+     * {@link resetCodewhispererService}: signing out and back in with another blocked identity must
+     * notify again, which a manager-lifetime notifier would suppress.
+     */
+    private getQDevAccessBlockedNotifier(): ((error: unknown) => void) | undefined {
+        if (!this.features.notification) {
+            return undefined
+        }
+
+        this.cachedQDevAccessBlockedNotifier ??= createQDevAccessBlockedNotifier(
+            this.features.notification,
+            this.features.logging
+        )
+
+        return this.cachedQDevAccessBlockedNotifier
+    }
+
     private resetCodewhispererService() {
         this.logging.log('Resetting Q-only services')
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
         this.cachedStreamingClient?.abortInflightRequests()
         this.cachedStreamingClient = undefined
+        this.cachedQDevAccessBlockedNotifier = undefined
         this.activeIdcProfile = undefined
         this.region = undefined
         this.endpoint = undefined
@@ -597,9 +620,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         service.customizationArn = this.configurationCache.getProperty('customizationArn')
         service.profileArn = this.activeIdcProfile?.arn
-        if (this.features.notification) {
-            service.onAccessBlocked = createQDevAccessBlockedNotifier(this.features.notification, this.features.logging)
-        }
+        service.onAccessBlocked = this.getQDevAccessBlockedNotifier()
         service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
             'shareCodeWhispererContentWithAWS'
         )
@@ -638,6 +659,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             endpoint,
             this.getCustomUserAgent()
         )
+        // Chat runs through the streaming client, so it needs the same observer as the token client --
+        // otherwise a blocked identity goes unnoticed unless some other client happens to be called.
+        streamingClient.onAccessBlocked = this.getQDevAccessBlockedNotifier()
         streamingClient.profileArn = this.activeIdcProfile?.arn
         streamingClient.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
             'shareCodeWhispererContentWithAWS'

@@ -63,6 +63,14 @@ export const AmazonQServiceServerFactory =
             return {
                 capabilities: {},
                 awsServerCapabilities: {},
+                // Required for anything to reach the client through the notification feature. The
+                // runtime only builds a notification router when a server declares serverInfo, and
+                // showNotification is a silent no-op without one. Not exposed to clients; it is used
+                // internally to route notification followups back to the originating server, so the
+                // name must stay stable.
+                serverInfo: {
+                    name: 'AWS Language Server for Amazon Q Developer',
+                },
             }
         })
 
