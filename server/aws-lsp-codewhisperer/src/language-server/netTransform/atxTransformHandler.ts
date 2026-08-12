@@ -1549,7 +1549,9 @@ export class ATXTransformHandler {
                 this.logging.log(
                     `ATX: local-build-verification HITL — returning tag for IDE to handle | stepId=${lbvStepId ?? '<none>'}`
                 )
-                return { HitlTag: hitlTag, TaskId: hitl.taskId, StepId: lbvStepId }
+                return lbvStepId !== undefined
+                    ? { HitlTag: hitlTag, TaskId: hitl.taskId, StepId: lbvStepId }
+                    : { HitlTag: hitlTag, TaskId: hitl.taskId }
             }
 
             // If no agent artifact, return tag and taskId without downloading
