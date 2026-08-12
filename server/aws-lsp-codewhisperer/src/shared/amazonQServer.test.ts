@@ -10,8 +10,14 @@ import {
     Server,
     UpdateConfigurationParams,
 } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQServiceServerFactory } from './amazonQServer'
+import {
+    AMAZON_Q_SERVICE_SERVER_IAM_NAME,
+    AMAZON_Q_SERVICE_SERVER_TOKEN_NAME,
+    AmazonQServiceServerFactory,
+} from './amazonQServer'
 import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
+
+const TEST_SERVER_NAME = 'Test Amazon Q Server'
 
 describe('AmazonQServiceServer', () => {
     let features: TestFeatures
@@ -24,7 +30,7 @@ describe('AmazonQServiceServer', () => {
         initBaseTestServiceManagerSpy = sinon.spy(initBaseTestServiceManager)
 
         TestAmazonQServiceManager.resetInstance()
-        server = AmazonQServiceServerFactory(() => initBaseTestServiceManagerSpy(features))
+        server = AmazonQServiceServerFactory(() => initBaseTestServiceManagerSpy(features), TEST_SERVER_NAME)
     })
 
     afterEach(() => {
@@ -53,13 +59,22 @@ describe('AmazonQServiceServer', () => {
         const result = (await initializer({} as InitializeParams, {} as CancellationToken)) as PartialInitializeResult
 
         // The runtime only builds a notification router for servers that declare serverInfo, and
-        // notification.showNotification() is a silent no-op without one. Dropping this makes every
-        // server-initiated notification disappear with nothing but a debug line to show for it.
-        //
-        // The name is asserted exactly because it is not cosmetic: it is encoded into the id of each
-        // notification the client sends back, so renaming it strands followups for notifications
-        // already on screen.
-        expect(result.serverInfo?.name).to.equal('AWS Language Server for Amazon Q Developer')
+        // notification.showNotification() is a silent no-op without one.
+        expect(result.serverInfo?.name).to.equal(TEST_SERVER_NAME)
+    })
+
+    it('gives the IAM and token servers distinct serverInfo names', () => {
+        // Regression guard. Runtimes such as agent-standalone register BOTH of these servers, and the
+        // runtime rejects initialize with `Duplicate servers defined` when two servers report the same
+        // name -- which fails the entire language server, not just the duplicate. A shared name here
+        // made every such runtime fall back to whatever server the client had bundled, visible only as
+        // a client-side warning, so Q kept working while silently running a different server.
+        const names = [AMAZON_Q_SERVICE_SERVER_IAM_NAME, AMAZON_Q_SERVICE_SERVER_TOKEN_NAME]
+
+        for (const name of names) {
+            expect(name).to.be.a('string').and.not.empty
+        }
+        expect(new Set(names).size, `server names must be unique: ${names.join(', ')}`).to.equal(names.length)
     })
 
     it('hooks handleDidChangeConfiguration to didChangeConfiguration and onInitialized handlers', async () => {
@@ -130,7 +145,7 @@ describe('AmazonQServiceServer', () => {
             throw new Error('Service manager initialization failed')
         }
 
-        const errorServer = AmazonQServiceServerFactory(errorFactory)
+        const errorServer = AmazonQServiceServerFactory(errorFactory, TEST_SERVER_NAME)
 
         expect(() => {
             errorServer(features)

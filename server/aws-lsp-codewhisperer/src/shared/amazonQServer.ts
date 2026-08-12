@@ -17,8 +17,15 @@ import {
 
 const LOGGING_PREFIX = '[AMAZON Q SERVER]: '
 
+/**
+ * @param serverName Value for the server's `serverInfo.name`. Required, and required to be unique
+ * across every server registered in the same runtime: the runtime rejects `initialize` outright with
+ * `Duplicate servers defined` if two servers report the same name, which takes down the whole language
+ * server rather than the offending one. This factory is instantiated more than once per runtime (IAM
+ * and token), so a shared constant here breaks every bundle that registers both.
+ */
 export const AmazonQServiceServerFactory =
-    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager): Server =>
+    (serviceManager: (features: QServiceManagerFeatures) => AmazonQBaseServiceManager, serverName: string): Server =>
     ({ credentialsProvider, lsp, workspace, logging, runtime, sdkInitializator, notification }) => {
         let amazonQServiceManager: AmazonQBaseServiceManager
 
@@ -69,7 +76,7 @@ export const AmazonQServiceServerFactory =
                 // internally to route notification followups back to the originating server, so the
                 // name must stay stable.
                 serverInfo: {
-                    name: 'AWS Language Server for Amazon Q Developer',
+                    name: serverName,
                 },
             }
         })
@@ -123,5 +130,18 @@ export const AmazonQServiceServerFactory =
         return () => {}
     }
 
-export const AmazonQServiceServerIAM = AmazonQServiceServerFactory(initBaseIAMServiceManager)
-export const AmazonQServiceServerToken = AmazonQServiceServerFactory(initBaseTokenServiceManager)
+// Must stay distinct from each other, and from every other server registered in the same runtime, or
+// the runtime fails initialize with `Duplicate servers defined`. Must also stay stable over time: they
+// are encoded into the id of every notification the client echoes back, so renaming strands followups
+// for notifications already on screen. Exported so the uniqueness can be asserted in tests.
+export const AMAZON_Q_SERVICE_SERVER_IAM_NAME = 'AWS Language Server for Amazon Q Developer (IAM)'
+export const AMAZON_Q_SERVICE_SERVER_TOKEN_NAME = 'AWS Language Server for Amazon Q Developer (Token)'
+
+export const AmazonQServiceServerIAM = AmazonQServiceServerFactory(
+    initBaseIAMServiceManager,
+    AMAZON_Q_SERVICE_SERVER_IAM_NAME
+)
+export const AmazonQServiceServerToken = AmazonQServiceServerFactory(
+    initBaseTokenServiceManager,
+    AMAZON_Q_SERVICE_SERVER_TOKEN_NAME
+)
