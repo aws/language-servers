@@ -238,6 +238,15 @@ describe('AmazonQTokenServiceManager', () => {
             assert(codewhispererServiceStub.generateSuggestions.calledOnce)
         })
 
+        it('gives the streaming client an access-blocked observer', async () => {
+            const streamingClient = amazonQTokenServiceManager.getStreamingClient()
+
+            // Chat runs through the streaming client, so without this it is the one surface where a
+            // blocked identity shows up and the one place nothing observes it. The token client is
+            // a stub in this harness, so only the streaming side is asserted here.
+            assert.strictEqual(typeof streamingClient.onAccessBlocked, 'function')
+        })
+
         it('should initialize service with region set by client', async () => {
             features.setClientParams({
                 processId: 0,
