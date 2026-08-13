@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.124](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.123...lsp-codewhisperer/v0.0.124) (2026-08-13)
+
+
+### Features
+
+* **amazonq:** surface Q Developer plugin access-blocked rejections to the client ([#2794](https://github.com/aws/language-servers/issues/2794)) ([724f629](https://github.com/aws/language-servers/commit/724f62909ef16e750f52f5ba8b570b42b8bf00c8))
+* scope local build verification to the loaded beamed repo and add beam discovery/download ([#2798](https://github.com/aws/language-servers/issues/2798)) ([49867d7](https://github.com/aws/language-servers/commit/49867d7d2d3c93a5ac9472aaac33b0a26c23cf00))
+
+
+### Bug Fixes
+
+* **amazonq:** deliver Q Developer access-blocked notifications to the client ([#2800](https://github.com/aws/language-servers/issues/2800)) ([5e92430](https://github.com/aws/language-servers/commit/5e924300c371f36df57994b56666e96b5b5b0c1d))
+
 ## [0.0.123](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.122...lsp-codewhisperer/v0.0.123) (2026-07-23)
 
 
