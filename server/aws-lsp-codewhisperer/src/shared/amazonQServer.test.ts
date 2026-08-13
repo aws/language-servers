@@ -14,6 +14,8 @@ import {
     AMAZON_Q_SERVICE_SERVER_IAM_NAME,
     AMAZON_Q_SERVICE_SERVER_TOKEN_NAME,
     AmazonQServiceServerFactory,
+    AmazonQServiceServerIAM,
+    AmazonQServiceServerToken,
 } from './amazonQServer'
 import { BaseAmazonQServiceManager } from './amazonQServiceManager/BaseAmazonQServiceManager'
 
@@ -63,17 +65,39 @@ describe('AmazonQServiceServer', () => {
         expect(result.serverInfo?.name).to.equal(TEST_SERVER_NAME)
     })
 
-    it('gives the IAM and token servers distinct serverInfo names', () => {
-        // Regression guard. Runtimes such as agent-standalone register BOTH of these servers, and the
-        // runtime rejects initialize with `Duplicate servers defined` when two servers report the same
-        // name -- which fails the entire language server, not just the duplicate. A shared name here
-        // made every such runtime fall back to whatever server the client had bundled, visible only as
-        // a client-side warning, so Q kept working while silently running a different server.
-        const names = [AMAZON_Q_SERVICE_SERVER_IAM_NAME, AMAZON_Q_SERVICE_SERVER_TOKEN_NAME]
+    it('gives the IAM and token servers distinct serverInfo names', async () => {
+        // Regression guard, asserted against the real exported servers rather than the constants, so
+        // it also catches the same name being passed to both factory calls.
+        //
+        // Runtimes such as agent-standalone register BOTH of these servers, and the runtime rejects
+        // initialize with `Duplicate servers defined` when two servers report the same name -- which
+        // fails the entire language server, not just the duplicate. A shared name here made every such
+        // runtime fall back to whatever server the client had bundled, visible only as a client-side
+        // warning, so Q kept working while silently running a different server.
+        const names: (string | undefined)[] = []
 
-        for (const name of names) {
-            expect(name).to.be.a('string').and.not.empty
+        for (const qServer of [AmazonQServiceServerIAM, AmazonQServiceServerToken]) {
+            const serverFeatures = new TestFeatures()
+            try {
+                // The service managers refuse to initialize before the LSP connection has, so the
+                // client params have to be in place before the initializer runs.
+                serverFeatures.setClientParams({} as InitializeParams)
+                qServer(serverFeatures)
+
+                const initializer = serverFeatures.lsp.addInitializer.args[0]?.[0]
+                const result = (await initializer(
+                    {} as InitializeParams,
+                    {} as CancellationToken
+                )) as PartialInitializeResult
+
+                names.push(result.serverInfo?.name)
+            } finally {
+                serverFeatures.dispose()
+                TestAmazonQServiceManager.resetInstance()
+            }
         }
+
+        expect(names).to.deep.equal([AMAZON_Q_SERVICE_SERVER_IAM_NAME, AMAZON_Q_SERVICE_SERVER_TOKEN_NAME])
         expect(new Set(names).size, `server names must be unique: ${names.join(', ')}`).to.equal(names.length)
     })
 
