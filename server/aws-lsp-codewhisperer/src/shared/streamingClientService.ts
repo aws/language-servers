@@ -163,6 +163,10 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             },
             {
                 step: 'initialize',
+                // Named so a second registration replaces this one rather than stacking another
+                // observer, and so the middleware is identifiable in SDK stack introspection. Matches
+                // the token client's registration.
+                name: 'detectQDevPluginAccessBlocked',
             }
         )
     }
