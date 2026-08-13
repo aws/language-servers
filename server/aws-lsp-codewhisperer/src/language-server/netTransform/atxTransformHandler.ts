@@ -2001,10 +2001,18 @@ export class ATXTransformHandler {
                     // Plan not available yet
                 }
 
-                // Check for pending HITL tasks (e.g. missing packages) - job stays in PLANNING while HITL is pending
+                // Check for pending HITL tasks (e.g. missing packages) - job stays in PLANNING while HITL is pending.
+                // Beam multi-repo: several repos can have a pending LBV HITL at once; prefer the loaded repo's
+                // in-scope one (parity with AWAITING_HUMAN_INPUT). No-op when scope is empty, so non-beam is unchanged.
                 const hitls = await this.listHitls(request.WorkspaceId, request.TransformationJobId)
                 if (hitls && hitls.length > 0) {
+                    const planScopeStepIds = (request.beamScopeStepIds || '')
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0)
+                    const { scopedLbv: scopedPlanLbv } = this.selectScopedLbvHitl(hitls, planScopeStepIds)
                     const hitl =
+                        scopedPlanLbv ||
                         hitls.find(h => h.tag === 'local-build-verification') ||
                         hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
                         hitls[0]
@@ -2036,8 +2044,11 @@ export class ATXTransformHandler {
                     }
                     if (hitl.tag === 'local-build-verification') {
                         this.jobsPastLocalBuild.add(request.TransformationJobId)
+                        // Forward the HITL's plan-step id so a multi-repo beam IDE can confirm this LBV
+                        // belongs to the loaded repo (parity with AWAITING_HUMAN_INPUT). Undefined when absent.
+                        const planLbvStepId = this.getStepId(hitl)
                         this.logging.log(
-                            `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                            `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId} stepId=${planLbvStepId ?? '<none>'}; surfacing AWAITING_HUMAN_INPUT to IDE`
                         )
                         return {
                             TransformationJob: {
@@ -2047,6 +2058,7 @@ export class ATXTransformHandler {
                             } as AtxTransformationJob,
                             HitlTag: hitl.tag,
                             HitlTaskId: hitl.taskId,
+                            StepInformation: planLbvStepId ? { StepId: planLbvStepId } : undefined,
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
                     }
