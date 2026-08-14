@@ -2010,12 +2010,37 @@ export class ATXTransformHandler {
                         .split(',')
                         .map(s => s.trim())
                         .filter(s => s.length > 0)
-                    const { scopedLbv: scopedPlanLbv } = this.selectScopedLbvHitl(hitls, planScopeStepIds)
+                    const { scopedLbv: scopedPlanLbv, allOutOfScopeLbv: planAllOutOfScopeLbv } =
+                        this.selectScopedLbvHitl(hitls, planScopeStepIds)
+                    // Beam multi-repo parity with EXECUTING / getHitlAgentArtifact: if scope is set and every
+                    // pending HITL is a sibling repo's LBV (none in the loaded repo's subtree), do NOT surface a
+                    // sibling's LBV — return plan-only. Prevents handing the IDE another repo's build HITL.
+                    if (planScopeStepIds.length > 0 && planAllOutOfScopeLbv) {
+                        this.logging.log(
+                            'ATX: PLANNING job — all pending HITLs are sibling-repo LBV (none in loaded scope); not surfacing'
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: jobStatus,
+                            } as AtxTransformationJob,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // When scope is set but no in-scope LBV matched, drop out-of-scope LBVs from the fallback
+                    // pool so the plain find() below can't select a sibling's LBV (mixed pending-set case).
+                    const planFallbackPool =
+                        planScopeStepIds.length > 0 && !scopedPlanLbv
+                            ? hitls.filter(h => h.tag !== 'local-build-verification')
+                            : hitls
                     const hitl =
                         scopedPlanLbv ||
-                        hitls.find(h => h.tag === 'local-build-verification') ||
-                        hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
-                        hitls[0]
+                        planFallbackPool.find(h => h.tag === 'local-build-verification') ||
+                        planFallbackPool.find(
+                            h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl'
+                        ) ||
+                        planFallbackPool[0]
                     this.logging.log(`ATX: Found HITL task - tag: ${hitl.tag}, hasArtifact: ${!!hitl.agentArtifact}`)
                     // For missing packages HITL, try to download artifact if available
                     if (hitl.tag === 'handle_missing_packages_hitl' || hitl.tag === 'missing-packages') {
