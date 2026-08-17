@@ -842,11 +842,6 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Normalize a beam-map repo item into the PascalCase shape the C# IDE consumes,
-     * tolerant of key-name variants from the web writer (repoName/repo/name,
-     * artifactId/beamArtifactId, stepId/planStepId, targetFramework/tfm).
-     */
-    /**
      * The wire contract with the web orchestrator / FES is not yet pinned to a single
      * spelling: a plan-step / HITL id arrives as stepId, planStepId, or parentStepId
      * depending on the source. Centralize the coalescing here so every call site stays
@@ -855,7 +850,9 @@ export class ATXTransformHandler {
      */
     private getStepId(obj: any): string | undefined {
         if (obj == null || typeof obj !== 'object') return undefined
-        return obj.stepId ?? obj.planStepId ?? obj.parentStepId ?? undefined
+        // Use || (not ??) so an empty-string id falls through to the next spelling; an empty
+        // stepId must not short-circuit coalescing and then fail every scope match.
+        return obj.stepId || obj.planStepId || obj.parentStepId || undefined
     }
 
     /**
@@ -879,6 +876,11 @@ export class ATXTransformHandler {
         return { scopedLbv, allOutOfScopeLbv }
     }
 
+    /**
+     * Normalize a beam-map repo item into the PascalCase shape the C# IDE consumes,
+     * tolerant of key-name variants from the web writer (repoName/repo/name,
+     * artifactId/beamArtifactId, stepId/planStepId, targetFramework/tfm).
+     */
     private normalizeBeamRepo(r: BeamMapRepo | null | undefined): Omit<BeamedRepoInfo, 'IsLbvOpen'> {
         const o: BeamMapRepo = r || {}
         return {
