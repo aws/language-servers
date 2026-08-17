@@ -4668,7 +4668,10 @@ export class AgenticChatController implements ChatHandlers {
             cwsprChatResponseLength: chatEventParser.body?.length ?? 0,
         })
 
-        return chatEventParser.getResult()
+        // Use finalize() (not getResult()) so a tool use whose stream ended before its
+        // terminating `stop` event is surfaced as an incomplete-input error and retried,
+        // rather than being silently dropped and reported as a successful turn.
+        return chatEventParser.finalize()
     }
 
     /**
