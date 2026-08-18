@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.125](https://github.com/Amazon-Q-Developer/language-servers/compare/lsp-codewhisperer/v0.0.124...lsp-codewhisperer/v0.0.125) (2026-08-18)
+
+
+### Features
+
+* **amazonq:** initialize Q services when credentials arrive ([#2840](https://github.com/Amazon-Q-Developer/language-servers/issues/2840)) ([4e0d3b0](https://github.com/Amazon-Q-Developer/language-servers/commit/4e0d3b0d69e0aa7a230f64a1b168a09bcfd4b7cd))
+
+
+### Bug Fixes
+
+* **amazonq:** retry truncated tool-use streams instead of dropping them silently ([#2841](https://github.com/Amazon-Q-Developer/language-servers/issues/2841)) ([368a099](https://github.com/Amazon-Q-Developer/language-servers/commit/368a099cc9b5cc3cf7bb1f2298718824a1ab1118))
+* repoint CODEOWNERS and package repository URLs to the new org ([#2838](https://github.com/Amazon-Q-Developer/language-servers/issues/2838)) ([43e44dc](https://github.com/Amazon-Q-Developer/language-servers/commit/43e44dc5af94703f51456cd8a913f0d61af7570e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.21 to ^0.0.22
+
 ## [0.0.124](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.123...lsp-codewhisperer/v0.0.124) (2026-08-13)
 
 
