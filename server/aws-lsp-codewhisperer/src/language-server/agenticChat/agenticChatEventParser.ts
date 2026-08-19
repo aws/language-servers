@@ -229,42 +229,4 @@ export class AgenticChatEventParser implements ChatResult {
                   data: chatResultWithMetadata,
               }
     }
-
-    /**
-     * Finalizes parsing after the response stream has been fully consumed.
-     *
-     * A tool use only becomes executable once its terminating `stop` event arrives — that
-     * is also the only point at which its streamed input is JSON-parsed. If the stream ends
-     * before that event (for example, the response reaches the output-token limit mid
-     * tool-input), the tool use is left with `stop === false` and no error is recorded, so
-     * `getResult()` reports success. The agentic loop then filters it out (only stopped tool
-     * uses are treated as pending) and completes the turn without ever running the tool — a
-     * silent no-op with no error and no retry.
-     *
-     * To avoid that, treat any still-unstopped tool use as incomplete/truncated input:
-     * record an error (reusing the malformed-JSON prefix so it is handled by the existing
-     * recovery branch) and mark it `stop` so it survives the pending-tool-use filter and the
-     * model is re-prompted to split the work into smaller tool uses.
-     */
-    public finalize(): Result<ChatResultWithMetadata, string> {
-        for (const toolUseId of Object.keys(this.toolUses)) {
-            const toolUse = this.toolUses[toolUseId]
-            if (!toolUse.stop) {
-                const received = typeof toolUse.input === 'string' ? toolUse.input.length : 0
-                this.#logging.error(
-                    `ToolUse ${toolUseId} (${toolUse.name}) stream ended before a stop event after ${received} characters; input was truncated`
-                )
-                // Reuse the malformed-JSON error prefix so this routes into the same recovery
-                // branch in the agentic loop. Keep the message short so the (potentially very
-                // large) partial input is not echoed back to the model in the tool result.
-                this.error = `ToolUse input is invalid JSON: incomplete tool input, stream ended after ${received} characters before completion.`
-                this.toolUses[toolUseId] = {
-                    ...toolUse,
-                    input: {},
-                    stop: true,
-                }
-            }
-        }
-        return this.getResult()
-    }
 }
