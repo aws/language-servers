@@ -356,4 +356,42 @@ describe('AgenticChatEventParser', () => {
         assert.strictEqual(result.data?.toolUses['tool-1'].stop, true)
         assert.deepStrictEqual(result.data?.toolUses['tool-1'].input, { path: 'out.py', fileText: 'print(1)' })
     })
+
+    it('finalize does not flag an unterminated tool use when no input was received', () => {
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
+
+        // The model announced a tool use but never streamed any input before the stream ended.
+        // There is nothing to truncate, so this must be dropped rather than retried.
+        chatEventParser.processPartialEvent({
+            toolUseEvent: {
+                toolUseId: 'tool-1',
+                name: 'fsWrite',
+                input: '',
+                stop: false,
+            },
+        })
+
+        const result = chatEventParser.finalize()
+        assert.strictEqual(result.success, true)
+        assert.strictEqual(result.data?.toolUses['tool-1'].stop, false)
+    })
+
+    it('finalize does not flag an unterminated tool use when the request was aborted', () => {
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
+
+        chatEventParser.processPartialEvent({
+            toolUseEvent: {
+                toolUseId: 'tool-1',
+                name: 'fsWrite',
+                input: '{"path":"out.py","fileText":"import os',
+                stop: false,
+            },
+        })
+
+        // An aborted request (response-processing timeout or cancellation) is expected to end
+        // without a stop event, so it must not be reported as a truncated tool input.
+        const result = chatEventParser.finalize({ aborted: true })
+        assert.strictEqual(result.success, true)
+        assert.strictEqual(result.data?.toolUses['tool-1'].stop, false)
+    })
 })

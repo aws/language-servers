@@ -180,6 +180,8 @@ import {
     OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
+    INCOMPLETE_TOOL_USE_RETRY_LIMIT_MSG,
+    MAX_INCOMPLETE_TOOL_USE_RETRIES,
     COMPACTION_BODY,
     COMPACTION_HEADER_BODY,
     DEFAULT_MACOS_RUN_SHORTCUT,
@@ -1427,6 +1429,9 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         let currentRequestCount = 0
+        // Number of consecutive responses that produced an incomplete tool-use input. Bounded
+        // so a model that keeps truncating cannot keep the agent loop running indefinitely.
+        let consecutiveIncompleteToolUses = 0
         const pinnedContext = additionalContext?.filter(item => item.pinned)
 
         metric.recordStart()
@@ -1645,6 +1650,8 @@ export class AgenticChatController implements ChatHandlers {
             let toolResults: ToolResult[]
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
+                // A complete tool use was received, so the incomplete-input streak is over.
+                consecutiveIncompleteToolUses = 0
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.processToolUses(
                     pendingToolUses,
@@ -1707,6 +1714,22 @@ export class AgenticChatController implements ChatHandlers {
                     this.#abTestingAllocation?.userVariation
                 )
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
+                    consecutiveIncompleteToolUses++
+                    if (consecutiveIncompleteToolUses > MAX_INCOMPLETE_TOOL_USE_RETRIES) {
+                        // The model has failed to produce a complete tool request several times
+                        // in a row. Retrying again is unlikely to help and would keep the agent
+                        // loop running, so stop and surface a real error to the user instead.
+                        this.#features.logging.error(
+                            `Giving up after ${consecutiveIncompleteToolUses} consecutive incomplete tool uses: ${result.error}`
+                        )
+                        await chatResultStream.updateOngoingProgressResult('Error')
+                        finalResult = {
+                            success: false,
+                            error: INCOMPLETE_TOOL_USE_RETRY_LIMIT_MSG,
+                            data: result.data,
+                        }
+                        break
+                    }
                     content =
                         'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
@@ -4670,8 +4693,10 @@ export class AgenticChatController implements ChatHandlers {
 
         // Use finalize() (not getResult()) so a tool use whose stream ended before its
         // terminating `stop` event is surfaced as an incomplete-input error and retried,
-        // rather than being silently dropped and reported as a successful turn.
-        return chatEventParser.finalize()
+        // rather than being silently dropped and reported as a successful turn. The abort
+        // state is passed in so a timed-out/cancelled request is not misreported as a
+        // truncated tool input.
+        return chatEventParser.finalize({ aborted: abortSignal?.aborted === true })
     }
 
     /**

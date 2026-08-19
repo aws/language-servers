@@ -2,6 +2,13 @@
 export const GENERIC_ERROR_MS = 'An unexpected error occurred, check the logs for more information.'
 export const OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG = 'output exceeds maximum character limit of'
 export const RESPONSE_TIMEOUT_PARTIAL_MSG = 'Response processing timed out after'
+export const INCOMPLETE_TOOL_USE_RETRY_LIMIT_MSG =
+    'Amazon Q could not complete a tool request because its input was cut off repeatedly. Try asking for a smaller change, or generating the content in sections.'
+
+// Retry limits
+// Maximum number of consecutive responses with an incomplete tool-use input that will be
+// retried before giving up and surfacing an error to the user.
+export const MAX_INCOMPLETE_TOOL_USE_RETRIES = 2
 
 // Time Constants
 export const LOADING_THRESHOLD_MS = 2000
