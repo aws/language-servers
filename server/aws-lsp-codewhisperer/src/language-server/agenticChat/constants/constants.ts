@@ -18,8 +18,8 @@ export const MAX_INCOMPLETE_TOOL_USE_RETRIES = 3
 // give-up, which the user does see, as a genuine failure. `result` stays 'Failed' in both cases
 // so raw failure counts remain intact for diagnostics.
 //
-// NOTE: these string values are consumed by ToolkitTelemetryLambda (CloudWatchUtils.kt) to emit a
-// separate EMF counter. Do not rename either value without updating that transform first.
+// NOTE: these string values form part of the telemetry contract and are consumed by a downstream
+// metrics pipeline. Do not rename either value without updating that consumer first.
 export const INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_RETRYING = 'INCOMPLETE_TOOL_USE_RETRYING'
 export const INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_EXHAUSTED = 'INCOMPLETE_TOOL_USE_EXHAUSTED'
 
