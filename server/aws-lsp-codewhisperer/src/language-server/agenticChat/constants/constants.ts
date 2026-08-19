@@ -10,6 +10,19 @@ export const INCOMPLETE_TOOL_USE_RETRY_LIMIT_MSG =
 // retried before giving up and surfacing an error to the user.
 export const MAX_INCOMPLETE_TOOL_USE_RETRIES = 3
 
+// Telemetry reason codes reported on the amazonq_invokeLLM metric.
+//
+// An incomplete tool-use input is retried inside the agent loop and usually recovers within the
+// same user turn, so it is not a user-visible failure. These codes let downstream metrics exclude
+// those transient iterations from per-call success rates while still counting the terminal
+// give-up, which the user does see, as a genuine failure. `result` stays 'Failed' in both cases
+// so raw failure counts remain intact for diagnostics.
+//
+// NOTE: these string values are consumed by ToolkitTelemetryLambda (CloudWatchUtils.kt) to emit a
+// separate EMF counter. Do not rename either value without updating that transform first.
+export const INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_RETRYING = 'INCOMPLETE_TOOL_USE_RETRYING'
+export const INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_EXHAUSTED = 'INCOMPLETE_TOOL_USE_EXHAUSTED'
+
 // Time Constants
 export const LOADING_THRESHOLD_MS = 2000
 export const CLIENT_TIMEOUT_MS = 245_000

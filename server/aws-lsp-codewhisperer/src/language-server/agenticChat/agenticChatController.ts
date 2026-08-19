@@ -182,6 +182,8 @@ import {
     RESPONSE_TIMEOUT_PARTIAL_MSG,
     INCOMPLETE_TOOL_USE_RETRY_LIMIT_MSG,
     MAX_INCOMPLETE_TOOL_USE_RETRIES,
+    INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_RETRYING,
+    INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_EXHAUSTED,
     COMPACTION_BODY,
     COMPACTION_HEADER_BODY,
     DEFAULT_MACOS_RUN_SHORTCUT,
@@ -1696,6 +1698,21 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
+                // Classify the failure *before* emitting telemetry. An incomplete tool-use input is
+                // retried inside this loop and usually recovers within the same user turn, so it is
+                // not a user-visible failure and should not depress a per-call success rate. Because
+                // the retry budget is bounded we already know here whether this iteration will be
+                // retried, which lets us distinguish the transient case from the terminal give-up.
+                const isIncompleteToolUse = result.error.startsWith('ToolUse input is invalid JSON:')
+                let willRetryIncompleteToolUse = false
+                let invokeLlmReason: string | undefined
+                if (isIncompleteToolUse) {
+                    consecutiveIncompleteToolUses++
+                    willRetryIncompleteToolUse = consecutiveIncompleteToolUses <= MAX_INCOMPLETE_TOOL_USE_RETRIES
+                    invokeLlmReason = willRetryIncompleteToolUse
+                        ? INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_RETRYING
+                        : INVOKE_LLM_REASON_INCOMPLETE_TOOL_USE_EXHAUSTED
+                }
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
@@ -1711,11 +1728,11 @@ export class AgenticChatController implements ChatHandlers {
                     this.#timeBetweenChunks,
                     session.pairProgrammingMode,
                     this.#abTestingAllocation?.experimentName,
-                    this.#abTestingAllocation?.userVariation
+                    this.#abTestingAllocation?.userVariation,
+                    invokeLlmReason
                 )
-                if (result.error.startsWith('ToolUse input is invalid JSON:')) {
-                    consecutiveIncompleteToolUses++
-                    if (consecutiveIncompleteToolUses > MAX_INCOMPLETE_TOOL_USE_RETRIES) {
+                if (isIncompleteToolUse) {
+                    if (!willRetryIncompleteToolUse) {
                         // The model has failed to produce a complete tool request several times
                         // in a row. Retrying again is unlikely to help and would keep the agent
                         // loop running, so stop and surface a real error to the user instead.
