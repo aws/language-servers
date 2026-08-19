@@ -8,7 +8,7 @@ export const INCOMPLETE_TOOL_USE_RETRY_LIMIT_MSG =
 // Retry limits
 // Maximum number of consecutive responses with an incomplete tool-use input that will be
 // retried before giving up and surfacing an error to the user.
-export const MAX_INCOMPLETE_TOOL_USE_RETRIES = 2
+export const MAX_INCOMPLETE_TOOL_USE_RETRIES = 3
 
 // Time Constants
 export const LOADING_THRESHOLD_MS = 2000
