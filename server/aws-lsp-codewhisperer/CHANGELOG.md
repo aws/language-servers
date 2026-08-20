@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.126](https://github.com/Amazon-Q-Developer/language-servers/compare/lsp-codewhisperer/v0.0.125...lsp-codewhisperer/v0.0.126) (2026-08-20)
+
+
+### Bug Fixes
+
+* **amazonq:** narrow tool-use   truncation detection and classify retries in telemetry ([#2847](https://github.com/Amazon-Q-Developer/language-servers/issues/2847)) ([1eb2f9f](https://github.com/Amazon-Q-Developer/language-servers/commit/1eb2f9f270c479ca457658e22f2ef0d06f6517ca))
+* scope and forward stepId for the planning-branch LBV HITL ([#2835](https://github.com/Amazon-Q-Developer/language-servers/issues/2835)) ([9f8bb89](https://github.com/Amazon-Q-Developer/language-servers/commit/9f8bb8943c41edc105c460d4b2c60836183cdd2b))
+
 ## [0.0.125](https://github.com/Amazon-Q-Developer/language-servers/compare/lsp-codewhisperer/v0.0.124...lsp-codewhisperer/v0.0.125) (2026-08-18)
 
 
