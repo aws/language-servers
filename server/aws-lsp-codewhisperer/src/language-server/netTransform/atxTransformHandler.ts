@@ -842,11 +842,6 @@ export class ATXTransformHandler {
     }
 
     /**
-     * Normalize a beam-map repo item into the PascalCase shape the C# IDE consumes,
-     * tolerant of key-name variants from the web writer (repoName/repo/name,
-     * artifactId/beamArtifactId, stepId/planStepId, targetFramework/tfm).
-     */
-    /**
      * The wire contract with the web orchestrator / FES is not yet pinned to a single
      * spelling: a plan-step / HITL id arrives as stepId, planStepId, or parentStepId
      * depending on the source. Centralize the coalescing here so every call site stays
@@ -855,7 +850,9 @@ export class ATXTransformHandler {
      */
     private getStepId(obj: any): string | undefined {
         if (obj == null || typeof obj !== 'object') return undefined
-        return obj.stepId ?? obj.planStepId ?? obj.parentStepId ?? undefined
+        // Use || (not ??) so an empty-string id falls through to the next spelling; an empty
+        // stepId must not short-circuit coalescing and then fail every scope match.
+        return obj.stepId || obj.planStepId || obj.parentStepId || undefined
     }
 
     /**
@@ -879,6 +876,11 @@ export class ATXTransformHandler {
         return { scopedLbv, allOutOfScopeLbv }
     }
 
+    /**
+     * Normalize a beam-map repo item into the PascalCase shape the C# IDE consumes,
+     * tolerant of key-name variants from the web writer (repoName/repo/name,
+     * artifactId/beamArtifactId, stepId/planStepId, targetFramework/tfm).
+     */
     private normalizeBeamRepo(r: BeamMapRepo | null | undefined): Omit<BeamedRepoInfo, 'IsLbvOpen'> {
         const o: BeamMapRepo = r || {}
         return {
@@ -2001,13 +2003,46 @@ export class ATXTransformHandler {
                     // Plan not available yet
                 }
 
-                // Check for pending HITL tasks (e.g. missing packages) - job stays in PLANNING while HITL is pending
+                // Check for pending HITL tasks (e.g. missing packages) - job stays in PLANNING while HITL is pending.
+                // Beam multi-repo: several repos can have a pending LBV HITL at once; prefer the loaded repo's
+                // in-scope one (parity with AWAITING_HUMAN_INPUT). No-op when scope is empty, so non-beam is unchanged.
                 const hitls = await this.listHitls(request.WorkspaceId, request.TransformationJobId)
                 if (hitls && hitls.length > 0) {
+                    const planScopeStepIds = (request.beamScopeStepIds || '')
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0)
+                    const { scopedLbv: scopedPlanLbv, allOutOfScopeLbv: planAllOutOfScopeLbv } =
+                        this.selectScopedLbvHitl(hitls, planScopeStepIds)
+                    // Beam multi-repo parity with EXECUTING / getHitlAgentArtifact: if scope is set and every
+                    // pending HITL is a sibling repo's LBV (none in the loaded repo's subtree), do NOT surface a
+                    // sibling's LBV — return plan-only. Prevents handing the IDE another repo's build HITL.
+                    if (planScopeStepIds.length > 0 && planAllOutOfScopeLbv) {
+                        this.logging.log(
+                            'ATX: PLANNING job — all pending HITLs are sibling-repo LBV (none in loaded scope); not surfacing'
+                        )
+                        return {
+                            TransformationJob: {
+                                WorkspaceId: request.WorkspaceId,
+                                JobId: request.TransformationJobId,
+                                Status: jobStatus,
+                            } as AtxTransformationJob,
+                            TransformationPlan: plan,
+                        } as AtxGetTransformInfoResponse
+                    }
+                    // When scope is set but no in-scope LBV matched, drop out-of-scope LBVs from the fallback
+                    // pool so the plain find() below can't select a sibling's LBV (mixed pending-set case).
+                    const planFallbackPool =
+                        planScopeStepIds.length > 0 && !scopedPlanLbv
+                            ? hitls.filter(h => h.tag !== 'local-build-verification')
+                            : hitls
                     const hitl =
-                        hitls.find(h => h.tag === 'local-build-verification') ||
-                        hitls.find(h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl') ||
-                        hitls[0]
+                        scopedPlanLbv ||
+                        planFallbackPool.find(h => h.tag === 'local-build-verification') ||
+                        planFallbackPool.find(
+                            h => h.tag === 'missing-packages' || h.tag === 'handle_missing_packages_hitl'
+                        ) ||
+                        planFallbackPool[0]
                     this.logging.log(`ATX: Found HITL task - tag: ${hitl.tag}, hasArtifact: ${!!hitl.agentArtifact}`)
                     // For missing packages HITL, try to download artifact if available
                     if (hitl.tag === 'handle_missing_packages_hitl' || hitl.tag === 'missing-packages') {
@@ -2036,8 +2071,11 @@ export class ATXTransformHandler {
                     }
                     if (hitl.tag === 'local-build-verification') {
                         this.jobsPastLocalBuild.add(request.TransformationJobId)
+                        // Forward the HITL's plan-step id so a multi-repo beam IDE can confirm this LBV
+                        // belongs to the loaded repo (parity with AWAITING_HUMAN_INPUT). Undefined when absent.
+                        const planLbvStepId = this.getStepId(hitl)
                         this.logging.log(
-                            `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId}; surfacing AWAITING_HUMAN_INPUT to IDE`
+                            `ATX: ${jobStatus} job has pending LBV HITL — taskId=${hitl.taskId} stepId=${planLbvStepId ?? '<none>'}; surfacing AWAITING_HUMAN_INPUT to IDE`
                         )
                         return {
                             TransformationJob: {
@@ -2047,6 +2085,7 @@ export class ATXTransformHandler {
                             } as AtxTransformationJob,
                             HitlTag: hitl.tag,
                             HitlTaskId: hitl.taskId,
+                            StepInformation: planLbvStepId ? { StepId: planLbvStepId } : undefined,
                             TransformationPlan: plan,
                         } as AtxGetTransformInfoResponse
                     }
