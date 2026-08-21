@@ -118,6 +118,18 @@ export interface AtxGetTransformInfoRequest extends ExecuteCommandParams {
     SolutionRootPath: string
     GetCheckpoints?: boolean
     useOrchestratorAgent?: boolean
+    // Beam-to-IDE: when true, this job was beamed to the IDE and its source is
+    // ALREADY the transformed output. The prior transform job's per-step
+    // checkpoint diffs must NOT be re-applied (they're baked into the beamed
+    // source, and their checkpoint folders aren't in the beam bundle) — doing so
+    // produces "Checkpoint folder not available for step" + DiffApplyFailed and
+    // stalls the LBV loop. When set, getTransformInfo skips the completed-step
+    // artifact download/apply pass and only surfaces NEW LBV-round diffs.
+    IsBeam?: boolean
+    // Beam-to-IDE: comma-separated plan-step ids of the LOADED beamed repo's subtree. Used to
+    // select THIS repo's local-build-verification HITL instead of the first LBV HITL in the list
+    // (which may be a sibling's, shadowing the loaded repo's own). Empty/absent = first-match.
+    beamScopeStepIds?: string
 }
 
 export interface AtxGetTransformInfoResponse {
