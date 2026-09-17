@@ -515,6 +515,33 @@ describe('OAuthClient getValidAccessToken()', () => {
         expect(token).to.be.undefined
     })
 
+    it('does not send an expired refresh token to a non-loopback HTTP endpoint', async () => {
+        const expiredToken = {
+            access_token: 'expired',
+            expires_in: 1,
+            refresh_token: 'refresh-token',
+            obtained_at: now - 10_000,
+        }
+        const cachedReg = {
+            client_id: 'cid',
+            client_secret: 'csecret',
+            redirect_uri: 'http://localhost:12345/oauth/callback',
+        }
+        stubFileSystem(expiredToken, cachedReg)
+        sinon.stub(OAuthClient as any, 'discoverAS').resolves({
+            authorization_endpoint: 'https://auth.example.com/authorize',
+            token_endpoint: 'http://auth.example.com/token',
+        })
+        const fetchStub = sinon.stub(OAuthClient as any, 'fetchCompat')
+
+        const token = await OAuthClient.getValidAccessToken(new URL('https://api.example.com/mcp'), {
+            interactive: false,
+        })
+
+        expect(token).to.be.undefined
+        expect(fetchStub.called).to.be.false
+    })
+
     it('uses scopes from discovery metadata when available', async () => {
         const expiredToken = {
             access_token: 'expired',
