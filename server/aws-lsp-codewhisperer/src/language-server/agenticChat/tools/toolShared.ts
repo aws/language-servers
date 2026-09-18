@@ -93,6 +93,36 @@ export async function canonicalizeWorkspaceFolders(workspaceFolderPaths: string[
     )
 }
 
+/**
+ * True when `canonicalPath` is a regular file reachable under more than one
+ * name. The other names are not discoverable from this path — an inode has no
+ * location and there is no reverse inode-to-paths lookup — so a boundary check
+ * cannot prove they are inside the workspace, and an in-place write changes the
+ * file's contents under every one of them.
+ *
+ * Directories are excluded because their link count is always above one ('.',
+ * '..', and each subdirectory).
+ */
+export async function hasAdditionalHardLinks(canonicalPath: string): Promise<boolean> {
+    try {
+        const stats = await fs.promises.stat(canonicalPath)
+        return stats.isFile() && stats.nlink > 1
+    } catch {
+        // Nothing on disk yet (for example a create), so no existing data is shared.
+        return false
+    }
+}
+
+export interface PathAcceptanceOptions {
+    /**
+     * Require approval for an in-workspace path that resolves to a file with
+     * more than one hard link. Tools that modify a file in place set this; the
+     * write would also change the file under its other names, which may be
+     * outside the workspace.
+     */
+    flagMultiplyLinkedFiles?: boolean
+}
+
 interface Output<Kind, Content> {
     kind: Kind
     content: Content
@@ -204,6 +234,7 @@ export function isPathApproved(filePath: string, toolName: string, approvedPaths
  * @param workspace The workspace feature to get workspace folders
  * @param logging Optional logging feature for better error reporting
  * @param approvedPaths Optional map of tool names to their approved paths
+ * @param options Optional additional checks; see PathAcceptanceOptions
  * @returns CommandValidation object with requiresAcceptance flag
  */
 export async function requiresPathAcceptance(
@@ -211,7 +242,8 @@ export async function requiresPathAcceptance(
     toolName: string,
     workspace: Features['workspace'],
     logging: Features['logging'],
-    approvedPaths?: Map<string, Set<string>>
+    approvedPaths?: Map<string, Set<string>>,
+    options?: PathAcceptanceOptions
 ): Promise<CommandValidation> {
     try {
         // Canonicalize in a symlink-aware way before the workspace-boundary
@@ -243,6 +275,20 @@ export async function requiresPathAcceptance(
         const canonicalWorkspaceFolders = await canonicalizeWorkspaceFolders(workspaceFolders)
         const isInWs = workspaceUtils.isInWorkspace(canonicalWorkspaceFolders, canonicalPath)
         if (isInWs) {
+            // Being inside the workspace by path is not sufficient for a file
+            // that has more than one name. `lstat` reports a hard link as an
+            // ordinary file, so the resolver above cannot follow it and the
+            // canonical path is the in-workspace name; the file's other names
+            // stay invisible to this check and may be outside the workspace.
+            // Modifying it in place would change the contents under all of them.
+            if (options?.flagMultiplyLinkedFiles && (await hasAdditionalHardLinks(canonicalPath))) {
+                return {
+                    requiresAcceptance: true,
+                    warning:
+                        'This file is also reachable under another name on disk, which may be outside ' +
+                        'the workspace. Writing to it changes the contents under every name.',
+                }
+            }
             return { requiresAcceptance: false }
         }
 
