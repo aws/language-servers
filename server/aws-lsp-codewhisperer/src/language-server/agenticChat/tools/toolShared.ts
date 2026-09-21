@@ -97,8 +97,8 @@ export async function canonicalizeWorkspaceFolders(workspaceFolderPaths: string[
  * True when `canonicalPath` is a regular file reachable under more than one
  * name. The other names are not discoverable from this path — an inode has no
  * location and there is no reverse inode-to-paths lookup — so a boundary check
- * cannot prove they are inside the workspace, and an in-place write changes the
- * file's contents under every one of them.
+ * cannot prove they are inside the workspace: reading the path exposes data that
+ * also lives elsewhere, and an in-place write changes it under every name.
  *
  * Directories are excluded because their link count is always above one ('.',
  * '..', and each subdirectory).
@@ -113,14 +113,24 @@ export async function hasAdditionalHardLinks(canonicalPath: string): Promise<boo
     }
 }
 
+/** How a tool accesses the path, which decides the wording of the prompt. */
+export type FileAccessKind = 'read' | 'modify'
+
+export const multiplyLinkedFileWarning = (access: FileAccessKind): string =>
+    access === 'read'
+        ? 'This file is also reachable under another name on disk, which may be outside the ' +
+          'workspace. Its contents are shared with that name.'
+        : 'This file is also reachable under another name on disk, which may be outside the ' +
+          'workspace. Writing to it changes the contents under every name.'
+
 export interface PathAcceptanceOptions {
     /**
      * Require approval for an in-workspace path that resolves to a file with
-     * more than one hard link. Tools that modify a file in place set this; the
-     * write would also change the file under its other names, which may be
-     * outside the workspace.
+     * more than one hard link, because the file's other names may be outside
+     * the workspace. Set to 'modify' by tools that write the file in place and
+     * 'read' by tools that return its contents.
      */
-    flagMultiplyLinkedFiles?: boolean
+    flagMultiplyLinkedFiles?: FileAccessKind
 }
 
 interface Output<Kind, Content> {
@@ -137,6 +147,13 @@ export interface CommandValidation {
     requiresAcceptance: boolean
     warning?: string
     commandCategory?: CommandCategory
+    /**
+     * Why acceptance is required, when the reason is not simply that the path
+     * lies outside the workspace. The confirmation prompt uses this to describe
+     * the right situation: a multiply linked path is inside the workspace, so
+     * the usual "outside of your workspace" wording would be wrong.
+     */
+    acceptanceReason?: 'multiplyLinkedFile'
 }
 
 export async function validatePath(path: string, exists: (p: string) => Promise<boolean>) {
@@ -280,13 +297,13 @@ export async function requiresPathAcceptance(
             // ordinary file, so the resolver above cannot follow it and the
             // canonical path is the in-workspace name; the file's other names
             // stay invisible to this check and may be outside the workspace.
-            // Modifying it in place would change the contents under all of them.
+            // Reading it returns data that lives under those names too, and
+            // modifying it in place changes the contents under all of them.
             if (options?.flagMultiplyLinkedFiles && (await hasAdditionalHardLinks(canonicalPath))) {
                 return {
                     requiresAcceptance: true,
-                    warning:
-                        'This file is also reachable under another name on disk, which may be outside ' +
-                        'the workspace. Writing to it changes the contents under every name.',
+                    warning: multiplyLinkedFileWarning(options.flagMultiplyLinkedFiles),
+                    acceptanceReason: 'multiplyLinkedFile',
                 }
             }
             return { requiresAcceptance: false }

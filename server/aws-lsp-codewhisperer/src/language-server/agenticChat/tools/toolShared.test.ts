@@ -974,7 +974,7 @@ describe('toolShared', () => {
                     mockWorkspace,
                     mockLogging as unknown as Features['logging'],
                     undefined,
-                    { flagMultiplyLinkedFiles: true }
+                    { flagMultiplyLinkedFiles: 'modify' }
                 )
 
                 assert.strictEqual(
@@ -983,6 +983,36 @@ describe('toolShared', () => {
                     'An in-workspace name for a file that is also named elsewhere should require acceptance'
                 )
                 assert.ok(result.warning, 'The prompt should explain that other names share this file')
+                assert.match(result.warning!, /changes the contents under every name/)
+                assert.strictEqual(
+                    result.acceptanceReason,
+                    'multiplyLinkedFile',
+                    'The prompt needs the reason to avoid describing an in-workspace path as outside the workspace'
+                )
+            })
+
+            it('requires acceptance for a hard link on the read side, with read wording', async function (this: Context) {
+                if (process.platform === 'win32') {
+                    this.skip()
+                    return
+                }
+
+                const result = await requiresPathAcceptance(
+                    hardLinkInWorkspace,
+                    'fsRead',
+                    mockWorkspace,
+                    mockLogging as unknown as Features['logging'],
+                    undefined,
+                    { flagMultiplyLinkedFiles: 'read' }
+                )
+
+                assert.strictEqual(
+                    result.requiresAcceptance,
+                    true,
+                    'Reading through an in-workspace name returns data that also lives under the other name'
+                )
+                assert.match(result.warning!, /contents are shared with that name/)
+                assert.strictEqual(result.acceptanceReason, 'multiplyLinkedFile')
             })
 
             it('does not require acceptance for a hard link when flagging is off', async function (this: Context) {
@@ -993,7 +1023,7 @@ describe('toolShared', () => {
 
                 const result = await requiresPathAcceptance(
                     hardLinkInWorkspace,
-                    'fsRead',
+                    'listDirectory',
                     mockWorkspace,
                     mockLogging as unknown as Features['logging']
                 )
@@ -1013,13 +1043,13 @@ describe('toolShared', () => {
                     mockWorkspace,
                     mockLogging as unknown as Features['logging'],
                     undefined,
-                    { flagMultiplyLinkedFiles: true }
+                    { flagMultiplyLinkedFiles: 'modify' }
                 )
 
                 assert.strictEqual(result.requiresAcceptance, false)
             })
 
-            it('still honors a previously approved path', async function (this: Context) {
+            it('still honors a path the user has explicitly approved', async function (this: Context) {
                 if (process.platform === 'win32') {
                     this.skip()
                     return
@@ -1032,13 +1062,15 @@ describe('toolShared', () => {
                     mockWorkspace,
                     mockLogging as unknown as Features['logging'],
                     approvedPaths,
-                    { flagMultiplyLinkedFiles: true }
+                    { flagMultiplyLinkedFiles: 'modify' }
                 )
 
                 assert.strictEqual(
                     result.requiresAcceptance,
                     false,
-                    'Approval should short-circuit before the hard link check'
+                    'Approval short-circuits before the hard link check, so an allowed path is not re-prompted. ' +
+                        'This is only sound because the session records approvals the user actually granted ' +
+                        '(see agenticChatController), not every path a tool has touched.'
                 )
             })
         })

@@ -51,7 +51,14 @@ export class FsRead {
     ): Promise<CommandValidation> {
         // Check acceptance for all paths in the array
         for (const path of params.paths) {
-            const validation = await requiresPathAcceptance(path, 'fsRead', this.workspace, this.logging, approvedPaths)
+            const validation = await requiresPathAcceptance(
+                path,
+                'fsRead',
+                this.workspace,
+                this.logging,
+                approvedPaths,
+                { flagMultiplyLinkedFiles: 'read' }
+            )
             if (validation.requiresAcceptance) {
                 return validation
             }
