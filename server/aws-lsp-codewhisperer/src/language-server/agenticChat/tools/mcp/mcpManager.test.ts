@@ -2063,6 +2063,95 @@ describe('consent gate for workspace-scoped MCP servers (P417451767)', () => {
         expect(showMessageStub.called).to.be.false
     })
 
+    it('serializes consent prompts across servers and retains each denial', async () => {
+        const mgr = await buildMgr()
+        let resolveFirst!: (choice: { title: string }) => void
+        showMessageStub.onFirstCall().returns(new Promise(resolve => (resolveFirst = resolve)))
+        showMessageStub.onSecondCall().resolves({ title: 'Deny' })
+        showMessageStub.onThirdCall().resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = { command: 'unused', __configPath__: workspaceMcp }
+        const cleanupStub = sinon.stub(mgr, 'cleanupExistingServer').resolves()
+
+        const pending = ['first', 'second', 'third'].map(name => mgr.initOneServer(name, cfg))
+        await new Promise(resolve => setImmediate(resolve))
+        expect(showMessageStub.callCount).to.equal(1)
+        expect(showMessageStub.firstCall.args[0].message).to.include('Server: first\n')
+
+        resolveFirst({ title: 'Deny' })
+        await Promise.all(pending)
+
+        expect(showMessageStub.callCount).to.equal(3)
+        expect(showMessageStub.secondCall.args[0].message).to.include('Server: second\n')
+        expect(showMessageStub.thirdCall.args[0].message).to.include('Server: third\n')
+        for (const name of ['first', 'second', 'third']) {
+            expect(mgr.getServerState(name).status).to.equal(McpServerStatus.DISABLED)
+            await mgr.initOneServer(name, cfg)
+        }
+        expect(showMessageStub.callCount).to.equal(3)
+        sinon.assert.notCalled(recordApprovalStub)
+        sinon.assert.notCalled(cleanupStub)
+    })
+
+    it('keeps configuration review with its server before showing the next prompt', async () => {
+        const mgr = await buildMgr()
+        let finishReview!: (result: { success: boolean }) => void
+        showDocumentStub.returns(new Promise(resolve => (finishReview = resolve)))
+        showMessageStub.onFirstCall().resolves({ title: 'View full configuration' })
+        showMessageStub.onSecondCall().resolves({ title: 'Deny' })
+        showMessageStub.onThirdCall().resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = { command: 'unused', __configPath__: workspaceMcp }
+
+        const pending = ['first', 'second'].map(name => mgr.initOneServer(name, cfg))
+        await new Promise(resolve => setImmediate(resolve))
+        sinon.assert.calledOnce(showDocumentStub)
+        sinon.assert.calledOnce(showMessageStub)
+
+        finishReview({ success: true })
+        await Promise.all(pending)
+        expect(showMessageStub.secondCall.args[0].message).to.include('Server: first\n')
+        expect(showMessageStub.thirdCall.args[0].message).to.include('Server: second\n')
+        sinon.assert.notCalled(recordApprovalStub)
+    })
+
+    it('releases the consent queue after a prompt failure or dismissal', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.onFirstCall().rejects(new Error('dialog unavailable'))
+        showMessageStub.onSecondCall().resolves(undefined)
+        showMessageStub.onThirdCall().resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = { command: 'unused', __configPath__: workspaceMcp }
+        const cleanupStub = sinon.stub(mgr, 'cleanupExistingServer').resolves()
+
+        await Promise.all(['failed', 'dismissed', 'denied'].map(name => mgr.initOneServer(name, cfg)))
+
+        expect(showMessageStub.callCount).to.equal(3)
+        expect(mgr.getServerState('failed').status).to.equal(McpServerStatus.FAILED)
+        expect(mgr.getServerState('dismissed').status).to.equal(McpServerStatus.DISABLED)
+        expect(mgr.getServerState('denied').status).to.equal(McpServerStatus.DISABLED)
+        sinon.assert.notCalled(recordApprovalStub)
+        sinon.assert.notCalled(cleanupStub)
+    })
+
+    it('does not apply one server approval to another queued server', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.onFirstCall().resolves({ title: 'Allow for this server' })
+        showMessageStub.onSecondCall().resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = { command: 'unused', __configPath__: workspaceMcp }
+        // Stop after the gate: this test must never launch an actual MCP process.
+        const stopAfterConsent = new Error('stop after consent')
+        const cleanupStub = sinon.stub(mgr, 'cleanupExistingServer').rejects(stopAfterConsent)
+        const first = mgr.initOneServer('allowed', cfg).catch((error: Error) => {
+            expect(error).to.equal(stopAfterConsent)
+        })
+        const second = mgr.initOneServer('denied', cfg)
+        await Promise.all([first, second])
+
+        sinon.assert.calledTwice(showMessageStub)
+        sinon.assert.calledOnce(recordApprovalStub)
+        expect(recordApprovalStub.firstCall.args[2]).to.equal('allowed')
+        sinon.assert.calledOnceWithExactly(cleanupStub, 'allowed')
+        expect(mgr.getServerState('denied').status).to.equal(McpServerStatus.DISABLED)
+    })
+
     it('mutation of args invalidates session denial (fingerprint change)', async () => {
         const mgr = await buildMgr()
         showMessageStub.resolves({ title: 'Deny' })
