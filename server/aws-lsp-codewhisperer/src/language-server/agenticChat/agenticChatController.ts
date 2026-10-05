@@ -173,6 +173,8 @@ import {
     CommandValidation,
     ExplanatoryParams,
     InvokeOutput,
+    requiresPathAcceptance,
+    resolveCanonicalPath,
     resolveSymlinkAwarePath,
     ToolApprovalException,
 } from './tools/toolShared'
@@ -4039,16 +4041,51 @@ export class AgenticChatController implements ChatHandlers {
                     fileContent: toolUse.fileChange?.after,
                 })
             } else if (toolUse?.name === FS_READ) {
-                await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
+                await this.#openIfAllowed(params.filePath, FS_READ, session.data)
             } else {
                 const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
                 if (absolutePath) {
-                    await this.#features.lsp.window.showDocument({ uri: URI.file(absolutePath).toString() })
+                    await this.#openIfAllowed(absolutePath, toolUse?.name ?? FS_READ, session.data)
                 }
             }
         } catch (e: any) {
             this.#features.logging.error(`Error opening file: ${e.message}`)
         }
+    }
+
+    /**
+     * Open a file from a chat file-list card only when the user could have
+     * read it through the tools: inside a workspace folder, or a path the user
+     * already approved for `toolName` in this session. Card paths come from
+     * model tool results and service findings, so an unchecked path plus one
+     * click would open any readable file and feed it to completion context.
+     *
+     * The user prompts directory is allowed as well: `#resolveAbsolutePath`
+     * deliberately resolves `.prompt.md` files there, and they are user-authored
+     * context files rather than arbitrary disk contents.
+     */
+    async #openIfAllowed(filePath: string, toolName: string, session: ChatSessionService | undefined): Promise<void> {
+        const canonicalPath = await resolveCanonicalPath(filePath)
+        const promptsDirectory = await resolveCanonicalPath(getUserPromptsDirectory())
+        const isPromptFile =
+            canonicalPath.endsWith(promptFileExtension) &&
+            workspaceUtils.isParentFolder(promptsDirectory, canonicalPath)
+        if (!isPromptFile) {
+            const { requiresAcceptance } = await requiresPathAcceptance(
+                canonicalPath,
+                toolName,
+                this.#features.workspace,
+                this.#features.logging,
+                session?.approvedPaths
+            )
+            if (requiresAcceptance) {
+                this.#features.logging.warn(
+                    `Refusing to open file outside the workspace from a chat card: ${canonicalPath}`
+                )
+                return
+            }
+        }
+        await this.#features.lsp.window.showDocument({ uri: URI.file(canonicalPath).toString() })
     }
 
     async onFollowUpClicked(params: FollowUpClickParams) {
