@@ -39,7 +39,7 @@ import {
     ChatUpdateParams,
     ConnectionMetadata,
 } from '@aws/language-server-runtimes/server-interface'
-import { Model } from '@aws/language-server-runtimes/protocol'
+import { MessageType, Model } from '@aws/language-server-runtimes/protocol'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
@@ -3873,6 +3873,10 @@ ${' '.repeat(8)}}
         let insideFile: string
         let outsideFile: string
         let showDocumentStub: sinon.SinonStub
+        let showMessageRequestStub: sinon.SinonStub
+
+        const OPEN = { title: 'Open' }
+        const CANCEL = { title: 'Cancel' }
 
         beforeEach(async () => {
             workspaceDir = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ws-')))
@@ -3886,6 +3890,10 @@ ${' '.repeat(8)}}
             ])
             showDocumentStub = testFeatures.lsp.window.showDocument as sinon.SinonStub
             showDocumentStub.resetHistory()
+            // An out-of-workspace path prompts the user. Default to declining so
+            // each "refuses" case below means "refused when the user declines".
+            showMessageRequestStub = sinon.stub().resolves(CANCEL)
+            testFeatures.lsp.window.showMessageRequest = showMessageRequestStub
             chatController.onTabAdd({ tabId: mockTabId })
         })
 
@@ -3936,6 +3944,8 @@ ${' '.repeat(8)}}
             session.addApprovedPath(outsideFile, 'fsRead')
             await chatController.onFileClicked({ tabId: mockTabId, messageId: 'read-2', filePath: outsideFile })
             assert.deepStrictEqual(openedUris(), [URI.file(outsideFile).toString()])
+            // Already approved for this tool, so no dialog is shown.
+            sinon.assert.notCalled(showMessageRequestStub)
         })
 
         it('does not treat an fsWrite approval as permission to open via an fsRead card', async () => {
@@ -3947,6 +3957,56 @@ ${' '.repeat(8)}}
             })
             session.addApprovedPath(outsideFile, 'fsWrite')
             await chatController.onFileClicked({ tabId: mockTabId, messageId: 'read-3', filePath: outsideFile })
+            sinon.assert.notCalled(showDocumentStub)
+            // Not approved for fsRead, so the user is asked rather than silently opened.
+            sinon.assert.calledOnce(showMessageRequestStub)
+        })
+
+        it('prompts with a warning for an out-of-workspace path and opens when the user chooses Open', async () => {
+            showMessageRequestStub.resolves(OPEN)
+            await chatController.onFileClicked({ tabId: mockTabId, filePath: 'secret.txt', fullPath: outsideFile })
+
+            sinon.assert.calledOnce(showMessageRequestStub)
+            const request = showMessageRequestStub.firstCall.args[0]
+            assert.strictEqual(request.type, MessageType.Warning)
+            assert.ok(request.message.includes(outsideFile), 'dialog names the exact path being opened')
+            assert.deepStrictEqual(
+                request.actions.map((a: { title: string }) => a.title),
+                ['Open', 'Cancel']
+            )
+            assert.deepStrictEqual(openedUris(), [URI.file(outsideFile).toString()])
+        })
+
+        it('does not open when the user dismisses the dialog without choosing', async () => {
+            showMessageRequestStub.resolves(null)
+            await chatController.onFileClicked({ tabId: mockTabId, filePath: 'secret.txt', fullPath: outsideFile })
+            sinon.assert.notCalled(showDocumentStub)
+        })
+
+        it('remembers an Open choice so the same path does not prompt again', async () => {
+            showMessageRequestStub.resolves(OPEN)
+            await chatController.onFileClicked({ tabId: mockTabId, filePath: 'secret.txt', fullPath: outsideFile })
+            await chatController.onFileClicked({ tabId: mockTabId, filePath: 'secret.txt', fullPath: outsideFile })
+
+            sinon.assert.calledOnce(showMessageRequestStub)
+            assert.strictEqual(openedUris().length, 2)
+        })
+
+        it('surfaces the sensitive-path reason in the dialog for a sensitive out-of-workspace file', async () => {
+            const sensitiveDir = path.join(outsideDir, '.ssh')
+            await fs.promises.mkdir(sensitiveDir, { recursive: true })
+            const sensitiveFile = path.join(sensitiveDir, 'authorized_keys')
+            await fs.promises.writeFile(sensitiveFile, 'k')
+
+            await chatController.onFileClicked({
+                tabId: mockTabId,
+                filePath: 'authorized_keys',
+                fullPath: sensitiveFile,
+            })
+
+            sinon.assert.calledOnce(showMessageRequestStub)
+            const request = showMessageRequestStub.firstCall.args[0]
+            assert.ok(/sensitive/i.test(request.message), `dialog explains why: ${request.message}`)
             sinon.assert.notCalled(showDocumentStub)
         })
 

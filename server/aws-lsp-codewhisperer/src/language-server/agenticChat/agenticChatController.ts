@@ -58,6 +58,7 @@ import {
     ActiveEditorChangedParams,
     PinnedContextParams,
     ChatUpdateParams,
+    MessageActionItem,
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
@@ -4071,7 +4072,7 @@ export class AgenticChatController implements ChatHandlers {
             canonicalPath.endsWith(promptFileExtension) &&
             workspaceUtils.isParentFolder(promptsDirectory, canonicalPath)
         if (!isPromptFile) {
-            const { requiresAcceptance } = await requiresPathAcceptance(
+            const { requiresAcceptance, warning } = await requiresPathAcceptance(
                 canonicalPath,
                 toolName,
                 this.#features.workspace,
@@ -4079,10 +4080,22 @@ export class AgenticChatController implements ChatHandlers {
                 session?.approvedPaths
             )
             if (requiresAcceptance) {
-                this.#features.logging.warn(
-                    `Refusing to open file outside the workspace from a chat card: ${canonicalPath}`
-                )
-                return
+                // The path on a chat card comes from a tool result, not the
+                // user, so a path outside the workspace is opened only after an
+                // explicit confirmation. Approving records the path for this
+                // tool so a later click does not prompt again.
+                const open: MessageActionItem = { title: 'Open' }
+                const cancel: MessageActionItem = { title: 'Cancel' }
+                const choice = await this.#features.lsp.window.showMessageRequest({
+                    type: MessageType.Warning,
+                    message: `${warning ?? 'This file is outside your workspace.'}\n\n` + `Open ${canonicalPath}?`,
+                    actions: [open, cancel],
+                })
+                if (choice?.title !== open.title) {
+                    this.#features.logging.info(`User declined to open out-of-workspace file from a chat card`)
+                    return
+                }
+                session?.addApprovedPath(canonicalPath, toolName)
             }
         }
         await this.#features.lsp.window.showDocument({ uri: URI.file(canonicalPath).toString() })
