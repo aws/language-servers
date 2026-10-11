@@ -16,6 +16,8 @@ export async function saveSharedConfigFile(
 ): Promise<void> {
     const output: string[] = []
     const filepathExists = fs.existsSync(filepath)
+    const previousMode = filepathExists ? (await fs.promises.stat(filepath)).mode & 0o777 : 0o600
+    const mode = filetype === IniFileType.credentials ? previousMode & 0o600 : previousMode
 
     if (filepathExists) {
         // Be tolerant of line terminator in file regardless of OS
@@ -85,11 +87,14 @@ export async function saveSharedConfigFile(
 
     // Backup file just in case
     if (filepathExists) {
+        if (mode !== previousMode) {
+            await fs.promises.chmod(filepath, mode)
+        }
         await rename(filepath, filepath + '~')
     }
 
-    await mkdir(path.dirname(filepath), { mode: 0o755, recursive: true })
-    await writeFile(filepath, output.join(EOL), { encoding: 'utf-8', flush: true })
+    await mkdir(path.dirname(filepath), { mode: 0o700, recursive: true })
+    await writeFile(filepath, output.join(EOL), { encoding: 'utf-8', flush: true, mode })
 }
 
 function compareObjectEntries(a?: [string, unknown], b?: [string, unknown]): number {
