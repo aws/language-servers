@@ -175,38 +175,6 @@ describe('Utils', () => {
             expect(mockLogger.info.calledWith(`Artifact upload size: ${'test content'.length} bytes`)).to.be.true
         })
 
-        it('should log request ids and transfer summary on completion', async () => {
-            sinon.stub(Utils, 'putFileFromWorker').resolves({
-                statusCode: 200,
-                requestId: 'REQ123',
-                hostId: 'HOST456',
-                bytesSent: 12,
-                durationMs: 1000,
-            })
-
-            await Utils.uploadArtifact('http://test-url', testFile, {}, mockLogger)
-
-            const completed = mockLogger.info
-                .getCalls()
-                .find((c: any) => c.args[0].startsWith('Artifact upload completed'))
-            expect(completed?.args[0]).to.include('x-amz-request-id=REQ123')
-            expect(completed?.args[0]).to.include('x-amz-id-2=HOST456')
-        })
-
-        it('should log progress reported by the worker', async () => {
-            sinon.stub(Utils, 'putFileFromWorker').callsFake(async (_url, _file, _headers, onProgress) => {
-                onProgress?.(6, 15000)
-                return { statusCode: 200 }
-            })
-
-            await Utils.uploadArtifact('http://test-url', testFile, {}, mockLogger)
-
-            const progress = mockLogger.info
-                .getCalls()
-                .find((c: any) => c.args[0].startsWith('Artifact upload progress'))
-            expect(progress?.args[0]).to.include('(50%)')
-        })
-
         it('should log error when upload fails', async () => {
             sinon.stub(Utils, 'putFileFromWorker').rejects(new Error('Network error'))
 
@@ -216,15 +184,13 @@ describe('Utils', () => {
             expect(mockLogger.error.calledOnce).to.be.true
         })
 
-        it('should log the response body on non-200 status', async () => {
-            sinon
-                .stub(Utils, 'putFileFromWorker')
-                .resolves({ statusCode: 400, body: '<Error><Code>RequestTimeout</Code></Error>' })
+        it('should log the status code on non-200 status', async () => {
+            sinon.stub(Utils, 'putFileFromWorker').resolves({ statusCode: 400 })
 
             const result = await Utils.uploadArtifact('http://test-url', testFile, {}, mockLogger)
 
             expect(result).to.be.false
-            expect(mockLogger.error.firstCall.args[0]).to.include('RequestTimeout')
+            expect(mockLogger.error.firstCall.args[0]).to.include('Response code 400')
         })
     })
 
@@ -258,20 +224,18 @@ describe('Utils', () => {
             const result = await Utils.putFileFromWorker(url, testFile, { 'Content-Type': 'application/zip' })
 
             expect(result.statusCode).to.equal(200)
-            expect(result.bytesSent).to.equal('test content'.length)
             expect(received.method).to.equal('PUT')
             expect(received.body).to.equal('test content')
             expect(received.headers?.['content-type']).to.equal('application/zip')
             expect(received.headers?.['content-length']).to.equal(String('test content'.length))
         })
 
-        it('should return the status code and body of a failed upload', async () => {
+        it('should return the status code of a failed upload', async () => {
             respondWith = { status: 400, body: '<Error><Code>RequestTimeout</Code></Error>' }
 
             const result = await Utils.putFileFromWorker(url, testFile, {})
 
             expect(result.statusCode).to.equal(400)
-            expect(result.body).to.include('RequestTimeout')
         })
 
         it('should reject when the connection fails', async () => {

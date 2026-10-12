@@ -20,55 +20,15 @@ const reqHeaders = { ...headers }
 if (!Object.keys(reqHeaders).some(k => k.toLowerCase() === 'content-length')) {
     reqHeaders['Content-Length'] = fs.statSync(filePath).size
 }
-const started = Date.now()
-let bytesSent = 0
-let lastProgress = started
 let done = false
-const finish = msg => {
-    if (!done) {
-        done = true
-        parentPort.postMessage({ type: 'result', bytesSent, durationMs: Date.now() - started, ...msg })
-    }
-}
+const finish = msg => { if (!done) { done = true; parentPort.postMessage(msg) } }
 const req = transport.request(url, { method: 'PUT', headers: reqHeaders }, res => {
-    let body = ''
-    res.setEncoding('utf8')
-    res.on('data', chunk => { if (body.length < 4096) body += chunk })
-    res.on('end', () =>
-        finish({
-            statusCode: res.statusCode,
-            body,
-            requestId: res.headers['x-amz-request-id'],
-            hostId: res.headers['x-amz-id-2'],
-        })
-    )
+    res.resume()
+    res.on('end', () => finish({ statusCode: res.statusCode }))
 })
-req.on('error', e => finish({ error: String(e), errorCode: e.code }))
-fs.createReadStream(filePath)
-    .on('error', e => req.destroy(e))
-    .on('data', chunk => {
-        bytesSent += chunk.length
-        const now = Date.now()
-        if (now - lastProgress >= 15000) {
-            lastProgress = now
-            parentPort.postMessage({ type: 'progress', bytesSent, elapsedMs: now - started })
-        }
-    })
-    .pipe(req)
+req.on('error', e => finish({ error: String(e) }))
+fs.createReadStream(filePath).on('error', e => req.destroy(e)).pipe(req)
 `
-
-export interface UploadResult {
-    statusCode?: number
-    body?: string
-    requestId?: string
-    hostId?: string
-    bytesSent?: number
-    durationMs?: number
-}
-
-const MB = 1024 * 1024
-const formatMb = (bytes: number) => (bytes / MB).toFixed(1)
-const formatRate = (bytes: number, ms: number) => (ms > 0 ? ((bytes / MB) * (1000 / ms)).toFixed(2) : '0')
 
 export class Utils {
     /**
@@ -109,27 +69,17 @@ export class Utils {
     static async putFileFromWorker(
         url: string,
         filePath: string,
-        headers: Record<string, string>,
-        onProgress?: (bytesSent: number, elapsedMs: number) => void
-    ): Promise<UploadResult> {
+        headers: Record<string, string>
+    ): Promise<{ statusCode?: number }> {
         return new Promise((resolve, reject) => {
             const worker = new Worker(UPLOAD_WORKER_SOURCE, { eval: true, workerData: { url, filePath, headers } })
-            worker.on(
-                'message',
-                (msg: UploadResult & { type: string; elapsedMs?: number; error?: string; errorCode?: string }) => {
-                    if (msg.type === 'progress') {
-                        onProgress?.(msg.bytesSent ?? 0, msg.elapsedMs ?? 0)
-                    } else if (msg.error) {
-                        reject(
-                            new Error(
-                                `${msg.error} (code=${msg.errorCode ?? 'n/a'}, sent ${formatMb(msg.bytesSent ?? 0)} MB in ${Math.round((msg.durationMs ?? 0) / 1000)} s)`
-                            )
-                        )
-                    } else {
-                        resolve(msg)
-                    }
+            worker.once('message', (result: { statusCode?: number; error?: string }) => {
+                if (result.error) {
+                    reject(new Error(result.error))
+                } else {
+                    resolve(result)
                 }
-            )
+            })
             worker.once('error', reject)
             worker.once('exit', code => reject(new Error(`Upload worker exited with code ${code} before responding`)))
         })
@@ -144,21 +94,6 @@ export class Utils {
         requestHeaders?: any,
         logger?: Logging
     ): Promise<boolean> {
-        // Diagnostics for upload failures: if the main thread freezes (e.g. index refresh), log how long.
-        // The upload itself runs in a worker and isn't affected; this only records that the freeze happened.
-        const FREEZE_CHECK_MS = 1000
-        const FREEZE_REPORT_MS = 5000
-        let lastTick = Date.now()
-        const freezeMonitor = setInterval(() => {
-            const now = Date.now()
-            const blockedMs = now - lastTick - FREEZE_CHECK_MS
-            if (blockedMs >= FREEZE_REPORT_MS) {
-                logger?.warn(
-                    `Artifact upload: main thread was blocked for ~${Math.round(blockedMs / 1000)} s (since ${new Date(lastTick).toISOString()}); upload continues in worker`
-                )
-            }
-            lastTick = now
-        }, FREEZE_CHECK_MS)
         try {
             const headers: any = {}
 
@@ -168,29 +103,13 @@ export class Utils {
                     headers[key] = Array.isArray(value) ? value[0] : value
                 })
             }
-            const size = fs.statSync(filePath).size
-            logger?.info(`Artifact upload size: ${size} bytes`)
-            const env = process.env
-            logger?.info(
-                `Artifact upload: via worker thread; header names [${Object.keys(headers).join(', ')}]; ` +
-                    `HTTPS_PROXY set=${!!(env.HTTPS_PROXY || env.https_proxy)}, HTTP_PROXY set=${!!(env.HTTP_PROXY || env.http_proxy)}, ` +
-                    `NO_PROXY set=${!!(env.NO_PROXY || env.no_proxy)}, NODE_EXTRA_CA_CERTS set=${!!env.NODE_EXTRA_CA_CERTS}`
-            )
-            const response = await Utils.putFileFromWorker(s3PreSignedUrl, filePath, headers, (sent, elapsedMs) =>
-                logger?.info(
-                    `Artifact upload progress: ${formatMb(sent)} of ${formatMb(size)} MB (${size > 0 ? Math.floor((sent / size) * 100) : 0}%) in ${Math.round(elapsedMs / 1000)} s, avg ${formatRate(sent, elapsedMs)} MB/s`
-                )
-            )
-            const summary =
-                `${formatMb(response.bytesSent ?? 0)} MB in ${Math.round((response.durationMs ?? 0) / 1000)} s ` +
-                `(avg ${formatRate(response.bytesSent ?? 0, response.durationMs ?? 0)} MB/s), ` +
-                `x-amz-request-id=${response.requestId ?? 'n/a'}, x-amz-id-2=${response.hostId ?? 'n/a'}`
+            logger?.info(`Artifact upload size: ${fs.statSync(filePath).size} bytes`)
+            const response = await Utils.putFileFromWorker(s3PreSignedUrl, filePath, headers)
             if (response.statusCode === 200) {
-                logger?.info(`Artifact upload completed: ${summary}`)
                 return true
             }
             logger?.error(
-                `Upload artifact error: Response code ${response.statusCode} ${response.body ?? ''} (${summary}), please see https://docs.aws.amazon.com/transform/latest/userguide/dotnet-ide-troubleshoot.html`
+                `Upload artifact error: Response code ${response.statusCode}, please see https://docs.aws.amazon.com/transform/latest/userguide/dotnet-ide-troubleshoot.html`
             )
             return false
         } catch (error) {
@@ -198,8 +117,6 @@ export class Utils {
                 `Upload artifact error: ${String(error)}, please see https://docs.aws.amazon.com/transform/latest/userguide/dotnet-ide-troubleshoot.html`
             )
             return false
-        } finally {
-            clearInterval(freezeMonitor)
         }
     }
 
