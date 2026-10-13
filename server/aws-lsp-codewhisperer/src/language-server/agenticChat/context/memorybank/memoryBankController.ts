@@ -376,22 +376,22 @@ export class MemoryBankController {
      */
     private async calculateMeanCosineSimilarities(vectors: TfidfVector[]): Promise<number[]> {
         const yieldIfNeeded = createEventLoopYielder()
-        const numDocs = vectors.length
-        const similaritySums = new Array<number>(numDocs).fill(0)
+        const vectorCount = vectors.length
+        const similarityTotals = new Array<number>(vectorCount).fill(0)
 
-        for (let i = 0; i < numDocs; i++) {
-            if (vectors[i].norm > 0) {
-                similaritySums[i] += 1
+        for (let sourceIndex = 0; sourceIndex < vectorCount; sourceIndex++) {
+            if (vectors[sourceIndex].norm > 0) {
+                similarityTotals[sourceIndex] += 1
             }
-            for (let j = i + 1; j < numDocs; j++) {
-                const similarity = this.calculateCosineSimilarity(vectors[i], vectors[j])
-                similaritySums[i] += similarity
-                similaritySums[j] += similarity
+            for (let comparisonIndex = sourceIndex + 1; comparisonIndex < vectorCount; comparisonIndex++) {
+                const similarity = this.calculateCosineSimilarity(vectors[sourceIndex], vectors[comparisonIndex])
+                similarityTotals[sourceIndex] += similarity
+                similarityTotals[comparisonIndex] += similarity
             }
             await yieldIfNeeded()
         }
 
-        return similaritySums.map(sum => (numDocs > 0 ? sum / numDocs : 0))
+        return similarityTotals.map(total => (vectorCount > 0 ? total / vectorCount : 0))
     }
 
     /**
