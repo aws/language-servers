@@ -2030,6 +2030,50 @@ describe('consent gate for workspace-scoped MCP servers (P417451767)', () => {
         expect(showMessageStub.calledOnce).to.be.true
     })
 
+    it('marks truncated consent previews and visually separates their source', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.resolves({ title: 'Deny' })
+        const longCommand = 'c'.repeat(201)
+        const longEnvName = 'E'.repeat(201)
+        const longHeaderName = 'H'.repeat(201)
+        const cfg: MCPServerConfig = {
+            command: longCommand,
+            args: [],
+            env: { [longEnvName]: 'hidden-env-value' },
+            headers: { [longHeaderName]: 'hidden-header-value' },
+            __configPath__: workspaceMcp,
+        }
+
+        await (mgr as any).initOneServerInternal('svc', cfg)
+
+        const message = showMessageStub.firstCall.args[0].message as string
+        expect(message).to.include(`Command: ${longCommand.slice(0, 200)} { ... }\n`)
+        expect(message).to.include(`Environment variables: ${longEnvName.slice(0, 200)} { ... }\n`)
+        expect(message).to.include(`Headers: ${longHeaderName.slice(0, 200)} { ... }\n• Source: ${workspaceMcp}`)
+        expect(message).to.not.include('hidden-env-value')
+        expect(message).to.not.include('hidden-header-value')
+    })
+
+    it('does not mark complete consent previews as truncated', async () => {
+        const mgr = await buildMgr()
+        showMessageStub.resolves({ title: 'Deny' })
+        const cfg: MCPServerConfig = {
+            command: 'sh',
+            args: ['-c', 'x'],
+            env: { DEMO_ENV: 'hidden-env-value' },
+            headers: { 'X-Demo': 'hidden-header-value' },
+            __configPath__: workspaceMcp,
+        }
+
+        await (mgr as any).initOneServerInternal('svc', cfg)
+
+        const message = showMessageStub.firstCall.args[0].message as string
+        expect(message).to.include('Command: sh -c x\n')
+        expect(message).to.include('Environment variables: DEMO_ENV\n')
+        expect(message).to.include(`Headers: X-Demo\n• Source: ${workspaceMcp}`)
+        expect(message).to.not.include('{ ... }')
+    })
+
     it('opens the workspace configuration and re-prompts before allowing', async () => {
         const mgr = await buildMgr()
         showMessageStub.onFirstCall().resolves({ title: 'View full configuration' })

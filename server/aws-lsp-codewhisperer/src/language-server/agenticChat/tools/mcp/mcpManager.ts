@@ -64,6 +64,15 @@ export enum AuthIntent {
     Silent = 'silent',
 }
 
+const MCP_CONSENT_PREVIEW_MAX_LENGTH = 200
+const MCP_CONSENT_TRUNCATION_CUE = ' { ... }'
+
+function formatConsentPreview(value: string): string {
+    return value.length > MCP_CONSENT_PREVIEW_MAX_LENGTH
+        ? `${value.slice(0, MCP_CONSENT_PREVIEW_MAX_LENGTH)}${MCP_CONSENT_TRUNCATION_CUE}`
+        : value
+}
+
 /**
  * Manages MCP servers and their tools
  */
@@ -446,7 +455,9 @@ export class McpManager {
                 configPath
             )
             if (!approved) {
-                const cmdLine = [cfg.command ?? cfg.url ?? '(none)', ...(cfg.args ?? [])].join(' ').slice(0, 200)
+                const cmdLine = formatConsentPreview(
+                    [cfg.command ?? cfg.url ?? '(none)', ...(cfg.args ?? [])].join(' ')
+                )
                 // Surface the environment variables and headers the server will actually be
                 // launched with. Names only, never values: a config may legitimately hold
                 // tokens, and this string is shown in a dialog and written to logs. Values are
@@ -455,9 +466,10 @@ export class McpManager {
                 const headerNames = Object.keys(effectiveHeaders(cfg))
                 const envLine =
                     envKeys.length > 0
-                        ? `Environment variables: ${envKeys.join(', ').slice(0, 200)}\n`
+                        ? `Environment variables: ${formatConsentPreview(envKeys.join(', '))}\n`
                         : `Environment variables: (none)\n`
-                const headerLine = headerNames.length > 0 ? `Headers: ${headerNames.join(', ').slice(0, 200)}\n` : ''
+                const headerLine =
+                    headerNames.length > 0 ? `Headers: ${formatConsentPreview(headerNames.join(', '))}\n` : ''
                 const allowBtn = { title: 'Allow for this server' }
                 const denyBtn = { title: 'Deny' }
                 const reviewBtn = { title: 'View full configuration' }
@@ -474,7 +486,7 @@ export class McpManager {
                                 `Command: ${cmdLine}\n` +
                                 envLine +
                                 headerLine +
-                                `Source: ${configPath}\n\n` +
+                                `• Source: ${configPath}\n\n` +
                                 `Running this server executes the above command on your machine, ` +
                                 `with the environment variables listed above. ` +
                                 `Use View full configuration to inspect the source before allowing. ` +
