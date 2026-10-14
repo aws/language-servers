@@ -14,7 +14,7 @@ import { ProfileStatusMonitor } from './profileStatusMonitor'
 const fakeLogging = {
     log: () => {},
     info: () => {},
-    warn: () => {},
+    warn: (_message: string) => {},
     error: () => {},
     debug: () => {},
 }
