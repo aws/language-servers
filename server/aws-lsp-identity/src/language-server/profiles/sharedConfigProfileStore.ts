@@ -44,7 +44,7 @@ export class SharedConfigProfileStore implements ProfileStore {
         for (const [parsedSectionName, settings] of Object.entries(parsedIni)) {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
             switch (sectionHeader.type) {
-                case IniSectionType.PROFILE:
+                case IniSectionType.PROFILE: {
                     const kinds: ProfileKind[] = []
                     if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
                         kinds.push(ProfileKind.SsoTokenProfile)
@@ -68,6 +68,7 @@ export class SharedConfigProfileStore implements ProfileStore {
                         } as any,
                     })
                     break
+                }
                 case IniSectionType.SSO_SESSION: {
                     if (!ssoSessionDuckTyper.eval(settings)) {
                         continue
@@ -164,8 +165,29 @@ export class SharedConfigProfileStore implements ProfileStore {
             if (!section?.name) {
                 throwAwsError('Section name is required.')
             }
+            // Match the unquoted name characters in the SDK parseIni prefixKeyRegex.
+            // The SDK removes matching quotes, so quoted aliases cannot preserve the requested name.
+            if (
+                typeof section.name !== 'string' ||
+                !/^[\w@+.%:/-]+$/.test(section.name) ||
+                section.name.trim() !== section.name ||
+                controlCharsRegex.test(section.name) ||
+                section.name.includes('[') ||
+                section.name.includes(']')
+            ) {
+                throwAwsError('Section name is invalid.')
+            }
 
             const parsedSectionName = new SectionHeader(section.name, sectionType).toParsedSectionName()
+            const roundTripHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
+            // Profile and session names are used as keys of plain objects.
+            if (
+                Object.hasOwn(Object.prototype, section.name) ||
+                roundTripHeader.type !== sectionType ||
+                roundTripHeader.name !== section.name
+            ) {
+                throwAwsError('Section name is invalid.')
+            }
 
             // Remove sections that have no settings
             if (
@@ -182,10 +204,15 @@ export class SharedConfigProfileStore implements ProfileStore {
                 throwAwsError('Section contains invalid settings value.')
             }
 
-            const parsedSection = (parsedKnownFiles[parsedSectionName] ||= {})
+            const parsedSection = Object.hasOwn(parsedKnownFiles, parsedSectionName)
+                ? parsedKnownFiles[parsedSectionName]
+                : (parsedKnownFiles[parsedSectionName] = {})
 
             // eslint-disable-next-line prefer-const
             for (let [name, value] of Object.entries(section.settings)) {
+                if (!/^\w+(?:\.\w+)?$/.test(name)) {
+                    throwAwsError('Section contains an invalid setting name.')
+                }
                 if (Array.isArray(value)) {
                     value = normalizeSettingList(value)?.join(',') ?? ''
                 }
@@ -200,7 +227,9 @@ export class SharedConfigProfileStore implements ProfileStore {
                 // If setting not passed then preserve setting in file as-is
                 value = value?.toString().trim()
                 if (value === undefined || value === null || value === '') {
-                    Object.hasOwn(parsedSection, name) && delete parsedSection[name]
+                    if (Object.hasOwn(parsedSection, name)) {
+                        delete parsedSection[name]
+                    }
                 } else {
                     if (controlCharsRegex.test(value)) {
                         throwAwsError(`Setting [${name}] cannot contain control characters.`)
