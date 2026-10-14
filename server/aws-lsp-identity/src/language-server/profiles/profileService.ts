@@ -102,6 +102,10 @@ export class ProfileService {
         this.throwOnInvalidProfile(!profile.settings, 'Settings required on profile.')
         const profileSettings = profile.settings!
 
+        this.throwOnInvalidProfile(
+            Object.keys(profileSettings).some(name => !Object.hasOwn(ProfileFields, name)),
+            'Profile contains unsupported settings.'
+        )
         this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session name required on profile.')
 
         // Validate sso-session
@@ -112,6 +116,10 @@ export class ProfileService {
         this.throwOnInvalidSsoSession(!ssoSession.settings, 'Settings required on sso-session.')
         const ssoSessionSettings = ssoSession.settings!
 
+        this.throwOnInvalidSsoSession(
+            Object.keys(ssoSessionSettings).some(name => !Object.hasOwn(SsoSessionFields, name)),
+            'Sso-session contains unsupported settings.'
+        )
         this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_region, 'Sso-session region required.')
         this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_start_url, 'Sso-session start URL required.')
 

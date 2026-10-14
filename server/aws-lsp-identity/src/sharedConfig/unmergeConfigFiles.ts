@@ -44,8 +44,12 @@ function unmergeSectionToConfigFiles(
     configFile: ParsedIniData,
     credentialsFile: ParsedIniData
 ): void {
-    const configSection = (configFile[sectionName] ||= {})
-    const credentialsSection = (credentialsFile[sectionName] ||= {})
+    const configSection = Object.hasOwn(configFile, sectionName)
+        ? configFile[sectionName]
+        : (configFile[sectionName] = {})
+    const credentialsSection = Object.hasOwn(credentialsFile, sectionName)
+        ? credentialsFile[sectionName]
+        : (credentialsFile[sectionName] = {})
 
     // Remove existing settings not on mergedSettings (i.e. deleted)
     removeDeletedEntries({ removeFrom: configSection, deletedFrom: mergedSettings })
@@ -75,12 +79,18 @@ function unmergeSectionToConfigFiles(
 
         // Otherwise set in credentials and only update in config if it exists
         credentialsSection[settingName] = settingValue
-        inConfig && (configSection[settingName] = settingValue)
+        if (inConfig) {
+            configSection[settingName] = settingValue
+        }
     }
 
     // Remove empty sections
-    !Object.keys(configSection).length && delete configFile[sectionName]
-    !Object.keys(credentialsSection).length && delete credentialsFile[sectionName]
+    if (!Object.keys(configSection).length) {
+        delete configFile[sectionName]
+    }
+    if (!Object.keys(credentialsSection).length) {
+        delete credentialsFile[sectionName]
+    }
 }
 
 export function removeDeletedEntries(args: { removeFrom: Record<string, unknown>; deletedFrom: object }): void {
