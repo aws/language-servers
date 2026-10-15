@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.131](https://github.com/Amazon-Q-Developer/language-servers/compare/lsp-codewhisperer/v0.0.130...lsp-codewhisperer/v0.0.131) (2026-10-15)
+
+
+### Bug Fixes
+
+* **amazonq:** retain checked targets and editor state ([#2940](https://github.com/Amazon-Q-Developer/language-servers/issues/2940)) ([471a7f4](https://github.com/Amazon-Q-Developer/language-servers/commit/471a7f4e2fed47071a7e1c47f17a9b29e0bf0de6))
+* **amazonq:** upload transform artifact from a worker thread to avoid S3 RequestTimeout ([#2926](https://github.com/Amazon-Q-Developer/language-servers/issues/2926)) ([81c9268](https://github.com/Amazon-Q-Developer/language-servers/commit/81c92682ebdc13c7c006b59560bd94a4282e0ecb))
+
 ## [0.0.130](https://github.com/Amazon-Q-Developer/language-servers/compare/lsp-codewhisperer/v0.0.129...lsp-codewhisperer/v0.0.130) (2026-10-08)
 
 
