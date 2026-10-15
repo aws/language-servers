@@ -12,6 +12,7 @@ import { FsReplace } from './fsReplace'
 import { ListDirectory } from './listDirectory'
 import { FileSearch } from './fileSearch'
 import { resolveCanonicalPath, requiresPathAcceptance, validatePath } from './toolShared'
+import { withCheckedFileOperations } from './checkedFileFixtures.test'
 
 /**
  * Regression tests for `~` paths passed to the file tools.
@@ -64,8 +65,8 @@ describe('workspace boundary for ~ paths', () => {
             .then(() => true)
             .catch(() => false)
 
-    const makeFeatures = (): Pick<Features, 'logging' | 'workspace' | 'lsp'> =>
-        ({
+    const makeFeatures = (): Pick<Features, 'logging' | 'workspace' | 'lsp'> => {
+        const features = {
             logging: noopLogging,
             lsp: {},
             workspace: {
@@ -84,7 +85,10 @@ describe('workspace boundary for ~ paths', () => {
                     },
                 },
             },
-        }) as unknown as Pick<Features, 'logging' | 'workspace' | 'lsp'>
+        } as unknown as Pick<Features, 'logging' | 'workspace' | 'lsp'>
+        features.workspace.fs = withCheckedFileOperations(features.workspace.fs)
+        return features
+    }
 
     const canon = async (p: string): Promise<string> => fs.promises.realpath(p)
 
@@ -208,10 +212,14 @@ describe('workspace boundary for ~ paths', () => {
             const tool = new FsRead(makeFeatures())
             const approval = await tool.requiresAcceptance({ paths: [tildePath] })
             assert.strictEqual(approval.requiresAcceptance, true)
+            const targets = approval.checkedTargets
+            assert.ok(targets)
+            assert.strictEqual(targets.length, 1)
+            assert.strictEqual(targets[0].path, await canon(outsideFile))
 
             fs.rmSync(insideFile)
-            await tool.validate({ paths: [tildePath] })
-            const result = await tool.invoke({ paths: [tildePath] })
+            await tool.validate({ paths: [tildePath] }, targets)
+            const result = await tool.invoke({ paths: [tildePath] }, targets)
             assert.strictEqual(result.output.kind, 'json')
             const content = result.output.content as FileReadResult[]
             assert.strictEqual(content.length, 1)
@@ -223,9 +231,12 @@ describe('workspace boundary for ~ paths', () => {
             const params = { command: 'create' as const, path: tildePath, fileText: 'CHANGED' }
             const approval = await tool.requiresAcceptance(params)
             assert.strictEqual(approval.requiresAcceptance, true)
+            const target = approval.checkedTargets?.[0]
+            assert.ok(target)
+            assert.strictEqual(target.path, await canon(outsideFile))
 
-            await tool.validate(params)
-            await tool.invoke(params)
+            await tool.validate(params, target)
+            await tool.invoke(params, target)
             assert.strictEqual(fs.readFileSync(outsideFile, 'utf-8'), 'CHANGED')
             assert.strictEqual(
                 fs.readFileSync(insideFile, 'utf-8'),
@@ -239,9 +250,12 @@ describe('workspace boundary for ~ paths', () => {
             const params = { path: tildePath, diffs: [{ oldStr: outsideContent, newStr: 'REPLACED' }] }
             const approval = await tool.requiresAcceptance(params)
             assert.strictEqual(approval.requiresAcceptance, true)
+            const target = approval.checkedTargets?.[0]
+            assert.ok(target)
+            assert.strictEqual(target.path, await canon(outsideFile))
 
-            await tool.validate(params)
-            await tool.invoke(params)
+            await tool.validate(params, target)
+            await tool.invoke(params, target)
             assert.strictEqual(fs.readFileSync(outsideFile, 'utf-8'), 'REPLACED')
             assert.strictEqual(
                 fs.readFileSync(insideFile, 'utf-8'),
@@ -256,8 +270,11 @@ describe('workspace boundary for ~ paths', () => {
             const params = { path: '~', maxDepth: 0 }
             const approval = await tool.requiresAcceptance(params)
             assert.strictEqual(approval.requiresAcceptance, true)
-            await tool.validate(params)
-            const result = await tool.invoke(params)
+            const target = approval.checkedTargets?.[0]
+            assert.ok(target)
+            assert.strictEqual(target.path, await canon(home))
+            await tool.validate(params, target.path)
+            const result = await tool.invoke(params, target.path)
             assert.strictEqual(result.output.kind, 'text')
             const content = result.output.content as string
             assert.strictEqual(content.split('\n')[0], `${await canon(home)}/`)
@@ -270,8 +287,11 @@ describe('workspace boundary for ~ paths', () => {
             const params = { path: '~', queryName: fileName, maxDepth: 0 }
             const approval = await tool.requiresAcceptance(params)
             assert.strictEqual(approval.requiresAcceptance, true)
-            await tool.validate(params)
-            const result = await tool.invoke(params)
+            const target = approval.checkedTargets?.[0]
+            assert.ok(target)
+            assert.strictEqual(target.path, await canon(home))
+            await tool.validate(params, target.path)
+            const result = await tool.invoke(params, target.path)
             assert.strictEqual(result.output.kind, 'text')
             assert.strictEqual(result.output.content, `[F] ${await canon(outsideFile)}`)
         })
