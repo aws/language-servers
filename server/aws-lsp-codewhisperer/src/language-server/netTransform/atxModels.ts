@@ -153,6 +153,9 @@ export interface AtxGetTransformInfoResponse {
     TransformationPlan?: AtxTransformationPlan | null
     ArtifactPath?: string | null
     ErrorString?: string | null
+    // When GetJob failed: the service error code (e.g. AccessDeniedException) and HTTP status. Never the message.
+    ErrorCode?: string
+    StatusCode?: number
     StepInformation?: AtxStepInformation | null
     HitlTag?: string | null
     HitlTaskId?: string | null

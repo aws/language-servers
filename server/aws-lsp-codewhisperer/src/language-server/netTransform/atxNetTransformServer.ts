@@ -8,6 +8,7 @@ import {
 import { AtxTokenServiceManager } from '../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { ATXTransformHandler } from './atxTransformHandler'
 import { AtxTransformHandlerLegacy } from './atxTransformHandlerLegacy'
+import { getAtxErrorInfo } from './atxErrorInfo'
 import {
     AtxListOrCreateWorkspaceRequest,
     AtxListJobsRequest,
@@ -316,7 +317,9 @@ export const AtxNetTransformServerToken =
                 }
             } catch (e: any) {
                 logging.error(`ATXTransformServer: Error executing command: ${String(e)}`)
-                return { error: true, message: e.message }
+                // errorCode and statusCode let the IDE act on the failure (e.g. stop polling on AccessDenied)
+                // without reading the message.
+                return { error: true, message: e.message, ...getAtxErrorInfo(e) }
             }
         }
 

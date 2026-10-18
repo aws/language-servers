@@ -68,6 +68,7 @@ import {
     AtxValidateSessionResponse,
 } from './atxModels'
 import { classifyAtxSessionValidationError } from './atxSessionValidation'
+import { AtxErrorInfo, getAtxErrorInfo } from './atxErrorInfo'
 import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
 
@@ -1539,7 +1540,15 @@ export class ATXTransformHandler {
         }
     }
 
-    async getJob(workspaceId: string, jobId: string, includeObjective: boolean = false): Promise<JobInfo | null> {
+    /**
+     * @param errorInfo When given, receives the error code and HTTP status if GetJob fails (the result is still null).
+     */
+    async getJob(
+        workspaceId: string,
+        jobId: string,
+        includeObjective: boolean = false,
+        errorInfo?: AtxErrorInfo
+    ): Promise<JobInfo | null> {
         try {
             this.logging.log(`ATX: Getting job: ${jobId} in workspace: ${workspaceId}`)
 
@@ -1561,6 +1570,9 @@ export class ATXTransformHandler {
             return response.job || null
         } catch (error) {
             this.logging.error(`ATX: GetJob error: ${String(error)}`)
+            if (errorInfo) {
+                Object.assign(errorInfo, getAtxErrorInfo(error))
+            }
             return null
         }
     }
@@ -2094,13 +2106,17 @@ export class ATXTransformHandler {
 
             // Check if we need to determine interactive mode from the job objective
             const needObjective = this.getCachedInteractiveMode(request.TransformationJobId) === null
-            const job = await this.getJob(request.WorkspaceId, request.TransformationJobId, needObjective)
+            const getJobError: AtxErrorInfo = {}
+            const job = await this.getJob(request.WorkspaceId, request.TransformationJobId, needObjective, getJobError)
 
             if (!job) {
                 this.logging.error(`ATX: Job not found: ${request.TransformationJobId}`)
+                // ErrorString stays JOB_NOT_FOUND for older IDEs; ErrorCode/StatusCode say why (e.g. AccessDenied).
                 return {
                     TransformationJob: null,
                     ErrorString: 'JOB_NOT_FOUND',
+                    ErrorCode: getJobError.errorCode,
+                    StatusCode: getJobError.statusCode,
                 } as unknown as AtxGetTransformInfoResponse
             }
 
