@@ -3665,12 +3665,12 @@ ${' '.repeat(8)}}
                 )
                 sinon.assert.notCalled(run)
                 const confirmation = stream.writeResultBlock.firstCall.args[0] as ChatResult
-                assert.strictEqual(confirmation.header?.status?.icon, 'warning')
-                assert.strictEqual(confirmation.header?.status?.status, 'warning')
-                assert.strictEqual(
-                    confirmation.header?.status?.description,
-                    'This command may cause significant data loss or damage.'
-                )
+                assert.deepStrictEqual(confirmation.header?.status, {
+                    icon: 'warning',
+                    status: 'warning',
+                    position: 'left',
+                    description: 'This command may cause significant data loss or damage.',
+                })
             })
         }
 
