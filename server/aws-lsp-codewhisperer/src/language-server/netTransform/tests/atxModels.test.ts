@@ -2,6 +2,8 @@ import { expect } from 'chai'
 import {
     ATX_TEST_RUN_BASE_URL_ENV,
     ATX_TEST_RUN_SCHEMA_VERSION,
+    AtxAppLaunchRequest,
+    AtxAppLaunchResult,
     AtxTestRunRequest,
     AtxTestRunSummary,
     isSupportedAtxTestRunSchemaVersion,
@@ -115,6 +117,67 @@ describe('atxModels test-run contract', () => {
             expect(summary.counts).to.deep.equal({ total: 24, passed: 23, failed: 1, pending: 0 })
             expect(summary.failingTests).to.have.length(1)
             expect(JSON.parse(JSON.stringify(summary))).to.deep.equal(JSON.parse(bobsBookstoreSummaryJson))
+        })
+    })
+
+    describe('AtxAppLaunchRequest and AtxAppLaunchResult', () => {
+        // The real first launch of Bob's Used Bookstore (original code): HTTP 500 on the health check.
+        const bobsBookstoreLaunchResultJson = `{
+    "schemaVersion": "1.0",
+    "side": "original",
+    "project": "Bookstore.Web",
+    "attempt": 1,
+    "status": "APP_NOT_STARTED",
+    "appUrl": "http://localhost:57150",
+    "healthCheck": { "path": "/", "httpStatus": 500 },
+    "error": "Could not load file or assembly 'System.ValueTuple, Version=4.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51' or one of its dependencies. The system cannot find the file specified.",
+    "logFile": "app-startup.log",
+    "durationSeconds": 9
+}`
+
+        it('parses the Bob’s Bookstore failed launch and round-trips it', () => {
+            const result: AtxAppLaunchResult = JSON.parse(bobsBookstoreLaunchResultJson)
+
+            expect(isSupportedAtxTestRunSchemaVersion(result.schemaVersion)).to.equal(true)
+            expect(result.status).to.equal('APP_NOT_STARTED')
+            expect(result.healthCheck).to.deep.equal({ path: '/', httpStatus: 500 })
+            expect(result.logFile).to.equal('app-startup.log')
+            expect(JSON.parse(JSON.stringify(result))).to.deep.equal(JSON.parse(bobsBookstoreLaunchResultJson))
+        })
+
+        it('reuses the test-run app block', () => {
+            const request: AtxAppLaunchRequest = {
+                schemaVersion: ATX_TEST_RUN_SCHEMA_VERSION,
+                side: 'transformed',
+                project: 'SampleWebApi',
+                attempt: 2,
+                app: { webProject: 'SampleWebApi/SampleWebApi.csproj', host: 'dotnet-run' },
+            }
+
+            const json = JSON.parse(JSON.stringify(request))
+
+            expect(json.attempt).to.equal(2)
+            expect(json.app.host).to.equal('dotnet-run')
+            expect(json.app).to.not.have.property('healthCheckPaths')
+        })
+
+        it('reports a started launch without error or log file', () => {
+            const result: AtxAppLaunchResult = {
+                schemaVersion: ATX_TEST_RUN_SCHEMA_VERSION,
+                side: 'transformed',
+                project: 'SampleWebApi',
+                attempt: 2,
+                status: 'STARTED',
+                appUrl: 'http://localhost:5003',
+                healthCheck: { path: '/', httpStatus: 200 },
+                durationSeconds: 14,
+            }
+
+            const json = JSON.parse(JSON.stringify(result))
+
+            expect(json.status).to.equal('STARTED')
+            expect(json).to.not.have.property('error')
+            expect(json).to.not.have.property('logFile')
         })
     })
 })

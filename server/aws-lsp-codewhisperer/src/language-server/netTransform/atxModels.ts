@@ -347,7 +347,8 @@ export interface AtxLoadOlderWorklogsRequest extends ExecuteCommandParams {
 }
 
 // ITGen test-run HITL payloads (ITGen–IDE contract v0, schema 1.0). Draft: names follow the v0
-// proposal and match C# AtxTestRunRequest / AtxTestRunSummary in the VS extension.
+// proposal and match C# AtxTestRunRequest / AtxTestRunSummary / AtxAppLaunchRequest /
+// AtxAppLaunchResult in the VS extension.
 
 export const ATX_TEST_RUN_SCHEMA_VERSION = '1.0'
 export const ATX_TEST_RUN_BASE_URL_ENV = 'AB_BASE_URL'
@@ -376,18 +377,61 @@ export interface AtxTestRunRequest {
     tests: {
         projectPath: string
     }
-    app: {
-        webProject: string
-        host: 'iisexpress' | 'dotnet-run'
-        healthCheckPaths?: string[]
-        startTimeoutSeconds?: number
-    }
+    app: AtxTestRunApp
     // The IDE picks a free localhost port and adds ATX_TEST_RUN_BASE_URL_ENV
     env?: Record<string, string>
     limits: {
         projectTimeoutSeconds: number
         maxResultZipMB: number
     }
+}
+
+/**
+ * How to start the app under test. Shared by the test-run and app-launch requests.
+ * Matches C# AtxTestRunApp class.
+ */
+export interface AtxTestRunApp {
+    webProject: string
+    host: 'iisexpress' | 'dotnet-run'
+    healthCheckPaths?: string[]
+    startTimeoutSeconds?: number
+}
+
+export type AtxAppLaunchStatus = 'STARTED' | 'APP_NOT_STARTED'
+
+/**
+ * Request from the Transform agent to start one web project (request.json of an integ-app-launch HITL),
+ * one per launch attempt. Contract v0 defines only the result, so this shape is a proposal. Like LBV's
+ * rounds, the number of attempts is the agent's decision, so there's no limit field.
+ * Matches C# AtxAppLaunchRequest class.
+ */
+export interface AtxAppLaunchRequest {
+    schemaVersion: string
+    side: AtxTestRunSide
+    project: string
+    attempt: number
+    app: AtxTestRunApp
+}
+
+/**
+ * Result of one launch attempt (launch-result.json), with the startup log uploaded as logFile.
+ * Matches C# AtxAppLaunchResult class.
+ */
+export interface AtxAppLaunchResult {
+    schemaVersion: string
+    side: AtxTestRunSide
+    project: string
+    attempt: number
+    status: AtxAppLaunchStatus
+    appUrl?: string
+    // The last health check; httpStatus is absent when the app didn't answer
+    healthCheck?: {
+        path: string
+        httpStatus?: number
+    }
+    error?: string
+    logFile?: string
+    durationSeconds: number
 }
 
 /**
