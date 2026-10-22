@@ -26,10 +26,23 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     // Customer's up-front unit-test choice, forwarded to the ATX job objective as
     // `generate_unit_tests`. Optional: absent means "no choice sent" (legacy behavior).
     GenerateUnitTests?: boolean
+    // Customer's up-front "Generate and run integration tests on this machine" choice, forwarded to the ATX
+    // job objective. Optional: absent means "no choice sent" (legacy behavior).
+    GenerateIntegrationTests?: boolean
+    // Browser found on the customer's machine for running the generated tests against localhost.
+    // Only sent by the client when GenerateIntegrationTests is true.
+    Browser?: BrowserInfo
     PackageReferences?: PackageReferenceMetadata[]
     DmsArn?: string
     DatabaseSettings?: DatabaseSettings
     IncludeMissingPackageAnalysis?: boolean
+}
+
+export interface BrowserInfo {
+    // 'edge', 'chrome', or 'none' when no supported browser was found
+    Type: string
+    // File version of the browser executable; null when Type is 'none'
+    Version?: string | null
 }
 
 export interface StartTransformResponse {

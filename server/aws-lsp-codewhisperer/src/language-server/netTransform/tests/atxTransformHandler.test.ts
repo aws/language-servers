@@ -5,7 +5,11 @@ import * as path from 'path'
 import * as os from 'os'
 import { Readable } from 'stream'
 import got from 'got'
-import { ATXTransformHandler } from '../atxTransformHandler'
+import {
+    ATXTransformHandler,
+    ATX_OBJECTIVE_BROWSER_KEY,
+    ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY,
+} from '../atxTransformHandler'
 import { workspaceFolderName } from '../utils'
 import { AtxTokenServiceManager } from '../../../shared/amazonQServiceManager/AtxTokenServiceManager'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
@@ -2469,6 +2473,85 @@ describe('ATXTransformHandler - lifecycle (startTransform & helpers)', () => {
             const objective = JSON.parse(command.input.objective)
             expect(objective).to.not.have.property('generate_unit_tests')
         })
+
+        it('should include generate_integration_tests:true in objective when opted in', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1', generateIntegrationTests: true })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective[ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY]).to.equal(true)
+        })
+
+        it('should include generate_integration_tests:false in objective on explicit decline', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1', generateIntegrationTests: false })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective[ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY]).to.equal(false)
+        })
+
+        it('should omit generate_integration_tests and browser from objective when no choice is sent', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1' })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective).to.not.have.property(ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY)
+            expect(objective).to.not.have.property(ATX_OBJECTIVE_BROWSER_KEY)
+        })
+
+        it('should omit generate_integration_tests when the value is not a real boolean', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1', generateIntegrationTests: 'true' as any })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective).to.not.have.property(ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY)
+        })
+
+        it('should include browser type and version in objective', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({
+                workspaceId: 'ws-1',
+                generateIntegrationTests: true,
+                browser: { Type: 'edge', Version: '130.0.2849.68' },
+            })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective[ATX_OBJECTIVE_BROWSER_KEY]).to.deep.equal({ type: 'edge', version: '130.0.2849.68' })
+        })
+
+        it('should send a null browser version when no browser was found', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({
+                workspaceId: 'ws-1',
+                generateIntegrationTests: true,
+                browser: { Type: 'none', Version: null },
+            })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective[ATX_OBJECTIVE_BROWSER_KEY]).to.deep.equal({ type: 'none', version: null })
+        })
+
+        it('should omit browser when it is malformed', async () => {
+            sendStub.resolves({ jobId: 'j', status: 'CREATED' })
+
+            await handler.createJob({ workspaceId: 'ws-1', browser: { Version: '1.0' } as any })
+
+            const command = sendStub.firstCall.args[0]
+            const objective = JSON.parse(command.input.objective)
+            expect(objective).to.not.have.property(ATX_OBJECTIVE_BROWSER_KEY)
+        })
     })
 
     describe('createArtifactUploadUrl', () => {
@@ -2571,6 +2654,23 @@ describe('ATXTransformHandler - lifecycle (startTransform & helpers)', () => {
     })
 
     describe('startTransform', () => {
+        it('should forward GenerateIntegrationTests and Browser from the start request to createJob', async () => {
+            const createJobStub = sinon.stub(handler, 'createJob').resolves(null)
+
+            await handler.startTransform({
+                workspaceId: 'ws-1',
+                startTransformRequest: {
+                    TargetFramework: 'net8.0',
+                    GenerateIntegrationTests: true,
+                    Browser: { Type: 'chrome', Version: '131.0.6778.86' },
+                },
+            })
+
+            const args = createJobStub.firstCall.args[0]
+            expect(args.generateIntegrationTests).to.equal(true)
+            expect(args.browser).to.deep.equal({ Type: 'chrome', Version: '131.0.6778.86' })
+        })
+
         it('should return null when createJob returns null', async () => {
             sinon.stub(handler, 'createJob').resolves(null)
 
