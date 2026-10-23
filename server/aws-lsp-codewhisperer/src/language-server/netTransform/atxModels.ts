@@ -358,42 +358,41 @@ export type AtxTestRunSide = 'original' | 'transformed'
 export type AtxTestRunStatus = 'COMPLETED' | 'TEST_BUILD_FAILED' | 'TIMED_OUT' | 'NOT_LOCALHOST'
 
 /**
- * Request from the Transform agent to run one test project (request.json of an integ-test-run HITL).
+ * Request from the Transform agent to run one test project (request.json of an integ-test-run HITL)
+ * against the app the IDE started for the preceding integ-app-launch. Only what the IDE can't work
+ * out itself is sent: the IDE sets ATX_TEST_RUN_BASE_URL_ENV, AB_SIDE and AB_RUN_ID for the test
+ * process, and the language server picks the download folder.
  * Matches C# AtxTestRunRequest class.
  */
 export interface AtxTestRunRequest {
     schemaVersion: string
+    // Names the TRX file (trx/<project>/<runId>.trx) and is echoed in the summary
     runId: string
+    // Also says where the app runs from: original = the copy uploaded at job start
+    // (artifactWorkspace/<upload folder>/artifact/sourceCode), transformed = the customer's solution
     side: AtxTestRunSide
     project: string
-    round: number
     // The repo artifact the agent rewrites, holding the generated test projects: one per repo,
-    // rewritten under the same id, so download it again for every request. The app itself starts
-    // from local code chosen by side: original = the copy uploaded at job start
-    // (artifactWorkspace/<upload folder>/artifact/sourceCode), transformed = the customer's solution.
+    // rewritten under the same id, so download it again for every request
     artifactId: string
-    localFolder?: string
     // projectPath is inside the artifact, relative to the repo root
     tests: {
         projectPath: string
     }
-    app: AtxTestRunApp
-    // The IDE picks a free localhost port and adds ATX_TEST_RUN_BASE_URL_ENV
-    env?: Record<string, string>
     limits: {
         projectTimeoutSeconds: number
-        maxResultZipMB: number
     }
 }
 
 /**
- * How to start the app under test. Shared by the test-run and app-launch requests.
- * Matches C# AtxTestRunApp class.
+ * App to start for an app-launch request. The IDE picks the host from the project type and a free
+ * localhost port. Matches C# AtxAppLaunchApp class.
  */
-export interface AtxTestRunApp {
+export interface AtxAppLaunchApp {
     webProject: string
-    host: 'iisexpress' | 'dotnet-run'
+    // Default ['/']: connection refused or HTTP 5xx means not started
     healthCheckPaths?: string[]
+    // Default 120
     startTimeoutSeconds?: number
 }
 
@@ -410,7 +409,7 @@ export interface AtxAppLaunchRequest {
     side: AtxTestRunSide
     project: string
     attempt: number
-    app: AtxTestRunApp
+    app: AtxAppLaunchApp
 }
 
 /**

@@ -1,6 +1,5 @@
 import { expect } from 'chai'
 import {
-    ATX_TEST_RUN_BASE_URL_ENV,
     ATX_TEST_RUN_SCHEMA_VERSION,
     AtxAppLaunchRequest,
     AtxAppLaunchResult,
@@ -10,24 +9,15 @@ import {
 } from '../atxModels'
 
 // From a real run on Bob's Used Bookstore (original code), reshaped to contract v0 schema 1.0:
-// the artifact id and folder are mock values. Same data as the VS extension's contract tests.
+// the artifact id is a mock value. Same data as the VS extension's contract tests.
 const bobsBookstoreRequestJson = `{
     "schemaVersion": "1.0",
     "runId": "r1",
     "side": "original",
     "project": "Bookstore.Web",
-    "round": 1,
     "artifactId": "mock-bobs-bookstore-repo",
-    "localFolder": "artifactWorkspace/mock-bobs-bookstore-job/itgen/r1/repo",
     "tests": { "projectPath": "ITGen/Bookstore.IntegrationTests/Bookstore.IntegrationTests.csproj" },
-    "app": {
-        "webProject": "app/Bookstore.Web/Bookstore.Web.csproj",
-        "host": "iisexpress",
-        "healthCheckPaths": ["/"],
-        "startTimeoutSeconds": 120
-    },
-    "env": { "AB_SIDE": "pre", "AB_RUN_ID": "r1" },
-    "limits": { "projectTimeoutSeconds": 1800, "maxResultZipMB": 20 }
+    "limits": { "projectTimeoutSeconds": 1800 }
 }`
 
 const bobsBookstoreSummaryJson = `{
@@ -78,8 +68,9 @@ describe('atxModels test-run contract', () => {
             expect(isSupportedAtxTestRunSchemaVersion(request.schemaVersion)).to.equal(true)
             expect(request.side).to.equal('original')
             expect(request.artifactId).to.equal('mock-bobs-bookstore-repo')
-            expect(request.env?.[ATX_TEST_RUN_BASE_URL_ENV]).to.equal(undefined)
-            expect(request.app.healthCheckPaths).to.deep.equal(['/'])
+            expect(request.tests.projectPath).to.equal(
+                'ITGen/Bookstore.IntegrationTests/Bookstore.IntegrationTests.csproj'
+            )
             expect(request.limits.projectTimeoutSeconds).to.equal(1800)
             expect(JSON.parse(JSON.stringify(request))).to.deep.equal(JSON.parse(bobsBookstoreRequestJson))
         })
@@ -90,20 +81,19 @@ describe('atxModels test-run contract', () => {
                 runId: 'p5',
                 side: 'transformed',
                 project: 'SampleWebApi.Admin',
-                round: 1,
                 artifactId: '9d2c41e7-sample-web-api-repo',
                 tests: {
                     projectPath: 'GeneratedApiTests.SampleWebApi.Admin/GeneratedApiTests.SampleWebApi.Admin.csproj',
                 },
-                app: { webProject: 'SampleWebApi.Admin/SampleWebApi.Admin.csproj', host: 'dotnet-run' },
-                limits: { projectTimeoutSeconds: 1800, maxResultZipMB: 20 },
+                limits: { projectTimeoutSeconds: 1800 },
             }
 
             const json = JSON.parse(JSON.stringify(request))
 
             expect(json.artifactId).to.equal('9d2c41e7-sample-web-api-repo')
-            expect(json).to.not.have.property('code')
-            expect(json).to.not.have.property('env')
+            expect(Object.keys(json).sort()).to.deep.equal(
+                ['artifactId', 'limits', 'project', 'runId', 'schemaVersion', 'side', 'tests'].sort()
+            )
         })
     })
 
@@ -145,20 +135,19 @@ describe('atxModels test-run contract', () => {
             expect(JSON.parse(JSON.stringify(result))).to.deep.equal(JSON.parse(bobsBookstoreLaunchResultJson))
         })
 
-        it('reuses the test-run app block', () => {
+        it('sends only the web project when the health-check defaults apply', () => {
             const request: AtxAppLaunchRequest = {
                 schemaVersion: ATX_TEST_RUN_SCHEMA_VERSION,
                 side: 'transformed',
                 project: 'SampleWebApi',
                 attempt: 2,
-                app: { webProject: 'SampleWebApi/SampleWebApi.csproj', host: 'dotnet-run' },
+                app: { webProject: 'SampleWebApi/SampleWebApi.csproj' },
             }
 
             const json = JSON.parse(JSON.stringify(request))
 
             expect(json.attempt).to.equal(2)
-            expect(json.app.host).to.equal('dotnet-run')
-            expect(json.app).to.not.have.property('healthCheckPaths')
+            expect(Object.keys(json.app)).to.deep.equal(['webProject'])
         })
 
         it('reports a started launch without error or log file', () => {
