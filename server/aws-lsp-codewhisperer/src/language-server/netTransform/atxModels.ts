@@ -345,3 +345,128 @@ export interface AtxLoadOlderWorklogsRequest extends ExecuteCommandParams {
     solutionRootPath: string
     nextToken?: string
 }
+
+// ITGen test-run HITL payloads (ITGen–IDE contract v0, schema 1.0). Draft: names follow the v0
+// proposal and match C# AtxTestRunRequest / AtxTestRunSummary / AtxAppLaunchRequest /
+// AtxAppLaunchResult in the VS extension.
+
+export const ATX_TEST_RUN_SCHEMA_VERSION = '1.0'
+export const ATX_TEST_RUN_BASE_URL_ENV = 'AB_BASE_URL'
+
+export type AtxTestRunSide = 'original' | 'transformed'
+
+export type AtxTestRunStatus = 'COMPLETED' | 'TEST_BUILD_FAILED' | 'TIMED_OUT' | 'NOT_LOCALHOST'
+
+/**
+ * Request from the Transform agent to run one test project (request.json of an integ-test-run HITL)
+ * against the app the IDE started for the preceding integ-app-launch. Only what the IDE can't work
+ * out itself is sent: the IDE sets ATX_TEST_RUN_BASE_URL_ENV, AB_SIDE and AB_RUN_ID for the test
+ * process, and the language server picks the download folder.
+ * Matches C# AtxTestRunRequest class.
+ */
+export interface AtxTestRunRequest {
+    schemaVersion: string
+    // Names the TRX file (trx/<project>/<runId>.trx) and is echoed in the summary
+    runId: string
+    // Also says where the app runs from: original = the copy uploaded at job start
+    // (artifactWorkspace/<upload folder>/artifact/sourceCode), transformed = the customer's solution
+    side: AtxTestRunSide
+    project: string
+    // The repo artifact the agent rewrites, holding the generated test projects: one per repo,
+    // rewritten under the same id, so download it again for every request
+    artifactId: string
+    // projectPath is inside the artifact, relative to the repo root
+    tests: {
+        projectPath: string
+    }
+    limits: {
+        projectTimeoutSeconds: number
+    }
+}
+
+/**
+ * App to start for an app-launch request. The IDE picks the host from the project type and a free
+ * localhost port. Matches C# AtxAppLaunchApp class.
+ */
+export interface AtxAppLaunchApp {
+    webProject: string
+    // Default ['/']: connection refused or HTTP 5xx means not started
+    healthCheckPaths?: string[]
+    // Default 120
+    startTimeoutSeconds?: number
+}
+
+export type AtxAppLaunchStatus = 'STARTED' | 'APP_NOT_STARTED'
+
+/**
+ * Request from the Transform agent to start one web project (request.json of an integ-app-launch HITL),
+ * one per launch attempt. Contract v0 defines only the result, so this shape is a proposal. Like LBV's
+ * rounds, the number of attempts is the agent's decision, so there's no limit field.
+ * Matches C# AtxAppLaunchRequest class.
+ */
+export interface AtxAppLaunchRequest {
+    schemaVersion: string
+    side: AtxTestRunSide
+    project: string
+    attempt: number
+    app: AtxAppLaunchApp
+}
+
+/**
+ * Result of one launch attempt (launch-result.json), with the startup log uploaded as logFile.
+ * Matches C# AtxAppLaunchResult class.
+ */
+export interface AtxAppLaunchResult {
+    schemaVersion: string
+    side: AtxTestRunSide
+    project: string
+    attempt: number
+    status: AtxAppLaunchStatus
+    appUrl?: string
+    // The last health check; httpStatus is absent when the app didn't answer
+    healthCheck?: {
+        path: string
+        httpStatus?: number
+    }
+    error?: string
+    logFile?: string
+    durationSeconds: number
+}
+
+/**
+ * Result of one project run (summary.json in the result ZIP; the TRX is at trx/<project>/<runId>.trx).
+ * Matches C# AtxTestRunSummary class.
+ */
+export interface AtxTestRunSummary {
+    schemaVersion: string
+    runId: string
+    side: AtxTestRunSide
+    project: string
+    status: AtxTestRunStatus
+    appUrl?: string
+    startedAt?: string
+    finishedAt?: string
+    durationSeconds: number
+    counts: {
+        total: number
+        passed: number
+        failed: number
+        pending: number
+    }
+    failingTests: {
+        name: string
+        message: string
+    }[]
+}
+
+/**
+ * True when a test-run payload's schemaVersion has the same major version as
+ * ATX_TEST_RUN_SCHEMA_VERSION; minor versions only add optional fields.
+ */
+export function isSupportedAtxTestRunSchemaVersion(schemaVersion: unknown): boolean {
+    if (typeof schemaVersion !== 'string') {
+        return false
+    }
+    const match = /^(\d+)\.\d+$/.exec(schemaVersion)
+    return match !== null && match[1] === ATX_TEST_RUN_SCHEMA_VERSION.split('.')[0]
+}
