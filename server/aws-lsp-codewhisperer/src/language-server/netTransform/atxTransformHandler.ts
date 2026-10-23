@@ -68,6 +68,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { request } from 'http'
 
 import { Utils, workspaceFolderName } from './utils'
+import { BrowserInfo } from './models'
+
+// ATX job objective keys for the "Generate and run integration tests on this machine" option.
+// TODO: key name pending confirmation from the Transform agent (C1) - change it here only.
+export const ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY = 'generate_integration_tests'
+export const ATX_OBJECTIVE_BROWSER_KEY = 'browser'
 
 /**
  * Context object for tracking diff apply failures within a single getTransformInfo call.
@@ -569,6 +575,8 @@ export class ATXTransformHandler {
         targetFramework?: string
         interactiveMode?: InteractiveMode
         generateUnitTests?: boolean
+        generateIntegrationTests?: boolean
+        browser?: BrowserInfo
     }): Promise<{ jobId: string; status: string } | null> {
         try {
             this.logging.log(`ATX: Starting CreateJob for workspace: ${request.workspaceId}`)
@@ -596,6 +604,21 @@ export class ATXTransformHandler {
             // Do NOT default this to false here - an explicit false is a decline, not "no choice".
             if (typeof request.generateUnitTests === 'boolean') {
                 objective.generate_unit_tests = request.generateUnitTests
+            }
+
+            // The customer's up-front "Generate and run integration tests on this machine" choice. Same rule as unit tests:
+            // only a real boolean counts, and an explicit false is a decline.
+            if (typeof request.generateIntegrationTests === 'boolean') {
+                objective[ATX_OBJECTIVE_GENERATE_INTEGRATION_TESTS_KEY] = request.generateIntegrationTests
+            }
+
+            // Browser used to run the generated tests against localhost. The client only sends it
+            // when integration tests are requested; drop anything that isn't a well-formed object.
+            if (request.browser && typeof request.browser.Type === 'string') {
+                objective[ATX_OBJECTIVE_BROWSER_KEY] = {
+                    type: request.browser.Type,
+                    version: typeof request.browser.Version === 'string' ? request.browser.Version : null,
+                }
             }
 
             const orchestratorAgent = getAtxOrchestratorAgent()
@@ -1339,6 +1362,8 @@ export class ATXTransformHandler {
                 targetFramework: (request.startTransformRequest as any).TargetFramework,
                 interactiveMode: request.interactiveMode,
                 generateUnitTests: (request.startTransformRequest as any).GenerateUnitTests,
+                generateIntegrationTests: (request.startTransformRequest as any).GenerateIntegrationTests,
+                browser: (request.startTransformRequest as any).Browser,
             })
 
             if (!createJobResponse?.jobId) {
